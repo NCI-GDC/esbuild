@@ -1,0 +1,37 @@
+language: python
+
+python:
+  - "2.7"
+
+sudo: false
+
+services:
+  - elasticsearch
+
+cache:
+  # pip: true  # We have overridden the default install step, caching manually
+  # ref: <https://docs.travis-ci.com/user/caching/#Arbitrary-directories>
+  - directories:
+      - /home/travis/virtualenv/python2.7.9/lib/python2.7/site-packages
+      - $HOME/.pip-cache
+  - apt
+
+env:
+  ES_HOST='localhost'
+
+addons:
+  postgresql: '9.4'
+
+before_install:
+  # bust only the the part of the cache that we are frequently
+  # changing
+  - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
+
+install:
+  - pip install -r requirements.txt
+  - pip install -r dev-requirements.txt
+
+before_script:
+  - pip freeze
+
+script: "PYTHONPATH=. py.test -vv tests/"
