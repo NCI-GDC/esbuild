@@ -350,6 +350,7 @@ def flatten_data_type(root):
 def patch_file_timestamps(doc):
     doc.properties.uploaded_datetime = LONG
     doc.properties.published_datetime = LONG
+    return doc
 
 
 def nested(source):
@@ -384,20 +385,21 @@ def get_file_es_mapping(include_case=True):
     add_multifields(files, 'files')
 
     # Related files
-    related_files = nested('file')
+    related_files = patch_file_timestamps(nested('file'))
     related_files.properties.type = STRING
-
-    # data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    #   data_type is renamed data_category, viz.
+    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
     related_files.properties.data_category = STRING
-
-    # data_subtype is renamed data_type, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    #   data_subtype is renamed data_type, viz.
+    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
     related_files.properties.data_type = STRING
-
     related_files.properties.access = STRING
-    patch_file_timestamps(related_files)
     files.properties.related_files = related_files
+
+    # Index files
+    index_files = patch_file_timestamps(nested('file'))
+    index_files.properties.file_format = STRING
+    files.properties.index_files = index_files
 
     # Temporary until datetimes are backported
     patch_file_timestamps(files)
@@ -432,15 +434,12 @@ def get_case_es_mapping(include_file=True):
 
     # Metadata files
     case.properties.metadata_files = nested('file')
-
-    # data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    #   data_type is renamed data_category, viz.
+    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
     case.properties.metadata_files.properties.data_category = STRING
-
-    # data_subtype is renamed data_type, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    #   data_subtype is renamed data_type, viz.
+    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
     case.properties.metadata_files.properties.data_type = STRING
-
     case.properties.metadata_files.properties.acl = STRING
 
     # Add top level id aggregation
