@@ -1,6 +1,6 @@
 from base import TestBase
 from elasticsearch import Elasticsearch
-from gdcdatamodel.models import File, Aliquot
+from gdcdatamodel.models import File
 from elasticsearch.exceptions import AuthorizationException
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from prelude import create_prelude_nodes
