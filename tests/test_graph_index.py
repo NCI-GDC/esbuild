@@ -33,66 +33,12 @@ class TestGraphIndexBuilder(TestBase):
         super(TestGraphIndexBuilder, cls).setUpClass()
         cls.delete_all_nodes()
 
-    def delete_non_prelude_nodes(self):
-        self.logger.info('Deleting all non-prelude nodes')
-
-        with self.g.session_scope():
-            for scls in Node.get_subclasses():
-                self.g.nodes(scls).not_sysan(is_prelude=True)\
-                                  .delete(synchronize_session='fetch')
-
-        with self.g.engine.begin() as conn:
-            conn.execute('TRUNCATE _voided_nodes, _voided_edges')
-
     def setUp(self):
         super(TestGraphIndexBuilder, self).setUp()
         self.delete_non_prelude_nodes()
         es_fixtures.insert(self.g)
         self.add_file_nodes()
         self.convert_documents()
-
-    def add_file_nodes(self):
-        self.live_file = md.File(
-            node_id='file1',
-            project_id='TCGA-BRCA',
-            file_name='TCGA-WR-A838-01A-12R-A406-31_rnaseq_fastq.tar',
-            file_size=12916551680,
-            md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
-            state='live',
-            file_state='submitted',
-            state_comment=None,
-            submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
-            error_type=None,
-        )
-
-        self.to_delete_file = md.File(
-            node_id='file2',
-            project_id='TCGA-BRCA',
-            file_name='a_file_to_be_deleted.txt',
-            file_size=5,
-            md5sum='foobar',
-            state='live',
-            file_state='submitted',
-            state_comment=None,
-            submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
-            error_type=None,
-        )
-
-        self.to_delete_file.system_annotations["to_delete"] = True
-        self.non_live_file = self.get_fuzzed_node(md.File, state='uploaded')
-        self.live_file.related_files.append(self.get_fuzzed_node(
-            md.File,
-            state="live",
-            file_state='submitted',
-            file_name="a_related_file.bai"
-        ))
-
-        with self.g.session_scope():
-            aliquot_id = '84df0f82-69c4-4cd3-a4bd-f40d2d6ef916'
-            aliquot = self.g.nodes(md.Aliquot).ids(aliquot_id).one()
-            aliquot.files.append(self.to_delete_file)
-            aliquot.files.append(self.live_file)
-            aliquot.files.append(self.non_live_file)
 
     def convert_documents(self, doc_conv=None):
         doc_conv = doc_conv or GraphIndexBuilder(self.g)
