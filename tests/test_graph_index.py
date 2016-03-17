@@ -208,6 +208,18 @@ class TestGraphIndexBuilder(TestBase):
             })
         )
 
+    def test_index_files(self):
+        props = self.case_doc
+        self.assertTrue('files' in props)
+        self.assertEqual(len(props["files"]), 1)
+        file_ = props['files'][0]
+        self.assertTrue('index_files' in file_)
+        print file_['index_files']
+        self.assertEqual(len(file_["index_files"]), 1)
+        index_file = file_["index_files"][0]
+        self.assertEqual(index_file['file_name'], 'test_file.bam.bai')
+        self.assertEqual(index_file['file_format'], 'BAI')
+
     def test_omitted_projects(self):
         doc_conv = GraphIndexBuilder(self.g)
         doc_conv.omitted_projects.add(('TCGA', 'BRCA'))
@@ -300,21 +312,34 @@ class TestGraphIndexBuilder(TestBase):
             s.add(self.live_file)
             fake_center = self.get_fuzzed_node(md.Center)
             self.live_file.centers = [fake_center]
-            related_to_live = self.live_file.related_files[0]
-            derived_file = self.get_fuzzed_node(md.File, state="live",
-                                                file_name="derived_file.bam")
+            related_to_live = self.live_file.related_files[1]
+            derived_file = self.get_fuzzed_node(
+                md.File,
+                state="live",
+                file_name="derived_file.bam",
+            )
             derived_file.sysan["source"] = "tcga_exome_alignment"
             self.live_file.derived_files = [derived_file]
-            related_to_derived = self.get_fuzzed_node(md.File, state="live",
-                                                      file_name="derived_file.bam.bai")
+            related_to_derived = self.get_fuzzed_node(
+                md.File,
+                state="live",
+                file_name="derived_file.bam.txt",
+            )
             related_to_derived.sysan["source"] = "tcga_exome_alignment"
             derived_file.related_files = [related_to_derived]
+
         self.convert_documents()
+
         # derived_file should be a doc in it's own right, and should
         # have the single correct related file
-        derived_file_doc = [f for f in self.file_docs
-                            if f["file_id"] == derived_file.node_id][0]
+        derived_file_docs = [
+            f for f in self.file_docs
+            if f["file_id"] == derived_file.node_id
+        ]
+        self.assertEqual(len(derived_file_docs), 1)
+        derived_file_doc = derived_file_docs[0]
         self.assertEqual(len(derived_file_doc["related_files"]), 1)
+
         self.assertIn(
             related_to_derived.node_id,
             [f["file_id"] for f in derived_file_doc["related_files"]]
@@ -338,25 +363,43 @@ class TestGraphIndexBuilder(TestBase):
     def test_non_live_related_files_dont_cause_source_files_in_related(self):
         with self.g.session_scope() as s:
             s.add(self.live_file)
-            related_to_live = self.live_file.related_files[0]
-            derived_file = self.get_fuzzed_node(md.File, state="live",
-                                                file_name="derived_file.bam")
+            related_to_live = self.live_file.related_files[1]
+            derived_file = self.get_fuzzed_node(
+                md.File,
+                state="live",
+                file_name="derived_file.bam",
+            )
             derived_file.sysan["source"] = "tcga_exome_alignment"
             self.live_file.derived_files = [derived_file]
-            related_to_derived = self.get_fuzzed_node(md.File, state="uploaded",
-                                                      file_name="derived_file.bam.bai")
+            related_to_derived = self.get_fuzzed_node(
+                md.File,
+                state="uploaded",
+                file_name="derived_file.txt",
+            )
             related_to_derived.sysan["source"] = "tcga_exome_alignment"
             derived_file.related_files = [related_to_derived]
+
         self.convert_documents()
+
         # derived_file should be a doc in it's own right, and should
         # have the single correct related file
-        derived_file_doc = [f for f in self.file_docs
-                            if f["file_id"] == derived_file.node_id][0]
+        derived_file_docs = [
+            f for f in self.file_docs
+            if f["file_id"] == derived_file.node_id
+        ]
+        self.assertEqual(len(derived_file_docs), 1)
+        derived_file_doc = derived_file_docs[0]
         self.assertIsNone(derived_file_doc.get("related_files"))
-        # self,live_file should just have the one correct related_file
-        live_file_doc = [f for f in self.file_docs
-                         if f["file_id"] == self.live_file.node_id][0]
+
+        # self.live_file should just have the one correct related_file
+        live_file_docs = [
+            f for f in self.file_docs
+            if f["file_id"] == self.live_file.node_id
+        ]
+        self.assertEqual(len(live_file_docs), 1)
+        live_file_doc = live_file_docs[0]
         self.assertEqual(len(live_file_doc["related_files"]), 1)
+
         self.assertIn(
             related_to_live.node_id,
             [f["file_id"] for f in live_file_doc["related_files"]]
@@ -507,6 +550,7 @@ file_props = {
     'file_name',
     'file_size',
     'file_state',
+    'index_files',
     'md5sum',
     'platform',
     'project_id',

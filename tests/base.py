@@ -70,12 +70,33 @@ class TestBase(TestCase):
             error_type=None,
         )
 
+        self.index_file = self.get_fuzzed_node(
+            md.File,
+            state='live',
+            file_name='test_file.bam.bai',
+        )
+
+        self.non_index_file = self.get_fuzzed_node(
+            md.File,
+            state="live",
+            file_state='submitted',
+            file_name="a_related_file.txt"
+        )
+
         with self.g.session_scope():
+            self.live_file.related_files = [
+                self.index_file,
+                self.non_index_file,
+            ]
             self.live_file.data_subtypes = [
                 self.g.nodes(md.DataSubtype)
                 .props(name='Unaligned reads')
                 .one()
             ]
+
+        self.non_live_file = self.get_fuzzed_node(
+            md.File, state='uploaded'
+        )
 
         self.to_delete_file = md.File(
             node_id='file2',
@@ -89,15 +110,7 @@ class TestBase(TestCase):
             submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
             error_type=None,
         )
-
         self.to_delete_file.system_annotations["to_delete"] = True
-        self.non_live_file = self.get_fuzzed_node(md.File, state='uploaded')
-        self.live_file.related_files.append(self.get_fuzzed_node(
-            md.File,
-            state="live",
-            file_state='submitted',
-            file_name="a_related_file.bai"
-        ))
 
         with self.g.session_scope():
             aliquot_id = '84df0f82-69c4-4cd3-a4bd-f40d2d6ef916'

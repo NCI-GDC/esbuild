@@ -179,6 +179,11 @@ class GraphIndexBuilder(object):
             for l in self.case_to_file_paths
         ]
 
+        self.index_file_extensions = {
+            '.bai',
+            '.tbi',
+        }
+
     def warning(self, title, text, tags=[], *args, **kwargs):
         log.warning("{}: {}".format(title, text))
         statsd.event(
@@ -546,6 +551,7 @@ class GraphIndexBuilder(object):
         self.add_file_neighbors(node, doc)
         self.add_data_type(node, doc)
         self.add_related_files(node, doc)
+        self.add_index_files(node, doc)
         self.add_archives(node, doc)
         doc['cases'] = []
         relevant = self.add_cases(node, ptree, doc)
@@ -599,43 +605,96 @@ class GraphIndexBuilder(object):
         doc['published_datetime'] = None
         doc['uploaded_datetime'] = 1425340539
 
+    def is_index_file(self, node):
+        """Given a node, return whether it is considerend an 'index file'
+
+        :returns: bool
+
+        """
+
+        if node._dictionary['category'] not in ['data_file']:
+            return false
+
+        for extension in self.index_file_extensions:
+            if node['file_name'].endswith(extension):
+                return True
+
+    def add_index_files(self, node, doc):
+        """Given a file, walk to any neighboring index files and add
+        them to the index_files section of the document.
+
+        """
+        index_file_docs = []
+
+        # Get related_files
+        index_files = [
+            n for n in list(self.neighbors_labeled(node, 'file'))
+            if self.G[node][n].get("label") == "related_to"
+            and self.is_index_file(n)
+        ]
+
+        log.info('Found index files for {}: {}'.format(node, index_files))
+
+        for index_file in index_files:
+            index_file_doc = self._get_base_doc(index_file)
+
+            # Add data_format from extension
+            extension = index_file['file_name'].strip().split('.')[-1]
+            index_file_doc['file_format'] = extension.upper()
+
+            self.patch_file_datetimes(index_file_doc)
+            index_file_docs.append(index_file_doc)
+
+        if index_file_docs:
+            doc['index_files'] = index_file_docs
+
     def add_related_files(self, node, doc):
         """Given a file, walk to any (non data-from) neighboring files and add
         them to the related_files section of the document.
 
+        ..note::
+            Index files, e.g. ``.bai`` files, are added by
+            :func:`self.add_index_files`
+
         """
+        rf_docs = []
 
         # Get related_files
-        neighbor_files = list(self.neighbors_labeled(node, 'file'))
-        rf_docs = []
-        for maybe_related in neighbor_files:
-            if self.G[node][maybe_related].get("label") == "related_to":
-                related_file = maybe_related
-                rf_doc = self._get_base_doc(related_file)
-                neighbors_labeled = self.neighbors_labeled(
-                    related_file,
-                    'data_subtype',
-                )
+        related_files = [
+            n for n in list(self.neighbors_labeled(node, 'file'))
+            if self.G[node][n].get("label") == "related_to"
+            and not self.is_index_file(n)
+        ]
 
-                for dst in neighbors_labeled:
-                    # data_subtype is renamed data_type, viz.
-                    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-                    rf_doc['data_type'] = dst['name']
+        for related_file in related_files:
+            rf_doc = self._get_base_doc(related_file)
+            self.patch_file_datetimes(rf_doc)
 
-                    self.add_data_type(related_file, rf_doc)
+            # Data types
+            data_subtypes = self.neighbors_labeled(
+                related_file,
+                'data_subtype',
+            )
 
-                self.patch_file_datetimes(rf_doc)
-                if related_file['file_name'].endswith('.bai'):
-                    rf_doc['type'] = 'bai'
-                elif related_file['file_name'].endswith('.sdrf.txt'):
-                    rf_doc['type'] = 'magetab'
-                else:
-                    rf_doc['type'] = None
-                if related_file.acl == ["open"]:
-                    rf_doc['access'] = 'open'
-                else:
-                    rf_doc['access'] = 'controlled'
-                rf_docs.append(rf_doc)
+            for dst in data_subtypes:
+                # data_subtype is renamed data_type, viz.
+                # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+                rf_doc['data_type'] = dst['name']
+                self.add_data_type(related_file, rf_doc)
+
+            # Type
+            if related_file['file_name'].endswith('.sdrf.txt'):
+                rf_doc['type'] = 'magetab'
+            else:
+                rf_doc['type'] = None
+
+            # ACL
+            if related_file.acl == ["open"]:
+                rf_doc['access'] = 'open'
+            else:
+                rf_doc['access'] = 'controlled'
+
+            rf_docs.append(rf_doc)
 
         for archive in set(self.neighbors_labeled(node, 'archive')):
             if self.G[node][archive].get('label') != 'member_of':
