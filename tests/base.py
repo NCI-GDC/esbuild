@@ -70,6 +70,13 @@ class TestBase(TestCase):
             error_type=None,
         )
 
+        with self.g.session_scope():
+            self.live_file.data_subtypes = [
+                self.g.nodes(md.DataSubtype)
+                .props(name='Unaligned reads')
+                .one()
+            ]
+
         self.to_delete_file = md.File(
             node_id='file2',
             project_id='TCGA-BRCA',

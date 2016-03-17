@@ -447,8 +447,12 @@ class GraphIndexBuilder(object):
         for data_type, file_list in self.data_types.iteritems():
             intersection = (file_list & files)
             if intersection:
-                yield {'data_type': data_type['name'],
-                       'file_count': len(intersection)}
+                yield {
+                    # data_type is renamed data_category, viz.
+                    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+                    'data_category': data_type['name'],
+                    'file_count': len(intersection),
+                }
 
     def get_case_summary(self, node, files):
         """Generate a dictionary containing a summary of a cases files
@@ -459,7 +463,9 @@ class GraphIndexBuilder(object):
             'file_count': len(files),
             'file_size': sum([f['file_size'] for f in files]),
             'experimental_strategies': list(self.get_exp_strats(files)),
-            'data_types': list(self.get_data_types(files)),
+            # data_type is renamed data_category, viz.
+            # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+            'data_categories': list(self.get_data_types(files)),
         }
 
     def reconstruct_biospecimen_paths(self, case):
@@ -654,10 +660,15 @@ class GraphIndexBuilder(object):
         """
 
         self._cache_data_types()
-        data_types = [dt['name'] for dt, _files in self.data_types.items()
-                      if node in _files]
+        data_types = [
+            data_type['name']
+            for data_type, files in self.data_types.items()
+            if node in files
+        ]
         if data_types:
-            doc['data_type'] = data_types[0]
+            # data_type is renamed data_category, viz.
+            # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+            doc['data_category'] = data_types[0]
 
     def add_cases(self, node, ptree, doc):
         """Given a file and a case tree, re-insert the case as a
@@ -799,17 +810,24 @@ class GraphIndexBuilder(object):
         # Get data types
         data_type_summaries = []
         self._cache_data_types()
+
         for data_type in self.data_types.keys():
             log.info('{} {}'.format(data_type, data_type['name']))
             dt_files = (self.data_types[data_type] & files)
+
             if not len(dt_files):
                 continue
-            case_count = len(
-                {p for p, p_files in case_files.iteritems()
-                 if len(dt_files & p_files)})
+
+            case_count = len({
+                p for p, p_files in case_files.iteritems()
+                if len(dt_files & p_files)
+            })
+
             data_type_summaries.append({
                 'case_count': case_count,
-                'data_type': data_type['name'],
+                # data_type is renamed data_category, viz.
+                # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+                'data_category': data_type['name'],
                 'file_count': len(dt_files),
             })
 
@@ -822,7 +840,9 @@ class GraphIndexBuilder(object):
         if exp_strat_summaries:
             doc['summary']['experimental_strategies'] = exp_strat_summaries
         if data_type_summaries:
-            doc['summary']['data_types'] = data_type_summaries
+            # data_type is renamed data_category, viz.
+            # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+            doc['summary']['data_categories'] = data_type_summaries
         return doc
 
     ###################################################################
@@ -1022,10 +1042,17 @@ class GraphIndexBuilder(object):
 
     def verify_data_type_count(self, case):
         for data_type in self.existing_data_types.keys():
-            calc = len([f for f in case['files']
-                        if f.get('data_type') == data_type])
-            act = ([d['file_count'] for d in case['summary']['data_types']
-                    if d['data_type'] == data_type][:1] or [0])[0]
+            calc = len([
+                f for f in case['files']
+                if f.get('data_type') == data_type
+            ])
+
+            act = ([
+                d['file_count']
+                for d in case['summary']['data_types']
+                if d['data_type'] == data_type
+            ][:1] or [0])[0]
+
             if act != calc:
                 self.error(
                     'Inconsistent data_type count',
@@ -1368,10 +1395,15 @@ class GraphIndexBuilder(object):
         """Looking up the files that are classified in each data_type is a
         common computation.  Here we cache this information for easy retrieval.
 
+        ..note::
+            data_type is renamed data_category, viz.
+            https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
         """
 
         if len(self.data_types):
             return
+
         log.info('Caching data types')
         for data_type in self.nodes_labeled('data_type'):
             self.data_types[data_type] = self.remove_bam_index_files(

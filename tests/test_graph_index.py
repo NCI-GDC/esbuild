@@ -143,15 +143,30 @@ class TestGraphIndexBuilder(TestBase):
     def test_case_files(self):
         props = self.case_doc
         self.assertTrue('files' in props)
-        # this makes sure the
-        # to_delete/non_live/file-derived_from-file file doesn't show
-        # up
+
+        # this makes sure the (to_delete / non_live /
+        # file-derived_from-file) file doesn't show up
         self.assertEqual(len(props["files"]), 1)
+
         actual = set(props['files'][0].keys())
-        self.assertEqual(file_props.union({'origin'}), actual.union(
-            {'annotations', 'related_files', 'center', 'data_type',
-             'tags', 'data_format', 'platform', 'data_subtype',
-             'associated_entities', 'archive', 'experimental_strategy'}))
+
+        self.assertEqual(
+            file_props.union({
+                'origin'
+            }),
+            actual.union({
+                'annotations',
+                'related_files',
+                'center',
+                'tags',
+                'data_format',
+                'platform',
+                'data_subtype',
+                'associated_entities',
+                'archive',
+                'experimental_strategy',
+            })
+        )
 
     def test_omitted_projects(self):
         doc_conv = GraphIndexBuilder(self.g)
@@ -352,7 +367,7 @@ project_props = {
 }
 
 summary_props = {
-    'data_types',
+    'data_categories',
     'experimental_strategies',
     'file_count',
     'file_size',
@@ -445,7 +460,7 @@ file_props = {
     'created_datetime',
     'data_format',
     'data_subtype',
-    'data_type',
+    'data_category',
     'error_type',
     'experimental_strategy',
     'file_id',
