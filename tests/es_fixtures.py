@@ -3,7 +3,7 @@ represented in a way that can be persisted without using xml2psqlgraph.
 
 """
 
-from gdcdatamodel.models import *
+from gdcdatamodel.models import *  # noqa
 
 
 NODES = [
@@ -11,6 +11,67 @@ NODES = [
         node_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
         project_id='TCGA-BRCA',
         age_at_diagnosis=34,
+    ),
+    Demographic(
+        node_id='fe0dab0c-55d1-4721-8ebd-f5eb7b2c2f01',
+        project_id='TCGA-BRCA',
+        ethnicity='hispanic or latino',
+        gender='male',
+        race='white',
+        submitter_id='TCGA-AB-2846_demographicID1',
+        year_of_birth=1951,
+        year_of_death=-1,
+    ),
+    Exposure(
+        node_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
+        alcohol_history='',
+        alcohol_intensity='',
+        bmi=-1,
+        cigarettes_per_day=10,
+        height=-1,
+        project_id=u'TCGA-BRCA',
+        submitter_id=u'TCGA-49-AARO_exposure',
+        weight=-1,
+        years_smoked=-1
+    ),
+    FamilyHistory(
+        node_id='b56a74f5-650e-4fa4-8870-b0cf1d19c40c',
+        project_id=u'TCGA-DEV1',
+        relationship_age_at_diagnosis=10,
+        relationship_gender=u'male',
+        relationship_primary_diagnosis=u'Married',
+        relationship_type=u'Legal',
+        submitter_id=u'TCGA-DEV-1-CASE-0011-FAMILY-HISTORY',
+    ),
+    Diagnosis(
+        node_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+        age_at_diagnosis=47,
+        classification_of_tumor=u'other',
+        days_to_birth=-17238,
+        days_to_last_follow_up=-1,
+        days_to_last_known_disease_status=-1,
+        days_to_recurrence=-1,
+        last_known_disease_status=u'Unknown tumor status',
+        morphology=u'8255/3',
+        primary_diagnosis=u'c34.3',
+        prior_malignancy=u'no',
+        progression_or_recurrence=u'unknown',
+        project_id=u'TCGA-LUAD',
+        site_of_resection_or_biopsy=u'c34.3',
+        submitter_id=u'TCGA-49-AARO_diagnosis',
+        tissue_or_organ_of_origin=u'c34.3',
+        tumor_grade=u'',
+        tumor_stage=u'stage iiia',
+        vital_status=u'dead',
+    ),
+    Treatment(
+        node_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
+        days_to_treatment=None,
+        project_id=u'TCGA-DEV3',
+        submitter_id=u'TCGA-DEV-3-CASE-014-DIAG1-TR1',
+        therapeutic_agents=None,
+        treatment_intent_type=None,
+        treatment_or_therapy=u'unknown',
     ),
     Sample(
         node_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
@@ -271,6 +332,26 @@ NODES = [
 
 
 EDGES = [
+    ExposureDescribesCase(
+        src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    DiagnosisDescribesCase(
+        src_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    TreatmentDescribesDiagnosis(
+        src_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
+        dst_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+    ),
+    DemographicDescribesCase(
+        src_id='fe0dab0c-55d1-4721-8ebd-f5eb7b2c2f01',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    FamilyHistoryDescribesCase(
+        src_id='b56a74f5-650e-4fa4-8870-b0cf1d19c40c',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
     ClinicalDescribesCase(
         src_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',

@@ -1,11 +1,34 @@
+# -*- coding: utf-8 -*-
+"""esbuild.graph.mappings
+----------------------------------
+
+Defines the Elasticsearch mappings for the main GDC graph index.
+
+.. _hierarchy-format:
+
+    The hierarchies defined below will contain a tuple (CORR, name),
+    where CORR is the expected correlation and ``name`` is what key to
+    nest the child documents under
+
+TODO: Update the traversals to be generative from datamodel links?
+  - jsm (2016-03-17)
+
+"""
+
 from addict import Dict
 from psqlgraph import Node
 
+# ======================================================================
 # Correspondence values
+
+# These values specify the multiplicity of the relationship from
+# parent to child.
 ONE_TO_ONE = '__one_to_one__'
 ONE_TO_MANY = '__one_to_many__'
 
-# File hierarchy
+# ======================================================================
+# File hierarchy see :ref:`hierarchy-format` above
+
 file_tree = Dict()
 file_tree.corr = (ONE_TO_MANY, 'files')
 file_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
@@ -20,8 +43,14 @@ file_tree.platform.corr = (ONE_TO_ONE, 'platform')
 file_tree.tag.corr = (ONE_TO_MANY, 'tags')
 file_tree.file.corr = (ONE_TO_MANY, 'related_files')
 
+# ======================================================================
+# File traversals
+
 file_traversal = Dict()
-file_traversal.center = [('center'), ('aliquot', 'center')]
+file_traversal.center = [
+    ('center'),
+    ('aliquot', 'center')
+]
 file_traversal.case = [
     ('sample', 'case'),
     ('file', 'sample', 'case'),
@@ -33,13 +62,18 @@ file_traversal.case = [
     ('file', 'aliquot', 'analyte', 'portion', 'sample', 'case'),
 ]
 
-# Case hierarchy
+# ======================================================================
+# Case hierarchy see :ref:`hierarchy-format` above
+
 case_tree = Dict()
 case_tree.corr = (ONE_TO_MANY, 'cases')
 case_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
 case_tree.project.corr = (ONE_TO_ONE, 'project')
 case_tree.project.program.corr = (ONE_TO_ONE, 'program')
+case_tree.file.corr = (ONE_TO_MANY, 'files')
+case_tree.tissue_source_site.corr = (ONE_TO_ONE, 'tissue_source_site')
+
+# Biospecimen subtree
 case_tree.sample.corr = (ONE_TO_MANY, 'samples')
 case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
 case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
@@ -52,12 +86,21 @@ case_tree.sample.portion.annotation.corr = (ONE_TO_MANY, 'annotations')
 case_tree.sample.portion.center.corr = (ONE_TO_ONE, 'center')
 case_tree.sample.portion.slide.corr = (ONE_TO_MANY, 'slides')
 case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.tissue_source_site.corr = (ONE_TO_ONE, 'tissue_source_site')
-case_tree.file.corr = (ONE_TO_MANY, 'files')
 
-# for target
+# Clinical subtree
+case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
+case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
+case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
+case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
+case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
+case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
+
+# For TARGET
 case_tree.aliquot = case_tree.sample.portion.analyte.aliquot
 case_tree.sample.aliquot = case_tree.sample.portion.analyte.aliquot
+
+# ======================================================================
+# Case traversal
 
 case_traversal = Dict()
 case_traversal.file = [
@@ -67,7 +110,9 @@ case_traversal.file = [
     ('sample', 'portion', 'analyte', 'aliquot', 'file'),
 ]
 
-# Annotation hierarchy
+# ======================================================================
+# Annotation hierarchy see :ref:`hierarchy-format` above
+
 annotation_tree = Dict()
 annotation_tree.corr = (ONE_TO_MANY, 'cases')
 annotation_tree.project.corr = (ONE_TO_ONE, 'project')
@@ -80,6 +125,8 @@ annotation_tree.aliquot.corr = (ONE_TO_ONE, 'aliquot')
 annotation_tree.slide.corr = (ONE_TO_ONE, 'slide')
 annotation_tree.file.corr = (ONE_TO_ONE, 'file')
 
+# ======================================================================
+# Annotation traversals see :ref:`hierarchy-format` above
 
 annotation_traversal = Dict()
 annotation_traversal.file = [
@@ -97,11 +144,15 @@ annotation_traversal.file = [
     ('sample', 'portion', 'analyte', 'aliquot', 'file', 'file'),
 ]
 
+# ======================================================================
 # Project hierarchy
+
 project_tree = Dict()
 project_tree.corr = (ONE_TO_ONE, 'project')
 project_tree.program.corr = (ONE_TO_ONE, 'program')
 
+# ======================================================================
+# Types
 
 STRING = {
     'index': 'not_analyzed',
@@ -115,6 +166,9 @@ LONG = {
 INTEGER = {
     'type': 'integer',
 }
+
+# ======================================================================
+# Denormalization configuration options
 
 FLATTEN = [
     'tag',
@@ -130,6 +184,9 @@ TOP_LEVEL_IDS = [
     'aliquot',
     'slide',
 ]
+
+# ======================================================================
+# Index settings
 
 MULTIFIELDS = {
     'project': [
@@ -184,6 +241,9 @@ def index_settings():
         }
     }
 
+
+# ======================================================================
+# Utility functions
 
 def _get_header(source):
     header = Dict()
@@ -304,6 +364,9 @@ def add_multifields(doc, source):
 def patch_project(doc):
     doc.pop('code')
 
+
+# ======================================================================
+# Mappings
 
 def get_file_es_mapping(include_case=True):
     files = _get_header('file')
