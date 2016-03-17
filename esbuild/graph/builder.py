@@ -3,7 +3,7 @@
 esbuild.graph_index
 ----------------------------------
 
-Defines :class:`GDCGraphIndexBuilder` for use building the primary GDC
+Defines :class:`GraphIndexBuilder` for use building the primary GDC
 graph index.
 
 """
@@ -20,7 +20,7 @@ from datadog import statsd
 from gdcdatamodel import models as md
 from math import ceil
 
-from gdcdatamodel.mappings import (
+from .mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
     TOP_LEVEL_IDS,
