@@ -2,7 +2,7 @@
 
 Repository for building the GDC Elasticsearch indices.
 
-[![Build Status](TODO)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
+[![Build Status](https://travis-ci.com/NCI-GDC/esbuild.svg?token=LApTVTN34FyXpxo5zU44&branch=develop)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
 
 - [Running](#running)
 - [Technologies](#technologies)
