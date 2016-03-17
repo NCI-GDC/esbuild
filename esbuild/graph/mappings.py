@@ -12,8 +12,8 @@ file_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
 file_tree.archive.corr = (ONE_TO_ONE, 'archive')
 file_tree.center.corr = (ONE_TO_ONE, 'center')
 file_tree.data_format.corr = (ONE_TO_ONE, 'data_format')
-file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_subtype')
-file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_type')
+file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_type')
+file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_category')
 file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
 file_tree.case.corr = (ONE_TO_MANY, 'cases')
 file_tree.platform.corr = (ONE_TO_ONE, 'platform')
@@ -269,8 +269,22 @@ def _walk_tree(tree, mapping):
 
 
 def flatten_data_type(root):
-    root.data_subtype = STRING
+    """Compress nested data_type and sub_type into flat key/value
+
+    ..note::
+        data_type is renamed data_category, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
+    ..note::
+        data_subtype is renamed data_type, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
+    """
     root.data_type = STRING
+
+    # data_type is renamed data_category, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    root.data_category = STRING
 
 
 def patch_file_timestamps(doc):
@@ -309,8 +323,15 @@ def get_file_es_mapping(include_case=True):
     # Related files
     related_files = nested('file')
     related_files.properties.type = STRING
+
+    # data_type is renamed data_category, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    related_files.properties.data_category = STRING
+
+    # data_subtype is renamed data_type, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
     related_files.properties.data_type = STRING
-    related_files.properties.data_subtype = STRING
+
     related_files.properties.access = STRING
     patch_file_timestamps(related_files)
     files.properties.related_files = related_files
@@ -348,8 +369,15 @@ def get_case_es_mapping(include_file=True):
 
     # Metadata files
     case.properties.metadata_files = nested('file')
+
+    # data_type is renamed data_category, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    case.properties.metadata_files.properties.data_category = STRING
+
+    # data_subtype is renamed data_type, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
     case.properties.metadata_files.properties.data_type = STRING
-    case.properties.metadata_files.properties.data_subtype = STRING
+
     case.properties.metadata_files.properties.acl = STRING
 
     # Add top level id aggregation
@@ -377,10 +405,11 @@ def get_case_es_mapping(include_file=True):
     summary.experimental_strategies.properties.experimental_strategy = STRING
     summary.experimental_strategies.properties.file_count = LONG
 
-    # Summary data types
-    summary.data_types.type = 'nested'
-    summary.data_types.properties.data_type = STRING
-    summary.data_types.properties.file_count = LONG
+    # Summary data types.  data_type is renamed data_category, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    summary.data_categories.type = 'nested'
+    summary.data_categories.properties.data_category = STRING
+    summary.data_categories.properties.file_count = LONG
 
     # Clinical
     clinical = case.properties.clinical.properties
@@ -441,10 +470,11 @@ def get_project_es_mapping():
     summary.experimental_strategies.properties.experimental_strategy = STRING
     summary.experimental_strategies.properties.file_count = LONG
 
-    # Summary data types
-    summary.data_types.type = 'nested'
-    summary.data_types.properties.case_count = LONG
-    summary.data_types.properties.data_type = STRING
-    summary.data_types.properties.file_count = LONG
+    # Summary data types.  data_type is renamed data_category, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    summary.data_categories.type = 'nested'
+    summary.data_categories.properties.case_count = LONG
+    summary.data_categories.properties.data_category = STRING
+    summary.data_categories.properties.file_count = LONG
 
     return project.to_dict()
