@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from esbuild.download_report import DownloadStatsIndexBuilder
+from esbuild.reports.download_report import DownloadStatsIndexBuilder
 
 
 def main():
