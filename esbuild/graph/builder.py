@@ -301,6 +301,10 @@ class GraphIndexBuilder(object):
 
         base = {'{}_id'.format(node.label): node.node_id}
         base.update(node._props)
+
+        if node.label != 'project':
+            base.pop('project_id', None)
+
         return base
 
     ###################################################################
