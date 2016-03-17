@@ -20,7 +20,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from gdcdatamodel.mappings import (
+from esbuild.graph.mappings import (
     index_settings,
     get_project_es_mapping,
     get_annotation_es_mapping,

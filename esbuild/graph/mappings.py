@@ -12,7 +12,7 @@ file_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
 file_tree.archive.corr = (ONE_TO_ONE, 'archive')
 file_tree.center.corr = (ONE_TO_ONE, 'center')
 file_tree.data_format.corr = (ONE_TO_ONE, 'data_format')
-file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_subtype')
+file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_type')
 file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_category')
 file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
 file_tree.case.corr = (ONE_TO_MANY, 'cases')
@@ -275,8 +275,12 @@ def flatten_data_type(root):
         data_type is renamed data_category, viz.
         https://jira.opensciencedatacloud.org/browse/PGDC-1472
 
+    ..note::
+        data_subtype is renamed data_type, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
     """
-    root.data_subtype = STRING
+    root.data_type = STRING
 
     # data_type is renamed data_category, viz.
     # https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -324,7 +328,10 @@ def get_file_es_mapping(include_case=True):
     # https://jira.opensciencedatacloud.org/browse/PGDC-1472
     related_files.properties.data_category = STRING
 
-    related_files.properties.data_subtype = STRING
+    # data_subtype is renamed data_type, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    related_files.properties.data_type = STRING
+
     related_files.properties.access = STRING
     patch_file_timestamps(related_files)
     files.properties.related_files = related_files
@@ -367,7 +374,10 @@ def get_case_es_mapping(include_file=True):
     # https://jira.opensciencedatacloud.org/browse/PGDC-1472
     case.properties.metadata_files.properties.data_category = STRING
 
-    case.properties.metadata_files.properties.data_subtype = STRING
+    # data_subtype is renamed data_type, viz.
+    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+    case.properties.metadata_files.properties.data_type = STRING
+
     case.properties.metadata_files.properties.acl = STRING
 
     # Add top level id aggregation

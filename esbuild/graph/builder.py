@@ -612,10 +612,18 @@ class GraphIndexBuilder(object):
             if self.G[node][maybe_related].get("label") == "related_to":
                 related_file = maybe_related
                 rf_doc = self._get_base_doc(related_file)
-                for dst in self.neighbors_labeled(
-                        related_file, 'data_subtype'):
-                    rf_doc['data_subtype'] = dst['name']
+                neighbors_labeled = self.neighbors_labeled(
+                    related_file,
+                    'data_subtype',
+                )
+
+                for dst in neighbors_labeled:
+                    # data_subtype is renamed data_type, viz.
+                    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+                    rf_doc['data_type'] = dst['name']
+
                     self.add_data_type(related_file, rf_doc)
+
                 self.patch_file_datetimes(rf_doc)
                 if related_file['file_name'].endswith('.bai'):
                     rf_doc['type'] = 'bai'
