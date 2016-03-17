@@ -56,6 +56,47 @@ class TestGraphIndexBuilder(TestBase):
         clinical = props['clinical']
         self.assertEqual(clinical['age_at_diagnosis'], 12419)
 
+    def test_case_clinical_demographic(self):
+        props = self.case_doc
+        self.assertTrue('demographic' in props)
+        doc = props['demographic']
+        self.assertEqual(doc['year_of_birth'], 1951)
+
+    def test_case_clinical_diagnoses(self):
+        props = self.case_doc
+        self.assertTrue('diagnoses' in props)
+        diagnoses = props['diagnoses']
+        self.assertEqual(len(diagnoses), 1)
+        doc = props['diagnoses'][0]
+        self.assertEqual(doc['age_at_diagnosis'], 47)
+
+    def test_case_clinical_exposures(self):
+        props = self.case_doc
+        self.assertTrue('exposures' in props)
+        exposures = props['exposures']
+        self.assertEqual(len(exposures), 1)
+        doc = props['exposures'][0]
+        self.assertEqual(doc['cigarettes_per_day'], 10)
+
+    def test_case_clinical_treatments(self):
+        props = self.case_doc
+        self.assertTrue('diagnoses' in props)
+        diagnoses = props['diagnoses']
+        self.assertEqual(len(diagnoses), 1)
+        self.assertTrue('treatments' in diagnoses[0])
+        treatments = diagnoses[0]['treatments']
+        self.assertEqual(len(treatments), 1)
+        doc = treatments[0]
+        self.assertEqual(doc['treatment_or_therapy'], 'unknown')
+
+    def test_case_clinical_family_histories(self):
+        props = self.case_doc
+        self.assertTrue('diagnoses' in props)
+        family_histories = props['family_histories']
+        self.assertEqual(len(family_histories), 1)
+        doc = family_histories[0]
+        self.assertEqual(doc['relationship_primary_diagnosis'], 'Married')
+
     def test_filter_non_relevant_annotations(self):
         case = self.get_fuzzed_node(md.Case)
         annotation = self.get_fuzzed_node(
