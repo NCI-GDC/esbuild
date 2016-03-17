@@ -33,5 +33,6 @@ install:
 
 before_script:
   - pip freeze
+  - python tests/setup_test_database.py
 
 script: "PYTHONPATH=. py.test -vv tests/"

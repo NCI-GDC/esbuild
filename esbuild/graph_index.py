@@ -179,24 +179,6 @@ class GraphIndexBuilder(object):
             for l in self.case_to_file_paths
         ]
 
-    def get_existing_data_types(self):
-        """The last version of this code imported a hard coded list and called
-        it DATA_TYPES.  This function replaces this hardcoded nested
-        dict by pulling it from the graph at runtime.
-
-        :returns:
-            The data types in the graph in the format
-            ``{'data_type.name': ['data_subtype.name']}``
-
-        """
-        with self.g.session_scope():
-            return {
-                data_type.name: [
-                    subtype.name
-                    for subtype in data_type.data_subtypes
-                ] for data_type in self.g.nodes(md.DataType).all()
-            }
-
     def warning(self, title, text, tags=[], *args, **kwargs):
         log.warning("{}: {}".format(title, text))
         statsd.event(
@@ -1268,7 +1250,9 @@ class GraphIndexBuilder(object):
                         self.G.add_edge(e.dst, center)
                     for aliquot in e.src.aliquots:
                         self.G.add_edge(e.dst, aliquot)
-                if needs_differentiation and e._props:
+                if e.label == 'relates_to' and e.__dst_class__ == 'Case':
+                    pass
+                elif needs_differentiation and e._props:
                     self.G.add_edge(
                         e.src, e.dst, label=e.label, props=e._props)
                 elif needs_differentiation and not e._props:
@@ -1406,3 +1390,21 @@ class GraphIndexBuilder(object):
         for exp_strat in self.nodes_labeled('experimental_strategy'):
             self.experimental_strategies[exp_strat] = set(self.walk_path(
                 exp_strat, ['file']))
+
+    def _cache_existing_data_types(self):
+        """The last version of this code imported a hard coded list and called
+        it DATA_TYPES.  This function replaces this hardcoded nested
+        dict by pulling it from the graph at runtime.
+
+        :returns:
+            The data types in the graph in the format
+            ``{'data_type.name': ['data_subtype.name']}``
+
+        """
+        with self.g.session_scope():
+            return {
+                data_type.name: [
+                    subtype.name
+                    for subtype in data_type.data_subtypes
+                ] for data_type in self.g.nodes(md.DataType).all()
+            }
