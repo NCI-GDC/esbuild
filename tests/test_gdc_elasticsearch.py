@@ -27,6 +27,7 @@ class GDCElasticsearchTest(TestBase):
 
     def setUp(self):
         super(GDCElasticsearchTest, self).setUp()
+        self.delete_all_indices()
         self.delete_non_prelude_nodes()
         es_fixtures.insert(self.g)
         self.add_file_nodes()
