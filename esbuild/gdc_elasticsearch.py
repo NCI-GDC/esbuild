@@ -3,7 +3,8 @@
 esbuild.gdc_elasticsearch
 ----------------------------------
 
-Defines functions to interact with Elasticsearch
+Defines functions to build graph indices and upload them to
+Elasticsearch
 
 """
 
@@ -63,11 +64,14 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, es=None, converter=None, index_base="gdc_from_graph"):
+    def __init__(self,
+                 es=None,
+                 converter_class=GraphIndexBuilder,
+                 index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
-        :param converter: A PsqlGraph2JSON instance
+        :param converter_class: Class to use as a converter
 
         """
         self.index_base = index_base
@@ -81,16 +85,15 @@ class GDCElasticsearch(object):
                 http_auth=(os.environ.get("ES_USER", ""),
                            os.environ.get("ES_PASSWORD", "")),
                 timeout=9999)
-        if converter:
-            self.converter = converter
-        else:
-            self.graph = PsqlGraphDriver(
-                os.environ["PG_HOST"],
-                os.environ["PG_USER"],
-                os.environ["PG_PASS"],
-                os.environ["PG_NAME"],
-            )
-            self.converter = GraphIndexBuilder(self.graph)
+
+        self.graph = PsqlGraphDriver(
+            os.environ["PG_HOST"],
+            os.environ["PG_USER"],
+            os.environ["PG_PASS"],
+            os.environ["PG_NAME"],
+        )
+
+        self.converter = converter_class(self.graph)
 
     def go(self, roll_alias=True):
         self.log.info("Caching database")

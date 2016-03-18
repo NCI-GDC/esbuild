@@ -8,7 +8,7 @@ for Active projects.
 
 """
 
-from builder import (
+from ..builder import (
     GraphIndexBuilder,
 )
 
