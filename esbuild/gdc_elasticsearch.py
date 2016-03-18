@@ -16,12 +16,13 @@ from cdisutils.log import get_logger
 from datadog import statsd
 from elasticsearch import NotFoundError, Elasticsearch
 from elasticsearch.exceptions import AuthorizationException
-from esbuild.graph.builder import GraphIndexBuilder
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from esbuild.graph.mappings import (
+from .graph.builder import GraphIndexBuilder
+
+from .graph.mappings import (
     index_settings,
     get_project_es_mapping,
     get_annotation_es_mapping,
