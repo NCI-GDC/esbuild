@@ -37,15 +37,19 @@ class GDCElasticsearchTest(TestBase):
         os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
         self.es = Elasticsearch("localhost")
+        self.delete_all_indices()
 
-    def tearDown(self):
-        super(GDCElasticsearchTest, self).tearDown()
+    def delete_all_indices(self):
         indices = self.es.indices.get_aliases()
         for index, info in indices.items():
             if info.get("aliases"):
                 for alias in info["aliases"].keys():
                     self.es.indices.delete_alias(index=index, name=alias)
             self.es.indices.delete(index)
+
+    def tearDown(self):
+        super(GDCElasticsearchTest, self).tearDown()
+        self.delete_all_indices()
 
     def make_gdc_es(self):
         return GDCElasticsearch(index_base="gdc_es_test")

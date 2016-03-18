@@ -8,7 +8,7 @@ for Legacy projects.
 
 """
 
-from builder import (
+from ..builder import (
     GraphIndexBuilder,
 )
 
