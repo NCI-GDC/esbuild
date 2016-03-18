@@ -637,7 +637,7 @@ class GraphIndexBuilder(object):
             and self.is_index_file(n)
         ]
 
-        log.info('Found index files for {}: {}'.format(node, index_files))
+        log.debug('Found index files for {}: {}'.format(node, index_files))
 
         for index_file in index_files:
             index_file_doc = self._get_base_doc(index_file)
