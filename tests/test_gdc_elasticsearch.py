@@ -1,11 +1,12 @@
 from base import TestBase
 from elasticsearch import Elasticsearch
-from gdcdatamodel.models import File
+from gdcdatamodel.models import File, Demographic
 from elasticsearch.exceptions import AuthorizationException
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from prelude import create_prelude_nodes
 
 import es_fixtures
+import json
 import os
 
 from base import (
@@ -68,6 +69,24 @@ class GDCElasticsearchTest(TestBase):
             self.assertFalse(self.es.exists(index="gdc_es_test",
                                             doc_type="file",
                                             id="file2"))
+
+    def test_unexpected_properties(self):
+        with self.g.session_scope() as s:
+            demographic = self.g.nodes(Demographic).one()
+            s.execute("""
+            UPDATE node_demographic
+            SET _props = :props
+            WHERE node_id = :id
+            """, {
+                'id': demographic.node_id,
+                'props': json.dumps(dict(demographic.props, **{
+                    'fake_property': True,
+                }))
+            })
+
+        gdces = self.make_gdc_es()
+        gdces.go()
+        self.assertEqual(len(self.get_es_indices()), 1)
 
     def test_doesnt_delete_file_with_derived_files(self):
         gdces = self.make_gdc_es()
