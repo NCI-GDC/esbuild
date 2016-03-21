@@ -20,14 +20,10 @@ from datadog import statsd
 from gdcdatamodel import models as md
 from math import ceil
 
-from .mappings import (
+from .const import (
     ONE_TO_MANY,
     ONE_TO_ONE,
     TOP_LEVEL_IDS,
-    annotation_tree,
-    case_tree,
-    file_tree,
-    get_case_es_mapping,
 )
 
 from progressbar import (
@@ -121,16 +117,39 @@ class GraphIndexBuilder(object):
 
     """
 
+    # The tree mappings should be set by the child classes based on
+    # the chosen mapping.  The mapping should be of the form
+    # {"<TYPE>": tree} where "<TYPE>" is "case", "file", etc.
+    ptree_mapping = None
+    ftree_mapping = None
+    atree_mapping = None
+
+    case_es_mapping = None
+    file_es_mapping = None
+    annotation_es_mapping = None
+
+    required_attrs = [
+        'ptree_mapping',
+        'ftree_mapping',
+        'atree_mapping',
+        'case_es_mapping',
+    ]
+
     def __init__(self, psqlgraph_driver):
         """Walks the graph to produce elasticsearch json documents.
 
         """
 
+        for required_attr in self.required_attrs:
+            if not getattr(self, required_attr):
+                raise NotImplementedError(
+                    '{} must set {}'
+                    .format(self.__class__.__name__, required_attr)
+                )
+
         self.g = psqlgraph_driver
         self.G = nx.Graph()
-        self.ptree_mapping = {'case': case_tree.to_dict()}
-        self.ftree_mapping = {'file': file_tree.to_dict()}
-        self.atree_mapping = {'annotation': annotation_tree.to_dict()}
+
         self.leaf_nodes = ['center', 'tissue_source_site']
         self.experimental_strategies = {}
         self.data_types = {}
@@ -612,10 +631,10 @@ class GraphIndexBuilder(object):
 
         """
 
-        auto_neighbors = [n for n in dict(file_tree).keys()
+        auto_neighbors = [n for n in dict(self.ftree_mapping['file']).keys()
                           if n not in ['archive', 'portion', 'file']]
         for neighbor in set(self.neighbors_labeled(node, auto_neighbors)):
-            corr, label = file_tree[neighbor.label]['corr']
+            corr, label = self.ftree_mapping['file'][neighbor.label]['corr']
             if neighbor.label in self.flatten:
                 base = neighbor[self.flatten[neighbor.label]]
             else:
@@ -647,7 +666,7 @@ class GraphIndexBuilder(object):
         """
 
         if node._dictionary['category'] not in ['data_file']:
-            return false
+            return False
 
         for extension in self.index_file_extensions:
             if node['file_name'].endswith(extension):
@@ -1202,7 +1221,7 @@ class GraphIndexBuilder(object):
             )
 
         # Check for keys that are in the doc but not in the mapping
-        self.validate_against_mapping(case, get_case_es_mapping())
+        self.validate_against_mapping(case, self.case_es_mapping)
 
     ###################################################################
     #                       Caching functions
