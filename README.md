@@ -20,10 +20,9 @@ export PG_USER=<REPLACE_ME>  # PostgreSQL user
 export PG_PASS=<REPLACE_ME>  # PostgreSQL password
 export PG_NAME=<REPLACE_ME>  # PostgreSQL database name
 
-export ES_HOST=<REPLACE_ME>  # Elasticsearch hostname
+export ELASTICSEARCH_HOST=<REPLACE_ME>  # Elasticsearch hostname
 export ES_USER=<REPLACE_ME>  # Elasticsearch user
-export ES_PASS=<REPLACE_ME>  # Elasticsearch password
-export ES_INDEX=<REPLACE_ME> # Elasticsearch alias name
+export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
 
 python bin/build_graph_index.py
 ```
