@@ -16,6 +16,7 @@ TODO: Update the traversals to be generative from datamodel links?
 """
 
 from addict import Dict
+from gdcdatamodel import models  # noqa
 from psqlgraph import Node
 
 # ======================================================================
