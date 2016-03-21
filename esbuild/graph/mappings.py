@@ -42,7 +42,7 @@ file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
 file_tree.case.corr = (ONE_TO_MANY, 'cases')
 file_tree.platform.corr = (ONE_TO_ONE, 'platform')
 file_tree.tag.corr = (ONE_TO_MANY, 'tags')
-file_tree.file.corr = (ONE_TO_MANY, 'related_files')
+file_tree.file.corr = (ONE_TO_MANY, 'metadata_files')
 
 # ======================================================================
 # File traversals
@@ -386,16 +386,16 @@ def get_file_es_mapping(include_case=True):
     add_multifields(files, 'files')
 
     # Related files
-    related_files = patch_file_timestamps(nested('file'))
-    related_files.properties.type = STRING
+    metadata_files = patch_file_timestamps(nested('file'))
+    metadata_files.properties.type = STRING
     #   data_type is renamed data_category, viz.
     #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    related_files.properties.data_category = STRING
+    metadata_files.properties.data_category = STRING
     #   data_subtype is renamed data_type, viz.
     #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    related_files.properties.data_type = STRING
-    related_files.properties.access = STRING
-    files.properties.related_files = related_files
+    metadata_files.properties.data_type = STRING
+    metadata_files.properties.access = STRING
+    files.properties.metadata_files = metadata_files
 
     # Index files
     index_files = patch_file_timestamps(nested('file'))
