@@ -93,6 +93,32 @@ class GraphIndexBuilder(object):
     TODOS:
       - figure out a way to parallelize without excess copies
 
+    ===============
+    Transformations
+    ===============
+
+    In order to update features in the index without propagating
+    renames, re-nestings, flattenings etc through the datamodel, the
+    denormalization process will reformat the data in (but not limited
+    to) the following ways:
+
+    * flattening:
+        Some nodes are flattened into properties.  These are typically
+        nodes like ``tag`` that only have a ``name`` property. See
+        ``self.flatten`` for a complete list.
+
+    * s/data_type/data_category/g:
+        data_type is renamed data_category, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
+    * s/data_subtype/data_type/g:
+        data_subtype is renamed data_type, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1472
+
+    * s/related_files/metadata_files/g
+        related_files is renamed metadata_files, viz.
+        https://jira.opensciencedatacloud.org/browse/PGDC-1838
+
     """
 
     def __init__(self, psqlgraph_driver):
@@ -716,7 +742,9 @@ class GraphIndexBuilder(object):
                 })
 
         if rf_docs:
-            doc['related_files'] = rf_docs
+            # related_files is renamed metadata_files,
+            # viz. https://jira.opensciencedatacloud.org/browse/PGDC-1838
+            doc['metadata_files'] = rf_docs
 
     def add_archives(self, node, doc):
         """For each archive attached to a given file node, multixplex on

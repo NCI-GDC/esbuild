@@ -197,7 +197,7 @@ class TestGraphIndexBuilder(TestBase):
             }),
             actual.union({
                 'annotations',
-                'related_files',
+                'metadata_files',
                 'center',
                 'tags',
                 'data_format',
@@ -338,19 +338,19 @@ class TestGraphIndexBuilder(TestBase):
         ]
         self.assertEqual(len(derived_file_docs), 1)
         derived_file_doc = derived_file_docs[0]
-        self.assertEqual(len(derived_file_doc["related_files"]), 1)
+        self.assertEqual(len(derived_file_doc["metadata_files"]), 1)
 
         self.assertIn(
             related_to_derived.node_id,
-            [f["file_id"] for f in derived_file_doc["related_files"]]
+            [f["file_id"] for f in derived_file_doc["metadata_files"]]
         )
         # self,live_file should just have the one correct related_file
         live_file_doc = [f for f in self.file_docs
                          if f["file_id"] == self.live_file.node_id][0]
-        self.assertEqual(len(live_file_doc["related_files"]), 1)
+        self.assertEqual(len(live_file_doc["metadata_files"]), 1)
         self.assertIn(
             related_to_live.node_id,
-            [f["file_id"] for f in live_file_doc["related_files"]]
+            [f["file_id"] for f in live_file_doc["metadata_files"]]
         )
         # test origins are correct
         self.assertEqual(live_file_doc["origin"], "migrated")
@@ -389,7 +389,7 @@ class TestGraphIndexBuilder(TestBase):
         ]
         self.assertEqual(len(derived_file_docs), 1)
         derived_file_doc = derived_file_docs[0]
-        self.assertIsNone(derived_file_doc.get("related_files"))
+        self.assertIsNone(derived_file_doc.get("metadata_files"))
 
         # self.live_file should just have the one correct related_file
         live_file_docs = [
@@ -398,11 +398,11 @@ class TestGraphIndexBuilder(TestBase):
         ]
         self.assertEqual(len(live_file_docs), 1)
         live_file_doc = live_file_docs[0]
-        self.assertEqual(len(live_file_doc["related_files"]), 1)
+        self.assertEqual(len(live_file_doc["metadata_files"]), 1)
 
         self.assertIn(
             related_to_live.node_id,
-            [f["file_id"] for f in live_file_doc["related_files"]]
+            [f["file_id"] for f in live_file_doc["metadata_files"]]
         )
         # test origins are correct
         self.assertEqual(live_file_doc["origin"], "migrated")
@@ -549,7 +549,7 @@ file_props = {
     'md5sum',
     'platform',
     'published_datetime',
-    'related_files',
+    'metadata_files',
     'state',
     'state_comment',
     'submitter_id',
