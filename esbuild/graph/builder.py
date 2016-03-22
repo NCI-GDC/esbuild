@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-esbuild.graph_index
+esbuild.graph.builder
 ----------------------------------
 
 Defines :class:`GraphIndexBuilder` for use building the primary GDC
