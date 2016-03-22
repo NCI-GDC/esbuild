@@ -20,7 +20,7 @@ from datadog import statsd
 from gdcdatamodel import models as md
 from math import ceil
 
-from .const import (
+from .common import (
     ONE_TO_MANY,
     ONE_TO_ONE,
     TOP_LEVEL_IDS,

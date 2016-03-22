@@ -17,12 +17,23 @@ TODO: Update the traversals to be generative from datamodel links?
 
 from addict import Dict
 from gdcdatamodel import models  # noqa
-from psqlgraph import Node
 
-from ..const import (
+from ..common import (
+    FLATTEN,
+    STRING,
+    INTEGER,
+    LONG,
     ONE_TO_ONE,
     ONE_TO_MANY,
     TOP_LEVEL_IDS,
+    _munge_properties,
+    _get_header,
+    flatten_data_type,
+    add_multifields,
+    patch_file_timestamps,
+    nested,
+    patch_project,
+    multifield,
 )
 
 # ======================================================================
@@ -41,6 +52,7 @@ file_tree.case.corr = (ONE_TO_MANY, 'cases')
 file_tree.platform.corr = (ONE_TO_ONE, 'platform')
 file_tree.tag.corr = (ONE_TO_MANY, 'tags')
 file_tree.file.corr = (ONE_TO_MANY, 'metadata_files')
+
 
 # ======================================================================
 # File traversals
@@ -150,154 +162,9 @@ project_tree = Dict()
 project_tree.corr = (ONE_TO_ONE, 'project')
 project_tree.program.corr = (ONE_TO_ONE, 'program')
 
-# ======================================================================
-# Types
-
-STRING = {
-    'index': 'not_analyzed',
-    'type': 'string',
-}
-
-LONG = {
-    'type': 'long',
-}
-
-INTEGER = {
-    'type': 'integer',
-}
 
 # ======================================================================
-# Denormalization configuration options
-
-FLATTEN = [
-    'tag',
-    'platform',
-    'data_format',
-    'experimental_strategy',
-]
-
-# ======================================================================
-# Index settings
-
-MULTIFIELDS = {
-    'project': [
-        'code',
-        'disease_type',
-        'name',
-        'primary_site',
-    ],
-    'annotation': [
-        'annotation_id',
-        'entity_id',
-    ],
-    'files': [
-        'file_id',
-        'file_name',
-    ],
-    'case': [
-        'case_id',
-        'submitter_id',
-    ],
-}
-
-
-def index_settings():
-    return {
-        "settings": {
-            "analysis": {
-                "analyzer": {
-                    "id_search": {
-                        "tokenizer": "whitespace",
-                        "filter": ["lowercase"],
-                        "type": "custom"
-                    },
-                    "id_index": {
-                        "tokenizer": "whitespace",
-                        "filter": [
-                            "lowercase",
-                            "edge_ngram"
-                        ],
-                        "type": "custom"
-                    }
-                },
-                "filter": {
-                    "edge_ngram": {
-                        "side": "front",
-                        "max_gram": 20,
-                        "min_gram": 2,
-                        "type": "edge_ngram"
-                    }
-                }
-            }
-        }
-    }
-
-
-# ======================================================================
-# Utility functions
-
-def _get_header(source):
-    header = Dict()
-    header.dynamic = 'strict'
-    header._all.enabled = False
-    header._source.compress = True
-    header._source.excludes = ["__comment__"]
-    header._id = {'path': '{}_id'.format(source)}
-    return header
-
-
-def _get_es_type(_type):
-    if long in _type or int in _type:
-        return 'long'
-    elif float in _type:
-        return 'double'
-    else:
-        return 'string'
-
-
-def _munge_properties(source, nested=True):
-
-    # Get properties from schema
-    cls = Node.get_subclass(source)
-    assert cls, 'No model for {}'.format(source)
-    properties = cls.get_pg_properties()
-    fields = properties.keys()
-
-    # Add id to document
-    id_name = '{}_id'.format(source)
-    doc = Dict({id_name: STRING})
-
-    # Add all properties to document
-    for field in fields:
-        _type = _get_es_type(properties[field] or [])
-        # assign the type
-        doc[field] = {'type': _type}
-        if str(_type) == 'string':
-            doc[field]['index'] = 'not_analyzed'
-    return doc
-
-
-def multifield(name):
-    doc = Dict()
-    doc.type = 'string'
-
-    # Raw
-    doc.fields.raw.index = 'not_analyzed'
-    doc.fields.raw.store = 'yes'
-    doc.fields.raw.type = 'string'
-
-    # Analyzed
-    doc.fields.analyzed.index = "analyzed"
-    doc.fields.analyzed.index_analyzer = "id_index"
-    doc.fields.analyzed.search_analyzer = "id_search"
-    doc.fields.analyzed.type = "string"
-
-    # Search
-    doc.fields.search.index = 'analyzed'
-    doc.fields.search.analyzer = 'id_search'
-    doc.fields.search.type = 'string'
-    return Dict({name: doc})
-
+# Utility
 
 def _walk_tree(tree, mapping):
     for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
@@ -317,44 +184,6 @@ def _walk_tree(tree, mapping):
             if nested:
                 mapping[name]['type'] = 'nested'
     return mapping
-
-
-def flatten_data_type(root):
-    """Compress nested data_type and sub_type into flat key/value
-
-    ..note::
-        data_type is renamed data_category, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    ..note::
-        data_subtype is renamed data_type, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    """
-    root.data_type = STRING
-
-    # data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    root.data_category = STRING
-
-
-def patch_file_timestamps(doc):
-    doc.properties.uploaded_datetime = LONG
-    doc.properties.published_datetime = LONG
-    return doc
-
-
-def nested(source):
-    return Dict(type='nested', properties=_munge_properties(source))
-
-
-def add_multifields(doc, source):
-    for key in MULTIFIELDS[source]:
-        doc.properties.update(multifield(key))
-
-
-def patch_project(doc):
-    doc.pop('code')
 
 
 # ======================================================================
