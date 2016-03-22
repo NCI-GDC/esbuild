@@ -14,8 +14,8 @@ from prelude import create_prelude_nodes
 
 import es_fixtures
 
-from esbuild.graph.builder import (
-    GraphIndexBuilder
+from esbuild.graph.active.builder import (
+    ActiveGraphIndexBuilder
 )
 
 
@@ -40,7 +40,7 @@ class TestGraphIndexBuilder(TestBase):
         self.convert_documents()
 
     def convert_documents(self, doc_conv=None):
-        doc_conv = doc_conv or GraphIndexBuilder(self.g)
+        doc_conv = doc_conv or ActiveGraphIndexBuilder(self.g)
         with self.g.session_scope():
             doc_conv.cache_database()
         self.case_docs, self.file_docs, self.ann_docs = (
@@ -221,7 +221,7 @@ class TestGraphIndexBuilder(TestBase):
         self.assertEqual(index_file['file_format'], 'BAI')
 
     def test_omitted_projects(self):
-        doc_conv = GraphIndexBuilder(self.g)
+        doc_conv = ActiveGraphIndexBuilder(self.g)
         doc_conv.omitted_projects.add(('TCGA', 'BRCA'))
         self.convert_documents(doc_conv)
         self.assertIsNone(self.case_doc)

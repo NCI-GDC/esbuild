@@ -3,6 +3,8 @@ from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic
 from elasticsearch.exceptions import AuthorizationException
 from esbuild.gdc_elasticsearch import GDCElasticsearch
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from prelude import create_prelude_nodes
 
 import es_fixtures
@@ -17,7 +19,7 @@ from base import (
 )
 
 
-class GDCElasticsearchTest(TestBase):
+class GDCElasticsearchTest(object):
 
     @classmethod
     def setUpClass(cls):
@@ -53,7 +55,7 @@ class GDCElasticsearchTest(TestBase):
         self.delete_all_indices()
 
     def make_gdc_es(self):
-        return GDCElasticsearch(index_base="gdc_es_test")
+        raise NotImplementedError()
 
     def get_es_indices(self):
         return self.es.indices.get_aliases().keys()
@@ -115,3 +117,21 @@ class GDCElasticsearchTest(TestBase):
         for i in xrange(3, 6):
             with self.assertRaises(AuthorizationException):
                 self.es.indices.stats('gdc_es_test_'+str(i))
+
+
+class GDCActiveElasticsearchTest(GDCElasticsearchTest, TestBase):
+
+    def make_gdc_es(self):
+        return GDCElasticsearch(
+            converter_class=ActiveGraphIndexBuilder,
+            index_base="gdc_es_test",
+        )
+
+
+class GDCLegacyElasticsearchTest(GDCElasticsearchTest, TestBase):
+
+    def make_gdc_es(self):
+        return GDCElasticsearch(
+            converter_class=LegacyGraphIndexBuilder,
+            index_base="gdc_es_test",
+        )

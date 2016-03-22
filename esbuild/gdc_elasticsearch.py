@@ -20,8 +20,6 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from .graph.builder import GraphIndexBuilder
-
 from .graph.mappings import (
     index_settings,
     get_project_es_mapping,
@@ -66,8 +64,8 @@ class GDCElasticsearch(object):
     """
 
     def __init__(self,
+                 converter_class,
                  es=None,
-                 converter_class=GraphIndexBuilder,
                  index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
