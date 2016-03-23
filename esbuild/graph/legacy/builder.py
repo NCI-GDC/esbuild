@@ -13,20 +13,13 @@ from ..common.builder import (
 )
 
 from .mappings import (
-    file_tree,
-    case_tree,
-    annotation_tree,
-    get_case_es_mapping,
+    LegacyESMapper,
 )
 
 
 class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
-    ptree_mapping = {'case': case_tree.to_dict()}
-    ftree_mapping = {'file': file_tree.to_dict()}
-    atree_mapping = {'annotation': annotation_tree.to_dict()}
-
-    case_es_mapping = get_case_es_mapping()
+    mapper = LegacyESMapper
 
     case_to_file_paths = [
         ['file'],

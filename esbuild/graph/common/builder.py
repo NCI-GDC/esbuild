@@ -23,7 +23,6 @@ from math import ceil
 from .mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
-    TOP_LEVEL_IDS,
 )
 
 from progressbar import (
@@ -117,16 +116,7 @@ class GraphIndexBuilder(object):
 
     """
 
-    # The tree mappings should be set by the child classes based on
-    # the chosen mapping.  The mapping should be of the form
-    # {"<TYPE>": tree} where "<TYPE>" is "case", "file", etc.
-    ptree_mapping = None
-    ftree_mapping = None
-    atree_mapping = None
-
-    case_es_mapping = None
-    file_es_mapping = None
-    annotation_es_mapping = None
+    mapper = None
 
     # This defines the possible ways to get from case to indexed
     # files. Should be an iterable of iterables, i.e.
@@ -134,24 +124,39 @@ class GraphIndexBuilder(object):
     case_to_file_paths = None
 
     required_attrs = [
-        'ptree_mapping',
-        'ftree_mapping',
-        'atree_mapping',
-        'case_es_mapping',
+        'mapper',
         'case_to_file_paths',
     ]
+
+    # These are the types of data_file that will be treated as a file
+    file_labels = ['file']
 
     def __init__(self, psqlgraph_driver):
         """Walks the graph to produce elasticsearch json documents.
 
         """
 
+        # Verify required attributes are set
         for required_attr in self.required_attrs:
             if getattr(self, required_attr) is None:
                 raise NotImplementedError(
                     '{} must set {}'
                     .format(self.__class__.__name__, required_attr)
                 )
+
+        # Load mapper tree representations
+        self.ptree_mapping = {
+            'case': self.mapper.get_case_tree().to_dict()
+        }
+        self.ftree_mapping = {
+            'file': self.mapper.get_file_tree().to_dict()
+        }
+        self.atree_mapping = {
+            'annotation': self.mapper.get_annotation_tree().to_dict()
+        }
+
+        # Get the actual case mapping to validate against
+        self.case_es_mapping = self.mapper.get_case_es_mapping()
 
         self.g = psqlgraph_driver
         self.G = nx.Graph()
@@ -311,7 +316,8 @@ class GraphIndexBuilder(object):
                            subdoc[child_plural], level+1, ids=ids)
 
             # Aggregate ids as we walk the tree
-            if ids is not None and child.label in TOP_LEVEL_IDS:
+            top_level_ids = self.mapper.top_level_ids
+            if ids is not None and child.label in top_level_ids:
                 ids['{}_ids'.format(child.label)].append(child.node_id)
                 sub_id = child._props.get('submitter_id')
                 if sub_id is not None:
@@ -340,7 +346,15 @@ class GraphIndexBuilder(object):
 
         """
 
-        base = {'{}_id'.format(node.label): node.node_id}
+        base = {}
+
+        if node.label in self.file_labels:
+            base.update({'file_id': node.node_id})
+        elif node._dictionary['category'] == 'analysis':
+            base.update({'analysis_id': node.node_id})
+        else:
+            base.update({'{}_id'.format(node.label): node.node_id})
+
         base.update({
             key: value
             for key, value in node._props.iteritems()
@@ -1470,7 +1484,7 @@ class GraphIndexBuilder(object):
     def _cache_relevant_nodes(self):
         if self.relevant_nodes:
             return
-        files = list(self.nodes_labeled('file'))
+        files = list(self.nodes_labeled(self.file_labels))
         self.relevant_nodes = {}
         pbar = self.pbar('Caching file paths: ', len(files))
         for f in files:

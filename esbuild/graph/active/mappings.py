@@ -13,80 +13,82 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 """
 
 from addict import Dict
+from copy import deepcopy
 from gdcdatamodel import models  # noqa
+from psqlgraph import Node
 
 from ..common.mappings import (
-    get_common_annotation_es_mapping,
-    get_common_annotation_tree,
-    get_common_case_es_mapping,
-    get_common_case_tree,
-    get_common_file_es_mapping,
-    get_common_file_tree,
-    get_common_project_es_mapping,
-    get_common_project_tree,
+    ESMapper,
+    LONG,
+    STRING,
 )
 
-annotation_tree = get_common_annotation_tree()
-case_tree = get_common_case_tree()
-file_tree = get_common_file_tree()
-project_tree = get_common_project_tree()
 
+class ActiveESMapper(ESMapper):
 
-def get_annotation_es_mapping():
-    """Creates the annotation mapping for active annotations from the common
-    annotation mapping
+    @classmethod
+    def _get_properties_by_category(cls, category, nested=True):
+        doc = Dict()
+        classes = (
+            c for c in Node.get_subclasses()
+            if c._dictionary['category'] == category
+        )
 
-    :returns: Elasticsearch mapping ``dict``
+        for c in classes:
+            doc.update(cls._munge_properties(
+                c.label,
+                nested,
+                include_id=False
+            ).iteritems())
 
-    """
-    annotation = Dict(get_common_annotation_es_mapping())
+        doc.analysis_id = STRING
+        doc.analysis_type = STRING
 
-    return annotation.to_dict()
+        return doc
 
+    @classmethod
+    def get_file_es_mapping(cls, *args, **kwargs):
+        files = Dict(super(ActiveESMapper, ActiveESMapper)
+                     .get_file_es_mapping(*args, **kwargs))
 
-def get_case_es_mapping(include_file=True):
-    """Creates the case mapping for active cases from the common
-    case mapping
+        input_files = Dict()
+        input_files.type = 'nested'
+        input_files.properties.data_type = STRING
+        input_files.properties.data_category = STRING
+        input_files.properties.file_id = STRING
+        input_files.properties.file_name = STRING
+        input_files.properties.file_size = LONG
 
-    :returns: Elasticsearch mapping ``dict``
+        output_files = Dict(deepcopy(input_files.to_dict()))
 
-    """
-    case = Dict(get_common_case_es_mapping())
+        # Analysis
+        analysis = Dict()
+        analysis.properties = cls._get_properties_by_category('analysis')
+        analysis.properties.input_files = input_files
 
-    # Add pop whatever file is present and add correct files
-    case.properties.pop('file', None)
-    if include_file:
-        case.properties.files = get_file_es_mapping(True)
-        case.properties.files.type = 'nested'
+        # Metadata
+        metadata = Dict()
+        metadata.properties.read_groups = cls.nested('read_group')
+        analysis.properties.metadata = metadata
 
-    return case.to_dict()
+        # Downstream analysis
+        ds_analysis = Dict()
+        ds_analysis.properties = cls._get_properties_by_category('analysis')
+        ds_analysis.properties.output_files = output_files
 
+        files.properties.analysis = analysis
+        files.properties.downstream_analysis = ds_analysis
 
-def get_file_es_mapping(include_case=True):
-    """Creates the file mapping for active files from the common
-    file mapping
+        return files.to_dict()
 
-    :returns: Elasticsearch mapping ``dict``
+    @classmethod
+    def get_case_es_mapping(cls, *args, **kwargs):
+        case = Dict(super(ActiveESMapper, ActiveESMapper)
+                    .get_case_es_mapping(*args, **kwargs))
 
-    """
-    files = Dict(get_common_file_es_mapping())
+        files = case.properties.files
 
-    # Since file.cases was created with the common definition, replace
-    # it with the active definition
-    if include_case:
-        files.properties.cases = get_case_es_mapping(False)
-        files.properties.cases.type = 'nested'
+        # This is unecessary for searching cases
+        files.properties.analysis.properties.pop('metadata', None)
 
-    return files.to_dict()
-
-
-def get_project_es_mapping():
-    """Creates the project mapping for active projects from the common
-    project mapping
-
-    :returns: Elasticsearch mapping ``dict``
-
-    """
-    project = Dict(get_common_project_es_mapping())
-
-    return project.to_dict()
+        return case.to_dict()

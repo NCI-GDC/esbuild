@@ -11,12 +11,71 @@ from base import TestBase
 from gdcdatamodel import models as md
 from mock import patch
 from prelude import create_prelude_nodes
+from unittest import TestCase
 
 import es_fixtures
 
 from esbuild.graph.active.builder import (
-    ActiveGraphIndexBuilder
+    ActiveGraphIndexBuilder,
+    list_product,
+    subtree_paths_to_file,
+    get_case_to_file_paths,
 )
+
+from esbuild.graph.legacy.builder import (
+    LegacyGraphIndexBuilder,
+)
+
+
+class TestGraphIndexBuilderUtils(TestCase):
+
+    expected_file_path1 = [
+        "submitted_aligned_reads",
+        "alignment_cocleaning_workflow",
+        "aligned_reads",
+        "somatic_mutation_calling_workflow",
+        "simple_somatic_mutation"
+    ]
+
+    def test_list_product(self):
+        self.assertEqual(
+            list_product(
+                [['a', 'b'], ['-', '#']],
+                [range(0, 2), range(2, 4), range(4, 8)]
+            ),
+            [['a', 'b', 0, 1],
+             ['a', 'b', 2, 3],
+             ['a', 'b', 4, 5, 6, 7],
+             ['-', '#', 0, 1],
+             ['-', '#', 2, 3],
+             ['-', '#', 4, 5, 6, 7]])
+
+    def test_subtree_paths_to_file_subset(self):
+        self.assertIn(
+            self.expected_file_path1,
+            subtree_paths_to_file(md.ReadGroup))
+
+    def test_subtree_paths_to_file_expecting_single(self):
+        self.assertEqual(
+            [['exon_expression'], ['gene_expression']],
+            subtree_paths_to_file(md.RnaExpressionWorkflow))
+
+    def test_subtree_paths_to_file_expecting_empty(self):
+        self.assertEqual([], subtree_paths_to_file(md.Annotation))
+
+    def test_get_case_to_file_paths_contains_legacy(self):
+        active_paths = get_case_to_file_paths()
+        for path in LegacyGraphIndexBuilder.case_to_file_paths:
+            self.assertIn(path, active_paths)
+
+    def test_get_case_to_file_paths_contains_expected_path_1(self):
+        prefixes = [
+            ['sample', 'aliquot', 'read_group'],
+            ['sample', 'portion', 'analyte', 'aliquot', 'read_group'],
+        ]
+        for prefix in prefixes:
+            self.assertIn(prefix + self.expected_file_path1,
+                          get_case_to_file_paths())
 
 
 class TestGraphIndexBuilder(TestBase):
@@ -26,6 +85,7 @@ class TestGraphIndexBuilder(TestBase):
         super(TestGraphIndexBuilder, cls).setUpClass()
         cls.delete_all_nodes()
         create_prelude_nodes(cls.g)
+        es_fixtures.insert(cls.g)
 
     @classmethod
     def tearDownClass(cls):
@@ -407,6 +467,114 @@ class TestGraphIndexBuilder(TestBase):
         # test origins are correct
         self.assertEqual(live_file_doc["origin"], "migrated")
         self.assertEqual(derived_file_doc["origin"], "harmonized")
+
+
+class TestActiveGraphIndexBuilder(TestBase):
+
+    @classmethod
+    def setUpClass(cls):
+        super(TestActiveGraphIndexBuilder, cls).setUpClass()
+        cls.delete_all_nodes()
+        create_prelude_nodes(cls.g)
+        es_fixtures.insert(cls.g)
+
+    @classmethod
+    def tearDownClass(cls):
+        super(TestActiveGraphIndexBuilder, cls).tearDownClass()
+        cls.delete_all_nodes()
+
+    def setUp(self):
+        super(TestActiveGraphIndexBuilder, self).setUp()
+        self.delete_non_prelude_nodes()
+        es_fixtures.insert(self.g)
+        self.add_active_workflow()
+
+    def convert_documents(self):
+        doc_conv = ActiveGraphIndexBuilder(self.g)
+        with self.g.session_scope():
+            doc_conv.cache_database()
+        self.case_docs, self.file_docs, self.ann_docs = (
+            doc_conv.denormalize_cases())
+        if self.case_docs:
+            self.case_doc = self.case_docs[0]
+        else:
+            self.case_doc = None
+
+    def add_active_workflow(self):
+        self.readgroup = self.get_fuzzed_node(
+            md.ReadGroup)
+        self.submitted_aligned_reads1 = self.get_fuzzed_node(
+            md.SubmittedAlignedReads, file_name='subalread1')
+        self.submitted_aligned_reads2 = self.get_fuzzed_node(
+            md.SubmittedAlignedReads, file_name='subalread1')
+        self.alignment_workflow = self.get_fuzzed_node(
+            md.AlignmentWorkflow)
+        self.aligned_reads = self.get_fuzzed_node(
+            md.AlignedReads, file_name='alread')
+
+        with self.g.session_scope():
+            aliquot = self.g.nodes(md.Aliquot).first()
+            self.readgroup.aliquots = [
+                aliquot]
+            self.submitted_aligned_reads1.read_groups = [
+                self.readgroup]
+            self.submitted_aligned_reads2.read_groups = [
+                self.readgroup]
+            self.alignment_workflow.submitted_aligned_reads_files = [
+                self.submitted_aligned_reads1,
+                self.submitted_aligned_reads2,
+            ]
+            self.aligned_reads.alignment_workflows = [
+                self.alignment_workflow,
+            ]
+
+    def test_simple_conversion(self):
+        self.convert_documents()
+
+    def test_files_are_in_index(self):
+        self.convert_documents()
+        file_ids = {d['file_id'] for d in self.file_docs}
+        self.assertIn(self.submitted_aligned_reads1.node_id, file_ids)
+        self.assertIn(self.submitted_aligned_reads2.node_id, file_ids)
+        self.assertIn(self.aligned_reads.node_id, file_ids)
+
+    def test_submitted_aligned_reads_no_analysis(self):
+        self.convert_documents()
+        docs = [
+            d for d in self.file_docs
+            if d['file_id'] in [
+                self.submitted_aligned_reads1.node_id,
+                self.submitted_aligned_reads2.node_id,
+            ]
+        ]
+        for doc in docs:
+            self.assertNotIn('analysis', doc)
+
+    def test_aligned_reads_analysis(self):
+        self.convert_documents()
+        doc = [
+            d for d in self.file_docs
+            if d['file_id'] == self.aligned_reads.node_id
+        ][0]
+        self.assertIn('analysis', doc)
+        self.assertIn('input_files', doc['analysis'])
+        self.assertIn('analysis_id', doc['analysis'])
+        self.assertEqual(len(doc['analysis']['input_files']), 2)
+        for f in doc['analysis']['input_files']:
+            self.assertTrue(f['file_name'])
+
+    def test_submitted_aligned_reads_has_downstream_analysis(self):
+        self.convert_documents()
+        docs = [
+            d for d in self.file_docs
+            if d['file_id'] in [
+                self.submitted_aligned_reads1.node_id,
+                self.submitted_aligned_reads2.node_id,
+            ]
+        ]
+        for doc in docs:
+            self.assertIn('downstream_analysis', doc)
+            self.assertIn('output_files', doc['downstream_analysis'])
 
 
 sample_props = {

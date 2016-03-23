@@ -20,139 +20,6 @@ DATA_FILE_CATEGORIES = [
     'data_file',
 ]
 
-TOP_LEVEL_IDS = [
-    'sample',
-    'portion',
-    'analyte',
-    'aliquot',
-    'slide',
-]
-
-# ======================================================================
-# File hierarchy
-
-file_tree = Dict()
-file_tree.corr = (ONE_TO_MANY, 'files')
-file_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
-file_tree.archive.corr = (ONE_TO_ONE, 'archive')
-file_tree.center.corr = (ONE_TO_ONE, 'center')
-file_tree.data_format.corr = (ONE_TO_ONE, 'data_format')
-file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_type')
-file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_category')
-file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
-file_tree.case.corr = (ONE_TO_MANY, 'cases')
-file_tree.platform.corr = (ONE_TO_ONE, 'platform')
-file_tree.tag.corr = (ONE_TO_MANY, 'tags')
-file_tree.file.corr = (ONE_TO_MANY, 'metadata_files')
-
-
-# ======================================================================
-# Case hierarchy see :ref:`hierarchy-format` above
-
-case_tree = Dict()
-case_tree.corr = (ONE_TO_MANY, 'cases')
-case_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.project.corr = (ONE_TO_ONE, 'project')
-case_tree.project.program.corr = (ONE_TO_ONE, 'program')
-case_tree.file.corr = (ONE_TO_MANY, 'files')
-case_tree.tissue_source_site.corr = (ONE_TO_ONE, 'tissue_source_site')
-
-# Biospecimen subtree
-case_tree.sample.corr = (ONE_TO_MANY, 'samples')
-case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
-case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
-case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.sample.portion.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
-case_tree.sample.portion.analyte.aliquot.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.sample.portion.analyte.aliquot.center.corr = (ONE_TO_ONE, 'center')
-case_tree.sample.portion.annotation.corr = (ONE_TO_MANY, 'annotations')
-case_tree.sample.portion.center.corr = (ONE_TO_ONE, 'center')
-case_tree.sample.portion.slide.corr = (ONE_TO_MANY, 'slides')
-case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
-
-# Clinical subtree
-case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
-case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
-case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
-case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
-case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
-case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
-
-# For TARGET
-case_tree.aliquot = case_tree.sample.portion.analyte.aliquot
-case_tree.sample.aliquot = case_tree.sample.portion.analyte.aliquot
-
-# ======================================================================
-# Annotation hierarchy see :ref:`hierarchy-format` above
-
-annotation_tree = Dict()
-annotation_tree.corr = (ONE_TO_MANY, 'cases')
-annotation_tree.project.corr = (ONE_TO_ONE, 'project')
-annotation_tree.project.program.corr = (ONE_TO_ONE, 'program')
-annotation_tree.case.corr = (ONE_TO_ONE, 'case')
-annotation_tree.sample.corr = (ONE_TO_ONE, 'sample')
-annotation_tree.portion.corr = (ONE_TO_ONE, 'portion')
-annotation_tree.analyte.corr = (ONE_TO_ONE, 'analyte')
-annotation_tree.aliquot.corr = (ONE_TO_ONE, 'aliquot')
-annotation_tree.slide.corr = (ONE_TO_ONE, 'slide')
-annotation_tree.file.corr = (ONE_TO_ONE, 'file')
-
-# ======================================================================
-# Project hierarchy
-
-project_tree = Dict()
-project_tree.corr = (ONE_TO_ONE, 'project')
-project_tree.program.corr = (ONE_TO_ONE, 'program')
-
-
-# ======================================================================
-# Tree wrappers
-
-def get_common_annotation_tree():
-    """Returns a annotation tree see :ref:`hierarchy-format` above that you can
-    mutate without affecting other derived trees
-
-    :returns: addict.Dict hierarchy tree
-
-    """
-
-    return Dict(deepcopy(annotation_tree.to_dict()))
-
-
-def get_common_file_tree():
-    """Returns a file tree see :ref:`hierarchy-format` above that you can
-    mutate without affecting other derived trees
-
-    :returns: addict.Dict hierarchy tree
-
-    """
-
-    return Dict(deepcopy(file_tree.to_dict()))
-
-
-def get_common_case_tree():
-    """Returns a case tree see :ref:`hierarchy-format` above that you can
-    mutate without affecting other derived trees
-
-    :returns: addict.Dict hierarchy tree
-
-    """
-
-    return Dict(deepcopy(case_tree.to_dict()))
-
-
-def get_common_project_tree():
-    """Returns a project tree see :ref:`hierarchy-format` above that you can
-    mutate without affecting other derived trees
-
-    :returns: addict.Dict hierarchy tree
-
-    """
-
-    return Dict(deepcopy(project_tree.to_dict()))
-
-
 # ======================================================================
 # Types
 
@@ -169,87 +36,8 @@ INTEGER = {
     'type': 'integer',
 }
 
-# ======================================================================
-# Denormalization configuration options
 
-FLATTEN = [
-    'tag',
-    'platform',
-    'data_format',
-    'experimental_strategy',
-]
-
-# ======================================================================
-# Index settings
-
-MULTIFIELDS = {
-    'project': [
-        'code',
-        'disease_type',
-        'name',
-        'primary_site',
-    ],
-    'annotation': [
-        'annotation_id',
-        'entity_id',
-    ],
-    'files': [
-        'file_id',
-        'file_name',
-    ],
-    'case': [
-        'case_id',
-        'submitter_id',
-    ],
-}
-
-
-def index_settings():
-    return {
-        "settings": {
-            "analysis": {
-                "analyzer": {
-                    "id_search": {
-                        "tokenizer": "whitespace",
-                        "filter": ["lowercase"],
-                        "type": "custom"
-                    },
-                    "id_index": {
-                        "tokenizer": "whitespace",
-                        "filter": [
-                            "lowercase",
-                            "edge_ngram"
-                        ],
-                        "type": "custom"
-                    }
-                },
-                "filter": {
-                    "edge_ngram": {
-                        "side": "front",
-                        "max_gram": 20,
-                        "min_gram": 2,
-                        "type": "edge_ngram"
-                    }
-                }
-            }
-        }
-    }
-
-
-# ======================================================================
-# Utility functions
-
-def _get_header(source):
-    header = Dict()
-    header.dynamic = 'strict'
-    header._all.enabled = False
-    header._source.compress = True
-    header._source.excludes = ["__comment__"]
-    header._id = {'path': '{}_id'.format(source)}
-    return header
-
-
-def _get_es_type(_type):
+def get_es_type(_type):
     if long in _type or int in _type:
         return 'long'
     elif float in _type:
@@ -258,279 +46,459 @@ def _get_es_type(_type):
         return 'string'
 
 
-def _munge_properties(source, nested=True):
-
-    # Get properties from schema
-    cls = Node.get_subclass(source)
-    assert cls, 'No model for {}'.format(source)
-    properties = cls.get_pg_properties()
-    fields = properties.keys()
-
-    # Add id to document
-    id_name = '{}_id'.format(source)
-    doc = Dict({id_name: STRING})
-
-    # Add all properties to document
-    for field in fields:
-        _type = _get_es_type(properties[field] or [])
-        # assign the type
-        doc[field] = {'type': _type}
-        if str(_type) == 'string':
-            doc[field]['index'] = 'not_analyzed'
-    return doc
-
-
-def multifield(name):
-    doc = Dict()
-    doc.type = 'string'
-
-    # Raw
-    doc.fields.raw.index = 'not_analyzed'
-    doc.fields.raw.store = 'yes'
-    doc.fields.raw.type = 'string'
-
-    # Analyzed
-    doc.fields.analyzed.index = "analyzed"
-    doc.fields.analyzed.index_analyzer = "id_index"
-    doc.fields.analyzed.search_analyzer = "id_search"
-    doc.fields.analyzed.type = "string"
-
-    # Search
-    doc.fields.search.index = 'analyzed'
-    doc.fields.search.analyzer = 'id_search'
-    doc.fields.search.type = 'string'
-    return Dict({name: doc})
-
-
-def flatten_data_type(root):
-    """Compress nested data_type and sub_type into flat key/value
-
-    ..note::
-        data_type is renamed data_category, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    ..note::
-        data_subtype is renamed data_type, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    """
-    root.data_type = STRING
-
-    # data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    root.data_category = STRING
-
-
-def patch_file_timestamps(doc):
-    doc.properties.uploaded_datetime = LONG
-    doc.properties.published_datetime = LONG
-    return doc
-
-
-def nested(source):
-    return Dict(type='nested', properties=_munge_properties(source))
-
-
-def add_multifields(doc, source):
-    for key in MULTIFIELDS[source]:
-        doc.properties.update(multifield(key))
-
-
-def patch_project(doc):
-    doc.pop('code')
-
-
-def _walk_tree(tree, mapping):
-    for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
-        corr, name = v['corr']
-        if name not in mapping:
-            mapping[name] = {'properties': {}}
-        if k in FLATTEN:
-            mapping[name] = STRING
-        elif k == 'annotation':
-            mapping.annotations = annotation_body()
-            mapping.annotations.type = 'nested'
-        else:
-            nested = (corr == ONE_TO_MANY)
-            mapping[name].properties.update(
-                _munge_properties(k, nested))
-            _walk_tree(tree[k], mapping[name]['properties'])
-            if nested:
-                mapping[name]['type'] = 'nested'
-    return mapping
-
-
 # ======================================================================
-# Mappings
+# Index settings
 
-def get_common_file_es_mapping(include_case=True):
-    files = _get_header('file')
-    files.properties = _walk_tree(file_tree, _munge_properties('file'))
-    flatten_data_type(files.properties)
+class ESMapper(object):
 
-    # Specify the entity the file was derived from
-    files.properties.associated_entities.type = 'nested'
-    files.properties.associated_entities.properties.entity_type = STRING
-    files.properties.associated_entities.properties.entity_id = STRING
-    files.properties.associated_entities.properties.case_id = STRING
-    files.properties.associated_entities.properties.entity_submitter_id = STRING
+    top_level_ids = [
+        'sample',
+        'portion',
+        'analyte',
+        'aliquot',
+        'slide',
+    ]
 
-    # Patch file mutlifields
-    add_multifields(files, 'files')
+    flatten = [
+        'tag',
+        'platform',
+        'data_format',
+        'experimental_strategy',
+    ]
 
-    # Related files
-    metadata_files = patch_file_timestamps(nested('file'))
-    metadata_files.properties.type = STRING
-    #   data_type is renamed data_category, viz.
-    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    metadata_files.properties.data_category = STRING
-    #   data_subtype is renamed data_type, viz.
-    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    metadata_files.properties.data_type = STRING
-    metadata_files.properties.access = STRING
-    files.properties.metadata_files = metadata_files
+    multifields = {
+        'project': [
+            'code',
+            'disease_type',
+            'name',
+            'primary_site',
+        ],
+        'annotation': [
+            'annotation_id',
+            'entity_id',
+        ],
+        'files': [
+            'file_id',
+            'file_name',
+        ],
+        'case': [
+            'case_id',
+            'submitter_id',
+        ],
+    }
 
-    # Index files
-    index_files = patch_file_timestamps(nested('file'))
-    index_files.properties.file_format = STRING
-    files.properties.index_files = index_files
+    @staticmethod
+    def get_file_tree():
+        file_tree = Dict()
+        file_tree.corr = (ONE_TO_MANY, 'files')
+        file_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
+        file_tree.archive.corr = (ONE_TO_ONE, 'archive')
+        file_tree.center.corr = (ONE_TO_ONE, 'center')
+        file_tree.data_format.corr = (ONE_TO_ONE, 'data_format')
+        file_tree.data_subtype.corr = (ONE_TO_ONE, 'data_type')
+        file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_category')
+        file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
+        file_tree.case.corr = (ONE_TO_MANY, 'cases')
+        file_tree.platform.corr = (ONE_TO_ONE, 'platform')
+        file_tree.tag.corr = (ONE_TO_MANY, 'tags')
+        file_tree.file.corr = (ONE_TO_MANY, 'metadata_files')
 
-    # Temporary until datetimes are backported
-    patch_file_timestamps(files)
+        return file_tree
 
-    # File access
-    files.properties.access = STRING
-    files.properties.acl = STRING
+    @staticmethod
+    def get_case_tree():
+        case_tree = Dict()
+        case_tree.corr = (ONE_TO_MANY, 'cases')
+        case_tree.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.project.corr = (ONE_TO_ONE, 'project')
+        case_tree.project.program.corr = (ONE_TO_ONE, 'program')
+        case_tree.file.corr = (ONE_TO_MANY, 'files')
+        case_tree.tissue_source_site.corr = (ONE_TO_ONE, 'tissue_source_site')
 
-    # Other file properties
-    files.properties.origin = STRING
+        # Biospecimen subtree
+        case_tree.sample.corr = (ONE_TO_MANY, 'samples')
+        case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
+        case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
+        case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.portion.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
+        case_tree.sample.portion.analyte.aliquot.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.portion.analyte.aliquot.center.corr = (ONE_TO_ONE, 'center')
+        case_tree.sample.portion.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.portion.center.corr = (ONE_TO_ONE, 'center')
+        case_tree.sample.portion.slide.corr = (ONE_TO_MANY, 'slides')
+        case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
 
-    # Case
-    files.properties.pop('case', None)
-    if include_case:
-        files.properties.cases = get_common_case_es_mapping(False)
-        files.properties.cases.type = 'nested'
+        # Clinical subtree
+        case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
+        case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
+        case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
+        case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
+        case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
+        case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
-    return deepcopy(files.to_dict())
+        # For TARGET
+        case_tree.aliquot = case_tree.sample.portion.analyte.aliquot
+        case_tree.sample.aliquot = case_tree.sample.portion.analyte.aliquot
 
+        return case_tree
 
-def get_common_case_es_mapping(include_file=True):
-    # case body
-    case = _get_header('case')
-    case.properties = _walk_tree(case_tree, _munge_properties('case'))
-    case.properties.days_to_index = LONG
+    @staticmethod
+    def get_annotation_tree():
+        annotation_tree = Dict()
+        annotation_tree.corr = (ONE_TO_MANY, 'cases')
+        annotation_tree.project.corr = (ONE_TO_ONE, 'project')
+        annotation_tree.project.program.corr = (ONE_TO_ONE, 'program')
+        annotation_tree.case.corr = (ONE_TO_ONE, 'case')
+        annotation_tree.sample.corr = (ONE_TO_ONE, 'sample')
+        annotation_tree.portion.corr = (ONE_TO_ONE, 'portion')
+        annotation_tree.analyte.corr = (ONE_TO_ONE, 'analyte')
+        annotation_tree.aliquot.corr = (ONE_TO_ONE, 'aliquot')
+        annotation_tree.slide.corr = (ONE_TO_ONE, 'slide')
+        annotation_tree.file.corr = (ONE_TO_ONE, 'file')
 
-    # Patch project
-    patch_project(case.properties.project.properties)
+        return annotation_tree
 
-    # Patch case mutlifields
-    add_multifields(case, 'case')
+    @staticmethod
+    def get_project_tree():
+        project_tree = Dict()
+        project_tree.corr = (ONE_TO_ONE, 'project')
+        project_tree.program.corr = (ONE_TO_ONE, 'program')
 
-    # Metadata files
-    case.properties.metadata_files = nested('file')
-    #   data_type is renamed data_category, viz.
-    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    case.properties.metadata_files.properties.data_category = STRING
-    #   data_subtype is renamed data_type, viz.
-    #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    case.properties.metadata_files.properties.data_type = STRING
-    case.properties.metadata_files.properties.acl = STRING
+        return project_tree
 
-    # Add top level id aggregation
-    for label in TOP_LEVEL_IDS:
-        case.properties['{}_ids'.format(label)] = STRING
-        case.properties['submitter_{}_ids'.format(label)] = STRING
+    # ======================================================================
+    # Denormalization configuration options
 
-    # Add pop whatever file is present and add correct files
-    case.properties.pop('file', None)
-    if include_file:
-        case.properties.files = get_common_file_es_mapping(True)
-        case.properties.files.type = 'nested'
+    @staticmethod
+    def index_settings():
+        return {
+            "settings": {
+                "analysis": {
+                    "analyzer": {
+                        "id_search": {
+                            "tokenizer": "whitespace",
+                            "filter": ["lowercase"],
+                            "type": "custom"
+                        },
+                        "id_index": {
+                            "tokenizer": "whitespace",
+                            "filter": [
+                                "lowercase",
+                                "edge_ngram"
+                            ],
+                            "type": "custom"
+                        }
+                    },
+                    "filter": {
+                        "edge_ngram": {
+                            "side": "front",
+                            "max_gram": 20,
+                            "min_gram": 2,
+                            "type": "edge_ngram"
+                        }
+                    }
+                }
+            }
+        }
 
-    # Adjust file properties
-    case.properties.files.properties.pop('associated_entities', None)
-    case.properties.files.properties.pop('annotations', None)
+    # ======================================================================
+    # Utility functions
 
-    # Summary
-    summary = case.properties.summary.properties
-    summary.file_count = LONG
-    summary.file_size = LONG
+    @staticmethod
+    def _get_header(source):
+        header = Dict()
+        header.dynamic = 'strict'
+        header._all.enabled = False
+        header._source.compress = True
+        header._source.excludes = ["__comment__"]
+        header._id = {'path': '{}_id'.format(source)}
+        return header
 
-    # Summary experimental strategies
-    summary.experimental_strategies.type = 'nested'
-    summary.experimental_strategies.properties.experimental_strategy = STRING
-    summary.experimental_strategies.properties.file_count = LONG
+    @staticmethod
+    def _munge_properties(source, nested=True, include_id=True):
+        # Get properties from schema
+        cls = Node.get_subclass(source)
+        assert cls, 'No model for {}'.format(source)
+        properties = cls.get_pg_properties()
+        fields = properties.keys()
 
-    # Summary data types.  data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    summary.data_categories.type = 'nested'
-    summary.data_categories.properties.data_category = STRING
-    summary.data_categories.properties.file_count = LONG
+        doc = Dict()
 
-    # Clinical
-    clinical = case.properties.clinical.properties
-    clinical.age_at_diagnosis = INTEGER
-    clinical.days_to_death = INTEGER
+        if include_id:
+            # Add id to document
+            id_name = '{}_id'.format(source)
+            doc[id_name] = STRING
 
-    return deepcopy(case.to_dict())
+        # Add all properties to document
+        for field in fields:
+            _type = get_es_type(properties[field] or [])
+            # assign the type
+            doc[field] = {'type': _type}
+            if str(_type) == 'string':
+                doc[field]['index'] = 'not_analyzed'
+        return doc
 
+    @staticmethod
+    def multifield(name):
+        doc = Dict()
+        doc.type = 'string'
 
-def annotation_body(nested=True):
-    annotation = Dict()
-    annotation.properties = _munge_properties('annotation', nested)
-    annotation.properties.case_id = STRING
-    annotation.properties.case_submitter_id = STRING
-    annotation.properties.entity_type = STRING
-    annotation.properties.entity_id = STRING
-    annotation.properties.entity_submitter_id = STRING
-    annotation.properties.pop('item_id', None)
-    return annotation
+        # Raw
+        doc.fields.raw.index = 'not_analyzed'
+        doc.fields.raw.store = 'yes'
+        doc.fields.raw.type = 'string'
 
+        # Analyzed
+        doc.fields.analyzed.index = "analyzed"
+        doc.fields.analyzed.index_analyzer = "id_index"
+        doc.fields.analyzed.search_analyzer = "id_search"
+        doc.fields.analyzed.type = "string"
 
-def get_common_annotation_es_mapping(include_file=True):
-    annotation = _get_header('annotation')
-    annotation.update(annotation_body(nested=False))
+        # Search
+        doc.fields.search.index = 'analyzed'
+        doc.fields.search.analyzer = 'id_search'
+        doc.fields.search.type = 'string'
+        return Dict({name: doc})
 
-    # Patch annotation mutlifields
-    add_multifields(annotation, 'annotation')
+    @staticmethod
+    def flatten_data_type(root):
+        """Compress nested data_type and sub_type into flat key/value
 
-    # Add the project and program
-    annotation.properties.update(Dict({
-        'project': {'properties': _munge_properties('project')}}))
-    annotation.properties.project.properties.program = {
-        'properties': _munge_properties('program')}
+        ..note::
+            data_type is renamed data_category, viz.
+            https://jira.opensciencedatacloud.org/browse/PGDC-1472
 
-    return deepcopy(annotation.to_dict())
+        ..note::
+            data_subtype is renamed data_type, viz.
+            https://jira.opensciencedatacloud.org/browse/PGDC-1472
 
+        """
+        root.data_type = STRING
 
-def get_common_project_es_mapping():
-    project = _get_header('project')
-    project.properties = _walk_tree(project_tree, _munge_properties('project'))
+        # data_type is renamed data_category, viz.
+        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        root.data_category = STRING
 
-    # Patch annotation mutlifields
-    add_multifields(project, 'project')
+    @staticmethod
+    def patch_file_timestamps(doc):
+        doc.properties.uploaded_datetime = LONG
+        doc.properties.published_datetime = LONG
+        return doc
 
-    # Patch project
-    patch_project(project.properties)
-    project.properties.update(multifield('project_id'))
+    @classmethod
+    def nested(cls, source):
+        return Dict(type='nested', properties=cls._munge_properties(source))
 
-    # Summary
-    summary = project.properties.summary.properties
-    summary.file_count = LONG
-    summary.file_size = LONG
-    summary.case_count = LONG
+    @classmethod
+    def add_multifields(cls, doc, source):
+        for key in cls.multifields[source]:
+            doc.properties.update(cls.multifield(key))
 
-    # Summary experimental strategies
-    summary.experimental_strategies.type = 'nested'
-    summary.experimental_strategies.properties.case_count = LONG
-    summary.experimental_strategies.properties.experimental_strategy = STRING
-    summary.experimental_strategies.properties.file_count = LONG
+    @staticmethod
+    def patch_project(doc):
+        doc.pop('code')
 
-    # Summary data types.  data_type is renamed data_category, viz.
-    # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-    summary.data_categories.type = 'nested'
-    summary.data_categories.properties.case_count = LONG
-    summary.data_categories.properties.data_category = STRING
-    summary.data_categories.properties.file_count = LONG
+    @classmethod
+    def _walk_tree(cls, tree, mapping):
+        for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
+            corr, name = v['corr']
+            if name not in mapping:
+                mapping[name] = {'properties': {}}
+            if k in cls.flatten:
+                mapping[name] = STRING
+            elif k == 'annotation':
+                mapping.annotations = cls.annotation_body()
+                mapping.annotations.type = 'nested'
+            else:
+                nested = (corr == ONE_TO_MANY)
+                mapping[name].properties.update(
+                    cls._munge_properties(k, nested))
+                cls._walk_tree(tree[k], mapping[name]['properties'])
+                if nested:
+                    mapping[name]['type'] = 'nested'
+        return mapping
 
-    return deepcopy(project.to_dict())
+    # ======================================================================
+    # Mappings
+
+    @classmethod
+    def get_file_es_mapping(cls, include_case=True):
+        files = cls._get_header('file')
+        files.properties = cls._walk_tree(
+            cls.get_file_tree(),
+            cls._munge_properties('file')
+        )
+        cls.flatten_data_type(files.properties)
+
+        # Specify the entity the file was derived from
+        files.properties.associated_entities.type = 'nested'
+        files.properties.associated_entities.properties.entity_type = STRING
+        files.properties.associated_entities.properties.entity_id = STRING
+        files.properties.associated_entities.properties.case_id = STRING
+        files.properties.associated_entities.properties.entity_submitter_id = STRING
+
+        # Patch file mutlifields
+        cls.add_multifields(files, 'files')
+
+        # Related files
+        metadata_files = cls.patch_file_timestamps(cls.nested('file'))
+        metadata_files.properties.type = STRING
+        #   data_type is renamed data_category, viz.
+        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        metadata_files.properties.data_category = STRING
+        #   data_subtype is renamed data_type, viz.
+        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        metadata_files.properties.data_type = STRING
+        metadata_files.properties.access = STRING
+        files.properties.metadata_files = metadata_files
+
+        # Index files
+        index_files = cls.patch_file_timestamps(cls.nested('file'))
+        index_files.properties.file_format = STRING
+        files.properties.index_files = index_files
+
+        # Temporary until datetimes are backported
+        cls.patch_file_timestamps(files)
+
+        # File access
+        files.properties.access = STRING
+        files.properties.acl = STRING
+
+        # Other file properties
+        files.properties.origin = STRING
+
+        # Case
+        files.properties.pop('case', None)
+        if include_case:
+            files.properties.cases = cls.get_case_es_mapping(False)
+            files.properties.cases.type = 'nested'
+
+        return deepcopy(files.to_dict())
+
+    @classmethod
+    def get_case_es_mapping(cls, include_file=True):
+        # case body
+        case = cls._get_header('case')
+        case.properties = cls._walk_tree(
+            cls.get_case_tree(),
+            cls._munge_properties('case')
+        )
+        case.properties.days_to_index = LONG
+
+        # Patch project
+        cls.patch_project(case.properties.project.properties)
+
+        # Patch case mutlifields
+        cls.add_multifields(case, 'case')
+
+        # Metadata files
+        case.properties.metadata_files = cls.nested('file')
+        #   data_type is renamed data_category, viz.
+        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        case.properties.metadata_files.properties.data_category = STRING
+        #   data_subtype is renamed data_type, viz.
+        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        case.properties.metadata_files.properties.data_type = STRING
+        case.properties.metadata_files.properties.acl = STRING
+
+        # Add top level id aggregation
+        for label in cls.top_level_ids:
+            case.properties['{}_ids'.format(label)] = STRING
+            case.properties['submitter_{}_ids'.format(label)] = STRING
+
+        # Add pop whatever file is present and add correct files
+        case.properties.pop('file', None)
+        if include_file:
+            case.properties.files = cls.get_file_es_mapping(True)
+            case.properties.files.type = 'nested'
+
+        # Adjust file properties
+        case.properties.files.properties.pop('associated_entities', None)
+        case.properties.files.properties.pop('annotations', None)
+
+        # Summary
+        summary = case.properties.summary.properties
+        summary.file_count = LONG
+        summary.file_size = LONG
+
+        # Summary experimental strategies
+        summary.experimental_strategies.type = 'nested'
+        summary.experimental_strategies.properties.experimental_strategy = STRING
+        summary.experimental_strategies.properties.file_count = LONG
+
+        # Summary data types.  data_type is renamed data_category, viz.
+        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        summary.data_categories.type = 'nested'
+        summary.data_categories.properties.data_category = STRING
+        summary.data_categories.properties.file_count = LONG
+
+        # Clinical
+        clinical = case.properties.clinical.properties
+        clinical.age_at_diagnosis = INTEGER
+        clinical.days_to_death = INTEGER
+
+        return deepcopy(case.to_dict())
+
+    @classmethod
+    def annotation_body(cls, nested=True):
+        annotation = Dict()
+        annotation.properties = cls._munge_properties('annotation', nested)
+        annotation.properties.case_id = STRING
+        annotation.properties.case_submitter_id = STRING
+        annotation.properties.entity_type = STRING
+        annotation.properties.entity_id = STRING
+        annotation.properties.entity_submitter_id = STRING
+        annotation.properties.pop('item_id', None)
+        return annotation
+
+    @classmethod
+    def get_annotation_es_mapping(cls, include_file=True):
+        annotation = cls._get_header('annotation')
+        annotation.update(cls.annotation_body(nested=False))
+
+        # Patch annotation mutlifields
+        cls.add_multifields(annotation, 'annotation')
+
+        # Add the project and program
+        annotation.properties.update(Dict({
+            'project': {'properties': cls._munge_properties('project')}}))
+        annotation.properties.project.properties.program = {
+            'properties': cls._munge_properties('program')}
+
+        return deepcopy(annotation.to_dict())
+
+    @classmethod
+    def get_project_es_mapping(cls):
+        project = cls._get_header('project')
+        project.properties = cls._walk_tree(
+            cls.get_project_tree(),
+            cls._munge_properties('project'))
+
+        # Patch annotation mutlifields
+        cls.add_multifields(project, 'project')
+
+        # Patch project
+        cls.patch_project(project.properties)
+        project.properties.update(cls.multifield('project_id'))
+
+        # Summary
+        summary = project.properties.summary.properties
+        summary.file_count = LONG
+        summary.file_size = LONG
+        summary.case_count = LONG
+
+        # Summary experimental strategies
+        summary.experimental_strategies.type = 'nested'
+        summary.experimental_strategies.properties.case_count = LONG
+        summary.experimental_strategies.properties.experimental_strategy = STRING
+        summary.experimental_strategies.properties.file_count = LONG
+
+        # Summary data types.  data_type is renamed data_category, viz.
+        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
+        summary.data_categories.type = 'nested'
+        summary.data_categories.properties.case_count = LONG
+        summary.data_categories.properties.data_category = STRING
+        summary.data_categories.properties.file_count = LONG
+
+        return deepcopy(project.to_dict())
