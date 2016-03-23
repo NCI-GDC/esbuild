@@ -21,3 +21,10 @@ from ..common.mappings import (
 
 class LegacyESMapper(ESMapper):
     pass
+
+
+get_file_es_mapping = LegacyESMapper.get_file_es_mapping
+get_case_es_mapping = LegacyESMapper.get_case_es_mapping
+get_project_es_mapping = LegacyESMapper.get_project_es_mapping
+get_annotation_es_mapping = LegacyESMapper.get_annotation_es_mapping
+index_settings = LegacyESMapper.index_settings

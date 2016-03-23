@@ -92,3 +92,10 @@ class ActiveESMapper(ESMapper):
         files.properties.analysis.properties.pop('metadata', None)
 
         return case.to_dict()
+
+
+get_file_es_mapping = ActiveESMapper.get_file_es_mapping
+get_case_es_mapping = ActiveESMapper.get_case_es_mapping
+get_project_es_mapping = ActiveESMapper.get_project_es_mapping
+get_annotation_es_mapping = ActiveESMapper.get_annotation_es_mapping
+index_settings = ActiveESMapper.index_settings
