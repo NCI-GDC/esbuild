@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Tests the GDC Elasticsearch interaction for active and legacy
+indices.
+
+"""
+
 from base import TestBase
 from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic
@@ -16,6 +23,20 @@ from base import (
     PG_USER,
     PG_PASSWORD,
     PG_DATABASE,
+)
+
+from esbuild.graph.active.mappings import (
+    get_annotation_es_mapping as get_active_annotation_mapping,
+    get_case_es_mapping as get_active_case_mapping,
+    get_file_es_mapping as get_active_file_mapping,
+    get_project_es_mapping as get_active_project_mapping,
+)
+
+from esbuild.graph.legacy.mappings import (
+    get_annotation_es_mapping as get_legacy_annotation_mapping,
+    get_case_es_mapping as get_legacy_case_mapping,
+    get_file_es_mapping as get_legacy_file_mapping,
+    get_project_es_mapping as get_legacy_project_mapping,
 )
 
 
@@ -124,6 +145,10 @@ class GDCActiveElasticsearchTest(GDCElasticsearchTest, TestBase):
     def make_gdc_es(self):
         return GDCElasticsearch(
             converter_class=ActiveGraphIndexBuilder,
+            annotation_mapping=get_active_annotation_mapping(),
+            case_mapping=get_active_case_mapping(),
+            file_mapping=get_active_file_mapping(),
+            project_mapping=get_active_project_mapping(),
             index_base="gdc_es_test",
         )
 
@@ -133,5 +158,9 @@ class GDCLegacyElasticsearchTest(GDCElasticsearchTest, TestBase):
     def make_gdc_es(self):
         return GDCElasticsearch(
             converter_class=LegacyGraphIndexBuilder,
+            annotation_mapping=get_legacy_annotation_mapping(),
+            case_mapping=get_legacy_case_mapping(),
+            file_mapping=get_legacy_file_mapping(),
+            project_mapping=get_legacy_project_mapping(),
             index_base="gdc_es_test",
         )

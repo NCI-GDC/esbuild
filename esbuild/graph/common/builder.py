@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-esbuild.graph.builder
+esbuild.graph.common.builder
 ----------------------------------
 
 Defines :class:`GraphIndexBuilder` for use building the primary GDC
@@ -20,7 +20,7 @@ from datadog import statsd
 from gdcdatamodel import models as md
 from math import ceil
 
-from .common import (
+from .mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
     TOP_LEVEL_IDS,
@@ -128,11 +128,17 @@ class GraphIndexBuilder(object):
     file_es_mapping = None
     annotation_es_mapping = None
 
+    # This defines the possible ways to get from case to indexed
+    # files. Should be an iterable of iterables, i.e.
+    # [['file'], ['sample', 'aliquot', 'file']]
+    case_to_file_paths = None
+
     required_attrs = [
         'ptree_mapping',
         'ftree_mapping',
         'atree_mapping',
         'case_es_mapping',
+        'case_to_file_paths',
     ]
 
     def __init__(self, psqlgraph_driver):
@@ -141,7 +147,7 @@ class GraphIndexBuilder(object):
         """
 
         for required_attr in self.required_attrs:
-            if not getattr(self, required_attr):
+            if getattr(self, required_attr) is None:
                 raise NotImplementedError(
                     '{} must set {}'
                     .format(self.__class__.__name__, required_attr)
@@ -201,16 +207,6 @@ class GraphIndexBuilder(object):
             ('file', 'describes', 'case'),
             ('case', 'describes', 'file'),
             ('file', 'related_to', 'file'),
-        ]
-
-        self.case_to_file_paths = [
-            ['file'],
-            ['sample', 'aliquot', 'file'],
-            ['sample', 'portion', 'file'],
-            ['sample', 'portion', 'analyte', 'aliquot', 'file'],
-            # we don't need a special path for harmonized files
-            # because they get tied to the relevant aliquots
-            # during cache_database
         ]
 
         self.possible_associated_entites = [

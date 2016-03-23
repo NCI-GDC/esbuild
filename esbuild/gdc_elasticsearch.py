@@ -20,12 +20,8 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from .graph.mappings import (
+from .graph.common.mappings import (
     index_settings,
-    get_project_es_mapping,
-    get_annotation_es_mapping,
-    get_case_es_mapping,
-    get_file_es_mapping,
 )
 
 # TODO this could probably be bumped now that the number of bulk
@@ -65,6 +61,10 @@ class GDCElasticsearch(object):
 
     def __init__(self,
                  converter_class,
+                 annotation_mapping,
+                 case_mapping,
+                 file_mapping,
+                 project_mapping,
                  es=None,
                  index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
@@ -74,6 +74,12 @@ class GDCElasticsearch(object):
 
         """
         self.index_base = index_base
+
+        self.annotation_mapping = annotation_mapping
+        self.case_mapping = case_mapping
+        self.file_mapping = file_mapping
+        self.project_mapping = project_mapping
+
         self.log = get_logger("gdc_elasticsearch")
         if es:
             self.es = es
@@ -188,19 +194,19 @@ class GDCElasticsearch(object):
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="project",
-                body=get_project_es_mapping()),
+                body=self.project_mapping),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="file",
-                body=get_file_es_mapping()),
+                body=self.file_mapping),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="case",
-                body=get_case_es_mapping()),
+                body=self.case_mapping),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="annotation",
-                body=get_annotation_es_mapping()),
+                body=self.annotation_mapping),
         ]
 
     def index_populate(self, index, case_docs=[], file_docs=[],

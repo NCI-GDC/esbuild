@@ -292,7 +292,7 @@ class TestGraphIndexBuilder(TestBase):
         # the file should be there
         self.assertIn("file1", [f["file_id"] for f in self.file_docs])
 
-    @patch("esbuild.graph.builder.statsd")
+    @patch("esbuild.graph.common.builder.statsd")
     def test_duplicate_classification_only_results_in_warning(self, mock_statsd):
         with self.g.session_scope() as s:
             s.add(self.live_file)

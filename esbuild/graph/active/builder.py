@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-esbuild.graph.active_builder
+esbuild.graph.active.builder
 ----------------------------------
 
 Defines :class:`ActiveGraphIndexBuilder` for building the graph index
@@ -8,7 +8,7 @@ for Active projects.
 
 """
 
-from ..builder import (
+from ..common.builder import (
     GraphIndexBuilder,
 )
 
@@ -27,3 +27,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     atree_mapping = {'annotation': annotation_tree.to_dict()}
 
     case_es_mapping = get_case_es_mapping()
+
+    case_to_file_paths = [
+        ['file'],
+        ['sample', 'aliquot', 'file'],
+        ['sample', 'portion', 'file'],
+        ['sample', 'portion', 'analyte', 'aliquot', 'file'],
+        # we don't need a special path for harmonized files
+        # because they get tied to the relevant aliquots
+        # during cache_database
+    ]
