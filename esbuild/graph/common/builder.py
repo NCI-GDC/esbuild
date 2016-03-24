@@ -128,9 +128,6 @@ class GraphIndexBuilder(object):
         'case_to_file_paths',
     ]
 
-    # These are the types of data_file that will be treated as a file
-    file_labels = ['file']
-
     def __init__(self, psqlgraph_driver):
         """Walks the graph to produce elasticsearch json documents.
 
@@ -348,7 +345,7 @@ class GraphIndexBuilder(object):
 
         base = {}
 
-        if node.label in self.file_labels:
+        if node.label in self.mapper.file_labels:
             base.update({'file_id': node.node_id})
         elif node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
@@ -1243,7 +1240,7 @@ class GraphIndexBuilder(object):
         """
 
         # This function should only be for files
-        if node.label != 'file':
+        if node.label not in self.mapper.file_labels:
             return True
 
         # Is file to_delete
@@ -1251,7 +1248,7 @@ class GraphIndexBuilder(object):
             return False
 
         # Is file not live
-        if node.state != 'live':
+        if node.state not in ['live', 'submitted']:
             return False
 
         return True
@@ -1484,7 +1481,7 @@ class GraphIndexBuilder(object):
     def _cache_relevant_nodes(self):
         if self.relevant_nodes:
             return
-        files = list(self.nodes_labeled(self.file_labels))
+        files = list(self.nodes_labeled(self.mapper.file_labels))
         self.relevant_nodes = {}
         pbar = self.pbar('Caching file paths: ', len(files))
         for f in files:

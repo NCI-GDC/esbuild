@@ -117,11 +117,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     mapper = ActiveESMapper
     case_to_file_paths = get_case_to_file_paths()
 
-    file_labels = [
-        c.label for c in Node.get_subclasses()
-        if c._dictionary['category'] == 'data_file'
-    ]
-
     def denormalize_file(self, node, ptree):
         doc = (super(ActiveGraphIndexBuilder, self)
                .denormalize_file(node, ptree))

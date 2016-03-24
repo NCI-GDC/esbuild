@@ -21,6 +21,157 @@ from esbuild.graph.legacy.builder import (
 
 class TestGraphIndexBuilder(TestBase):
 
+    builder_class = LegacyGraphIndexBuilder
+
+    sample_props = {
+        'aliquots',
+        'annotations',
+        'created_datetime',
+        'current_weight',
+        'days_to_collection',
+        'days_to_sample_procurement',
+        'freezing_method',
+        'initial_weight',
+        'intermediate_dimension',
+        'is_ffpe',
+        'longest_dimension',
+        'oct_embedded',
+        'pathology_report_uuid',
+        'portions',
+        'sample_id',
+        'sample_type',
+        'sample_type_id',
+        'shortest_dimension',
+        'state',
+        'submitter_id',
+        'time_between_clamping_and_freezing',
+        'time_between_excision_and_freezing',
+        'tumor_code',
+        'tumor_code_id',
+        'updated_datetime',
+    }
+
+    project_props = {
+        'dbgap_accession_number',
+        'disease_type',
+        'name',
+        'primary_site',
+        'program',
+        'project_id',
+        'released',
+        'state',
+    }
+
+    summary_props = {
+        'data_categories',
+        'experimental_strategies',
+        'file_count',
+        'file_size',
+    }
+
+    tss_props = {
+        'bcr_id',
+        'code',
+        'name',
+        'project',
+        'tissue_source_site_id',
+    }
+
+    portion_props = {
+        'analytes',
+        'annotations',
+        'center',
+        'created_datetime',
+        'creation_datetime',
+        'is_ffpe',
+        'portion_id',
+        'portion_number',
+        'slides',
+        'state',
+        'submitter_id',
+        'updated_datetime',
+        'weight',
+    }
+
+    analyte_props = {
+        'a260_a280_ratio',
+        'aliquots',
+        'amount',
+        'analyte_id',
+        'analyte_type',
+        'analyte_type_id',
+        'annotations',
+        'concentration',
+        'created_datetime',
+        'spectrophotometer_method',
+        'state',
+        'submitter_id',
+        'updated_datetime',
+        'well_number',
+    }
+
+    aliquot_props = {
+        'aliquot_id',
+        'amount',
+        'annotations',
+        'center',
+        'concentration',
+        'created_datetime',
+        'source_center',
+        'state',
+        'submitter_id',
+        'updated_datetime',
+    }
+
+    annotation_props = {
+        'annotation_id',
+        'case_id',
+        'case_submitter_id',
+        'category',
+        'classification',
+        'created_datetime',
+        'created_datetime',
+        'creator',
+        'entity_id',
+        'entity_type',
+        'notes',
+        'state',
+        'status',
+        'submitter_id',
+        'updated_datetime',
+    }
+
+    file_props = {
+        'access',
+        'acl',
+        'annotations',
+        'archive',
+        'associated_entities',
+        'cases',
+        'center',
+        'created_datetime',
+        'data_format',
+        'data_type',
+        'data_category',
+        'error_type',
+        'experimental_strategy',
+        'file_id',
+        'file_name',
+        'file_size',
+        'file_state',
+        'index_files',
+        'md5sum',
+        'platform',
+        'published_datetime',
+        'metadata_files',
+        'state',
+        'state_comment',
+        'submitter_id',
+        'tags',
+        'updated_datetime',
+        'uploaded_datetime',
+    }
+
     @classmethod
     def setUpClass(cls):
         super(TestGraphIndexBuilder, cls).setUpClass()
@@ -40,7 +191,7 @@ class TestGraphIndexBuilder(TestBase):
         self.convert_documents()
 
     def convert_documents(self, doc_conv=None):
-        doc_conv = doc_conv or LegacyGraphIndexBuilder(self.g)
+        doc_conv = doc_conv or self.builder_class(self.g)
         with self.g.session_scope():
             doc_conv.cache_database()
         self.case_docs, self.file_docs, self.ann_docs = (
@@ -133,26 +284,26 @@ class TestGraphIndexBuilder(TestBase):
         props = self.case_doc
         self.assertTrue('project' in props)
         actual = set(props['project'].keys())
-        self.assertEqual(project_props, actual)
+        self.assertEqual(self.project_props, actual)
 
     def test_case_summary(self):
         props = self.case_doc
         self.assertTrue('summary' in props)
         actual = set(props['summary'].keys())
-        self.assertEqual(summary_props, actual)
+        self.assertEqual(self.summary_props, actual)
 
     def test_case_tss(self):
         props = self.case_doc
         self.assertTrue('tissue_source_site' in props)
         actual = set(props['tissue_source_site'].keys())
-        self.assertEqual(tss_props, actual)
+        self.assertEqual(self.tss_props, actual)
 
     def test_case_samples(self):
         props = self.case_doc
         self.assertTrue('samples' in props)
         actual = set(props['samples'][0].keys())
         print actual
-        self.assertEqual(sample_props, actual.union(
+        self.assertEqual(self.sample_props, actual.union(
             {'annotations', 'aliquots'}))
 
     def test_case_portions(self):
@@ -161,7 +312,7 @@ class TestGraphIndexBuilder(TestBase):
         portion = [p for s in props['samples'] for p in s['portions']
                    if 'slides' not in p][0]
         actual = set(portion.keys())
-        self.assertEqual(portion_props, actual.union(
+        self.assertEqual(self.portion_props, actual.union(
             {'annotations', 'slides', 'center'}))
 
     def test_case_analytes(self):
@@ -169,30 +320,31 @@ class TestGraphIndexBuilder(TestBase):
         portions = (props['samples'][0]['portions'][0])
         self.assertTrue('analytes' in portions)
         actual = set(portions['analytes'][0].keys())
-        self.assertEqual(analyte_props, actual.union(
+        self.assertEqual(self.analyte_props, actual.union(
             {'annotations'}))
 
     def test_case_aliquots(self):
         props = self.case_doc
-        print props.keys()
         analytes = (props['samples'][0]['portions'][0]['analytes'][0])
         self.assertTrue('aliquots' in analytes)
         actual = set(analytes['aliquots'][0].keys())
-        self.assertEqual(aliquot_props, actual.union(
+        self.assertEqual(self.aliquot_props, actual.union(
             {'annotations'}))
 
     def test_case_files(self):
         props = self.case_doc
         self.assertTrue('files' in props)
 
+        files = [f for f in props['files'] if f['file_id'] in self.file_ids]
+
         # this makes sure the (to_delete / non_live /
         # file-derived_from-file) file doesn't show up
-        self.assertEqual(len(props["files"]), 1)
+        self.assertEqual(len(files), 1)
 
-        actual = set(props['files'][0].keys())
+        actual = set(files[0].keys())
 
         self.assertEqual(
-            file_props.union({
+            self.file_props.union({
                 'origin'
             }),
             actual.union({
@@ -211,8 +363,9 @@ class TestGraphIndexBuilder(TestBase):
     def test_index_files(self):
         props = self.case_doc
         self.assertTrue('files' in props)
-        self.assertEqual(len(props["files"]), 1)
-        file_ = props['files'][0]
+        files = [f for f in props['files'] if f['file_id'] in self.file_ids]
+        self.assertEqual(len(files), 1)
+        file_ = files[0]
         self.assertTrue('index_files' in file_)
         print file_['index_files']
         self.assertEqual(len(file_["index_files"]), 1)
@@ -221,7 +374,7 @@ class TestGraphIndexBuilder(TestBase):
         self.assertEqual(index_file['file_format'], 'BAI')
 
     def test_omitted_projects(self):
-        doc_conv = LegacyGraphIndexBuilder(self.g)
+        doc_conv = self.builder_class(self.g)
         doc_conv.omitted_projects.add(('TCGA', 'BRCA'))
         self.convert_documents(doc_conv)
         self.assertIsNone(self.case_doc)
@@ -407,153 +560,3 @@ class TestGraphIndexBuilder(TestBase):
         # test origins are correct
         self.assertEqual(live_file_doc["origin"], "migrated")
         self.assertEqual(derived_file_doc["origin"], "harmonized")
-
-
-sample_props = {
-    'aliquots',
-    'annotations',
-    'created_datetime',
-    'current_weight',
-    'days_to_collection',
-    'days_to_sample_procurement',
-    'freezing_method',
-    'initial_weight',
-    'intermediate_dimension',
-    'is_ffpe',
-    'longest_dimension',
-    'oct_embedded',
-    'pathology_report_uuid',
-    'portions',
-    'sample_id',
-    'sample_type',
-    'sample_type_id',
-    'shortest_dimension',
-    'state',
-    'submitter_id',
-    'time_between_clamping_and_freezing',
-    'time_between_excision_and_freezing',
-    'tumor_code',
-    'tumor_code_id',
-    'updated_datetime',
-}
-
-project_props = {
-    'dbgap_accession_number',
-    'disease_type',
-    'name',
-    'primary_site',
-    'program',
-    'project_id',
-    'released',
-    'state',
-}
-
-summary_props = {
-    'data_categories',
-    'experimental_strategies',
-    'file_count',
-    'file_size',
-}
-
-tss_props = {
-    'bcr_id',
-    'code',
-    'name',
-    'project',
-    'tissue_source_site_id',
-}
-
-portion_props = {
-    'analytes',
-    'annotations',
-    'center',
-    'created_datetime',
-    'creation_datetime',
-    'is_ffpe',
-    'portion_id',
-    'portion_number',
-    'slides',
-    'state',
-    'submitter_id',
-    'updated_datetime',
-    'weight',
-}
-
-analyte_props = {
-    'a260_a280_ratio',
-    'aliquots',
-    'amount',
-    'analyte_id',
-    'analyte_type',
-    'analyte_type_id',
-    'annotations',
-    'concentration',
-    'created_datetime',
-    'spectrophotometer_method',
-    'state',
-    'submitter_id',
-    'updated_datetime',
-    'well_number',
-}
-
-aliquot_props = {
-    'aliquot_id',
-    'amount',
-    'annotations',
-    'center',
-    'concentration',
-    'created_datetime',
-    'source_center',
-    'state',
-    'submitter_id',
-    'updated_datetime',
-}
-
-annotation_props = {
-    'annotation_id',
-    'case_id',
-    'case_submitter_id',
-    'category',
-    'classification',
-    'created_datetime',
-    'created_datetime',
-    'creator',
-    'entity_id',
-    'entity_type',
-    'notes',
-    'state',
-    'status',
-    'submitter_id',
-    'updated_datetime',
-}
-
-file_props = {
-    'access',
-    'acl',
-    'annotations',
-    'archive',
-    'associated_entities',
-    'cases',
-    'center',
-    'created_datetime',
-    'data_format',
-    'data_type',
-    'data_category',
-    'error_type',
-    'experimental_strategy',
-    'file_id',
-    'file_name',
-    'file_size',
-    'file_state',
-    'index_files',
-    'md5sum',
-    'platform',
-    'published_datetime',
-    'metadata_files',
-    'state',
-    'state_comment',
-    'submitter_id',
-    'tags',
-    'updated_datetime',
-    'uploaded_datetime',
-}

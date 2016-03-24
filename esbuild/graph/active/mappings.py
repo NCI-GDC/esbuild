@@ -26,25 +26,10 @@ from ..common.mappings import (
 
 class ActiveESMapper(ESMapper):
 
-    @classmethod
-    def _get_properties_by_category(cls, category, nested=True):
-        doc = Dict()
-        classes = (
-            c for c in Node.get_subclasses()
-            if c._dictionary['category'] == category
-        )
-
-        for c in classes:
-            doc.update(cls._munge_properties(
-                c.label,
-                nested,
-                include_id=False
-            ).iteritems())
-
-        doc.analysis_id = STRING
-        doc.analysis_type = STRING
-
-        return doc
+    file_labels = [
+        c.label for c in Node.get_subclasses()
+        if c._dictionary['category'] == 'data_file'
+    ]
 
     @classmethod
     def get_file_es_mapping(cls, *args, **kwargs):
@@ -63,7 +48,7 @@ class ActiveESMapper(ESMapper):
 
         # Analysis
         analysis = Dict()
-        analysis.properties = cls._get_properties_by_category('analysis')
+        analysis.properties = cls.get_properties_by_category('analysis')
         analysis.properties.input_files = input_files
 
         # Metadata
@@ -73,7 +58,7 @@ class ActiveESMapper(ESMapper):
 
         # Downstream analysis
         ds_analysis = Dict()
-        ds_analysis.properties = cls._get_properties_by_category('analysis')
+        ds_analysis.properties = cls.get_properties_by_category('analysis')
         ds_analysis.properties.output_files = output_files
 
         files.properties.analysis = analysis

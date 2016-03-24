@@ -103,6 +103,8 @@ class GDCElasticsearch(object):
                       len(file_docs),
                       len(ann_docs),
                       len(project_docs))
+        import json
+        print(json.dumps(file_docs, indent=2))
         self.log.info("Validating docs produced")
         self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
         self.log.info("Deploying new ES index with new docs and bumping alias")

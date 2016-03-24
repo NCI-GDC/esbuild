@@ -51,6 +51,9 @@ def get_es_type(_type):
 
 class ESMapper(object):
 
+    # These are the types of data_file that will be treated as a file
+    file_labels = ['file']
+
     top_level_ids = [
         'sample',
         'portion',
@@ -216,7 +219,7 @@ class ESMapper(object):
         return header
 
     @staticmethod
-    def _munge_properties(source, nested=True, include_id=True):
+    def get_base_properties(source, include_id=True):
         # Get properties from schema
         cls = Node.get_subclass(source)
         assert cls, 'No model for {}'.format(source)
@@ -288,7 +291,7 @@ class ESMapper(object):
 
     @classmethod
     def nested(cls, source):
-        return Dict(type='nested', properties=cls._munge_properties(source))
+        return Dict(type='nested', properties=cls.get_base_properties(source))
 
     @classmethod
     def add_multifields(cls, doc, source):
@@ -312,12 +315,27 @@ class ESMapper(object):
                 mapping.annotations.type = 'nested'
             else:
                 nested = (corr == ONE_TO_MANY)
-                mapping[name].properties.update(
-                    cls._munge_properties(k, nested))
+                mapping[name].properties.update(cls.get_base_properties(k))
                 cls._walk_tree(tree[k], mapping[name]['properties'])
                 if nested:
                     mapping[name]['type'] = 'nested'
         return mapping
+
+    @classmethod
+    def get_properties_by_category(cls, category):
+        doc = Dict()
+        classes = (
+            c for c in Node.get_subclasses()
+            if c._dictionary['category'] == category
+        )
+
+        for c in classes:
+            doc.update(cls.get_base_properties(c.label, include_id=False))
+
+        doc.analysis_id = STRING
+        doc.analysis_type = STRING
+
+        return doc
 
     # ======================================================================
     # Mappings
@@ -325,10 +343,22 @@ class ESMapper(object):
     @classmethod
     def get_file_es_mapping(cls, include_case=True):
         files = cls._get_header('file')
+
+        # Let top level properties be a union over properties from all
+        # node types that this mapper considers a file
+        files.properties = Dict({
+            key: value
+            for node in Node.get_subclasses()
+            if node.label in cls.file_labels
+            for key, value in
+            cls.get_base_properties(node.label, include_id=False).iteritems()
+        })
+
         files.properties = cls._walk_tree(
             cls.get_file_tree(),
-            cls._munge_properties('file')
+            files.properties
         )
+
         cls.flatten_data_type(files.properties)
 
         # Specify the entity the file was derived from
@@ -382,7 +412,7 @@ class ESMapper(object):
         case = cls._get_header('case')
         case.properties = cls._walk_tree(
             cls.get_case_tree(),
-            cls._munge_properties('case')
+            cls.get_base_properties('case')
         )
         case.properties.days_to_index = LONG
 
@@ -443,7 +473,7 @@ class ESMapper(object):
     @classmethod
     def annotation_body(cls, nested=True):
         annotation = Dict()
-        annotation.properties = cls._munge_properties('annotation', nested)
+        annotation.properties = cls.get_base_properties('annotation')
         annotation.properties.case_id = STRING
         annotation.properties.case_submitter_id = STRING
         annotation.properties.entity_type = STRING
@@ -462,9 +492,9 @@ class ESMapper(object):
 
         # Add the project and program
         annotation.properties.update(Dict({
-            'project': {'properties': cls._munge_properties('project')}}))
+            'project': {'properties': cls.get_base_properties('project')}}))
         annotation.properties.project.properties.program = {
-            'properties': cls._munge_properties('program')}
+            'properties': cls.get_base_properties('program')}
 
         return deepcopy(annotation.to_dict())
 
@@ -473,7 +503,7 @@ class ESMapper(object):
         project = cls._get_header('project')
         project.properties = cls._walk_tree(
             cls.get_project_tree(),
-            cls._munge_properties('project'))
+            cls.get_base_properties('project'))
 
         # Patch annotation mutlifields
         cls.add_multifields(project, 'project')
