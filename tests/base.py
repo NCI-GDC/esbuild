@@ -119,6 +119,13 @@ class TestBase(TestCase):
             aliquot.files.append(self.live_file)
             aliquot.files.append(self.non_live_file)
 
+        self.file_ids = [
+            self.to_delete_file.node_id,
+            self.non_live_file.node_id,
+            self.live_file.node_id,
+            self.non_index_file.node_id,
+            self.index_file.node_id,
+        ]
 
     @classmethod
     def random_string(cls, length=6):

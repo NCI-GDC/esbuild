@@ -20,14 +20,6 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from .graph.mappings import (
-    index_settings,
-    get_project_es_mapping,
-    get_annotation_es_mapping,
-    get_case_es_mapping,
-    get_file_es_mapping,
-)
-
 # TODO this could probably be bumped now that the number of bulk
 # threads in the config is higher, c.f.
 # https://github.com/NCI-GDC/tungsten/commit/3ac690d19dd49f8ad2f30bf55ca6fe70ff2cc51d
@@ -63,9 +55,7 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self,
-                 converter_class,
-                 es=None,
+    def __init__(self, converter_class, es=None,
                  index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
@@ -113,6 +103,8 @@ class GDCElasticsearch(object):
                       len(file_docs),
                       len(ann_docs),
                       len(project_docs))
+        import json
+        print(json.dumps(file_docs, indent=2))
         self.log.info("Validating docs produced")
         self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
         self.log.info("Deploying new ES index with new docs and bumping alias")
@@ -188,19 +180,19 @@ class GDCElasticsearch(object):
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="project",
-                body=get_project_es_mapping()),
+                body=self.converter.mapper.get_project_es_mapping()),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="file",
-                body=get_file_es_mapping()),
+                body=self.converter.mapper.get_file_es_mapping()),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="case",
-                body=get_case_es_mapping()),
+                body=self.converter.mapper.get_case_es_mapping()),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="annotation",
-                body=get_annotation_es_mapping()),
+                body=self.converter.mapper.get_annotation_es_mapping()),
         ]
 
     def index_populate(self, index, case_docs=[], file_docs=[],
@@ -231,7 +223,8 @@ class GDCElasticsearch(object):
 
         """
 
-        self.es.indices.create(index=index, body=index_settings())
+        index_settings = self.converter.mapper.index_settings()
+        self.es.indices.create(index=index, body=index_settings)
         self.put_mappings(index)
         if not case_docs:
             self.log.warning("There were no case docs passed to populate with!")

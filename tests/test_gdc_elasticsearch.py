@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Tests the GDC Elasticsearch interaction for active and legacy
+indices.
+
+"""
+
 from base import TestBase
 from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic

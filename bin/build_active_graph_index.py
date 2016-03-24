@@ -8,8 +8,10 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--no-roll', action="store_true",
-                        help='if passed, do not roll the alias and delete old indices')
+    parser.add_argument(
+        '--no-roll', action="store_true",
+        help='if passed, do not roll the alias and delete old indices')
+
     args = parser.parse_args()
     gdc_es = GDCElasticsearch(converter_class=ActiveGraphIndexBuilder)
     gdc_es.go(roll_alias=not args.no_roll)
