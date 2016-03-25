@@ -8,6 +8,7 @@ Common definitions for building GDC Elasticsearch mappings
 """
 
 from addict import Dict
+from gdcdictionary import gdcdictionary
 from copy import deepcopy
 from psqlgraph import Node
 
@@ -206,14 +207,95 @@ class ESMapper(object):
     # ======================================================================
     # Utility functions
 
-    @staticmethod
-    def _get_header(source):
+    @classmethod
+    def get_prop_description(cls, label, prop):
+        """Look the description up from the ``term`` if it exists, else try
+        the jsonschema property description, else return None
+
+        """
+
+        definition = gdcdictionary.schema[label]['properties'].get(prop)
+        if not definition:
+            return None
+
+        term = definition.get('term', None)
+
+        if not term or not isinstance(term, dict):
+            return definition.get('description', None)
+        else:
+            return term.get('description', None)
+
+    @classmethod
+    def get_descriptions_from_tree(cls, tree, root_name):
+        """Given a tree (file, case, etc) recurively aggregate the
+        descriptions
+
+        :returns:
+            Flattened dict of descriptions with keys like
+            ``diagnoses.submitter_id``
+
+        """
+        descriptions = {}
+
+        for label in [key for key in tree if key != 'corr']:
+            _, name = tree[label]['corr']
+
+            # recur
+            descriptions.update(cls.get_descriptions_from_tree(
+                tree[label], root_name))
+
+            # add current level
+            descriptions.update({
+                '{}.{}.{}'.format(root_name, name, prop):
+                cls.get_prop_description(label, prop)
+                for prop in Node.get_subclass(label).__pg_properties__
+            })
+
+        return descriptions
+
+    @classmethod
+    def get_descriptions(cls):
+        """Get a description for properties of all defined node types
+
+        """
+        descriptions = {}
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_annotation_tree(), 'annotations'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_case_tree(), 'cases'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_file_tree(), 'files'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_project_tree(), 'projects'))
+
+        descriptions.update({
+            'files.file.{}'.format(prop):
+            cls.get_prop_description('file', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+        descriptions.update({
+            'cases.case.{}'.format(prop):
+            cls.get_prop_description('case', prop)
+            for prop in Node.get_subclass('case').__pg_properties__})
+        descriptions.update({
+            'projects.project.{}'.format(prop):
+            cls.get_prop_description('project', prop)
+            for prop in Node.get_subclass('project').__pg_properties__})
+        descriptions.update({
+            'annotations.annotation.{}'.format(prop):
+            cls.get_prop_description('annotation', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+
+        return descriptions
+
+    @classmethod
+    def _get_header(cls, source):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
         header._source.compress = True
         header._source.excludes = ["__comment__"]
         header._id = {'path': '{}_id'.format(source)}
+        header._meta.descriptions = cls.get_descriptions()
         return header
 
     @staticmethod

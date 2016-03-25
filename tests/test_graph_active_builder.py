@@ -73,9 +73,12 @@ def mappings():
     ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
+    ('case', '_meta.descriptions'),
     ('case', 'properties.submitter_id.fields.analyzed.index'),
     ('project', 'properties.name.fields.analyzed.index'),
+    ('project', '_meta.descriptions'),
     ('annotation', 'properties.entity_id.fields.analyzed.index'),
+    ('annotation', '_meta.descriptions'),
 ])
 def test_mapping_contains(mappings, mapping, path):
     results = parse(path).find(mappings[mapping])
@@ -206,19 +209,9 @@ def test_path_value_in(index, doc_type, path, expected, count):
         assert actual.value in expected
 
 
-def test_submitted_aligned_reads_no_analysis(graph, index):
+def test_no_submitted_aligned_reads(graph, index):
     f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
-    docs = [d for d in index.files if d['file_id'] in f_ids]
-    for doc in docs:
-        assert 'analysis' not in doc
-
-
-def test_submitted_aligned_reads_has_downstream_analyses(graph, index):
-    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
-    docs = [d for d in index.files if d['file_id'] in f_ids]
-    for doc in docs:
-        assert doc.get('downstream_analyses')
-        assert doc['downstream_analyses'].get('output_files')
+    assert not [d for d in index.files if d['file_id'] in f_ids]
 
 
 def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
