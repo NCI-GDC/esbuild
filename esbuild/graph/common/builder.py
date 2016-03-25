@@ -1295,7 +1295,8 @@ class GraphIndexBuilder(object):
 
         return True
 
-    def truncate_path(self, path, label):
+    @staticmethod
+    def truncate_path(path, label):
         """
         Given a path (a list of node labels), "truncate" it from the left
         such that it starts with the given label, or return [], e.g.:

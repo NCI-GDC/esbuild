@@ -126,6 +126,13 @@ class TestActiveGraphIndexBuilder(TestBase):
             doc_conv.denormalize_cases())
         self.case_doc = self.case_docs[0] if self.case_docs else None
 
+    def get_aligned_reads_doc(self):
+        self.convert_documents()
+        return [
+            d for d in self.file_docs
+            if d['file_id'] == self.aligned_reads.node_id
+        ][0]
+
     def test_simple_conversion(self):
         self.convert_documents()
 
@@ -149,17 +156,25 @@ class TestActiveGraphIndexBuilder(TestBase):
             self.assertNotIn('analysis', doc)
 
     def test_aligned_reads_analysis(self):
-        self.convert_documents()
-        doc = [
-            d for d in self.file_docs
-            if d['file_id'] == self.aligned_reads.node_id
-        ][0]
+        doc = self.get_aligned_reads_doc()
         self.assertIn('analysis', doc)
-        self.assertIn('input_files', doc['analysis'])
         self.assertIn('analysis_id', doc['analysis'])
+
+    def test_aligned_reads_analysis_input_files(self):
+        doc = self.get_aligned_reads_doc()
+        self.assertIn('input_files', doc['analysis'])
         self.assertEqual(len(doc['analysis']['input_files']), 2)
+
         for f in doc['analysis']['input_files']:
             self.assertTrue(f['file_name'])
+
+    def test_aligned_reads_analysis_read_group(self):
+        doc = self.get_aligned_reads_doc()
+        self.assertIn('metadata', doc['analysis'])
+        self.assertIn('read_groups', doc['analysis']['metadata'])
+        self.assertIn(
+            'read_group_id',
+            doc['analysis']['metadata']['read_groups'][0])
 
     def test_submitted_aligned_reads_has_downstream_analysis(self):
         self.convert_documents()
