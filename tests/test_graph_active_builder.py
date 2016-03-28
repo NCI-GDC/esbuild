@@ -90,6 +90,19 @@ class TestGraphIndexBuilderUtils(TestCase):
             self.assertIn(prefix + self.expected_file_path1,
                           get_case_to_file_paths())
 
+    def test_get_data_format(self):
+        tests = (
+            ('test_file.bam', 'BAM'),
+            ('test.file.txt', 'TXT'),
+            ('test_file', None),
+            ('', None),
+        )
+        for file_name, expected in tests:
+            self.assertEqual(ActiveGraphIndexBuilder.get_data_format(
+                md.File(file_name=file_name),
+            ), expected)
+
+
 
 class TestActiveGraphIndexBuilder(TestBase):
 
@@ -167,6 +180,7 @@ class TestActiveGraphIndexBuilder(TestBase):
 
         for f in doc['analysis']['input_files']:
             self.assertTrue(f['file_name'])
+            self.assertTrue(f['data_format'])
 
     def test_aligned_reads_analysis_read_group(self):
         doc = self.get_aligned_reads_doc()

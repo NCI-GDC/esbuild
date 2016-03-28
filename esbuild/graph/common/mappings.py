@@ -380,12 +380,13 @@ class ESMapper(object):
         #   data_subtype is renamed data_type, viz.
         #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
         metadata_files.properties.data_type = STRING
+        metadata_files.properties.data_format = STRING
         metadata_files.properties.access = STRING
         files.properties.metadata_files = metadata_files
 
         # Index files
         index_files = cls.patch_file_timestamps(cls.nested('file'))
-        index_files.properties.file_format = STRING
+        index_files.properties.data_format = STRING
         files.properties.index_files = index_files
 
         # Temporary until datetimes are backported
