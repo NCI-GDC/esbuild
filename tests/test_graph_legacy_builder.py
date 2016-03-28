@@ -371,7 +371,7 @@ class TestGraphIndexBuilder(TestBase):
         self.assertEqual(len(file_["index_files"]), 1)
         index_file = file_["index_files"][0]
         self.assertEqual(index_file['file_name'], 'test_file.bam.bai')
-        self.assertEqual(index_file['file_format'], 'BAI')
+        self.assertEqual(index_file['data_format'], 'BAI')
 
     def test_omitted_projects(self):
         doc_conv = self.builder_class(self.g)

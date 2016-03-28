@@ -255,5 +255,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         doc['file_id'] = node.node_id
         doc['file_name'] = node._props.get('file_name')
         doc['file_size'] = node._props.get('file_size')
+        doc['data_format'] = self.get_data_format(node)
 
         return doc

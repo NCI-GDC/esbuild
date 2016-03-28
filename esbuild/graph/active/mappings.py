@@ -40,6 +40,7 @@ class ActiveESMapper(ESMapper):
         input_files.type = 'nested'
         input_files.properties.data_type = STRING
         input_files.properties.data_category = STRING
+        input_files.properties.data_format = STRING
         input_files.properties.file_id = STRING
         input_files.properties.file_name = STRING
         input_files.properties.file_size = LONG

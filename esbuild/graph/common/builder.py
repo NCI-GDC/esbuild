@@ -621,6 +621,23 @@ class GraphIndexBuilder(object):
 
         return doc
 
+    @staticmethod
+    def get_data_format(node):
+        """Return the ``data_format`` given a file node
+
+        """
+
+        file_name = node._props.get('file_name', None)
+        if not file_name:
+            return None
+
+        split = file_name.strip().split('.')
+        if len(split) < 2:
+            return None
+
+        extension = split[-1]
+        return extension.upper()
+
     def prune_case(self, relevant_nodes, ptree, keys):
         """Start with whole case tree and remove any nodes that did not
         contribute the the creation of this file.
@@ -697,10 +714,7 @@ class GraphIndexBuilder(object):
 
         for index_file in index_files:
             index_file_doc = self._get_base_doc(index_file)
-
-            # Add data_format from extension
-            extension = index_file['file_name'].strip().split('.')[-1]
-            index_file_doc['file_format'] = extension.upper()
+            index_file_doc['data_format'] = self.get_data_format(index_file)
 
             self.patch_file_datetimes(index_file_doc)
             index_file_docs.append(index_file_doc)
@@ -753,6 +767,8 @@ class GraphIndexBuilder(object):
                 rf_doc['access'] = 'open'
             else:
                 rf_doc['access'] = 'controlled'
+
+            rf_doc['data_format'] = self.get_data_format(related_file)
 
             rf_docs.append(rf_doc)
 
