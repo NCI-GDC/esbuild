@@ -618,25 +618,43 @@ class GraphIndexBuilder(object):
         self.add_file_derived_from_entities(node, doc, case_id)
         self.add_annotations(node, relevant, doc)
         self.add_acl(node, doc)
+        self.add_file_data_format(node, doc)
 
         return doc
 
-    @staticmethod
-    def get_data_format(node):
-        """Return the ``data_format`` given a file node
+    def get_data_format(self, node):
+        """Return the ``data_format`` given a file node based on
+
+        1. its properties (data_format or file_format)
+        2. an edge to a DataFormat node
 
         """
 
-        file_name = node._props.get('file_name', None)
-        if not file_name:
-            return None
+        if 'data_format' in node._props:
+            format_ = node._props['data_format']
 
-        split = file_name.strip().split('.')
-        if len(split) < 2:
-            return None
+        elif 'file_format' in node._props:
+            format_ = node._props['file_format']
 
-        extension = split[-1]
-        return extension.upper()
+        else:
+            # get data_format from edge to DataFormat
+            formats = list(self.neighbors_labeled(node, 'data_format'))
+
+            # Get the first format
+            if formats:
+                format_ = formats.pop()._props['name']
+            else:
+                format_ = None
+
+            # If there are still formats in a list, record warning
+            if formats:
+                self.warning(
+                    "{} has mulitple data_formats".format(node),
+                    "{} has additional data_formats: {}".format(node, formats),
+                    tags=["file_id:{}".format(node.node_id)],
+                )
+
+        return format_
 
     def prune_case(self, relevant_nodes, ptree, keys):
         """Start with whole case tree and remove any nodes that did not
@@ -648,6 +666,14 @@ class GraphIndexBuilder(object):
                 self.prune_case(relevant_nodes, ptree[node], keys)
             if node.label in keys and node not in relevant_nodes:
                 ptree.pop(node)
+
+    def add_file_data_format(self, node, doc):
+        """Add (or overwrite) the data format if found
+
+        """
+        data_format = self.get_data_format(node)
+        if data_format:
+            doc['data_format'] = data_format
 
     def add_file_neighbors(self, node, doc):
         """Given a file, walk to all of it's neighbors specified by the schema
