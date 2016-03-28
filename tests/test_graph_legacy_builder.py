@@ -458,7 +458,7 @@ class TestGraphIndexBuilder(TestBase):
         # the file should be there
         self.assertIn(self.live_file.node_id,
                       [f["file_id"] for f in self.file_docs])
-        self.assertEqual(len(mock_statsd.event.mock_calls), 1)
+        self.assertTrue(mock_statsd.event.mock_calls)
 
     def test_derived_files(self):
         with self.g.session_scope() as s:

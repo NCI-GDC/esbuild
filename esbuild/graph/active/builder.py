@@ -19,8 +19,6 @@ tied to the relevant aliquots during cache_database
 
 """
 
-from psqlgraph import Node
-
 from gdcdatamodel.models import(
     ReadGroup
 )
@@ -122,7 +120,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                .denormalize_file(node, ptree))
 
         self.add_file_analysis(node, doc)
-        self.add_downstream_file_analysis(node, doc)
+        self.add_file_downstream_analysis(node, doc)
 
         return doc
 
@@ -151,40 +149,47 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        analyses = self.get_parent_with_category(node, 'analysis')
+        analyses = list(self.get_parent_with_category(node, 'analysis'))
 
-        for analysis in analyses:
-            if 'analysis' in doc:
-                return self.warning(
-                    "Multiple analysis on {}".format(node),
-                    "{} has multiple analyses {}, this is unexpected."
-                    .format(node, analyses),
-                    tags=["file_id:{}".format(node.node_id)],
-                )
-
+        if analyses:
+            # Add the first analysis
+            analysis = analyses.pop()
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_input_files(analysis, analysis_doc)
+            self.add_analysis_metadata(analysis, analysis_doc)
             doc['analysis'] = analysis_doc
 
-    def add_downstream_file_analysis(self, node, doc):
+        # If there are remaining analysis, record a warning and skip
+        if analyses:
+            self.warning(
+                "Multiple analysis on {}".format(node),
+                "{} has multiple analyses {}, this is unexpected."
+                .format(node, analyses),
+                tags=["file_id:{}".format(node.node_id)],
+            )
+
+    def add_file_downstream_analysis(self, node, doc):
         """Add the 'analysis' that produced the current file.
 
         """
 
-        analyses = self.get_child_with_category(node, 'analysis')
+        analyses = list(self.get_child_with_category(node, 'analysis'))
 
-        for analysis in analyses:
-            if 'analysis' in doc:
-                return self.warning(
-                    "Multiple downstream analysis on {}".format(node),
-                    ("{} has multiple downstream analyses {}, "
-                     "this is unexpected.").format(node, analyses),
-                    tags=["file_id:{}".format(node.node_id)],
-                )
-
+        if analyses:
+            # Add the first downstream analyisis
+            analysis = analyses.pop()
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_output_files(analysis, analysis_doc)
             doc['downstream_analysis'] = analysis_doc
+
+        # If there are remaining analysis, record a warning and skip
+        if analyses:
+            self.warning(
+                "Multiple downstream analysis on {}".format(node),
+                ("{} has multiple downstream analyses {}, "
+                 "this is unexpected.").format(node, analyses),
+                tags=["file_id:{}".format(node.node_id)],
+            )
 
     def add_analysis_input_files(self, node, doc):
         """For a given analysis node, add the input_files to the doc.
@@ -207,6 +212,35 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         if output_file_docs:
             doc.setdefault('output_files', []).extend(output_file_docs)
+
+    def add_analysis_metadata(self, node, doc):
+        """For a given analysis node, add the metadata to the doc.
+
+        """
+
+        metadata_doc = {}
+        self.add_analysis_metadata_read_groups(node, metadata_doc)
+
+        if metadata_doc:
+            doc['metadata'] = metadata_doc
+
+    def add_analysis_metadata_read_groups(self, node, doc):
+        """For a given analysis node, add read_groups to the metadata subdoc.
+
+        """
+
+        parent_files = self.get_parent_with_category(node, 'data_file')
+        read_groups = [
+            rg
+            for f in parent_files
+            for rg in self.neighbors_labeled(f, 'read_group')
+        ]
+
+        if read_groups:
+            doc['read_groups'] = [
+                self._get_base_doc(rg)
+                for rg in read_groups
+            ]
 
     def get_simple_file_doc(self, node):
         """Create a simple file doc for {input,output}_files
