@@ -2,7 +2,7 @@
 
 Repository for building the GDC Elasticsearch indices.
 
-[![Build Status](TODO)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
+[![Build Status](https://travis-ci.com/NCI-GDC/esbuild.svg?token=LApTVTN34FyXpxo5zU44&branch=develop)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
 
 - [Running](#running)
 - [Technologies](#technologies)
@@ -20,10 +20,9 @@ export PG_USER=<REPLACE_ME>  # PostgreSQL user
 export PG_PASS=<REPLACE_ME>  # PostgreSQL password
 export PG_NAME=<REPLACE_ME>  # PostgreSQL database name
 
-export ES_HOST=<REPLACE_ME>  # Elasticsearch hostname
+export ELASTICSEARCH_HOST=<REPLACE_ME>  # Elasticsearch hostname
 export ES_USER=<REPLACE_ME>  # Elasticsearch user
-export ES_PASS=<REPLACE_ME>  # Elasticsearch password
-export ES_INDEX=<REPLACE_ME> # Elasticsearch alias name
+export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
 
 python bin/build_graph_index.py
 ```

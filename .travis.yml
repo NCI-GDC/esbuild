@@ -33,5 +33,8 @@ install:
 
 before_script:
   - pip freeze
+  - python tests/setup_test_database.py
+  # Wait for elasticsearch to be up
+  - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
 
 script: "PYTHONPATH=. py.test -vv tests/"
