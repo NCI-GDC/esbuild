@@ -71,7 +71,6 @@ NODES = [
         base_caller_name='7ycy5z',
         base_caller_version='ctfuts',
         experiment_name='o91rjj',
-        fastq_name=None,
         flow_cell_barcode='rbqv3b',
         includes_spike_ins=True,
         instrument_model='454 GS FLX Titanium',
