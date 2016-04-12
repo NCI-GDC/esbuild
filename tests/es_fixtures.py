@@ -244,6 +244,13 @@ NODES = [
         state='submitted',
         submitter_id='TCGA-AR-A1AR',
     ),
+    Case(
+        # floating case. has no neighbors
+        node_id='ce5d360b-db30-4f60-a926-e8788fc0ed3b',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='TCGA-AR-A2AR',
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
