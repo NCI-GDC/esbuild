@@ -4,9 +4,92 @@ represented in a way that can be persisted without using xml2psqlgraph.
 """
 
 from gdcdatamodel.models import *  # noqa
+from gdcdictionary import gdcdictionary
+
+import random
+import string
+import uuid
+
+
+def random_string(length=6):
+    return ''.join([
+        random.choice(
+            string.ascii_lowercase + string.digits
+        ) for _ in range(length)
+    ])
+
+
+def fuzzed(node_class, node_id=None, **kwargs):
+    if node_id is None:
+        node_id = str(uuid.uuid4())
+    for key, types in node_class.get_pg_properties().iteritems():
+        schema = gdcdictionary.schema[node_class.label]
+        prop_def = schema['properties'].get(key, {})
+
+        if key in kwargs:
+            continue
+        # Enum
+        elif 'enum' in prop_def:
+            kwargs[key] = prop_def['enum'][0]
+        # String
+        elif not types or str in types:
+            kwargs[key] = random_string()
+        # Integer
+        elif int in types or long in types:
+            kwargs[key] = random.randint(1e6, 1e7)
+        # Float
+        elif float in types:
+            kwargs[key] = random.random()
+        # Boolean
+        elif bool in types:
+            kwargs[key] = random.choice((True, False))
+
+    return node_class(node_id, **kwargs)
 
 
 NODES = [
+    File(
+        node_id='live-file',
+        project_id='TCGA-BRCA',
+        file_name='TCGA-WR-A838-01A-12R-A406-31_rnaseq_fastq.tar',
+        file_size=12916551680,
+        md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        file_state='submitted',
+        state_comment=None,
+        submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
+        error_type=None,
+    ),
+    fuzzed(
+        File,
+        node_id='index-file',
+        state='live',
+        file_name='test_file.bam.bai',
+    ),
+    fuzzed(
+        File,
+        node_id='related-file',
+        state="live",
+        file_state='submitted',
+        file_name="a_related_file.txt"
+    ),
+    fuzzed(
+        File,
+        node_id='non-live-file',
+        state='uploaded'
+    ),
+    File(
+        node_id='to-delete-file',
+        project_id='TCGA-BRCA',
+        file_name='a_file_to_be_deleted.txt',
+        file_size=5,
+        md5sum='foobar',
+        state='live',
+        file_state='submitted',
+        state_comment=None,
+        submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
+        error_type=None,
+    ),
     AlignedReads(
         node_id='a819133c-65c4-438c-93ae-a04e24e82626',
         data_category='Sequencing Data',
@@ -428,11 +511,119 @@ NODES = [
         time_between_excision_and_freezing=None,
         tumor_code=None,
         tumor_code_id=None,
-    )
+    ),
+
+    # Prelude nodes
+    Platform(
+        node_id='ed523719-86fa-4131-bd14-a13f06d453ae',
+        name='Illumina HiSeq',
+    ),
+    ExperimentalStrategy(
+        node_id='a2b74dcc-052a-42ce-836e-c2fb549beea5',
+        name='RNA-Seq'
+    ),
+    Tag(
+        node_id='326acbfa-fcdf-4d25-9247-c393b988aa09',
+        name='snv',
+    ),
+    Program(
+        node_id='b80aa962-9650-5110-b3eb-bd087da808db',
+        dbgap_accession_number="phs000178",
+        name="TCGA",
+    ),
+    Center(
+        node_id='ee7a85b3-8177-5d60-a10c-51180eb9009c',
+        code="07",
+        namespace="unc.edu",
+        name="University of North Carolina",
+        short_name="UNC",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='5069ce55-a23f-57c4-a28c-70a3c3cb0e4c',
+        code="01",
+        namespace="broad.mit.edu",
+        name="Broad Institute of MIT and Harvard",
+        short_name="BI",
+        center_type="CGCC",
+    ),
+    TissueSourceSite(
+        node_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
+        project="Breast invasive carcinoma",
+        bcr_id="NCH",
+        code="AR",
+        name="Mayo",
+    ),
+    Center(
+        node_id='c8611490-4cbd-5651-8de2-64484a515eec',
+        code="02",
+        namespace="hms.harvard.edu",
+        name="Harvard Medical School",
+        short_name="HMS",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='7ef3885b-37ce-5e16-8ba3-9d75b6690008',
+        code="05",
+        namespace="jhu-usc.edu",
+        name="Johns Hopkins / University of Southern California",
+        short_name="JHU_USC",
+        center_type="CGCC",
+    ),
+    Project(
+        node_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        released=True,
+        state="legacy",
+        code="BRCA",
+        primary_site="Breast",
+        disease_type="Breast Invasive Carcinoma",
+        dbgap_accession_number=None,
+        name="Breast Invasive Carcinoma",
+    ),
+    Center(
+        node_id='6eba705a-0f00-5aa2-b1d0-04dbf62100cc',
+        code="13",
+        namespace="bcgsc.ca",
+        name="Canada's Michael Smith Genome Sciences Centre",
+        short_name="BCGSC",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='956ca84c-1124-53ff-824f-fa0c84425425',
+        center_type='GSC',
+        code='09',
+        name='Washington University School of Medicine',
+        namespace='genome.wustl.ed',
+        short_name='WUSM',
+    ),
 ]
 
 
 EDGES = [
+    FileRelatedToFile(
+        src_id='live-file',
+        dst_id='index-file',
+    ),
+    FileRelatedToFile(
+        src_id='live-file',
+        dst_id='related-file',
+    ),
+    FileDataFromAliquot(
+        src_id='live-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='non-live-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='to-delete-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='related-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
     ReadGroupDerivedFromAliquot(
         src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
@@ -716,7 +907,13 @@ EDGES = [
     AliquotDerivedFromSample(
         src_id='6d066a72-f59f-45a8-ab90-216000b36da4',
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
-        properties={})
+        properties={}),
+
+    # Prelude
+    ProjectMemberOfProgram(
+        src_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
 ]
 
 
@@ -726,3 +923,7 @@ def insert(g):
             session.merge(node)
         for edge in EDGES:
             session.merge(edge)
+
+        to_delete = g.nodes(File).ids('to-delete-file').one()
+        to_delete.sysan['to_delete'] = True
+        session.merge(to_delete)

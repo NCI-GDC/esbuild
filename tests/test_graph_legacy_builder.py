@@ -7,556 +7,263 @@ Test the builder for graph ES index
 
 """
 
-from base import TestBase
+from conftest import Index, _graph
+from data import fuzzed
+from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from gdcdatamodel import models as md
-from mock import patch
-from prelude import create_prelude_nodes
+from jsonpath_rw import parse
 
-import es_fixtures
+import pytest
 
-from esbuild.graph.legacy.builder import (
-    LegacyGraphIndexBuilder
-)
+# mapper = LegacyGraphIndexBuilder.mapper
+# case_mapping = mapper.get_case_es_mapping()
+# project_mapping = mapper.get_project_es_mapping()
+# sample_props = case_mapping['properties']['samples']['properties'].keys()
+# project_props = project_mapping['properties'].keys()
 
 
-class TestGraphIndexBuilder(TestBase):
+def build_index(graph):
+    builder = LegacyGraphIndexBuilder(graph)
+    builder.cache_database()
+    index = builder.denormalize_all()
+    return Index._make(index)
 
-    builder_class = LegacyGraphIndexBuilder
 
-    sample_props = {
-        'aliquots',
-        'annotations',
-        'created_datetime',
-        'current_weight',
-        'days_to_collection',
-        'days_to_sample_procurement',
-        'freezing_method',
-        'initial_weight',
-        'intermediate_dimension',
-        'is_ffpe',
-        'longest_dimension',
-        'oct_embedded',
-        'pathology_report_uuid',
-        'portions',
-        'sample_id',
-        'sample_type',
-        'sample_type_id',
-        'shortest_dimension',
-        'state',
-        'submitter_id',
-        'time_between_clamping_and_freezing',
-        'time_between_excision_and_freezing',
-        'tumor_code',
-        'tumor_code_id',
-        'updated_datetime',
-    }
+# ======================================================================
+# Fixtures
 
-    project_props = {
-        'dbgap_accession_number',
-        'disease_type',
-        'name',
-        'primary_site',
-        'program',
-        'project_id',
-        'released',
-        'state',
-    }
+@pytest.fixture(scope="module")
+def index():
+    return build_index(_graph)
 
-    summary_props = {
-        'data_categories',
-        'experimental_strategies',
-        'file_count',
-        'file_size',
-    }
 
-    tss_props = {
-        'bcr_id',
-        'code',
-        'name',
-        'project',
-        'tissue_source_site_id',
-    }
+# ======================================================================
+# Tests
 
-    portion_props = {
-        'analytes',
-        'annotations',
-        'center',
-        'created_datetime',
-        'creation_datetime',
-        'is_ffpe',
-        'portion_id',
-        'portion_number',
-        'slides',
-        'state',
-        'submitter_id',
-        'updated_datetime',
-        'weight',
-    }
 
-    analyte_props = {
-        'a260_a280_ratio',
-        'aliquots',
-        'amount',
-        'analyte_id',
-        'analyte_type',
-        'analyte_type_id',
-        'annotations',
-        'concentration',
-        'created_datetime',
-        'spectrophotometer_method',
-        'state',
-        'submitter_id',
-        'updated_datetime',
-        'well_number',
-    }
+def test_annotation_case_submitter_id(graph):
+    case = fuzzed(md.Case)
+    annotation = fuzzed(md.Annotation, category='Item flagged DNU')
+    with graph.session_scope() as s:
+        f = graph.nodes(md.File).ids('live-file').first()
+        case.projects = [graph.nodes(md.Project).first()]
+        case.files = [f]
+        case.annotations = [annotation]
+        s.merge(case)
 
-    aliquot_props = {
-        'aliquot_id',
-        'amount',
-        'annotations',
-        'center',
-        'concentration',
-        'created_datetime',
-        'source_center',
-        'state',
-        'submitter_id',
-        'updated_datetime',
-    }
+    index = build_index(graph)
+    for annotation in index.annotations:
+        if annotation['entity_type'] == 'case':
+            assert annotation['case_id'] == annotation['entity_id']
+            assert annotation['case_submitter_id'] == case.submitter_id
 
-    annotation_props = {
-        'annotation_id',
-        'case_id',
-        'case_submitter_id',
-        'category',
-        'classification',
-        'created_datetime',
-        'created_datetime',
-        'creator',
-        'entity_id',
-        'entity_type',
-        'notes',
-        'state',
-        'status',
-        'submitter_id',
-        'updated_datetime',
-    }
 
-    file_props = {
-        'access',
-        'acl',
-        'annotations',
-        'archive',
-        'associated_entities',
-        'cases',
-        'center',
-        'created_datetime',
-        'data_format',
-        'data_type',
-        'data_category',
-        'error_type',
-        'experimental_strategy',
-        'file_id',
-        'file_name',
-        'file_size',
-        'file_state',
-        'index_files',
-        'md5sum',
-        'platform',
-        'published_datetime',
-        'metadata_files',
-        'state',
-        'state_comment',
-        'submitter_id',
-        'tags',
-        'updated_datetime',
-        'uploaded_datetime',
-    }
+@pytest.mark.parametrize('doc_type,path,contained_keys,count', [
+    ('cases', '[*].project', {'project_id'}, 1),
+    ('cases', '[*].samples.[*]', {'sample_id'}, 2),
+    ('cases', '[*].samples.[*].portions.[*]', {'portion_id'}, 2),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*]', {'analyte_id'}, 5),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*]', {'aliquot_id'}, 11),
+    ('files', '[*]', {'file_size'}, 2),
+])
+def test_path_keys(index, doc_type, path, contained_keys, count):
+    results = parse(path).find(getattr(index, doc_type))
+    assert len(results) == count
+    for doc in results:
+        assert not contained_keys - set(doc.value.keys())
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestGraphIndexBuilder, cls).setUpClass()
-        cls.delete_all_nodes()
-        create_prelude_nodes(cls.g)
 
-    @classmethod
-    def tearDownClass(cls):
-        super(TestGraphIndexBuilder, cls).setUpClass()
-        cls.delete_all_nodes()
+@pytest.mark.parametrize('doc_type,path,expected,count', [
+    ('cases', '[*].demographic.year_of_birth', 1951, 1),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis', 47, 1),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', 'unknown', 1),
+    ('cases', '[*].exposures.[*].cigarettes_per_day', 10, 1),
+    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', 'Married', 1),
+    ('files', '[*].index_files.[*].file_name', 'test_file.bam.bai', 1),
+])
+def test_path_values(index, doc_type, path, expected, count):
+    results = parse(path).find(getattr(index, doc_type))
+    assert len(results) == count
+    for actual in results:
+        assert actual.value == expected
 
-    def setUp(self):
-        super(TestGraphIndexBuilder, self).setUp()
-        self.delete_non_prelude_nodes()
-        es_fixtures.insert(self.g)
-        self.add_file_nodes()
-        self.convert_documents()
 
-    def convert_documents(self, doc_conv=None):
-        doc_conv = doc_conv or self.builder_class(self.g)
-        with self.g.session_scope():
-            doc_conv.cache_database()
-        self.case_docs, self.file_docs, self.ann_docs = (
-            doc_conv.denormalize_cases())
-        if self.case_docs:
-            self.case_doc = self.case_docs[0]
-        else:
-            self.case_doc = None
+def test_omitted_projects(graph):
+    builder = LegacyGraphIndexBuilder(graph)
+    builder.omitted_projects.add(('TCGA', 'BRCA'))
+    builder.cache_database()
+    index = Index._make(builder.denormalize_all())
+    assert index.cases == []
 
-    def test_case_clinical(self):
-        props = self.case_doc
-        self.assertTrue('clinical' in props)
-        clinical = props['clinical']
-        self.assertEqual(clinical['age_at_diagnosis'], 12419)
 
-    def test_case_clinical_demographic(self):
-        props = self.case_doc
-        self.assertTrue('demographic' in props)
-        doc = props['demographic']
-        self.assertEqual(doc['year_of_birth'], 1951)
-
-    def test_case_clinical_diagnoses(self):
-        props = self.case_doc
-        self.assertTrue('diagnoses' in props)
-        diagnoses = props['diagnoses']
-        self.assertEqual(len(diagnoses), 1)
-        doc = props['diagnoses'][0]
-        self.assertEqual(doc['age_at_diagnosis'], 47)
-
-    def test_case_clinical_exposures(self):
-        props = self.case_doc
-        self.assertTrue('exposures' in props)
-        exposures = props['exposures']
-        self.assertEqual(len(exposures), 1)
-        doc = props['exposures'][0]
-        self.assertEqual(doc['cigarettes_per_day'], 10)
-
-    def test_case_clinical_treatments(self):
-        props = self.case_doc
-        self.assertTrue('diagnoses' in props)
-        diagnoses = props['diagnoses']
-        self.assertEqual(len(diagnoses), 1)
-        self.assertTrue('treatments' in diagnoses[0])
-        treatments = diagnoses[0]['treatments']
-        self.assertEqual(len(treatments), 1)
-        doc = treatments[0]
-        self.assertEqual(doc['treatment_or_therapy'], 'unknown')
-
-    def test_case_clinical_family_histories(self):
-        props = self.case_doc
-        self.assertTrue('diagnoses' in props)
-        family_histories = props['family_histories']
-        self.assertEqual(len(family_histories), 1)
-        doc = family_histories[0]
-        self.assertEqual(doc['relationship_primary_diagnosis'], 'Married')
-
-    def test_filter_non_relevant_annotations(self):
-        case = self.get_fuzzed_node(md.Case)
-        annotation = self.get_fuzzed_node(
-            md.Annotation, category='Item flagged DNU')
-        with self.g.session_scope() as s:
-            f = self.g.nodes(md.File).ids('file1').first()
-            case.projects.append(self.g.nodes(md.Project).first())
-            case.files.append(f)
-            case.annotations.append(annotation)
-            map(s.merge, (case, annotation))
-        self.convert_documents()
-        for annotation in self.ann_docs:
-            if annotation['entity_type'] == 'case':
-                self.assertEqual(
-                    annotation['case_id'], annotation['entity_id'])
-                self.assertEqual(
-                    annotation['case_submitter_id'], case.submitter_id)
-
-    def test_annotation_case_submitter_id(self):
-        case = self.get_fuzzed_node(md.Case)
-        annotation = self.get_fuzzed_node(
-            md.Annotation, category='Item flagged DNU')
-        with self.g.session_scope() as s:
-            case.projects.append(self.g.nodes(md.Project).first())
-            case.files.append(self.g.nodes(md.File).ids('file1').first())
-            case.annotations.append(annotation)
-            map(s.merge, (case, annotation))
-        self.convert_documents()
-        for annotation in self.ann_docs:
-            self.assertEqual(
-                annotation['case_submitter_id'], case.submitter_id)
-
-    def test_case_project(self):
-        props = self.case_doc
-        self.assertTrue('project' in props)
-        actual = set(props['project'].keys())
-        self.assertEqual(self.project_props, actual)
-
-    def test_case_summary(self):
-        props = self.case_doc
-        self.assertTrue('summary' in props)
-        actual = set(props['summary'].keys())
-        self.assertEqual(self.summary_props, actual)
-
-    def test_case_tss(self):
-        props = self.case_doc
-        self.assertTrue('tissue_source_site' in props)
-        actual = set(props['tissue_source_site'].keys())
-        self.assertEqual(self.tss_props, actual)
-
-    def test_case_samples(self):
-        props = self.case_doc
-        self.assertTrue('samples' in props)
-        actual = set(props['samples'][0].keys())
-        print actual
-        self.assertEqual(self.sample_props, actual.union(
-            {'annotations', 'aliquots'}))
-
-    def test_case_portions(self):
-        props = self.case_doc
-        self.assertTrue('portions' in props['samples'][0])
-        portion = [p for s in props['samples'] for p in s['portions']
-                   if 'slides' not in p][0]
-        actual = set(portion.keys())
-        self.assertEqual(self.portion_props, actual.union(
-            {'annotations', 'slides', 'center'}))
-
-    def test_case_analytes(self):
-        props = self.case_doc
-        portions = (props['samples'][0]['portions'][0])
-        self.assertTrue('analytes' in portions)
-        actual = set(portions['analytes'][0].keys())
-        self.assertEqual(self.analyte_props, actual.union(
-            {'annotations'}))
-
-    def test_case_aliquots(self):
-        props = self.case_doc
-        analytes = (props['samples'][0]['portions'][0]['analytes'][0])
-        self.assertTrue('aliquots' in analytes)
-        actual = set(analytes['aliquots'][0].keys())
-        self.assertEqual(self.aliquot_props, actual.union(
-            {'annotations'}))
-
-    def test_case_files(self):
-        props = self.case_doc
-        self.assertTrue('files' in props)
-
-        files = [f for f in props['files'] if f['file_id'] in self.file_ids]
-
-        # this makes sure the (to_delete / non_live /
-        # file-derived_from-file) file doesn't show up
-        self.assertEqual(len(files), 1)
-
-        actual = set(files[0].keys())
-
-        self.assertEqual(
-            self.file_props.union({
-                'origin'
-            }),
-            actual.union({
-                'annotations',
-                'metadata_files',
-                'center',
-                'tags',
-                'data_format',
-                'platform',
-                'associated_entities',
-                'archive',
-                'experimental_strategy',
-            })
-        )
-
-    def test_index_files(self):
-        props = self.case_doc
-        self.assertTrue('files' in props)
-        files = [f for f in props['files'] if f['file_id'] in self.file_ids]
-        self.assertEqual(len(files), 1)
-        file_ = files[0]
-        self.assertTrue('index_files' in file_)
-        print file_['index_files']
-        self.assertEqual(len(file_["index_files"]), 1)
-        index_file = file_["index_files"][0]
-        self.assertEqual(index_file['file_name'], 'test_file.bam.bai')
-        self.assertIsNone(index_file.get('data_format', None))
-
-    def test_omitted_projects(self):
-        doc_conv = self.builder_class(self.g)
-        doc_conv.omitted_projects.add(('TCGA', 'BRCA'))
-        self.convert_documents(doc_conv)
-        self.assertIsNone(self.case_doc)
-
-    def test_basic_suppression(self):
-        case = self.get_fuzzed_node(md.Case)
-        annotation = self.get_fuzzed_node(
+def test_basic_suppression(graph):
+    case = fuzzed(md.Case)
+    with graph.session_scope() as s:
+        case.projects = [graph.nodes(md.Project).first()]
+        file_ = graph.nodes(md.File).subq_path('aliquots').first()
+        case.files = [file_]
+        case.annotations = [fuzzed(
             md.Annotation,
             classification='Redaction',
-            category='Genotype mismatch',
-        )
-        with self.g.session_scope() as s:
-            f = self.g.nodes(md.File).ids('file1').first()
-            case.projects.append(self.g.nodes(md.Project).first())
-            case.files.append(f)
-            case.annotations.append(annotation)
-            map(s.merge, (case, annotation))
-        self.convert_documents()
-        # the redacted case should not be there
-        self.assertNotIn(case.node_id, [c["case_id"] for c in self.case_docs])
-        # the redacted file should not be there
-        self.assertNotIn("file1", [f["file_id"] for f in self.file_docs])
+            category='General',
+        )]
+        s.merge(case)
 
-    def test_non_case_suppression(self):
-        with self.g.session_scope() as s:
-            annotation = self.get_fuzzed_node(
-                md.Annotation,
-                classification='Redaction',
-                category='Genotype mismatch',
-            )
-            portion = self.g.nodes(md.Portion)\
-                            .ids('5b2a99b7-e1a8-4739-acaf-d5f75cc47021')\
-                            .one()
-            portion.annotations = [annotation]
-            sample = portion.samples[0]
-            case = sample.cases[0]
-            analyte = portion.analytes[0]
-            aliquot = analyte.aliquots[0]
-            redacted1 = self.get_fuzzed_node(md.File, node_id="redact1", state="live")
-            redacted1.portions = [portion]
-            redacted2 = self.get_fuzzed_node(md.File, node_id="redact2", state="live")
-            redacted2.aliquots = [aliquot]
-            s.add(redacted1)
-            s.add(redacted2)
-        self.convert_documents()
-        case_doc = [c for c in self.case_docs if c["case_id"] == case.node_id][0]
-        sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
-        self.assertNotIn(portion.node_id, [p["portion_id"] for p in sample_doc["portions"]])
-        self.assertNotIn("redact1", [f["file_id"] for f in self.file_docs])
-        self.assertNotIn("redact2", [f["file_id"] for f in self.file_docs])
+    index = build_index(graph)
 
-    def test_subject_withdrew_consent_is_not_suppressed(self):
-        with self.g.session_scope() as s:
-            case = self.get_fuzzed_node(md.Case)
-            annotation = self.get_fuzzed_node(
-                md.Annotation,
-                classification='Redaction',
-                category='Subject withdrew consent',
-            )
-            f = self.g.nodes(md.File).ids('file1').first()
-            case.projects.append(self.g.nodes(md.Project).first())
-            case.files.append(f)
-            case.annotations.append(annotation)
-            map(s.merge, (case, annotation))
-        self.convert_documents()
+    assert case.node_id not in [c["case_id"] for c in index.cases]
+    assert 'redacted-file' not in [f["file_id"] for f in index.files]
+
+
+def test_non_case_suppression(graph):
+    annotation = fuzzed(md.Annotation, classification='Redaction')
+    with graph.session_scope() as s:
+        portion_id = '5b2a99b7-e1a8-4739-acaf-d5f75cc47021'
+        portion = graph.nodes(md.Portion).ids(portion_id).one()
+        portion.annotations = [annotation]
+        sample = portion.samples[0]
+        case = sample.cases[0]
+        analyte = portion.analytes[0]
+        aliquot = analyte.aliquots[0]
+        redacted1 = fuzzed(md.File, node_id="redact1", state="live")
+        redacted1.portions = [portion]
+        redacted2 = fuzzed(md.File, node_id="redact2", state="live")
+        redacted2.aliquots = [aliquot]
+        s.add(redacted1)
+        s.add(redacted2)
+    index = build_index(graph)
+    case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
+    sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
+    assert portion.node_id not in [p["portion_id"] for p in sample_doc["portions"]]
+    assert "redact1" not in [f["file_id"] for f in index.files]
+    assert "redact2" not in [f["file_id"] for f in index.files]
+
+
+def test_subject_withdrew_consent_is_not_suppressed(graph):
+    with graph.session_scope() as s:
+        case = graph.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
+        case.annotations = [fuzzed(
+            md.Annotation,
+            classification='Redaction',
+            category='Subject withdrew consent',
+        )]
+
+        index = build_index(graph)
         # the case should be there
-        self.assertIn(case.node_id, [c["case_id"] for c in self.case_docs])
+        assert case.node_id in [c["case_id"] for c in index.cases]
         # the file should be there
-        self.assertIn("file1", [f["file_id"] for f in self.file_docs])
+        assert "live-file" in [f["file_id"] for f in index.files]
 
-    @patch("esbuild.graph.common.builder.statsd")
-    def test_duplicate_classification_only_results_in_warning(self, mock_statsd):
-        with self.g.session_scope() as s:
-            s.add(self.live_file)
-            wxs = self.g.nodes(md.ExperimentalStrategy)\
-                        .props(name="WXS").one()
-            validation = self.g.nodes(md.ExperimentalStrategy)\
-                               .props(name="VALIDATION").one()
-            self.live_file.experimental_strategies = [wxs, validation]
-        self.convert_documents()
-        # the file should be there
-        self.assertIn(self.live_file.node_id,
-                      [f["file_id"] for f in self.file_docs])
-        self.assertTrue(mock_statsd.event.mock_calls)
 
-    def test_derived_files(self):
-        with self.g.session_scope() as s:
-            s.add(self.live_file)
-            fake_center = self.get_fuzzed_node(md.Center)
-            self.live_file.centers = [fake_center]
-            related_to_live = self.live_file.related_files[1]
-            derived_file = self.get_fuzzed_node(
-                md.File,
-                state="live",
-                file_name="derived_file.bam",
-            )
-            derived_file.sysan["source"] = "tcga_exome_alignment"
-            self.live_file.derived_files = [derived_file]
-            related_to_derived = self.get_fuzzed_node(
-                md.File,
-                state="live",
-                file_name="derived_file.bam.txt",
-            )
-            related_to_derived.sysan["source"] = "tcga_exome_alignment"
-            derived_file.related_files = [related_to_derived]
+def test_duplicate_classification_only_results_in_warning(graph):
+    with graph.session_scope():
+        live_file = graph.nodes(md.File).ids('live-file').one()
+        exp = (graph.nodes(md.ExperimentalStrategy)
+               .prop_in('name', ["WXS", "VALIDATION"]).all())
+        live_file.experimental_strategies = exp
+    index = build_index(graph)
+    # the file should be there
+    assert live_file.node_id in [f["file_id"] for f in index.files]
 
-        self.convert_documents()
 
-        # derived_file should be a doc in it's own right, and should
-        # have the single correct related file
-        derived_file_docs = [
-            f for f in self.file_docs
-            if f["file_id"] == derived_file.node_id
-        ]
-        self.assertEqual(len(derived_file_docs), 1)
-        derived_file_doc = derived_file_docs[0]
-        self.assertEqual(len(derived_file_doc["metadata_files"]), 1)
-
-        self.assertIn(
-            related_to_derived.node_id,
-            [f["file_id"] for f in derived_file_doc["metadata_files"]]
+def test_derived_files(graph):
+    with graph.session_scope() as s:
+        live_file = graph.nodes(md.File).ids('live-file').one()
+        fake_center = fuzzed(md.Center)
+        live_file.centers = [fake_center]
+        related_to_live = live_file.related_files[1]
+        derived_file = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
         )
-        # self,live_file should just have the one correct related_file
-        live_file_doc = [f for f in self.file_docs
-                         if f["file_id"] == self.live_file.node_id][0]
-        self.assertEqual(len(live_file_doc["metadata_files"]), 1)
-        self.assertIn(
-            related_to_live.node_id,
-            [f["file_id"] for f in live_file_doc["metadata_files"]]
+        derived_file.sysan["source"] = "tcga_exome_alignment"
+        live_file.derived_files = [derived_file]
+        related_to_derived = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam.txt",
         )
-        # test origins are correct
-        self.assertEqual(live_file_doc["origin"], "migrated")
-        self.assertEqual(derived_file_doc["origin"], "harmonized")
-        # centers and associated_entities should be the same
-        self.assertEqual(live_file_doc["center"], derived_file_doc["center"])
-        self.assertEqual(live_file_doc["associated_entities"],
-                         derived_file_doc["associated_entities"])
+        related_to_derived.sysan["source"] = "tcga_exome_alignment"
+        derived_file.related_files = [related_to_derived]
 
-    def test_non_live_related_files_dont_cause_source_files_in_related(self):
-        with self.g.session_scope() as s:
-            s.add(self.live_file)
-            related_to_live = self.live_file.related_files[1]
-            derived_file = self.get_fuzzed_node(
-                md.File,
-                state="live",
-                file_name="derived_file.bam",
-            )
-            derived_file.sysan["source"] = "tcga_exome_alignment"
-            self.live_file.derived_files = [derived_file]
-            related_to_derived = self.get_fuzzed_node(
-                md.File,
-                state="uploaded",
-                file_name="derived_file.txt",
-            )
-            related_to_derived.sysan["source"] = "tcga_exome_alignment"
-            derived_file.related_files = [related_to_derived]
+    index = build_index(graph)
 
-        self.convert_documents()
+    # derived_file should be a doc in it's own right, and should
+    # have the single correct related file
+    derived_file_docs = [
+        f for f in index.files
+        if f["file_id"] == derived_file.node_id
+    ]
+    assert len(derived_file_docs) == 1
+    derived_file_doc = derived_file_docs[0]
+    assert len(derived_file_doc["metadata_files"]) == 1
 
-        # derived_file should be a doc in it's own right, and should
-        # have the single correct related file
-        derived_file_docs = [
-            f for f in self.file_docs
-            if f["file_id"] == derived_file.node_id
-        ]
-        self.assertEqual(len(derived_file_docs), 1)
-        derived_file_doc = derived_file_docs[0]
-        self.assertIsNone(derived_file_doc.get("metadata_files"))
+    assert (
+        related_to_derived.node_id in
+        [f["file_id"] for f in derived_file_doc["metadata_files"]]
+    )
+    # ,live_file should just have the one correct related_file
+    live_file_doc = [f for f in index.files
+                     if f["file_id"] == live_file.node_id][0]
+    assert len(live_file_doc["metadata_files"]) == 1
+    assert (
+        related_to_live.node_id in
+        [f["file_id"] for f in live_file_doc["metadata_files"]]
+    )
+    # test origins are correct
+    assert live_file_doc["origin"] == "migrated"
+    assert derived_file_doc["origin"] == "harmonized"
+    # centers and associated_entities should be the same
+    assert live_file_doc["center"] == derived_file_doc["center"]
+    assert live_file_doc["associated_entities"] == derived_file_doc["associated_entities"]
 
-        # self.live_file should just have the one correct related_file
-        live_file_docs = [
-            f for f in self.file_docs
-            if f["file_id"] == self.live_file.node_id
-        ]
-        self.assertEqual(len(live_file_docs), 1)
-        live_file_doc = live_file_docs[0]
-        self.assertEqual(len(live_file_doc["metadata_files"]), 1)
 
-        self.assertIn(
-            related_to_live.node_id,
-            [f["file_id"] for f in live_file_doc["metadata_files"]]
+def test_non_live_related_files_dont_cause_source_files_in_related(graph):
+    with graph.session_scope() as s:
+        live_file = graph.nodes(md.File).ids('live-file').one()
+
+        related_to_live = live_file.related_files[1]
+        derived_file = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
         )
-        # test origins are correct
-        self.assertEqual(live_file_doc["origin"], "migrated")
-        self.assertEqual(derived_file_doc["origin"], "harmonized")
+        derived_file.sysan["source"] = "tcga_exome_alignment"
+        live_file.derived_files = [derived_file]
+        related_to_derived = fuzzed(
+            md.File,
+            state="uploaded",
+            file_name="derived_file.txt",
+        )
+        related_to_derived.sysan["source"] = "tcga_exome_alignment"
+        derived_file.related_files = [related_to_derived]
+
+    index = build_index(graph)
+
+    # derived_file should be a doc in it's own right, and should
+    # have the single correct related file
+    derived_file_docs = [
+        f for f in index.files
+        if f["file_id"] == derived_file.node_id
+    ]
+    assert len(derived_file_docs) == 1
+    derived_file_doc = derived_file_docs[0]
+    assert derived_file_doc.get("metadata_files") is None
+
+    # live_file should just have the one correct related_file
+    live_file_docs = [
+        f for f in index.files
+        if f["file_id"] == live_file.node_id
+    ]
+    assert len(live_file_docs) == 1
+    live_file_doc = live_file_docs[0]
+    assert len(live_file_doc["metadata_files"]) == 1
+
+    assert (
+        related_to_live.node_id in
+        [f["file_id"] for f in live_file_doc["metadata_files"]]
+    )
+    # test origins are correct
+    assert live_file_doc["origin"] == "migrated"
+    assert derived_file_doc["origin"] == "harmonized"

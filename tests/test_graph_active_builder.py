@@ -7,12 +7,16 @@ Test the builder for graph ES index
 
 """
 
-from base import TestBase
-from gdcdatamodel import models as md
-from prelude import create_prelude_nodes
-from unittest import TestCase
 
-import es_fixtures
+from gdcdatamodel import models as md
+from jsonpath_rw import parse
+
+import pytest
+
+from conftest import (
+    Index,
+    _graph,
+)
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
@@ -25,168 +29,135 @@ from esbuild.graph.legacy.builder import (
     LegacyGraphIndexBuilder,
 )
 
-from test_graph_legacy_builder import (
-    TestGraphIndexBuilder as TestLegacyGraphIndexBuilder
-)
+
+# ======================================================================
+# Fixtures
+
+@pytest.fixture(scope="module")
+def index():
+    builder = ActiveGraphIndexBuilder(_graph)
+    builder.cache_database()
+    index = builder.denormalize_all()
+    return Index._make(index)
 
 
-class TestGraphIndexBuilder(TestLegacyGraphIndexBuilder):
-
-    """Test that the ActiveGraphIndexBuilder produces an index that is a
-    superset of the legacy graph index.
-
-    """
-
-    builder_class = ActiveGraphIndexBuilder
+@pytest.fixture
+def aligned_reads(index):
+    return [d for d in index.files if d['type'] == 'aligned_reads']
 
 
-class TestGraphIndexBuilderUtils(TestCase):
+# ======================================================================
+# Tests
 
-    expected_file_path1 = [
+@pytest.mark.parametrize('a,b,expected', [
+    ([['a', 'b'], ['-', '#']],
+     [range(0, 2), range(2, 4), range(4, 8)],
+     [['a', 'b', 0, 1],
+      ['a', 'b', 2, 3],
+      ['a', 'b', 4, 5, 6, 7],
+      ['-', '#', 0, 1],
+      ['-', '#', 2, 3],
+      ['-', '#', 4, 5, 6, 7]])
+])
+def test_list_product(a, b, expected):
+    assert list_product(a, b) == expected
+
+
+@pytest.mark.parametrize('node,expected', [
+    (md.RnaExpressionWorkflow, ['exon_expression']),
+    (md.RnaExpressionWorkflow, ['gene_expression']),
+    (md.ReadGroup, [
         "submitted_aligned_reads",
         "alignment_cocleaning_workflow",
         "aligned_reads",
         "somatic_mutation_calling_workflow",
-        "simple_somatic_mutation"
-    ]
-
-    def test_list_product(self):
-        self.assertEqual(
-            list_product(
-                [['a', 'b'], ['-', '#']],
-                [range(0, 2), range(2, 4), range(4, 8)]
-            ),
-            [['a', 'b', 0, 1],
-             ['a', 'b', 2, 3],
-             ['a', 'b', 4, 5, 6, 7],
-             ['-', '#', 0, 1],
-             ['-', '#', 2, 3],
-             ['-', '#', 4, 5, 6, 7]])
-
-    def test_subtree_paths_to_file_subset(self):
-        self.assertIn(
-            self.expected_file_path1,
-            subtree_paths_to_file(md.ReadGroup))
-
-    def test_subtree_paths_to_file_expecting_single(self):
-        self.assertEqual(
-            [['exon_expression'], ['gene_expression']],
-            subtree_paths_to_file(md.RnaExpressionWorkflow))
-
-    def test_subtree_paths_to_file_expecting_empty(self):
-        self.assertEqual([], subtree_paths_to_file(md.Annotation))
-
-    def test_get_case_to_file_paths_contains_legacy(self):
-        active_paths = get_case_to_file_paths()
-        for path in LegacyGraphIndexBuilder.case_to_file_paths:
-            self.assertIn(path, active_paths)
-
-    def test_get_case_to_file_paths_contains_expected_path_1(self):
-        prefixes = [
-            ['sample', 'aliquot', 'read_group'],
-            ['sample', 'portion', 'analyte', 'aliquot', 'read_group'],
-        ]
-        for prefix in prefixes:
-            self.assertIn(prefix + self.expected_file_path1,
-                          get_case_to_file_paths())
+        "simple_somatic_mutation",
+    ]),
+])
+def test_subtree_paths_to_file_subset(node, expected):
+    assert expected in subtree_paths_to_file(node)
 
 
-class TestActiveGraphIndexBuilder(TestBase):
+def test_subtree_paths_to_file_expecting_empty():
+    assert subtree_paths_to_file(md.Annotation) == []
 
-    @classmethod
-    def setUpClass(cls):
-        cls.delete_all_nodes()
-        create_prelude_nodes(cls.g)
-        es_fixtures.insert(cls.g)
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.delete_all_nodes()
+@pytest.mark.parametrize('path', LegacyGraphIndexBuilder.case_to_file_paths)
+def test_get_case_to_file_paths_contains_legacy(path):
+    assert path in get_case_to_file_paths()
 
-    def setUp(self):
-        with self.g.session_scope():
-            self.submitted_aligned_reads1 = (
-                self.g.nodes(md.SubmittedAlignedReads)
-                .ids('b3601406-3676-4f76-9aa0-ed68ed6c3a05').one())
-            self.submitted_aligned_reads2 = (
-                self.g.nodes(md.SubmittedAlignedReads)
-                .ids('c7ca17cd-a4be-47da-a446-8efaf0f73272').one())
-            self.alignment_workflow = (
-                self.g.nodes(md.AlignmentWorkflow)
-                .ids('973bd442-04a0-4189-8f02-c8c7e041afe9').one())
-            self.aligned_reads = (
-                self.g.nodes(md.AlignedReads)
-                .ids('a819133c-65c4-438c-93ae-a04e24e82626').one())
 
-    def convert_documents(self):
-        doc_conv = ActiveGraphIndexBuilder(self.g)
-        with self.g.session_scope():
-            doc_conv.cache_database()
-        self.case_docs, self.file_docs, self.ann_docs = (
-            doc_conv.denormalize_cases())
-        self.case_doc = self.case_docs[0] if self.case_docs else None
+@pytest.mark.parametrize('prefix', [
+    ['sample', 'aliquot', 'read_group'],
+    ['sample', 'portion', 'analyte', 'aliquot', 'read_group'],
+])
+def test_get_case_to_file_paths_contains_expected_path(prefix):
+    assert prefix + [
+        "submitted_aligned_reads",
+        "alignment_cocleaning_workflow",
+        "aligned_reads",
+        "somatic_mutation_calling_workflow",
+        "simple_somatic_mutation",
+    ] in get_case_to_file_paths()
 
-    def get_aligned_reads_doc(self):
-        self.convert_documents()
-        return [
-            d for d in self.file_docs
-            if d['file_id'] == self.aligned_reads.node_id
-        ][0]
 
-    def test_simple_conversion(self):
-        self.convert_documents()
+@pytest.mark.parametrize('doc_type,path,contained_keys,count', [
+    ('cases', '[*].project', {'project_id'}, 1),
+    ('cases', '[*].samples.[*]', {'sample_id'}, 2),
+    ('cases', '[*].samples.[*].portions.[*]', {'portion_id'}, 2),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*]', {'analyte_id'}, 5),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*]', {'aliquot_id'}, 11),
+    ('files', '[*]', {'file_size'}, 5),
+])
+def test_path_keys(index, doc_type, path, contained_keys, count):
+    results = parse(path).find(getattr(index, doc_type))
+    assert len(results) == count
+    for doc in results:
+        assert not contained_keys - set(doc.value.keys())
 
-    def test_files_are_in_index(self):
-        self.convert_documents()
-        file_ids = {d['file_id'] for d in self.file_docs}
-        self.assertIn(self.submitted_aligned_reads1.node_id, file_ids)
-        self.assertIn(self.submitted_aligned_reads2.node_id, file_ids)
-        self.assertIn(self.aligned_reads.node_id, file_ids)
 
-    def test_submitted_aligned_reads_no_analysis(self):
-        self.convert_documents()
-        docs = [
-            d for d in self.file_docs
-            if d['file_id'] in [
-                self.submitted_aligned_reads1.node_id,
-                self.submitted_aligned_reads2.node_id,
-            ]
-        ]
-        for doc in docs:
-            self.assertNotIn('analysis', doc)
+@pytest.mark.parametrize('doc_type,path,expected,count', [
+    ('cases', '[*].demographic.year_of_birth', 1951, 1),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis', 47, 1),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', 'unknown', 1),
+    ('cases', '[*].exposures.[*].cigarettes_per_day', 10, 1),
+    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', 'Married', 1),
+    ('files', '[*].index_files.[*].file_name', 'test_file.bam.bai', 1),
+])
+def test_path_values(index, doc_type, path, expected, count):
+    results = parse(path).find(getattr(index, doc_type))
+    assert len(results) == count
+    for actual in results:
+        assert actual.value == expected
 
-    def test_aligned_reads_analysis(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('analysis', doc)
-        self.assertIn('analysis_id', doc['analysis'])
-        self.assertEqual(doc['data_format'], 'BAM')
 
-    def test_aligned_reads_analysis_input_files(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('input_files', doc['analysis'])
-        self.assertEqual(len(doc['analysis']['input_files']), 2)
+def test_submitted_aligned_reads_no_analysis(graph, index):
+    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
+    docs = [d for d in index.files if d['file_id'] in f_ids]
+    for doc in docs:
+        assert 'analysis' not in doc
 
+
+def test_submitted_aligned_reads_has_downstream_analysis(graph, index):
+    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
+    docs = [d for d in index.files if d['file_id'] in f_ids]
+    for doc in docs:
+        assert doc.get('downstream_analysis')
+        assert doc['downstream_analysis'].get('output_files')
+
+
+def test_aligned_reads_analysis_input_files(index, aligned_reads):
+    for doc in aligned_reads:
+        assert doc['analysis'].get('input_files')
+        assert len(doc['analysis']['input_files']) == 2
         for f in doc['analysis']['input_files']:
-            self.assertTrue(f['file_name'])
-            self.assertTrue(f['data_format'])
+            assert f['file_name']
+            assert f['data_format']
 
-    def test_aligned_reads_analysis_read_group(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('metadata', doc['analysis'])
-        self.assertIn('read_groups', doc['analysis']['metadata'])
-        self.assertIn(
-            'read_group_id',
-            doc['analysis']['metadata']['read_groups'][0])
 
-    def test_submitted_aligned_reads_has_downstream_analysis(self):
-        self.convert_documents()
-        docs = [
-            d for d in self.file_docs
-            if d['file_id'] in [
-                self.submitted_aligned_reads1.node_id,
-                self.submitted_aligned_reads2.node_id,
-            ]
-        ]
-        for doc in docs:
-            self.assertIn('downstream_analysis', doc)
-            self.assertIn('output_files', doc['downstream_analysis'])
+def test_aligned_reads_analysis_read_group(index, aligned_reads):
+    for doc in aligned_reads:
+        assert doc['analysis'].get('metadata')
+        assert doc['analysis']['metadata']['read_groups']
+        for rg in doc['analysis']['metadata']['read_groups']:
+            assert rg['read_group_id']

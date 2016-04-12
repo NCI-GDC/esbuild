@@ -14,7 +14,10 @@ import argparse
 from sqlalchemy import create_engine
 import logging
 
+from gdcdatamodel.models.misc import FileReport
+from gdcdatamodel.models.reports import GDCReport
 from gdcdatamodel import models  # noqa
+
 from psqlgraph import create_all
 
 
@@ -82,6 +85,9 @@ def create_tables(host, user, password, database):
     engine = create_engine("postgres://{user}:{pwd}@{host}/{db}".format(
         user=user, host=host, pwd=password, db=database))
     create_all(engine)
+
+    FileReport.metadata.create_all(engine)
+    GDCReport.metadata.create_all(engine)
 
 
 if __name__ == '__main__':
