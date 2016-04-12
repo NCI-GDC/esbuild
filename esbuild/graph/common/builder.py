@@ -1148,10 +1148,12 @@ class GraphIndexBuilder(object):
             if n.label in labels:
                 yield n
 
-    def neighbors_labeled(self, node, labels):
+    def neighbors_labeled(self, node, labels, expected=None):
         """For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
         string or list of strings.
+
+        :param is_expected: Int count of expected elements
 
         """
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
@@ -1169,8 +1171,16 @@ class GraphIndexBuilder(object):
             else:
                 neighbors = {n for n in temp if n.label in labels}
 
+        count = 0
         for n in neighbors:
+            count += 1
             yield n
+
+        if expected is not None and count != expected:
+            self.warning(
+                "{}: unexpected no. of '{}' neighbors".format(node, labels),
+                '{}: {} != {} (expected)'.format(node, count, expected),
+                tags=["{}:{}".format(node.label, node.node_id)])
 
     ###################################################################
     #                       Validation functions
@@ -1295,30 +1305,33 @@ class GraphIndexBuilder(object):
 
         return True
 
-    def is_from_omitted_project(self, node):
+    def is_omitted_project_or_neighbor_case(self, node):
         """Returns false if the node is a project that is not supposed to be
         indexed.
 
         """
 
-        # Get the project and program
         if node.label == 'project':
-            project_code = node.code
-            program_name = list(self.neighbors_labeled(
-                node, 'program'))[0].name
+            projects = [node]
         elif node.label == 'case':
-            project = list(self.neighbors_labeled(node, 'project'))[0]
-            program = list(self.neighbors_labeled(project, 'program'))[0]
-            project_code = project.code
-            program_name = program.name
-        else:
-            program_name, project_code = (None, None)
-
-        # Check project and program against omitted_projects
-        if (program_name, project_code) in self.omitted_projects:
-            return True
+            projects = list(self.neighbors_labeled(node, 'project', 1))
         else:
             return False
+
+        project_codes = [project.code for project in projects]
+        program_names = [
+            program.name
+            for project in projects
+            for program in self.neighbors_labeled(project, 'program', 1)
+        ]
+
+        # Check project and program against omitted_projects
+        for program_name in program_names:
+            for project_code in project_codes:
+                if (program_name, project_code) in self.omitted_projects:
+                    return True
+
+        return False
 
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
@@ -1331,7 +1344,7 @@ class GraphIndexBuilder(object):
             return False
 
         # Check for omitted_projects
-        if self.is_from_omitted_project(node):
+        if self.is_omitted_project_or_neighbor_case(node):
             log.info('Node not indexed (omitted project ): {}'.format(node))
             return False
 
