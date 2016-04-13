@@ -1333,13 +1333,23 @@ class GraphIndexBuilder(object):
 
         return False
 
+    def is_unindexed_case(self, node):
+        return (
+            node.label == 'case'
+            and not list(self.neighbors_labeled(node, 'project', 1))
+        )
+
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
 
         """
 
+        if self.is_unindexed_case(node):
+            log.info('Node not indexed (case not indexed): {}'.format(node))
+            return False
+
         # Check for non-indexed files
-        if not self.is_file_indexed(node):
+        elif not self.is_file_indexed(node):
             log.info('Node not indexed (file not indexed): {}'.format(node))
             return False
 
