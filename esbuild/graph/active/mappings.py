@@ -31,17 +31,24 @@ class ActiveESMapper(ESMapper):
         if c._dictionary['category'] in {'data_file', 'index_file'}
     ]
 
+    @staticmethod
+    def update_no_overwrite(original, new):
+        for key, value in new.iteritems():
+            if key not in original:
+                original[key] = value
+
     @classmethod
     def get_file_es_mapping(cls, *args, **kwargs):
         files = Dict(super(ActiveESMapper, ActiveESMapper)
                      .get_file_es_mapping(*args, **kwargs))
 
-        files.properties.update(cls.get_properties_by_category('data_file'))
-        files.properties.update(cls.get_properties_by_category('index_file'))
-
+        # Update file properties to allow props from all file types
+        data_file_union = cls.get_properties_by_category('data_file')
+        index_file_union = cls.get_properties_by_category('index_file')
+        cls.update_no_overwrite(files.properties, data_file_union)
+        cls.update_no_overwrite(files.properties, index_file_union)
         index_files = files.properties.index_files
-        index_files.properties.update(cls.get_properties_by_category('data_file'))
-        index_files.properties.update(cls.get_properties_by_category('index_file'))
+        cls.update_no_overwrite(index_files.properties, index_file_union)
 
         input_files = Dict()
         input_files.type = 'nested'
@@ -57,6 +64,8 @@ class ActiveESMapper(ESMapper):
         # Analysis
         analysis = Dict()
         analysis.properties = cls.get_properties_by_category('analysis')
+        analysis.properties.analysis_id = STRING
+        analysis.properties.analysis_type = STRING
         analysis.properties.input_files = input_files
 
         # Metadata
@@ -67,6 +76,8 @@ class ActiveESMapper(ESMapper):
         # Downstream analysis
         ds_analysis = Dict()
         ds_analysis.properties = cls.get_properties_by_category('analysis')
+        ds_analysis.properties.analysis_id = STRING
+        ds_analysis.properties.analysis_type = STRING
         ds_analysis.properties.output_files = output_files
 
         files.properties.analysis = analysis

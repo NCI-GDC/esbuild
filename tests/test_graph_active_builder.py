@@ -25,10 +25,6 @@ from esbuild.graph.active.builder import (
     get_case_to_file_paths,
 )
 
-from esbuild.graph.legacy.builder import (
-    LegacyGraphIndexBuilder,
-)
-
 
 # ======================================================================
 # Fixtures
@@ -46,8 +42,30 @@ def aligned_reads(index):
     return [d for d in index.files if d['type'] == 'aligned_reads']
 
 
+@pytest.fixture(scope="session")
+def mappings():
+    mapper = ActiveGraphIndexBuilder.mapper
+    return {
+        'file': mapper.get_file_es_mapping(),
+        'annotation': mapper.get_annotation_es_mapping(),
+        'case': mapper.get_case_es_mapping(),
+        'project': mapper.get_project_es_mapping(),
+    }
+
+
 # ======================================================================
 # Tests
+
+@pytest.mark.parametrize('mapping,path', [
+    ('file', 'properties.file_name.fields.analyzed.index'),
+    ('case', 'properties.submitter_id.fields.analyzed.index'),
+    ('project', 'properties.name.fields.analyzed.index'),
+    ('annotation', 'properties.entity_id.fields.analyzed.index'),
+])
+def test_mapping_contains(mappings, mapping, path):
+    results = parse(path).find(mappings[mapping])
+    assert len([r.value for r in results]) == 1
+
 
 @pytest.mark.parametrize('a,b,expected', [
     ([['a', 'b'], ['-', '#']],
@@ -115,7 +133,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
-    ('files', '[*].file_size', 3),
+    ('files', '[*].(file_size | file_name | file_id)', 3 * 3),
 ])
 def test_path_counts(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))

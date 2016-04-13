@@ -71,7 +71,6 @@ class ESMapper(object):
 
     multifields = {
         'project': [
-            'code',
             'disease_type',
             'name',
             'primary_site',
@@ -331,9 +330,6 @@ class ESMapper(object):
 
         for c in classes:
             doc.update(cls.get_base_properties(c.label, include_id=False))
-
-        doc.analysis_id = STRING
-        doc.analysis_type = STRING
 
         return doc
 
