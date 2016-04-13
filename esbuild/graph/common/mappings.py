@@ -361,6 +361,9 @@ class ESMapper(object):
 
         cls.flatten_data_type(files.properties)
 
+        # Specify the type of file
+        files.properties.type = STRING
+
         # Specify the entity the file was derived from
         files.properties.associated_entities.type = 'nested'
         files.properties.associated_entities.properties.entity_type = STRING

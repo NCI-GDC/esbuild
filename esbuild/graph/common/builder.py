@@ -607,6 +607,7 @@ class GraphIndexBuilder(object):
 
         # Add file fields
         self.patch_file_datetimes(doc)
+        self.add_node_type(node, doc)
         self.add_file_origin(node, doc)
         self.add_file_neighbors(node, doc)
         self.add_data_type(node, doc)
@@ -621,6 +622,9 @@ class GraphIndexBuilder(object):
         self.add_file_data_format(node, doc)
 
         return doc
+
+    def add_node_type(self, node, doc):
+        doc['type'] = node.label
 
     def get_data_format(self, node):
         """Return the ``data_format`` given a file node based on
