@@ -82,8 +82,16 @@ def test_subtree_paths_to_file_expecting_empty():
     assert subtree_paths_to_file(md.Annotation) == []
 
 
-@pytest.mark.parametrize('path', LegacyGraphIndexBuilder.case_to_file_paths)
-def test_get_case_to_file_paths_contains_legacy(path):
+@pytest.mark.parametrize('path', [
+    ['case', 'sample', 'portion', 'analyte', 'aliquot'],
+    ['case', 'sample', 'aliquot'],
+])
+def test_get_case_to_file_paths_absent(path):
+    assert path not in get_case_to_file_paths()
+
+
+@pytest.mark.parametrize('path', [])
+def test_get_case_to_file_paths_present(path):
     assert path in get_case_to_file_paths()
 
 
@@ -101,34 +109,33 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ] in get_case_to_file_paths()
 
 
-@pytest.mark.parametrize('doc_type,path,contained_keys,count', [
-    ('cases', '[*].project', {'project_id'}, 1),
-    ('cases', '[*].samples.[*]', {'sample_id'}, 2),
-    ('cases', '[*].samples.[*].portions.[*]', {'portion_id'}, 2),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*]', {'analyte_id'}, 5),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*]', {'aliquot_id'}, 11),
-    ('files', '[*]', {'file_size'}, 5),
+@pytest.mark.parametrize('doc_type,path,count', [
+    ('cases', '[*].project.project_id', 1),
+    ('cases', '[*].samples.[*].sample_id', 2),
+    ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
+    ('files', '[*].file_size', 3),
 ])
-def test_path_keys(index, doc_type, path, contained_keys, count):
+def test_path_counts(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
-    for doc in results:
-        assert not contained_keys - set(doc.value.keys())
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [
-    ('cases', '[*].demographic.year_of_birth', 1951, 1),
-    ('cases', '[*].diagnoses.[*].age_at_diagnosis', 47, 1),
-    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', 'unknown', 1),
-    ('cases', '[*].exposures.[*].cigarettes_per_day', 10, 1),
-    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', 'Married', 1),
-    ('files', '[*].index_files.[*].file_name', 'test_file.bam.bai', 1),
+    ('cases', '[*].demographic.year_of_birth', [1951], 1),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
+    ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
+    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
+    ('files', '[*].index_files.[*].file_name', ['index-file-2.bam.bai'], 1),
+    ('files', '[*].type.[*]', ['submitted_aligned_reads', 'aligned_reads'], 3),
 ])
-def test_path_values(index, doc_type, path, expected, count):
+def test_path_value_in(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
-    assert len(results) == count
+    assert len([r.value for r in results]) == count
     for actual in results:
-        assert actual.value == expected
+        assert actual.value in expected
 
 
 def test_submitted_aligned_reads_no_analysis(graph, index):

@@ -88,7 +88,7 @@ def get_case_to_file_paths():
 
     """
 
-    paths_to_aliquot = [
+    case_to_aliquot = [
         ['sample', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
@@ -100,12 +100,9 @@ def get_case_to_file_paths():
 
     case_to_file_paths = [
         ['file'],
-        ['sample', 'portion', 'file'],
     ]
 
-    # Legacy files
-    case_to_file_paths += list_product(paths_to_aliquot, [['file']])
-    case_to_file_paths += list_product(paths_to_aliquot, readgroup_subtree)
+    case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
 
     return case_to_file_paths
 
@@ -123,6 +120,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         self.add_file_downstream_analysis(node, doc)
 
         return doc
+
+    def get_file_index_files(self, node):
+        """Given a file, return any neighboring index files"""
+        return [
+            n for n in list(self.get_child_with_category(node, 'index_file'))
+            if self.is_index_file(n)
+        ]
 
     def get_parent_with_category(self, node, category):
         """returns iterable of neighors from outbound edges with category

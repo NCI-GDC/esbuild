@@ -28,13 +28,20 @@ class ActiveESMapper(ESMapper):
 
     file_labels = [
         c.label for c in Node.get_subclasses()
-        if c._dictionary['category'] == 'data_file'
+        if c._dictionary['category'] in {'data_file', 'index_file'}
     ]
 
     @classmethod
     def get_file_es_mapping(cls, *args, **kwargs):
         files = Dict(super(ActiveESMapper, ActiveESMapper)
                      .get_file_es_mapping(*args, **kwargs))
+
+        files.properties.update(cls.get_properties_by_category('data_file'))
+        files.properties.update(cls.get_properties_by_category('index_file'))
+
+        index_files = files.properties.index_files
+        index_files.properties.update(cls.get_properties_by_category('data_file'))
+        index_files.properties.update(cls.get_properties_by_category('index_file'))
 
         input_files = Dict()
         input_files.type = 'nested'

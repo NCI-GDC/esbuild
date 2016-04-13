@@ -67,6 +67,12 @@ NODES = [
         file_name='test_file.bam.bai',
     ),
     fuzzed(
+        AlignedReadsIndex,
+        node_id='index-file-2',
+        state='live',
+        file_name='index-file-2.bam.bai',
+    ),
+    fuzzed(
         File,
         node_id='related-file',
         state="live",
@@ -97,7 +103,7 @@ NODES = [
         error_type='file_size',
         experimental_strategy='WGS',
         data_format='BAM',
-        file_name='pzrl69',
+        file_name='aligned-reads-1.bam',
         file_size=6977248,
         file_state='submitted',
         md5sum='i73t7p',
@@ -603,6 +609,10 @@ EDGES = [
     FileRelatedToFile(
         src_id='live-file',
         dst_id='index-file',
+    ),
+    AlignedReadsIndexDerivedFromAlignedReads(
+        src_id='index-file-2',
+        dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
     FileRelatedToFile(
         src_id='live-file',
