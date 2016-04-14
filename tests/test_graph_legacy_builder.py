@@ -60,10 +60,16 @@ def test_annotation_case_submitter_id(graph):
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
     ('files', '[*].file_size', 2),
 ])
-def test_path_counts(index, doc_type, path, count):
+def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
 
+
+@pytest.mark.parametrize('doc_type,path', [
+    ('cases', '[*].clinical'),
+])
+def test_path_is_absent(index, doc_type, path):
+    assert not parse(path).find(getattr(index, doc_type))
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [

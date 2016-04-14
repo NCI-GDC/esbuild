@@ -132,7 +132,6 @@ class ESMapper(object):
         case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
 
         # Clinical subtree
-        case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
@@ -462,11 +461,6 @@ class ESMapper(object):
         summary.data_categories.type = 'nested'
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
-
-        # Clinical
-        clinical = case.properties.clinical.properties
-        clinical.age_at_diagnosis = INTEGER
-        clinical.days_to_death = INTEGER
 
         return deepcopy(case.to_dict())
 

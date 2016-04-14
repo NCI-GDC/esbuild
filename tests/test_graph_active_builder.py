@@ -104,13 +104,23 @@ def test_subtree_paths_to_file_expecting_empty():
     ['case', 'sample', 'portion', 'analyte', 'aliquot'],
     ['case', 'sample', 'aliquot'],
 ])
-def test_get_case_to_file_paths_absent(path):
+def test_get_case_to_file_paths_is_absent(path):
     assert path not in get_case_to_file_paths()
 
 
-@pytest.mark.parametrize('path', [])
-def test_get_case_to_file_paths_present(path):
-    assert path in get_case_to_file_paths()
+@pytest.mark.parametrize('doc_type,path', [
+    ('cases', '[*].clinical'),
+])
+def test_path_is_absent(index, doc_type, path):
+    assert not parse(path).find(getattr(index, doc_type))
+
+
+@pytest.mark.parametrize('path', [
+    'sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads',
+    'sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads.alignment_workflow.aligned_reads',
+])
+def test_get_case_to_file_path_is_present(path):
+    assert path.split('.') in get_case_to_file_paths()
 
 
 @pytest.mark.parametrize('prefix', [
@@ -135,7 +145,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
     ('files', '[*].(file_size | file_name | file_id)', 3 * 3),
 ])
-def test_path_counts(index, doc_type, path, count):
+def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
 

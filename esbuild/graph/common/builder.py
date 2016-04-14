@@ -394,20 +394,6 @@ class GraphIndexBuilder(object):
     def remove_bam_index_files(self, files):
         return {f for f in files if not f['file_name'].endswith('.bai')}
 
-    def patch_tcga_ages(self, case):
-        """Because TCGA reports ages in years, and target in days, we
-        normalize TCGA age_at_diagnosis fields to be
-        int(ceil(d*365.25)) where d is the age in days
-
-        """
-        program_name = case['project']['program']['name']
-        if program_name == 'TCGA':
-            clinical = case.get('clinical', {})
-            age_in_years = clinical.get('age_at_diagnosis')
-            if age_in_years:
-                age_in_days = int(ceil(age_in_years*365.25))
-                case['clinical']['age_at_diagnosis'] = age_in_days
-
     ###################################################################
     #                          Cases
     ##################################################################
@@ -449,11 +435,6 @@ class GraphIndexBuilder(object):
         def get_file(f):
             return self.denormalize_file(f, ptree)
         case['files'] = map(get_file, files)
-
-        # TODO move this logic to project level normalization? It was
-        # requested to do this transformation in the es build and not
-        # in the data itself, so it is here for now.
-        self.patch_tcga_ages(case)
 
         # Add properties to all annotations
         for a in [a for f in case['files']
@@ -861,7 +842,6 @@ class GraphIndexBuilder(object):
             lambda p: self.walk_tree(p, ptree, self.ptree_mapping, [])[0],
             ptree)
         for p in doc['cases']:
-            self.patch_tcga_ages(p)
             self.patch_project(p['project'])
             self.reconstruct_biospecimen_paths(p)
         return relevant
