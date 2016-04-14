@@ -719,12 +719,20 @@ class GraphIndexBuilder(object):
 
         """
 
-        if node._dictionary['category'] not in ['data_file']:
+        if node._dictionary['category'] not in ['data_file', 'index_file']:
             return False
 
         for extension in self.index_file_extensions:
             if node['file_name'].endswith(extension):
                 return True
+
+    def get_file_index_files(self, node):
+        """Given a file, return any neighboring index files"""
+        return [
+            n for n in list(self.neighbors_labeled(node, 'file'))
+            if self.G[node][n].get("label") == "related_to"
+            and self.is_index_file(n)
+        ]
 
     def add_index_files(self, node, doc):
         """Given a file, walk to any neighboring index files and add
@@ -732,13 +740,7 @@ class GraphIndexBuilder(object):
 
         """
         index_file_docs = []
-
-        # Get related_files
-        index_files = [
-            n for n in list(self.neighbors_labeled(node, 'file'))
-            if self.G[node][n].get("label") == "related_to"
-            and self.is_index_file(n)
-        ]
+        index_files = self.get_file_index_files(node)
 
         log.debug('Found index files for {}: {}'.format(node, index_files))
 
