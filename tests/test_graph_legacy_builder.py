@@ -15,6 +15,10 @@ from jsonpath_rw import parse
 
 import pytest
 
+from conftest import (
+    raise_test_error,
+)
+
 
 def build_index(graph):
     builder = LegacyGraphIndexBuilder(graph)
@@ -25,6 +29,12 @@ def build_index(graph):
 
 # ======================================================================
 # Fixtures
+
+
+@pytest.fixture()
+def builder():
+    return LegacyGraphIndexBuilder(_graph)
+
 
 @pytest.fixture(scope="module")
 def index():
@@ -73,6 +83,8 @@ def test_path_is_absent(index, doc_type, path):
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [
+    ('projects', '[*].summary.[*].data_categories.[*].file_count', [1], 1),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Raw sequencing data'], 1),
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
@@ -267,3 +279,15 @@ def test_non_live_related_files_dont_cause_source_files_in_related(graph):
     # test origins are correct
     assert live_file_doc["origin"] == "migrated"
     assert derived_file_doc["origin"] == "harmonized"
+
+
+def test_project_file_counts(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for project in index.projects:
+        builder.validate_project_file_counts(project, index.files)
+
+
+def test_data_category_count(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for case in index.cases:
+        builder.verify_data_category_count(case)

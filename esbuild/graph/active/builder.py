@@ -112,6 +112,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     mapper = ActiveESMapper
     case_to_file_paths = get_case_to_file_paths()
 
+    file_labels = GraphIndexBuilder.node_labels_by_category([
+        'data_file',
+        'index_file',
+    ])
+
     def denormalize_file(self, node, ptree):
         doc = (super(ActiveGraphIndexBuilder, self)
                .denormalize_file(node, ptree))
@@ -252,7 +257,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         """
 
         doc = {}
-        self.add_data_type(node, doc)
+        self.add_data_category(node, doc)
         for dst in self.neighbors_labeled(node, 'data_subtype'):
             doc['data_type'] = dst['name']
 

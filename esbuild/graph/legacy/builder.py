@@ -30,3 +30,6 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         # because they get tied to the relevant aliquots
         # during cache_database
     ]
+
+    # Types of nodes to be treated as files
+    file_labels = ['file']
