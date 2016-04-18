@@ -520,6 +520,14 @@ NODES = [
     ),
 
     # Prelude nodes
+    DataSubtype(
+        node_id='data_subtype_aligned_reads',
+        name='Aligned reads',
+    ),
+    DataType(
+        node_id='data_type_raw_sequencing',
+        name='Raw sequencing data',
+    ),
     Platform(
         node_id='ed523719-86fa-4131-bd14-a13f06d453ae',
         name='Illumina HiSeq',
@@ -606,6 +614,10 @@ NODES = [
 
 
 EDGES = [
+    FileMemberOfDataSubtype(
+        src_id='live-file',
+        dst_id='data_subtype_aligned_reads'
+    ),
     FileRelatedToFile(
         src_id='live-file',
         dst_id='index-file',
@@ -920,6 +932,10 @@ EDGES = [
         properties={}),
 
     # Prelude
+    DataSubtypeMemberOfDataType(
+        src_id='data_subtype_aligned_reads',
+        dst_id='data_type_raw_sequencing',
+    ),
     ProjectMemberOfProgram(
         src_id='1334612b-3d2e-5941-a476-d455d71b458f',
         dst_id='b80aa962-9650-5110-b3eb-bd087da808db',

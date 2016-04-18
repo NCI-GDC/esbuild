@@ -39,6 +39,14 @@ def clear_database():
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
 
 
+class TestError(Exception):
+    pass
+
+
+def raise_test_error(*args, **kwargs):
+    raise TestError('{} {}'.format(args, kwargs))
+
+
 # ======================================================================
 # Fixtures
 

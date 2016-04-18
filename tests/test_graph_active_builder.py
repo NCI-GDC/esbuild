@@ -14,6 +14,7 @@ from jsonpath_rw import parse
 import pytest
 
 from conftest import (
+    raise_test_error,
     Index,
     _graph,
 )
@@ -35,6 +36,11 @@ def index():
     builder.cache_database()
     index = builder.denormalize_all()
     return Index._make(index)
+
+
+@pytest.fixture()
+def builder():
+    return ActiveGraphIndexBuilder(_graph)
 
 
 @pytest.fixture
@@ -151,6 +157,9 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [
+    ('projects', '[*].summary.[*].data_categories.[*].file_count', [3], 1),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Sequencing Data'], 1),
+    ('cases', '[*].summary.[*].data_categories.[*].file_count', [3], 1),
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
@@ -196,3 +205,15 @@ def test_aligned_reads_analysis_read_group(index, aligned_reads):
         assert doc['analysis']['metadata']['read_groups']
         for rg in doc['analysis']['metadata']['read_groups']:
             assert rg['read_group_id']
+
+
+def test_project_file_counts(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for project in index.projects:
+        builder.validate_project_file_counts(project, index.files)
+
+
+def test_data_category_count(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for case in index.cases:
+        builder.verify_data_category_count(case)

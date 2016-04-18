@@ -19,6 +19,7 @@ from copy import copy, deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
 from math import ceil
+from psqlgraph import Node
 
 from .mappings import (
     ONE_TO_MANY,
@@ -126,6 +127,7 @@ class GraphIndexBuilder(object):
     required_attrs = [
         'mapper',
         'case_to_file_paths',
+        'file_labels',
     ]
 
     def __init__(self, psqlgraph_driver):
@@ -160,7 +162,7 @@ class GraphIndexBuilder(object):
 
         self.leaf_nodes = ['center', 'tissue_source_site']
         self.experimental_strategies = {}
-        self.data_types = {}
+        self.data_categories = {}
         self.popular_nodes = {}
         self.cases = None
         self.projects = None
@@ -169,7 +171,7 @@ class GraphIndexBuilder(object):
         self.annotation_entities = None
         self.entity_cases = None
 
-        # Different from ``self.data_types`` in that it's a
+        # Different from ``self.data_categories`` in that it's a
         # replacement for a hardcoded dict of data_type, data_subtype
         # relationships.  This is populated by
         # ``self._cache_existing_data_types()``
@@ -480,23 +482,25 @@ class GraphIndexBuilder(object):
         for exp_strat, file_list in self.experimental_strategies.iteritems():
             intersection = (file_list & files)
             if intersection:
-                yield {'experimental_strategy': exp_strat['name'],
-                       'file_count': len(intersection)}
+                yield {
+                    'experimental_strategy': exp_strat,
+                    'file_count': len(intersection)
+                }
 
-    def get_data_types(self, files):
-        """Get the set of data_types where intersection of the
+    def get_data_categories(self, files):
+        """Get the set of data_categories where intersection of the
         set `files` and the set of files that relate to that
-        data_type is non-null
+        data_category is non-null
 
         """
-        self._cache_data_types()
-        for data_type, file_list in self.data_types.iteritems():
+        self._cache_data_categories()
+        for data_category, file_list in self.data_categories.iteritems():
             intersection = (file_list & files)
             if intersection:
                 yield {
                     # data_type is renamed data_category, viz.
                     # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-                    'data_category': data_type['name'],
+                    'data_category': data_category,
                     'file_count': len(intersection),
                 }
 
@@ -511,7 +515,7 @@ class GraphIndexBuilder(object):
             'experimental_strategies': list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            'data_categories': list(self.get_data_types(files)),
+            'data_categories': list(self.get_data_categories(files)),
         }
 
     def reconstruct_biospecimen_paths(self, case):
@@ -591,7 +595,7 @@ class GraphIndexBuilder(object):
         self.add_node_type(node, doc)
         self.add_file_origin(node, doc)
         self.add_file_neighbors(node, doc)
-        self.add_data_type(node, doc)
+        self.add_data_category(node, doc)
         self.add_related_files(node, doc)
         self.add_index_files(node, doc)
         self.add_archives(node, doc)
@@ -767,7 +771,7 @@ class GraphIndexBuilder(object):
                 # data_subtype is renamed data_type, viz.
                 # https://jira.opensciencedatacloud.org/browse/PGDC-1472
                 rf_doc['data_type'] = dst['name']
-                self.add_data_type(related_file, rf_doc)
+                self.add_data_category(related_file, rf_doc)
 
             # Type
             if related_file['file_name'].endswith('.sdrf.txt'):
@@ -812,21 +816,21 @@ class GraphIndexBuilder(object):
             if self.G[node][archive].get('label') == 'member_of':
                 doc['archive'] = self._get_base_doc(archive)
 
-    def add_data_type(self, node, doc):
-        """Add the data_subtype to the file document with child data_type
+    def add_data_category(self, node, doc):
+        """Add the data_subtype to the file document with child data_category
 
         """
 
-        self._cache_data_types()
-        data_types = [
-            data_type['name']
-            for data_type, files in self.data_types.items()
+        self._cache_data_categories()
+        data_categories = [
+            data_category
+            for data_category, files in self.data_categories.items()
             if node in files
         ]
-        if data_types:
+        if data_categories:
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            doc['data_category'] = data_types[0]
+            doc['data_category'] = data_categories[0]
 
     def add_cases(self, node, ptree, doc):
         """Given a file and a case tree, re-insert the case as a
@@ -947,30 +951,34 @@ class GraphIndexBuilder(object):
         log.info('Got {} files from {} cases'.format(
             len(files), len(case_files)))
 
-        # Get data types
+        # Get experimental strategies
         exp_strat_summaries = []
         self._cache_experimental_strategies()
         for exp_strat in self.experimental_strategies.keys():
-            log.info('{} {}'.format(exp_strat, exp_strat['name']))
+            log.info('exp_strat: {}'.format(exp_strat))
             exp_files = (self.experimental_strategies[exp_strat] & files)
+
             if not len(exp_files):
                 continue
-            case_count = len(
-                {p for p, p_files in case_files.iteritems()
-                 if len(exp_files & p_files)})
+
+            case_count = len({
+                p for p, p_files in case_files.iteritems()
+                if len(exp_files & p_files)
+            })
+
             exp_strat_summaries.append({
                 'case_count': case_count,
-                'experimental_strategy': exp_strat['name'],
+                'experimental_strategy': exp_strat,
                 'file_count': len(exp_files),
             })
 
         # Get data types
-        data_type_summaries = []
-        self._cache_data_types()
+        data_category_summaries = []
+        self._cache_data_categories()
 
-        for data_type in self.data_types.keys():
-            log.info('{} {}'.format(data_type, data_type['name']))
-            dt_files = (self.data_types[data_type] & files)
+        for data_category in self.data_categories.keys():
+            log.info('data_category: {}'.format(data_category))
+            dt_files = (self.data_categories[data_category] & files)
 
             if not len(dt_files):
                 continue
@@ -980,11 +988,11 @@ class GraphIndexBuilder(object):
                 if len(dt_files & p_files)
             })
 
-            data_type_summaries.append({
+            data_category_summaries.append({
                 'case_count': case_count,
                 # data_type is renamed data_category, viz.
                 # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-                'data_category': data_type['name'],
+                'data_category': data_category,
                 'file_count': len(dt_files),
             })
 
@@ -994,12 +1002,15 @@ class GraphIndexBuilder(object):
             'file_count': len(files),
             'file_size': sum([f['file_size'] for f in files]),
         }
+
         if exp_strat_summaries:
             doc['summary']['experimental_strategies'] = exp_strat_summaries
-        if data_type_summaries:
+
+        if data_category_summaries:
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            doc['summary']['data_categories'] = data_type_summaries
+            doc['summary']['data_categories'] = data_category_summaries
+
         return doc
 
     ###################################################################
@@ -1134,6 +1145,22 @@ class GraphIndexBuilder(object):
             if n.label in labels:
                 yield n
 
+    @staticmethod
+    def node_labels_by_category(categories):
+        """Returns an iterator of node labels that are files
+
+        """
+
+        categories = (
+            tuple(categories) if hasattr(categories, '__iter__')
+            else (categories,)
+        )
+
+        return [
+            n.label for n in Node.get_subclasses()
+            if n._dictionary['category'] in categories
+        ]
+
     def neighbors_labeled(self, node, labels, expected=None):
         """For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
@@ -1181,7 +1208,7 @@ class GraphIndexBuilder(object):
         expected = project_doc['summary']['file_count']
         if actual != expected:
             self.error(
-                'Annotation has multiple entities',
+                'File count mismatch',
                 '{} file count mismatch: {} != {}'.format(
                     project_doc['project_id'], actual, expected),
                 tags=["project_id:{}".format(project_doc['project_id'])],
@@ -1192,7 +1219,7 @@ class GraphIndexBuilder(object):
             self.validate_project_file_counts(project_doc, file_docs)
             case_sample = random.sample(case_docs, min(len(case_docs), 100))
             for case_doc in case_sample:
-                self.verify_data_type_count(case_doc)
+                self.verify_data_category_count(case_doc)
         self.validate_annotations(ann_docs)
 
     def validate_annotations(self, ann_docs):
@@ -1207,23 +1234,23 @@ class GraphIndexBuilder(object):
                             ann_doc.get("annotation_id", "?"))],
                     )
 
-    def verify_data_type_count(self, case):
-        for data_type in self.existing_data_types.keys():
+    def verify_data_category_count(self, case):
+        for data_category in self.existing_data_types.keys():
             calc = len([
                 f for f in case['files']
-                if f.get('data_type') == data_type
+                if f.get('data_category') == data_category
             ])
 
             act = ([
                 d['file_count']
-                for d in case['summary']['data_types']
-                if d['data_type'] == data_type
+                for d in case['summary']['data_categories']
+                if d['data_category'] == data_category
             ][:1] or [0])[0]
 
             if act != calc:
                 self.error(
-                    'Inconsistent data_type count',
-                    '{}: {} != {}'.format(data_type, act, calc),
+                    'Inconsistent data_category count',
+                    '{}: {} != {}'.format(data_category, act, calc),
                     tags=["case_id:{}".format(case.get("case_id", "?"))],
                 )
 
@@ -1485,7 +1512,7 @@ class GraphIndexBuilder(object):
 
         self._cache_existing_data_types()
         self._cache_experimental_strategies()
-        self._cache_data_types()
+        self._cache_data_categories()
         self._cache_annotations()
         self._cache_relevant_nodes()
         self._cache_entity_cases()
@@ -1572,7 +1599,7 @@ class GraphIndexBuilder(object):
             n for n in neighbors if n.label in labels}
         return self.popular_nodes[node][labels]
 
-    def _cache_data_types(self):
+    def _cache_data_categories(self):
         """Looking up the files that are classified in each data_type is a
         common computation.  Here we cache this information for easy retrieval.
 
@@ -1582,13 +1609,21 @@ class GraphIndexBuilder(object):
 
         """
 
-        if len(self.data_types):
+        if len(self.data_categories):
             return
 
-        log.info('Caching data types')
-        for data_type in self.nodes_labeled('data_type'):
-            self.data_types[data_type] = self.remove_bam_index_files(
-                set(self.walk_path(data_type, ['data_subtype', 'file'])))
+        log.info('Caching data categories')
+        for data_category in self.nodes_labeled('data_type'):
+            category = data_category._props['name']
+            self.data_categories[category] = self.remove_bam_index_files(
+                set(self.walk_path(data_category, ['data_subtype', 'file'])))
+
+        # New files have 'data_category' as a property
+        for file_ in self.nodes_labeled(self.file_labels):
+            category = file_._props.get('data_category')
+            if not category:
+                continue
+            self.data_categories.setdefault(category, set()).add(file_)
 
     def _cache_experimental_strategies(self):
         """Looking up the files that are classified in each
@@ -1599,10 +1634,19 @@ class GraphIndexBuilder(object):
 
         if len(self.experimental_strategies):
             return
+
         log.info('Caching experitmental strategies')
         for exp_strat in self.nodes_labeled('experimental_strategy'):
-            self.experimental_strategies[exp_strat] = set(self.walk_path(
+            strategy = exp_strat._props['name']
+            self.experimental_strategies[strategy] = set(self.walk_path(
                 exp_strat, ['file']))
+
+        # New files have 'experimental_strategy' as a property
+        for file_ in self.nodes_labeled(self.file_labels):
+            strategy = file_._props.get('experimental_strategy')
+            if not strategy:
+                continue
+            self.experimental_strategies.setdefault(strategy, set()).add(file_)
 
     def _cache_existing_data_types(self):
         """The last version of this code imported a hard coded list and called
