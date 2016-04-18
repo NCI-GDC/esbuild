@@ -66,8 +66,8 @@ def mappings():
     ('file', 'properties.file_name.fields.analyzed.index'),
     ('file', 'properties.analysis.properties.input_files.properties.data_category'),
     ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
-    ('file', 'properties.downstream_analysis.properties.output_files.properties.data_category'),
-    ('file', 'properties.downstream_analysis.properties.output_files.properties.file_id.fields.analyzed.index'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
     ('case', 'properties.submitter_id.fields.analyzed.index'),
     ('project', 'properties.name.fields.analyzed.index'),
     ('annotation', 'properties.entity_id.fields.analyzed.index'),
@@ -75,6 +75,15 @@ def mappings():
 def test_mapping_contains(mappings, mapping, path):
     results = parse(path).find(mappings[mapping])
     assert len([r.value for r in results]) == 1
+
+
+@pytest.mark.parametrize('mapping,path,expected', [
+    ('file', 'properties.downstream_analyses.type', ['nested']),
+])
+def test_mapping_value_in(mappings, mapping, path, expected):
+    results = parse(path).find(mappings[mapping])
+    for r in results:
+        assert r.value in expected
 
 
 @pytest.mark.parametrize('a,b,expected', [
@@ -171,8 +180,8 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['index-file-2.bam.bai'], 1),
     ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 2),
-    ('files', '[*].downstream_analysis.[*].output_files.[*].data_category', ['Sequencing Data'], 2),
-    ('files', '[*].downstream_analysis.[*].output_files.[*].state', ['submitted'], 2),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category', ['Sequencing Data'], 2),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].state', ['submitted'], 2),
     ('files', '[*].type.[*]', ['submitted_aligned_reads', 'aligned_reads'], 3),
 ])
 def test_path_value_in(index, doc_type, path, expected, count):
@@ -189,12 +198,12 @@ def test_submitted_aligned_reads_no_analysis(graph, index):
         assert 'analysis' not in doc
 
 
-def test_submitted_aligned_reads_has_downstream_analysis(graph, index):
+def test_submitted_aligned_reads_has_downstream_analyses(graph, index):
     f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
     docs = [d for d in index.files if d['file_id'] in f_ids]
     for doc in docs:
-        assert doc.get('downstream_analysis')
-        assert doc['downstream_analysis'].get('output_files')
+        assert doc.get('downstream_analyses')
+        assert doc['downstream_analyses'].get('output_files')
 
 
 def test_aligned_reads_analysis_input_files(index, aligned_reads):

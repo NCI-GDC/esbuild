@@ -71,14 +71,14 @@ class ActiveESMapper(ESMapper):
         analysis.properties.metadata = metadata
 
         # Downstream analysis
-        ds_analysis = Dict()
+        ds_analysis = Dict(type='nested')
         ds_analysis.properties = cls.get_properties_by_category('analysis')
         ds_analysis.properties.analysis_id = STRING
         ds_analysis.properties.analysis_type = STRING
         ds_analysis.properties.output_files = output_files
 
         files.properties.analysis = analysis
-        files.properties.downstream_analysis = ds_analysis
+        files.properties.downstream_analyses = ds_analysis
 
         return files.to_dict()
 
