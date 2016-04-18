@@ -64,6 +64,10 @@ def mappings():
 
 @pytest.mark.parametrize('mapping,path', [
     ('file', 'properties.file_name.fields.analyzed.index'),
+    ('file', 'properties.analysis.properties.input_files.properties.data_category'),
+    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
+    ('file', 'properties.downstream_analysis.properties.output_files.properties.data_category'),
+    ('file', 'properties.downstream_analysis.properties.output_files.properties.file_id.fields.analyzed.index'),
     ('case', 'properties.submitter_id.fields.analyzed.index'),
     ('project', 'properties.name.fields.analyzed.index'),
     ('annotation', 'properties.entity_id.fields.analyzed.index'),
@@ -166,6 +170,9 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['index-file-2.bam.bai'], 1),
+    ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 2),
+    ('files', '[*].downstream_analysis.[*].output_files.[*].data_category', ['Sequencing Data'], 2),
+    ('files', '[*].downstream_analysis.[*].output_files.[*].state', ['submitted'], 2),
     ('files', '[*].type.[*]', ['submitted_aligned_reads', 'aligned_reads'], 3),
 ])
 def test_path_value_in(index, doc_type, path, expected, count):

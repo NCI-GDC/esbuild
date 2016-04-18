@@ -256,14 +256,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        doc = {}
+        doc = self._get_base_doc(node)
         self.add_data_category(node, doc)
+        doc['data_format'] = self.get_data_format(node)
+
         for dst in self.neighbors_labeled(node, 'data_subtype'):
             doc['data_type'] = dst['name']
-
-        doc['file_id'] = node.node_id
-        doc['file_name'] = node._props.get('file_name')
-        doc['file_size'] = node._props.get('file_size')
-        doc['data_format'] = self.get_data_format(node)
 
         return doc

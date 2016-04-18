@@ -42,23 +42,20 @@ class ActiveESMapper(ESMapper):
         files = Dict(super(ActiveESMapper, ActiveESMapper)
                      .get_file_es_mapping(*args, **kwargs))
 
-        # Update file properties to allow props from all file types
-        data_file_union = cls.get_properties_by_category('data_file')
-        index_file_union = cls.get_properties_by_category('index_file')
-        cls.update_no_overwrite(files.properties, data_file_union)
-        cls.update_no_overwrite(files.properties, index_file_union)
-        index_files = files.properties.index_files
-        cls.update_no_overwrite(index_files.properties, index_file_union)
+        file_base_props = cls.multifield('file_id')
+        file_base_props.update(cls.get_properties_by_category('index_file'))
+        file_base_props.update(cls.get_properties_by_category('data_file'))
 
+        # Update file properties to allow props from all file types
+        cls.update_no_overwrite(files.properties, file_base_props)
+
+        index_files = files.properties.index_files
+        cls.update_no_overwrite(index_files.properties, file_base_props)
+
+        # Input/output files
         input_files = Dict()
         input_files.type = 'nested'
-        input_files.properties.data_type = STRING
-        input_files.properties.data_category = STRING
-        input_files.properties.data_format = STRING
-        input_files.properties.file_id = STRING
-        input_files.properties.file_name = STRING
-        input_files.properties.file_size = LONG
-
+        cls.update_no_overwrite(input_files.properties, file_base_props)
         output_files = Dict(deepcopy(input_files.to_dict()))
 
         # Analysis
