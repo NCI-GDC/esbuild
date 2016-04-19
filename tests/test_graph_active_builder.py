@@ -77,6 +77,13 @@ def test_mapping_contains(mappings, mapping, path):
     assert len([r.value for r in results]) == 1
 
 
+@pytest.mark.parametrize('mapping,path', [
+    ('file', 'properties.uploaded_datetime'),
+])
+def test_mapping_does_not_contain(mappings, mapping, path):
+    assert len(parse(path).find(mappings[mapping])) == 0
+
+
 @pytest.mark.parametrize('mapping,path,expected', [
     ('file', 'properties.downstream_analyses.type', ['nested']),
 ])
@@ -163,6 +170,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
     ('files', '[*].(file_size | file_name | file_id)', 3 * 3),
+    ('files', '[*].uploaded_datetime', 0),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
