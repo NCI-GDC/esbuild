@@ -281,12 +281,6 @@ class ESMapper(object):
         # https://jira.opensciencedatacloud.org/browse/PGDC-1472
         root.data_category = STRING
 
-    @staticmethod
-    def patch_file_timestamps(doc):
-        doc.properties.uploaded_datetime = LONG
-        doc.properties.published_datetime = LONG
-        return doc
-
     @classmethod
     def nested(cls, source):
         return Dict(type='nested', properties=cls.get_base_properties(source))
@@ -370,7 +364,7 @@ class ESMapper(object):
         cls.add_multifields(files, 'files')
 
         # Related files
-        metadata_files = cls.patch_file_timestamps(cls.nested('file'))
+        metadata_files = cls.nested('file')
         metadata_files.properties.type = STRING
         #   data_type is renamed data_category, viz.
         #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -383,12 +377,9 @@ class ESMapper(object):
         files.properties.metadata_files = metadata_files
 
         # Index files
-        index_files = cls.patch_file_timestamps(cls.nested('file'))
+        index_files = cls.nested('file')
         index_files.properties.data_format = STRING
         files.properties.index_files = index_files
-
-        # Temporary until datetimes are backported
-        cls.patch_file_timestamps(files)
 
         # File access
         files.properties.access = STRING

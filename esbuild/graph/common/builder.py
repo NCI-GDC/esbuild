@@ -591,7 +591,6 @@ class GraphIndexBuilder(object):
         doc = self._get_base_doc(node)
 
         # Add file fields
-        self.patch_file_datetimes(doc)
         self.add_node_type(node, doc)
         self.add_file_origin(node, doc)
         self.add_file_neighbors(node, doc)
@@ -693,10 +692,6 @@ class GraphIndexBuilder(object):
                     doc[label] = []
                 doc[label].append(base)
 
-    def patch_file_datetimes(self, doc):
-        doc['published_datetime'] = None
-        doc['uploaded_datetime'] = 1425340539
-
     def is_index_file(self, node):
         """Given a node, return whether it is considerend an 'index file'
 
@@ -733,7 +728,6 @@ class GraphIndexBuilder(object):
             index_file_doc = self._get_base_doc(index_file)
             index_file_doc['data_format'] = self.get_data_format(index_file)
 
-            self.patch_file_datetimes(index_file_doc)
             index_file_docs.append(index_file_doc)
 
         if index_file_docs:
@@ -759,7 +753,6 @@ class GraphIndexBuilder(object):
 
         for related_file in related_files:
             rf_doc = self._get_base_doc(related_file)
-            self.patch_file_datetimes(rf_doc)
 
             # Data types
             data_subtypes = self.neighbors_labeled(
