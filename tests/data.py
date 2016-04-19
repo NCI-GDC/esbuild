@@ -528,6 +528,16 @@ NODES = [
         status="Approved",
         submitter_id="0000",
     ),
+    fuzzed(
+        SomaticMutationCallingWorkflow,
+        node_id='somatic_mutation_calling_workflow_1',
+        state='submitted',
+    ),
+    fuzzed(
+        SimpleSomaticMutation,
+        node_id='somatic_mutation_1',
+        state='submitted',
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -944,6 +954,14 @@ EDGES = [
         src_id='6d066a72-f59f-45a8-ab90-216000b36da4',
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
+    SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
+        src_id='somatic_mutation_1',
+        dst_id='somatic_mutation_calling_workflow_1',
+    ),
+    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+        src_id='somatic_mutation_calling_workflow_1',
+        dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
+    ),
 
     # Prelude
     DataSubtypeMemberOfDataType(
