@@ -79,6 +79,7 @@ def test_mapping_contains(mappings, mapping, path):
 
 @pytest.mark.parametrize('mapping,path', [
     ('file', 'properties.uploaded_datetime'),
+    ('annotation', 'properties.creator'),
 ])
 def test_mapping_does_not_contain(mappings, mapping, path):
     assert len(parse(path).find(mappings[mapping])) == 0
@@ -136,6 +137,7 @@ def test_get_case_to_file_paths_is_absent(path):
 
 @pytest.mark.parametrize('doc_type,path', [
     ('cases', '[*].clinical'),
+    ('annotations', '[*].creator'),
 ])
 def test_path_is_absent(index, doc_type, path):
     assert not parse(path).find(getattr(index, doc_type))
