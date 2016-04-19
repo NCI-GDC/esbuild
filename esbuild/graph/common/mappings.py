@@ -475,6 +475,9 @@ class ESMapper(object):
         # Patch annotation mutlifields
         cls.add_multifields(annotation, 'annotation')
 
+        # Remove annotation.creator viz. PGDC-2114
+        annotation.properties.pop('creator')
+
         # Add the project and program
         annotation.properties.update(Dict({
             'project': {'properties': cls.get_base_properties('project')}}))

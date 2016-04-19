@@ -518,6 +518,16 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
+    Annotation(
+        node_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
+        category="Center QC failed",
+        classification="CenterNotification",
+        creator="test_creator",
+        notes="RNA-seq:LOW 5/3 COVERAGE RATIO",
+        state='submitted',
+        status="Approved",
+        submitter_id="0000",
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -614,6 +624,10 @@ NODES = [
 
 
 EDGES = [
+    AnnotationAnnotatesAliquot(
+        src_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
     FileMemberOfDataSubtype(
         src_id='live-file',
         dst_id='data_subtype_aligned_reads'

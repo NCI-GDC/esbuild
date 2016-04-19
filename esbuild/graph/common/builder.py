@@ -103,6 +103,10 @@ class GraphIndexBuilder(object):
         nodes like ``tag`` that only have a ``name`` property. See
         ``self.flatten`` for a complete list.
 
+    * hidden_properties:
+        Some nodes should have properties hidden, e.g.
+        ``annotation.creator``
+
     * s/data_type/data_category/g:
         data_type is renamed data_category, viz.
         https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -123,6 +127,13 @@ class GraphIndexBuilder(object):
     # files. Should be an iterable of iterables, i.e.
     # [['file'], ['sample', 'aliquot', 'file']]
     case_to_file_paths = None
+
+    # {node.label: {set of property keys}}
+    hidden_properties = {
+        'annotation': {
+            'creator',
+        }
+    }
 
     required_attrs = [
         'mapper',
@@ -358,6 +369,7 @@ class GraphIndexBuilder(object):
             key: value
             for key, value in node._props.iteritems()
             if key in node.__pg_properties__
+            and key not in self.hidden_properties.get(node.label, [])
         })
 
         if node.label != 'project':
