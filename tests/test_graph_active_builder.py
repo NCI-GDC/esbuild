@@ -48,6 +48,11 @@ def aligned_reads(index):
     return [d for d in index.files if d['type'] == 'aligned_reads']
 
 
+@pytest.fixture
+def simple_somatic_mutations(index):
+    return [d for d in index.files if d['type'] == 'simple_somatic_mutation']
+
+
 @pytest.fixture(scope="session")
 def mappings():
     mapper = ActiveGraphIndexBuilder.mapper
@@ -171,7 +176,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
-    ('files', '[*].(file_size | file_name | file_id)', 3 * 3),
+    ('files', '[*].(file_size | file_name | file_id)', 2 * 3),  # there should be two files
     ('files', '[*].uploaded_datetime', 0),
 ])
 def test_path_count(index, doc_type, path, count):
@@ -180,19 +185,19 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [
-    ('projects', '[*].summary.[*].data_categories.[*].file_count', [3], 1),
-    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Sequencing Data'], 1),
-    ('cases', '[*].summary.[*].data_categories.[*].file_count', [3], 1),
+    ('projects', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 2),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Simple Nucleotide Variation', 'Sequencing Data'], 2),
+    ('cases', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 2),
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
     ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['index-file-2.bam.bai'], 1),
-    ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 2),
-    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category', ['Sequencing Data'], 2),
-    ('files', '[*].downstream_analyses.[*].output_files.[*].state', ['submitted'], 2),
-    ('files', '[*].type.[*]', ['submitted_aligned_reads', 'aligned_reads'], 3),
+    ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 1),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category', ['Simple Nucleotide Variation'], 1),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].state', ['submitted'], 1),
+    ('files', '[*].type.[*]', ['simple_somatic_mutation', 'aligned_reads'], 2),
 ])
 def test_path_value_in(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -216,10 +221,10 @@ def test_submitted_aligned_reads_has_downstream_analyses(graph, index):
         assert doc['downstream_analyses'].get('output_files')
 
 
-def test_aligned_reads_analysis_input_files(index, aligned_reads):
-    for doc in aligned_reads:
+def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
+    for doc in simple_somatic_mutations:
         assert doc['analysis'].get('input_files')
-        assert len(doc['analysis']['input_files']) == 2
+        assert len(doc['analysis']['input_files']) == 1
         for f in doc['analysis']['input_files']:
             assert f['file_name']
             assert f['data_format']

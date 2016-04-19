@@ -138,20 +138,24 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        return self.neighbors_labeled(node, [
+        labels = [
             l['dst_type'].label for l in node._pg_links.values()
             if l['dst_type']._dictionary['category'] == category
-        ])
+        ]
+
+        return self.neighbors_labeled(node, labels)
 
     def get_child_with_category(self, node, category):
         """returns iterable of neighors from inbound edges with category
 
         """
 
-        return self.neighbors_labeled(node, [
+        labels = [
             l['src_type'].label for l in node._pg_backrefs.values()
             if l['src_type']._dictionary['category'] == category
-        ])
+        ]
+
+        return self.neighbors_labeled(node, labels)
 
     def add_file_analysis(self, node, doc):
         """Add the 'analysis' that produced the current file.
@@ -187,14 +191,17 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         for analysis in analyses:
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_output_files(analysis, analysis_doc)
-            doc['downstream_analyses'] = analysis_doc
+            doc.setdefault('downstream_analyses', []).append(analysis_doc)
 
     def add_analysis_input_files(self, node, doc):
         """For a given analysis node, add the input_files to the doc.
 
         """
 
-        input_files = self.get_parent_with_category(node, 'data_file')
+        input_files = [
+            f for f in self.get_parent_with_category(node, 'data_file')
+            if not self.is_node_hidden(f)
+        ]
         input_file_docs = map(self.get_simple_file_doc, input_files)
 
         if input_file_docs:
@@ -205,7 +212,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        output_files = self.get_child_with_category(node, 'data_file')
+        output_files = [
+            f for f in self.get_child_with_category(node, 'data_file')
+            if not self.is_node_hidden(f)
+        ]
         output_file_docs = map(self.get_simple_file_doc, output_files)
 
         if output_file_docs:

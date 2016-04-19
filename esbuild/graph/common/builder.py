@@ -446,9 +446,11 @@ class GraphIndexBuilder(object):
         project = case['project']
 
         # Denormalize the cases files
-        def get_file(f):
-            return self.denormalize_file(f, ptree)
-        case['files'] = map(get_file, files)
+        case['files'] = [
+            self.denormalize_file(f, ptree)
+            for f in files
+            if not self.is_node_hidden(f)
+        ]
 
         # Add properties to all annotations
         for a in [a for f in case['files']
@@ -953,6 +955,13 @@ class GraphIndexBuilder(object):
             case_files[case] = self.remove_bam_index_files(
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
+
+        # filter files
+        files = {
+            f for f in files
+            if not self.is_node_hidden(f)
+        }
+
         log.info('Got {} files from {} cases'.format(
             len(files), len(case_files)))
 
@@ -1377,6 +1386,19 @@ class GraphIndexBuilder(object):
             return False
 
         return True
+
+    def is_node_hidden(self, node):
+        """Return True if the node should be traversed (and therefore must
+        remain in the cache) but should not appear in any documents
+
+        """
+
+        # Hide all submitted_* node types from indices
+        if node.label.startswith('submitted_'):
+            return True
+
+        return False
+
 
     @staticmethod
     def truncate_path(path, label):
