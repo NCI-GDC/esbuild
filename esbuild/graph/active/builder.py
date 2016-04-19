@@ -122,7 +122,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                .denormalize_file(node, ptree))
 
         self.add_file_analysis(node, doc)
-        self.add_file_downstream_analysis(node, doc)
+        self.add_file_downstream_analyses(node, doc)
 
         return doc
 
@@ -177,28 +177,17 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                 tags=["file_id:{}".format(node.node_id)],
             )
 
-    def add_file_downstream_analysis(self, node, doc):
+    def add_file_downstream_analyses(self, node, doc):
         """Add the 'analysis' that produced the current file.
 
         """
 
         analyses = list(self.get_child_with_category(node, 'analysis'))
 
-        if analyses:
-            # Add the first downstream analyisis
-            analysis = analyses.pop()
+        for analysis in analyses:
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_output_files(analysis, analysis_doc)
-            doc['downstream_analysis'] = analysis_doc
-
-        # If there are remaining analysis, record a warning and skip
-        if analyses:
-            self.warning(
-                "Multiple downstream analysis on {}".format(node),
-                ("{} has multiple downstream analyses {}, "
-                 "this is unexpected.").format(node, analyses),
-                tags=["file_id:{}".format(node.node_id)],
-            )
+            doc['downstream_analyses'] = analysis_doc
 
     def add_analysis_input_files(self, node, doc):
         """For a given analysis node, add the input_files to the doc.
