@@ -105,7 +105,8 @@ class GraphIndexBuilder(object):
 
     * hidden_properties:
         Some nodes should have properties hidden, e.g.
-        ``annotation.creator``
+        ``annotation.creator``. In addition, ``project_id`` will be
+        hidden on all nodes.
 
     * s/data_type/data_category/g:
         data_type is renamed data_category, viz.
@@ -128,6 +129,7 @@ class GraphIndexBuilder(object):
     # [['file'], ['sample', 'aliquot', 'file']]
     case_to_file_paths = None
 
+    # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
     hidden_properties = {
         'annotation': {
@@ -368,12 +370,13 @@ class GraphIndexBuilder(object):
         base.update({
             key: value
             for key, value in node._props.iteritems()
+            # Only use props in the pinned version of the dictionary
             if key in node.__pg_properties__
+            # Ignore certain keys by type
             and key not in self.hidden_properties.get(node.label, [])
+            # Hide project_id for all nodes but project, viz. PGDC-1550
+            and (key != 'project_id' or node.label == 'project')
         })
-
-        if node.label != 'project':
-            base.pop('project_id', None)
 
         return base
 
@@ -453,8 +456,7 @@ class GraphIndexBuilder(object):
         ]
 
         # Add properties to all annotations
-        for a in [a for f in case['files']
-                  for a in f.get('annotations', [])]:
+        for a in [a for f in case['files'] for a in f.get('annotations', [])]:
             a['case_id'] = node.node_id
 
         # Create a flattened copy of visited_ids to filter relevant
@@ -463,10 +465,12 @@ class GraphIndexBuilder(object):
                         for eid in etype] + [node.node_id]
 
         # Create copy of annotations and add properties
-        annotations = {a['annotation_id']: copy(a)
-                       for f in case['files']
-                       for a in f.get('annotations', [])
-                       if a['entity_id'] in relevant_ids}
+        annotations = {
+            a['annotation_id']: copy(a)
+            for f in case['files']
+            for a in f.get('annotations', [])
+            if a['entity_id'] in relevant_ids
+        }
         for a in annotations.itervalues():
             a['project'] = project
             a['case_id'] = node.node_id
