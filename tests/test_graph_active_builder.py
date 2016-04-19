@@ -87,7 +87,12 @@ def test_mapping_contains(mappings, mapping, path):
 
 @pytest.mark.parametrize('mapping,path', [
     ('file', 'properties.uploaded_datetime'),
+    ('file', 'properties.project_id'),
+    ('file', 'properties.cases.properties.samples.properties.project_id'),
+    ('case', 'properties.project_id'),
+    ('case', 'properties.samples.properties.portions.properties.project_id'),
     ('annotation', 'properties.creator'),
+    ('annotation', 'properties.project_id'),
 ])
 def test_mapping_does_not_contain(mappings, mapping, path):
     assert len(parse(path).find(mappings[mapping])) == 0
@@ -175,12 +180,18 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 
 @pytest.mark.parametrize('doc_type,path,count', [
     ('cases', '[*].project.project_id', 1),
+    ('cases', '[*].project_id', 0),
+    ('cases', '[*].samples.[*].project_id', 0),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
     ('cases', '[*].samples.[*].sample_id', 2),
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
     ('files', '[*].(file_size | file_name | file_id)', 2 * 3),  # there should be two files
     ('files', '[*].uploaded_datetime', 0),
+    ('files', '[*].project_id', 0),
+    ('files', '[*].cases.[*].project_id', 0),
+    ('annotations', '[*].project_id', 0),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))

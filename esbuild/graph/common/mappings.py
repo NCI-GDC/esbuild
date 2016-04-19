@@ -320,6 +320,10 @@ class ESMapper(object):
             doc[field] = {'type': _type}
             if str(_type) == 'string':
                 doc[field]['index'] = 'not_analyzed'
+
+        if source != 'project':
+            doc.pop('project_id', None)
+
         return doc
 
     @staticmethod
@@ -558,7 +562,7 @@ class ESMapper(object):
         cls.add_multifields(annotation, 'annotation')
 
         # Remove annotation.creator viz. PGDC-2114
-        annotation.properties.pop('creator')
+        annotation.properties.pop('creator', None)
 
         # Add the project and program
         annotation.properties.update(Dict({
