@@ -90,6 +90,7 @@ def test_mapping_contains(mappings, mapping, path):
     ('file', 'properties.project_id'),
     ('file', 'properties.cases.properties.samples.properties.project_id'),
     ('case', 'properties.project_id'),
+    ('case', 'properties.samples.properties.aliquots'),
     ('case', 'properties.samples.properties.portions.properties.project_id'),
     ('annotation', 'properties.creator'),
     ('annotation', 'properties.project_id'),
