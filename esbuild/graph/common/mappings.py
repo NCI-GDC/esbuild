@@ -139,10 +139,6 @@ class ESMapper(object):
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
-        # For TARGET
-        case_tree.aliquot = case_tree.sample.portion.analyte.aliquot
-        case_tree.sample.aliquot = case_tree.sample.portion.analyte.aliquot
-
         return case_tree
 
     @staticmethod
