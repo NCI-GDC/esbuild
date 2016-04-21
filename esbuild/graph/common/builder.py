@@ -610,7 +610,6 @@ class GraphIndexBuilder(object):
 
         # Add file fields
         self.add_node_type(node, doc)
-        self.add_file_origin(node, doc)
         self.add_file_neighbors(node, doc)
         self.add_data_category(node, doc)
         self.add_related_files(node, doc)
@@ -908,13 +907,6 @@ class GraphIndexBuilder(object):
             docs.append(subdoc)
         if docs:
             doc['associated_entities'] = docs
-
-    def add_file_origin(self, node, doc):
-        source = node._sysan.get('source')
-        if source and "alignment" in source:
-            doc["origin"] = "harmonized"
-        else:
-            doc["origin"] = "migrated"
 
     def upsert_file_into_dict(self, files, file_doc):
         did = file_doc['file_id']
@@ -1317,6 +1309,13 @@ class GraphIndexBuilder(object):
     #                       Caching functions
     ###################################################################
 
+    @staticmethod
+    def is_harmonized_file(node):
+        return (
+            node.label == 'file' and
+            node._sysan.get('source', '').endswith('_alignment')
+        )
+
     def is_file_indexed(self, node):
         """Returns false if node is a file that is not supposed to be indexed.
 
@@ -1325,6 +1324,10 @@ class GraphIndexBuilder(object):
         # This function should only be for files
         if node.label not in self.mapper.file_labels:
             return True
+
+        # Skip old representation of harmonized files
+        if self.is_harmonized_file(node):
+            return False
 
         # Is file to_delete
         if node.system_annotations.get("to_delete"):
