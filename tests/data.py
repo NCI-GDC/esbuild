@@ -60,6 +60,18 @@ NODES = [
         submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
         error_type=None,
     ),
+    File(
+        node_id='harmonized-file',
+        project_id='TCGA-BRCA',
+        file_name='TCGA-WR-A838-01A-12R-A406-31_aligned.bam',
+        file_size=12916551680,
+        md5sum='d3f6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        submitter_id='3d16fb28-51b7-4fa2-b528-077716e5d64a',
+        system_annotations=dict(
+            source='target_wgs_alignment',
+        )
+    ),
     fuzzed(
         File,
         node_id='index-file',
@@ -657,6 +669,14 @@ EDGES = [
     FileDataFromAliquot(
         src_id='live-file',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='harmonized-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromFile(
+        src_id='harmonized-file',
+        dst_id='live-file',
     ),
     FileDataFromAliquot(
         src_id='non-live-file',

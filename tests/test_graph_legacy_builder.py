@@ -179,11 +179,10 @@ def test_duplicate_classification_only_results_in_warning(graph):
 
 
 def test_derived_files(graph):
-    with graph.session_scope() as s:
+    with graph.session_scope():
         live_file = graph.nodes(md.File).ids('live-file').one()
         fake_center = fuzzed(md.Center)
         live_file.centers = [fake_center]
-        related_to_live = live_file.related_files[1]
         derived_file = fuzzed(
             md.File,
             state="live",
@@ -207,35 +206,13 @@ def test_derived_files(graph):
         f for f in index.files
         if f["file_id"] == derived_file.node_id
     ]
-    assert len(derived_file_docs) == 1
-    derived_file_doc = derived_file_docs[0]
-    assert len(derived_file_doc["metadata_files"]) == 1
 
-    assert (
-        related_to_derived.node_id in
-        [f["file_id"] for f in derived_file_doc["metadata_files"]]
-    )
-    # ,live_file should just have the one correct related_file
-    live_file_doc = [f for f in index.files
-                     if f["file_id"] == live_file.node_id][0]
-    assert len(live_file_doc["metadata_files"]) == 1
-    assert (
-        related_to_live.node_id in
-        [f["file_id"] for f in live_file_doc["metadata_files"]]
-    )
-    # test origins are correct
-    assert live_file_doc["origin"] == "migrated"
-    assert derived_file_doc["origin"] == "harmonized"
-    # centers and associated_entities should be the same
-    assert live_file_doc["center"] == derived_file_doc["center"]
-    assert live_file_doc["associated_entities"] == derived_file_doc["associated_entities"]
+    assert len(derived_file_docs) == 0
 
 
 def test_non_live_related_files_dont_cause_source_files_in_related(graph):
-    with graph.session_scope() as s:
+    with graph.session_scope():
         live_file = graph.nodes(md.File).ids('live-file').one()
-
-        related_to_live = live_file.related_files[1]
         derived_file = fuzzed(
             md.File,
             state="live",
@@ -259,26 +236,7 @@ def test_non_live_related_files_dont_cause_source_files_in_related(graph):
         f for f in index.files
         if f["file_id"] == derived_file.node_id
     ]
-    assert len(derived_file_docs) == 1
-    derived_file_doc = derived_file_docs[0]
-    assert derived_file_doc.get("metadata_files") is None
-
-    # live_file should just have the one correct related_file
-    live_file_docs = [
-        f for f in index.files
-        if f["file_id"] == live_file.node_id
-    ]
-    assert len(live_file_docs) == 1
-    live_file_doc = live_file_docs[0]
-    assert len(live_file_doc["metadata_files"]) == 1
-
-    assert (
-        related_to_live.node_id in
-        [f["file_id"] for f in live_file_doc["metadata_files"]]
-    )
-    # test origins are correct
-    assert live_file_doc["origin"] == "migrated"
-    assert derived_file_doc["origin"] == "harmonized"
+    assert len(derived_file_docs) == 0
 
 
 def test_project_file_counts(index, builder, monkeypatch):
