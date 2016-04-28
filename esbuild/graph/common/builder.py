@@ -213,7 +213,6 @@ class GraphIndexBuilder(object):
             ('TCGA', 'DEV1'),
             ('TCGA', 'DEV2'),
             ('TCGA', 'DEV3'),
-            ('CGCI', 'BLGSP'),
         }
 
         # The body of these nested documents will be flattened into
