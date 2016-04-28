@@ -550,6 +550,38 @@ NODES = [
         node_id='somatic_mutation_1',
         state='submitted',
     ),
+    fuzzed(
+        SimpleSomaticMutation,
+        node_id='somatic_mutation_1',
+        state='submitted',
+    ),
+    fuzzed(
+        BiospecimenSupplement,
+        node_id='biospecimen_supplement_1',
+        data_category='Biospecimen',
+        data_format='BCR XML',
+        data_type='Biospecimen Supplement',
+        file_name='nationwidechildrens.org_biospecimen.TCGA-A1-A1A1.xml',
+        state='live'
+    ),
+    fuzzed(
+        ClinicalSupplement,
+        node_id='clinical_supplement_1',
+        data_category='Clinical',
+        data_format='BCR XML',
+        data_type='Clinical Supplement',
+        file_name='nationwidechildrens.org_clinical.TCGA-A1-A1A1.xml',
+        state='live'
+    ),
+    fuzzed(
+        File,
+        node_id='old-biospecimen-supplement-xml',
+        file_name='nationwidechildrens.org_biospecimen.TCGA-72-4234.xml',
+        file_size=129165,
+        md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        file_state='submitted',
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -646,6 +678,18 @@ NODES = [
 
 
 EDGES = [
+    FileDescribesCase(
+        src_id='old-biospecimen-supplement-xml',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    BiospecimenSupplementDerivedFromCase(
+        src_id='biospecimen_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    ClinicalSupplementDerivedFromCase(
+        src_id='clinical_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
     AnnotationAnnotatesAliquot(
         src_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',

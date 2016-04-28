@@ -100,6 +100,8 @@ def get_case_to_file_paths():
 
     case_to_file_paths = [
         ['file'],
+        ['biospecimen_supplement'],
+        ['clinical_supplement'],
     ]
 
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)

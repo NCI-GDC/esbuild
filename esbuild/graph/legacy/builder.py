@@ -26,10 +26,13 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         ['sample', 'aliquot', 'file'],
         ['sample', 'portion', 'file'],
         ['sample', 'portion', 'analyte', 'aliquot', 'file'],
-        # we don't need a special path for harmonized files
-        # because they get tied to the relevant aliquots
-        # during cache_database
+        ['biospecimen_supplement'],
+        ['clinical_supplement'],
     ]
 
     # Types of nodes to be treated as files
-    file_labels = ['file']
+    file_labels = [
+        'file',
+        'biospecimen_supplement',
+        'clinical_supplement',
+    ]
