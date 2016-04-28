@@ -187,7 +187,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].sample_id', 2),
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
     ('files', '[*].(file_size | file_name | file_id)', 4 * 3),  # there should be 4 files
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),

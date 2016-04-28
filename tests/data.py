@@ -300,6 +300,15 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A133-02',
     ),
+    Aliquot(
+        node_id='aliquot-attached-to-sample',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        amount=12.0,
+        concentration=0.19,
+        source_center='23',
+        submitter_id='TCGA-AR-A1AR-10A-01D-A133-03',
+    ),
     Analyte(
         node_id='344dffb3-2d2b-479d-8be5-9ead2728541b',
         project_id='TCGA-BRCA',
@@ -786,6 +795,10 @@ EDGES = [
         src_id='7b017050-97d4-45bb-bf83-c89dab812e44',
         dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         properties={}
+    ),
+    AliquotDerivedFromSample(
+        src_id='aliquot-attached-to-sample',
+        dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
     ),
     AliquotShippedToCenter(
         src_id='0395a62f-3f37-4068-bab6-4c1d29cef2d5',
