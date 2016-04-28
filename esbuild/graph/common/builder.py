@@ -415,6 +415,20 @@ class GraphIndexBuilder(object):
     #                          Cases
     ##################################################################
 
+    def remove_hidden_nodes(self, nodes):
+        """Returns a subset of :param:`nodes` for which
+        ``self.is_node_hidden(node)`` is not True.
+
+        :param nodes: iterable of nodes to filter
+        :returns: subset set of :param:`nodes`
+
+        """
+
+        return {
+            node for node in nodes
+            if not self.is_node_hidden(node)
+        }
+
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
@@ -434,8 +448,9 @@ class GraphIndexBuilder(object):
         case.update(visited_ids)
 
         # Walk from case to all file leaves
-        files = self.remove_bam_index_files(
-            self.walk_paths(node, self.case_to_file_paths))
+        files = self.remove_hidden_nodes(
+            self.remove_bam_index_files(
+                self.walk_paths(node, self.case_to_file_paths)))
 
         # Create case summary
         case['summary'] = self.get_case_summary(node, files)
@@ -450,9 +465,7 @@ class GraphIndexBuilder(object):
 
         # Denormalize the cases files
         case['files'] = [
-            self.denormalize_file(f, ptree)
-            for f in files
-            if not self.is_node_hidden(f)
+            self.denormalize_file(f, ptree) for f in files
         ]
 
         # Add properties to all annotations
