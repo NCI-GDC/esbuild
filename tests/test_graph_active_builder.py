@@ -253,3 +253,25 @@ def test_data_category_count(index, builder, monkeypatch):
     monkeypatch.setattr(builder, 'error', raise_test_error)
     for case in index.cases:
         builder.verify_data_category_count(case)
+
+
+def test_case_summary_data_category_counts(index):
+    for case in index.cases:
+        actual_counts = {}
+        for f in case['files']:
+            category = f['data_category']
+            actual_counts[category] = actual_counts.get(category, 0) + 1
+
+        for entry in case['summary']['data_categories']:
+            category, count = entry['data_category'], entry['file_count']
+            assert category in actual_counts
+            assert actual_counts[category] == count, category
+
+
+def test_case_summary_file_counts(index):
+    for case in index.cases:
+        actual_count = len([
+            f for f in index.files
+            if f['cases'][0]['case_id'] == case['case_id']
+        ])
+        assert actual_count == case['summary']['file_count']
