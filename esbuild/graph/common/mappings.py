@@ -121,6 +121,7 @@ class ESMapper(object):
         # Biospecimen subtree
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
@@ -487,6 +488,9 @@ class ESMapper(object):
             cls.get_base_properties('case')
         )
         case.properties.days_to_index = LONG
+
+        # Remove case.samples.aliquots from mapping
+        case.properties.samples.properties.pop('aliquots')
 
         # Patch project
         cls.patch_project(case.properties.project.properties)

@@ -67,7 +67,7 @@ def test_annotation_case_submitter_id(graph):
     ('cases', '[*].samples.[*].sample_id', 2),
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
     ('files', '[*].file_size', 4),
 ])
 def test_path_count(index, doc_type, path, count):
@@ -146,7 +146,9 @@ def test_non_case_suppression(graph):
     index = build_index(graph)
     case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
     sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
-    assert portion.node_id not in [p["portion_id"] for p in sample_doc["portions"]]
+    assert portion.node_id not in [
+        p.get("portion_id", None) for p in sample_doc["portions"]
+    ]
     assert "redact1" not in [f["file_id"] for f in index.files]
     assert "redact2" not in [f["file_id"] for f in index.files]
 
