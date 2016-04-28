@@ -26,11 +26,6 @@ from ..common.mappings import (
 
 class ActiveESMapper(ESMapper):
 
-    file_labels = [
-        c.label for c in Node.get_subclasses()
-        if c._dictionary['category'] in {'data_file', 'index_file'}
-    ]
-
     @staticmethod
     def update_no_overwrite(original, new):
         for key, value in new.iteritems():

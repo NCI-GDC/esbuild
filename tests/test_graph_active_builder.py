@@ -188,7 +188,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 11),
-    ('files', '[*].(file_size | file_name | file_id)', 2 * 3),  # there should be two files
+    ('files', '[*].(file_size | file_name | file_id)', 4 * 3),  # there should be 4 files
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
@@ -200,9 +200,9 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,expected,count', [
-    ('projects', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 2),
-    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Simple Nucleotide Variation', 'Sequencing Data'], 2),
-    ('cases', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 2),
+    ('projects', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 4),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Simple Nucleotide Variation', 'Sequencing Data', 'Biospecimen', 'Clinical'], 4),
+    ('cases', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 4),
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
@@ -212,7 +212,7 @@ def test_path_count(index, doc_type, path, count):
     ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 1),
     ('files', '[*].downstream_analyses.[*].output_files.[*].data_category', ['Simple Nucleotide Variation'], 1),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state', ['submitted'], 1),
-    ('files', '[*].type.[*]', ['simple_somatic_mutation', 'aligned_reads'], 2),
+    ('files', '[*].type.[*]', ['simple_somatic_mutation', 'aligned_reads', 'biospecimen_supplement', 'clinical_supplement'], 4),
 ])
 def test_path_value_in(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

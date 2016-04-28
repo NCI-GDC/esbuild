@@ -8,18 +8,18 @@ graph index.
 
 """
 
-import random
-import logging
-import networkx as nx
-import itertools
-
 from cdisutils.log import get_logger
 from collections import defaultdict
 from copy import copy, deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
-from math import ceil
 from psqlgraph import Node
+
+import itertools
+import logging
+import networkx as nx
+import random
+import re
 
 from .mappings import (
     ONE_TO_MANY,
@@ -141,6 +141,17 @@ class GraphIndexBuilder(object):
         'mapper',
         'case_to_file_paths',
         'file_labels',
+    ]
+
+    supplement_regexes = [
+        re.compile(regex) for regex in [
+            'nationwidechildrens.org_biospecimen.([a-zA-Z0-9-]+).xml',
+            'nationwidechildrens.org_control.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_biospecimen.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_control.([a-zA-Z0-9-]+).xml',
+            'nationwidechildrens.org_clinical.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_clinical.([a-zA-Z0-9-]+).xml',
+        ]
     ]
 
     def __init__(self, psqlgraph_driver):
@@ -360,10 +371,12 @@ class GraphIndexBuilder(object):
 
         base = {}
 
-        if node.label in self.mapper.file_labels:
+        if node.label in self.file_labels:
             base.update({'file_id': node.node_id})
+
         elif node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
+
         else:
             base.update({'{}_id'.format(node.label): node.node_id})
 
@@ -1329,14 +1342,27 @@ class GraphIndexBuilder(object):
             node._sysan.get('source', '').endswith('_alignment')
         )
 
+    def is_old_supplement_file(self, node):
+        return (
+            node.label == 'file' and
+            any(
+                p.match(node._props.get('file_name', ''))
+                for p in self.supplement_regexes
+            )
+        )
+
     def is_file_indexed(self, node):
         """Returns false if node is a file that is not supposed to be indexed.
 
         """
 
         # This function should only be for files
-        if node.label not in self.mapper.file_labels:
+        if node.label not in self.file_labels:
             return True
+
+        # Skip old versions of supplement xmls
+        if self.is_old_supplement_file(node):
+            return False
 
         # Skip old representation of harmonized files
         if self.is_harmonized_file(node):
@@ -1607,12 +1633,16 @@ class GraphIndexBuilder(object):
     def _cache_relevant_nodes(self):
         if self.relevant_nodes:
             return
-        files = list(self.nodes_labeled(self.mapper.file_labels))
+
         self.relevant_nodes = {}
+
+        files = list(self.nodes_labeled(self.file_labels))
         pbar = self.pbar('Caching file paths: ', len(files))
+
         for f in files:
             self.relevant_nodes[f] = self.walk_paths(
                 f, self.file_to_case_paths, whole=True)
+
             pbar.update(pbar.currval+1)
         pbar.finish()
 
