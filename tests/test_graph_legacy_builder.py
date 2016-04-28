@@ -92,6 +92,7 @@ def test_path_is_absent(index, doc_type, path):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['test_file.bam.bai'], 1),
     ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement'], 4),
+    ('files', '[*].metadata_files.[*].data_format', ['SRA XML', None], 5),
 ])
 def test_path_value_in(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

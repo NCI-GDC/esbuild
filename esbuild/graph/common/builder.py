@@ -786,12 +786,20 @@ class GraphIndexBuilder(object):
         """
         rf_docs = []
 
+        metadata_labels = [
+            'analysis_metadata',
+            'run_metadata',
+            'experiment_metadata',
+        ]
+
         # Get related_files
         related_files = [
             n for n in list(self.neighbors_labeled(node, 'file'))
             if self.G[node][n].get("label") == "related_to"
             and not self.is_index_file(n)
         ]
+
+        related_files += list(self.neighbors_labeled(node, metadata_labels))
 
         for related_file in related_files:
             rf_doc = self._get_base_doc(related_file)
