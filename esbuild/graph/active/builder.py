@@ -6,7 +6,7 @@ Defines :class:`ActiveGraphIndexBuilder` for building the graph index
 for Active projects.
 
 Strategy to add analysis and file types:
-
+o
 - An attempt to balance abstraction by creating the traversals from a
 known point to limit wandering through the graph.  Currently the
 subgraph that includes active data_file and analysis nodes is isolated
@@ -102,6 +102,10 @@ def get_case_to_file_paths():
         ['file'],
         ['biospecimen_supplement'],
         ['clinical_supplement'],
+        case_to_aliquot + [
+            'submitted_tangent_copy_number',
+            'copy_number_liftover_workflow',
+            'copy_number_segment'],
     ]
 
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)

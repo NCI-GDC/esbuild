@@ -49,6 +49,21 @@ def fuzzed(node_class, node_id=None, **kwargs):
 
 NODES = [
     fuzzed(
+        SubmittedTangentCopyNumber,
+        node_id='cnv-file-1',
+        state='submitted',
+    ),
+    fuzzed(
+        CopyNumberLiftoverWorkflow,
+        node_id='cnv-workflow-1',
+        state='submitted',
+    ),
+    fuzzed(
+        CopyNumberSegment,
+        node_id='cnv-segment-file-1',
+        state='submitted',
+    ),
+    fuzzed(
         AnalysisMetadata,
         node_id='analysis-metadata-1',
         file_name='analysis-metadata-1.xml',
@@ -1068,6 +1083,18 @@ EDGES = [
     ExperimentMetadataDerivedFromFile(
         src_id='experiment-metadata-1',
         dst_id='live-file',
+    ),
+    SubmittedTangentCopyNumberDerivedFromAliquot(
+        src_id='cnv-file-1',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
+        src_id='cnv-workflow-1',
+        dst_id='cnv-file-1',
+    ),
+    CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
+        src_id='cnv-segment-file-1',
+        dst_id='cnv-workflow-1'
     ),
 
     # Prelude

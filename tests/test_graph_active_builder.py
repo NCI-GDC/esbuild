@@ -188,7 +188,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
-    ('files', '[*].(file_size | file_name | file_id)', 4 * 3),  # there should be 4 files
+    ('files', '[*].(file_size | file_name | file_id)', 5 * 3),  # there should be 5 files
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
@@ -199,26 +199,47 @@ def test_path_count(index, doc_type, path, count):
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type,path,expected,count', [
-    ('projects', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 4),
-    ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Simple Nucleotide Variation', 'Sequencing Data', 'Biospecimen', 'Clinical'], 4),
-    ('cases', '[*].summary.[*].data_categories.[*].file_count', [1, 3], 4),
-    ('cases', '[*].demographic.year_of_birth', [1951], 1),
-    ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
-    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
-    ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
-    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
-    ('files', '[*].index_files.[*].file_name', ['index-file-2.bam.bai'], 1),
-    ('files', '[*].analysis.[*].input_files.[*].data_category', ['Sequencing Data'], 1),
-    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category', ['Simple Nucleotide Variation'], 1),
-    ('files', '[*].downstream_analyses.[*].output_files.[*].state', ['submitted'], 1),
-    ('files', '[*].type.[*]', ['simple_somatic_mutation', 'aligned_reads', 'biospecimen_supplement', 'clinical_supplement'], 4),
+@pytest.mark.parametrize('doc_type,path,count,expected', [
+    ('projects', '[*].summary.[*].data_categories.[*].file_count',
+     5, {1}),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category',
+     5, {'Simple Nucleotide Variation',
+         'Sequencing Data',
+         'Biospecimen',
+         'Clinical',
+         'Copy Number Variation'}),
+    ('cases', '[*].summary.[*].data_categories.[*].file_count',
+     5, {1}),
+    ('cases', '[*].demographic.year_of_birth',
+     1, {1951}),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis',
+     1, {47}),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy',
+     1, {'unknown'}),
+    ('cases', '[*].exposures.[*].cigarettes_per_day',
+     1, {10}),
+    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
+     1, {'Married'}),
+    ('files', '[*].index_files.[*].file_name',
+     1, {'index-file-2.bam.bai'}),
+    ('files', '[*].analysis.[*].input_files.[*].data_category',
+     1, {'Sequencing Data'}),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
+     1, {'Simple Nucleotide Variation'}),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].state',
+     1, {'submitted'}),
+    ('files', '[*].type.[*]',
+     5, {'simple_somatic_mutation',
+         'aligned_reads',
+         'biospecimen_supplement',
+         'clinical_supplement',
+         'copy_number_segment'}),
 ])
-def test_path_value_in(index, doc_type, path, expected, count):
+def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
-    assert len([r.value for r in results]) == count
-    for actual in results:
-        assert actual.value in expected
+    actual = {r.value for r in results}
+    assert actual == expected
+    assert len(results) == count
 
 
 def test_no_submitted_aligned_reads(graph, index):
