@@ -4,9 +4,143 @@ represented in a way that can be persisted without using xml2psqlgraph.
 """
 
 from gdcdatamodel.models import *  # noqa
+from gdcdictionary import gdcdictionary
+
+import random
+import string
+import uuid
+
+
+def random_string(length=6):
+    return ''.join([
+        random.choice(
+            string.ascii_lowercase + string.digits
+        ) for _ in range(length)
+    ])
+
+
+def fuzzed(node_class, node_id=None, **kwargs):
+    if node_id is None:
+        node_id = str(uuid.uuid4())
+    for key, types in node_class.get_pg_properties().iteritems():
+        schema = gdcdictionary.schema[node_class.label]
+        prop_def = schema['properties'].get(key, {})
+
+        if key in kwargs:
+            continue
+        # Enum
+        elif 'enum' in prop_def:
+            kwargs[key] = prop_def['enum'][0]
+        # String
+        elif not types or str in types:
+            kwargs[key] = random_string()
+        # Integer
+        elif int in types or long in types:
+            kwargs[key] = random.randint(1e6, 1e7)
+        # Float
+        elif float in types:
+            kwargs[key] = random.random()
+        # Boolean
+        elif bool in types:
+            kwargs[key] = random.choice((True, False))
+
+    return node_class(node_id, **kwargs)
 
 
 NODES = [
+    fuzzed(
+        SubmittedTangentCopyNumber,
+        node_id='cnv-file-1',
+        state='submitted',
+    ),
+    fuzzed(
+        CopyNumberLiftoverWorkflow,
+        node_id='cnv-workflow-1',
+        state='submitted',
+    ),
+    fuzzed(
+        CopyNumberSegment,
+        node_id='cnv-segment-file-1',
+        state='submitted',
+    ),
+    fuzzed(
+        AnalysisMetadata,
+        node_id='analysis-metadata-1',
+        file_name='analysis-metadata-1.xml',
+        md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
+    ),
+    fuzzed(
+        RunMetadata,
+        node_id='run-metadata-1',
+        file_name='run-metadata-1.xml',
+        md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
+    ),
+    fuzzed(
+        ExperimentMetadata,
+        node_id='experiment-metadata-1',
+        file_name='experiment-metadata-1.xml',
+        md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
+    ),
+    File(
+        node_id='live-file',
+        project_id='TCGA-BRCA',
+        file_name='TCGA-WR-A838-01A-12R-A406-31_rnaseq_fastq.tar',
+        file_size=12916551680,
+        md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        file_state='submitted',
+        state_comment=None,
+        submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
+        error_type=None,
+    ),
+    File(
+        node_id='harmonized-file',
+        project_id='TCGA-BRCA',
+        file_name='TCGA-WR-A838-01A-12R-A406-31_aligned.bam',
+        file_size=12916551680,
+        md5sum='d3f6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        submitter_id='3d16fb28-51b7-4fa2-b528-077716e5d64a',
+        system_annotations=dict(
+            source='target_wgs_alignment',
+        )
+    ),
+    fuzzed(
+        File,
+        node_id='index-file',
+        state='live',
+        file_name='test_file.bam.bai',
+    ),
+    fuzzed(
+        AlignedReadsIndex,
+        node_id='index-file-2',
+        state='live',
+        file_name='index-file-2.bam.bai',
+    ),
+    fuzzed(
+        File,
+        node_id='related-file',
+        state="live",
+        file_state='submitted',
+        file_name="a_related_file.txt"
+    ),
+    fuzzed(
+        File,
+        node_id='non-live-file',
+        state='uploaded'
+    ),
+    File(
+        node_id='to-delete-file',
+        project_id='TCGA-BRCA',
+        file_name='a_file_to_be_deleted.txt',
+        file_size=5,
+        md5sum='foobar',
+        state='live',
+        file_state='submitted',
+        state_comment=None,
+        submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
+        error_type=None,
+    ),
     AlignedReads(
         node_id='a819133c-65c4-438c-93ae-a04e24e82626',
         data_category='Sequencing Data',
@@ -14,7 +148,7 @@ NODES = [
         error_type='file_size',
         experimental_strategy='WGS',
         data_format='BAM',
-        file_name='pzrl69',
+        file_name='aligned-reads-1.bam',
         file_size=6977248,
         file_state='submitted',
         md5sum='i73t7p',
@@ -199,6 +333,15 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A133-02',
     ),
+    Aliquot(
+        node_id='aliquot-attached-to-sample',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        amount=12.0,
+        concentration=0.19,
+        source_center='23',
+        submitter_id='TCGA-AR-A1AR-10A-01D-A133-03',
+    ),
     Analyte(
         node_id='344dffb3-2d2b-479d-8be5-9ead2728541b',
         project_id='TCGA-BRCA',
@@ -243,6 +386,13 @@ NODES = [
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='TCGA-AR-A1AR',
+    ),
+    Case(
+        # floating case. has no neighbors
+        node_id='ce5d360b-db30-4f60-a926-e8788fc0ed3b',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='TCGA-AR-A2AR',
     ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
@@ -421,11 +571,211 @@ NODES = [
         time_between_excision_and_freezing=None,
         tumor_code=None,
         tumor_code_id=None,
-    )
+    ),
+    Annotation(
+        node_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
+        category="Center QC failed",
+        classification="CenterNotification",
+        creator="test_creator",
+        notes="RNA-seq:LOW 5/3 COVERAGE RATIO",
+        state='submitted',
+        status="Approved",
+        submitter_id="0000",
+    ),
+    fuzzed(
+        SomaticMutationCallingWorkflow,
+        node_id='somatic_mutation_calling_workflow_1',
+        state='submitted',
+    ),
+    fuzzed(
+        SimpleSomaticMutation,
+        node_id='somatic_mutation_1',
+        state='submitted',
+    ),
+    fuzzed(
+        SimpleSomaticMutation,
+        node_id='somatic_mutation_1',
+        state='submitted',
+    ),
+    fuzzed(
+        BiospecimenSupplement,
+        node_id='biospecimen_supplement_1',
+        data_category='Biospecimen',
+        data_format='BCR XML',
+        data_type='Biospecimen Supplement',
+        file_name='nationwidechildrens.org_biospecimen.TCGA-A1-A1A1.xml',
+        state='live'
+    ),
+    fuzzed(
+        ClinicalSupplement,
+        node_id='clinical_supplement_1',
+        data_category='Clinical',
+        data_format='BCR XML',
+        data_type='Clinical Supplement',
+        file_name='nationwidechildrens.org_clinical.TCGA-A1-A1A1.xml',
+        state='live'
+    ),
+    fuzzed(
+        File,
+        node_id='old-biospecimen-supplement-xml',
+        file_name='nationwidechildrens.org_biospecimen.TCGA-72-4234.xml',
+        file_size=129165,
+        md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
+        state='live',
+        file_state='submitted',
+    ),
+
+    # Prelude nodes
+    DataSubtype(
+        node_id='data_subtype_aligned_reads',
+        name='Aligned reads',
+    ),
+    DataType(
+        node_id='data_type_raw_sequencing',
+        name='Raw sequencing data',
+    ),
+    Platform(
+        node_id='ed523719-86fa-4131-bd14-a13f06d453ae',
+        name='Illumina HiSeq',
+    ),
+    ExperimentalStrategy(
+        node_id='a2b74dcc-052a-42ce-836e-c2fb549beea5',
+        name='RNA-Seq'
+    ),
+    Tag(
+        node_id='326acbfa-fcdf-4d25-9247-c393b988aa09',
+        name='snv',
+    ),
+    Program(
+        node_id='b80aa962-9650-5110-b3eb-bd087da808db',
+        dbgap_accession_number="phs000178",
+        name="TCGA",
+    ),
+    Center(
+        node_id='ee7a85b3-8177-5d60-a10c-51180eb9009c',
+        code="07",
+        namespace="unc.edu",
+        name="University of North Carolina",
+        short_name="UNC",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='5069ce55-a23f-57c4-a28c-70a3c3cb0e4c',
+        code="01",
+        namespace="broad.mit.edu",
+        name="Broad Institute of MIT and Harvard",
+        short_name="BI",
+        center_type="CGCC",
+    ),
+    TissueSourceSite(
+        node_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
+        project="Breast invasive carcinoma",
+        bcr_id="NCH",
+        code="AR",
+        name="Mayo",
+    ),
+    Center(
+        node_id='c8611490-4cbd-5651-8de2-64484a515eec',
+        code="02",
+        namespace="hms.harvard.edu",
+        name="Harvard Medical School",
+        short_name="HMS",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='7ef3885b-37ce-5e16-8ba3-9d75b6690008',
+        code="05",
+        namespace="jhu-usc.edu",
+        name="Johns Hopkins / University of Southern California",
+        short_name="JHU_USC",
+        center_type="CGCC",
+    ),
+    Project(
+        node_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        released=True,
+        state="legacy",
+        code="BRCA",
+        primary_site="Breast",
+        disease_type="Breast Invasive Carcinoma",
+        dbgap_accession_number=None,
+        name="Breast Invasive Carcinoma",
+    ),
+    Center(
+        node_id='6eba705a-0f00-5aa2-b1d0-04dbf62100cc',
+        code="13",
+        namespace="bcgsc.ca",
+        name="Canada's Michael Smith Genome Sciences Centre",
+        short_name="BCGSC",
+        center_type="CGCC",
+    ),
+    Center(
+        node_id='956ca84c-1124-53ff-824f-fa0c84425425',
+        center_type='GSC',
+        code='09',
+        name='Washington University School of Medicine',
+        namespace='genome.wustl.ed',
+        short_name='WUSM',
+    ),
 ]
 
 
 EDGES = [
+    FileDescribesCase(
+        src_id='old-biospecimen-supplement-xml',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    BiospecimenSupplementDerivedFromCase(
+        src_id='biospecimen_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    ClinicalSupplementDerivedFromCase(
+        src_id='clinical_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    AnnotationAnnotatesAliquot(
+        src_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileMemberOfDataSubtype(
+        src_id='live-file',
+        dst_id='data_subtype_aligned_reads'
+    ),
+    FileRelatedToFile(
+        src_id='live-file',
+        dst_id='index-file',
+    ),
+    AlignedReadsIndexDerivedFromAlignedReads(
+        src_id='index-file-2',
+        dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
+    ),
+    FileRelatedToFile(
+        src_id='live-file',
+        dst_id='related-file',
+    ),
+    FileDataFromAliquot(
+        src_id='live-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='harmonized-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromFile(
+        src_id='harmonized-file',
+        dst_id='live-file',
+    ),
+    FileDataFromAliquot(
+        src_id='non-live-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='to-delete-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
+        src_id='related-file',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
     ReadGroupDerivedFromAliquot(
         src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
@@ -478,6 +828,10 @@ EDGES = [
         src_id='7b017050-97d4-45bb-bf83-c89dab812e44',
         dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         properties={}
+    ),
+    AliquotDerivedFromSample(
+        src_id='aliquot-attached-to-sample',
+        dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
     ),
     AliquotShippedToCenter(
         src_id='0395a62f-3f37-4068-bab6-4c1d29cef2d5',
@@ -709,7 +1063,49 @@ EDGES = [
     AliquotDerivedFromSample(
         src_id='6d066a72-f59f-45a8-ab90-216000b36da4',
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
-        properties={})
+        properties={}),
+    SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
+        src_id='somatic_mutation_1',
+        dst_id='somatic_mutation_calling_workflow_1',
+    ),
+    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+        src_id='somatic_mutation_calling_workflow_1',
+        dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
+    ),
+    AnalysisMetadataDerivedFromFile(
+        src_id='analysis-metadata-1',
+        dst_id='live-file',
+    ),
+    RunMetadataDerivedFromFile(
+        src_id='run-metadata-1',
+        dst_id='live-file',
+    ),
+    ExperimentMetadataDerivedFromFile(
+        src_id='experiment-metadata-1',
+        dst_id='live-file',
+    ),
+    SubmittedTangentCopyNumberDerivedFromAliquot(
+        src_id='cnv-file-1',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
+        src_id='cnv-workflow-1',
+        dst_id='cnv-file-1',
+    ),
+    CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
+        src_id='cnv-segment-file-1',
+        dst_id='cnv-workflow-1'
+    ),
+
+    # Prelude
+    DataSubtypeMemberOfDataType(
+        src_id='data_subtype_aligned_reads',
+        dst_id='data_type_raw_sequencing',
+    ),
+    ProjectMemberOfProgram(
+        src_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
 ]
 
 
@@ -719,3 +1115,7 @@ def insert(g):
             session.merge(node)
         for edge in EDGES:
             session.merge(edge)
+
+        to_delete = g.nodes(File).ids('to-delete-file').one()
+        to_delete.sysan['to_delete'] = True
+        session.merge(to_delete)

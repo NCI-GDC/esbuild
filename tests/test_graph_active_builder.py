@@ -7,12 +7,17 @@ Test the builder for graph ES index
 
 """
 
-from base import TestBase
-from gdcdatamodel import models as md
-from prelude import create_prelude_nodes
-from unittest import TestCase
 
-import es_fixtures
+from gdcdatamodel import models as md
+from jsonpath_rw import parse
+
+import pytest
+
+from conftest import (
+    raise_test_error,
+    Index,
+    _graph,
+)
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
@@ -21,172 +26,273 @@ from esbuild.graph.active.builder import (
     get_case_to_file_paths,
 )
 
-from esbuild.graph.legacy.builder import (
-    LegacyGraphIndexBuilder,
-)
 
-from test_graph_legacy_builder import (
-    TestGraphIndexBuilder as TestLegacyGraphIndexBuilder
-)
+# ======================================================================
+# Fixtures
 
-
-class TestGraphIndexBuilder(TestLegacyGraphIndexBuilder):
-
-    """Test that the ActiveGraphIndexBuilder produces an index that is a
-    superset of the legacy graph index.
-
-    """
-
-    builder_class = ActiveGraphIndexBuilder
+@pytest.fixture(scope="module")
+def index():
+    builder = ActiveGraphIndexBuilder(_graph)
+    builder.cache_database()
+    index = builder.denormalize_all()
+    return Index._make(index)
 
 
-class TestGraphIndexBuilderUtils(TestCase):
+@pytest.fixture()
+def builder():
+    return ActiveGraphIndexBuilder(_graph)
 
-    expected_file_path1 = [
+
+@pytest.fixture
+def aligned_reads(index):
+    return [d for d in index.files if d['type'] == 'aligned_reads']
+
+
+@pytest.fixture
+def simple_somatic_mutations(index):
+    return [d for d in index.files if d['type'] == 'simple_somatic_mutation']
+
+
+@pytest.fixture(scope="session")
+def mappings():
+    mapper = ActiveGraphIndexBuilder.mapper
+    return {
+        'file': mapper.get_file_es_mapping(),
+        'annotation': mapper.get_annotation_es_mapping(),
+        'case': mapper.get_case_es_mapping(),
+        'project': mapper.get_project_es_mapping(),
+    }
+
+
+# ======================================================================
+# Tests
+
+@pytest.mark.parametrize('mapping,path', [
+    ('file', 'properties.file_name.fields.analyzed.index'),
+    ('file', 'properties.analysis.properties.input_files.properties.data_category'),
+    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
+    ('case', '_meta.descriptions'),
+    ('case', 'properties.submitter_id.fields.analyzed.index'),
+    ('project', 'properties.name.fields.analyzed.index'),
+    ('project', '_meta.descriptions'),
+    ('annotation', 'properties.entity_id.fields.analyzed.index'),
+    ('annotation', '_meta.descriptions'),
+])
+def test_mapping_contains(mappings, mapping, path):
+    results = parse(path).find(mappings[mapping])
+    assert len([r.value for r in results]) == 1
+
+
+@pytest.mark.parametrize('mapping,path', [
+    ('file', 'properties.uploaded_datetime'),
+    ('file', 'properties.project_id'),
+    ('file', 'properties.cases.properties.samples.properties.project_id'),
+    ('case', 'properties.project_id'),
+    ('case', 'properties.samples.properties.aliquots'),
+    ('case', 'properties.samples.properties.portions.properties.project_id'),
+    ('annotation', 'properties.creator'),
+    ('annotation', 'properties.project_id'),
+])
+def test_mapping_does_not_contain(mappings, mapping, path):
+    assert len(parse(path).find(mappings[mapping])) == 0
+
+
+@pytest.mark.parametrize('mapping,path,expected', [
+    ('file', 'properties.downstream_analyses.type', ['nested']),
+])
+def test_mapping_value_in(mappings, mapping, path, expected):
+    results = parse(path).find(mappings[mapping])
+    for r in results:
+        assert r.value in expected
+
+
+@pytest.mark.parametrize('a,b,expected', [
+    ([['a', 'b'], ['-', '#']],
+     [range(0, 2), range(2, 4), range(4, 8)],
+     [['a', 'b', 0, 1],
+      ['a', 'b', 2, 3],
+      ['a', 'b', 4, 5, 6, 7],
+      ['-', '#', 0, 1],
+      ['-', '#', 2, 3],
+      ['-', '#', 4, 5, 6, 7]])
+])
+def test_list_product(a, b, expected):
+    assert list_product(a, b) == expected
+
+
+@pytest.mark.parametrize('node,expected', [
+    (md.RnaExpressionWorkflow, ['exon_expression']),
+    (md.RnaExpressionWorkflow, ['gene_expression']),
+    (md.ReadGroup, [
         "submitted_aligned_reads",
         "alignment_cocleaning_workflow",
         "aligned_reads",
         "somatic_mutation_calling_workflow",
-        "simple_somatic_mutation"
-    ]
-
-    def test_list_product(self):
-        self.assertEqual(
-            list_product(
-                [['a', 'b'], ['-', '#']],
-                [range(0, 2), range(2, 4), range(4, 8)]
-            ),
-            [['a', 'b', 0, 1],
-             ['a', 'b', 2, 3],
-             ['a', 'b', 4, 5, 6, 7],
-             ['-', '#', 0, 1],
-             ['-', '#', 2, 3],
-             ['-', '#', 4, 5, 6, 7]])
-
-    def test_subtree_paths_to_file_subset(self):
-        self.assertIn(
-            self.expected_file_path1,
-            subtree_paths_to_file(md.ReadGroup))
-
-    def test_subtree_paths_to_file_expecting_single(self):
-        self.assertEqual(
-            [['exon_expression'], ['gene_expression']],
-            subtree_paths_to_file(md.RnaExpressionWorkflow))
-
-    def test_subtree_paths_to_file_expecting_empty(self):
-        self.assertEqual([], subtree_paths_to_file(md.Annotation))
-
-    def test_get_case_to_file_paths_contains_legacy(self):
-        active_paths = get_case_to_file_paths()
-        for path in LegacyGraphIndexBuilder.case_to_file_paths:
-            self.assertIn(path, active_paths)
-
-    def test_get_case_to_file_paths_contains_expected_path_1(self):
-        prefixes = [
-            ['sample', 'aliquot', 'read_group'],
-            ['sample', 'portion', 'analyte', 'aliquot', 'read_group'],
-        ]
-        for prefix in prefixes:
-            self.assertIn(prefix + self.expected_file_path1,
-                          get_case_to_file_paths())
+        "simple_somatic_mutation",
+    ]),
+])
+def test_subtree_paths_to_file_subset(node, expected):
+    assert expected in subtree_paths_to_file(node)
 
 
-class TestActiveGraphIndexBuilder(TestBase):
+def test_subtree_paths_to_file_expecting_empty():
+    assert subtree_paths_to_file(md.Annotation) == []
 
-    @classmethod
-    def setUpClass(cls):
-        cls.delete_all_nodes()
-        create_prelude_nodes(cls.g)
-        es_fixtures.insert(cls.g)
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.delete_all_nodes()
+@pytest.mark.parametrize('path', [
+    ['case', 'sample', 'portion', 'analyte', 'aliquot'],
+    ['case', 'sample', 'aliquot'],
+])
+def test_get_case_to_file_paths_is_absent(path):
+    assert path not in get_case_to_file_paths()
 
-    def setUp(self):
-        with self.g.session_scope():
-            self.submitted_aligned_reads1 = (
-                self.g.nodes(md.SubmittedAlignedReads)
-                .ids('b3601406-3676-4f76-9aa0-ed68ed6c3a05').one())
-            self.submitted_aligned_reads2 = (
-                self.g.nodes(md.SubmittedAlignedReads)
-                .ids('c7ca17cd-a4be-47da-a446-8efaf0f73272').one())
-            self.alignment_workflow = (
-                self.g.nodes(md.AlignmentWorkflow)
-                .ids('973bd442-04a0-4189-8f02-c8c7e041afe9').one())
-            self.aligned_reads = (
-                self.g.nodes(md.AlignedReads)
-                .ids('a819133c-65c4-438c-93ae-a04e24e82626').one())
 
-    def convert_documents(self):
-        doc_conv = ActiveGraphIndexBuilder(self.g)
-        with self.g.session_scope():
-            doc_conv.cache_database()
-        self.case_docs, self.file_docs, self.ann_docs = (
-            doc_conv.denormalize_cases())
-        self.case_doc = self.case_docs[0] if self.case_docs else None
+@pytest.mark.parametrize('doc_type,path', [
+    ('cases', '[*].clinical'),
+    ('annotations', '[*].creator'),
+])
+def test_path_is_absent(index, doc_type, path):
+    assert not parse(path).find(getattr(index, doc_type))
 
-    def get_aligned_reads_doc(self):
-        self.convert_documents()
-        return [
-            d for d in self.file_docs
-            if d['file_id'] == self.aligned_reads.node_id
-        ][0]
 
-    def test_simple_conversion(self):
-        self.convert_documents()
+@pytest.mark.parametrize('path', [
+    'sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads',
+    'sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads.alignment_workflow.aligned_reads',
+])
+def test_get_case_to_file_path_is_present(path):
+    assert path.split('.') in get_case_to_file_paths()
 
-    def test_files_are_in_index(self):
-        self.convert_documents()
-        file_ids = {d['file_id'] for d in self.file_docs}
-        self.assertIn(self.submitted_aligned_reads1.node_id, file_ids)
-        self.assertIn(self.submitted_aligned_reads2.node_id, file_ids)
-        self.assertIn(self.aligned_reads.node_id, file_ids)
 
-    def test_submitted_aligned_reads_no_analysis(self):
-        self.convert_documents()
-        docs = [
-            d for d in self.file_docs
-            if d['file_id'] in [
-                self.submitted_aligned_reads1.node_id,
-                self.submitted_aligned_reads2.node_id,
-            ]
-        ]
-        for doc in docs:
-            self.assertNotIn('analysis', doc)
+@pytest.mark.parametrize('prefix', [
+    ['sample', 'aliquot', 'read_group'],
+    ['sample', 'portion', 'analyte', 'aliquot', 'read_group'],
+])
+def test_get_case_to_file_paths_contains_expected_path(prefix):
+    assert prefix + [
+        "submitted_aligned_reads",
+        "alignment_cocleaning_workflow",
+        "aligned_reads",
+        "somatic_mutation_calling_workflow",
+        "simple_somatic_mutation",
+    ] in get_case_to_file_paths()
 
-    def test_aligned_reads_analysis(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('analysis', doc)
-        self.assertIn('analysis_id', doc['analysis'])
-        self.assertEqual(doc['data_format'], 'BAM')
 
-    def test_aligned_reads_analysis_input_files(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('input_files', doc['analysis'])
-        self.assertEqual(len(doc['analysis']['input_files']), 2)
+@pytest.mark.parametrize('doc_type,path,count', [
+    ('cases', '[*].project.project_id', 1),
+    ('cases', '[*].project_id', 0),
+    ('cases', '[*].samples.[*].project_id', 0),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
+    ('cases', '[*].samples.[*].sample_id', 2),
+    ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
+    ('files', '[*].(file_size | file_name | file_id)', 5 * 3),  # there should be 5 files
+    ('files', '[*].uploaded_datetime', 0),
+    ('files', '[*].project_id', 0),
+    ('files', '[*].cases.[*].project_id', 0),
+    ('annotations', '[*].project_id', 0),
+])
+def test_path_count(index, doc_type, path, count):
+    results = parse(path).find(getattr(index, doc_type))
+    assert len(results) == count
 
+
+@pytest.mark.parametrize('doc_type,path,count,expected', [
+    ('projects', '[*].summary.[*].data_categories.[*].file_count',
+     5, {1}),
+    ('projects', '[*].summary.[*].data_categories.[*].data_category',
+     5, {'Simple Nucleotide Variation',
+         'Sequencing Data',
+         'Biospecimen',
+         'Clinical',
+         'Copy Number Variation'}),
+    ('cases', '[*].summary.[*].data_categories.[*].file_count',
+     5, {1}),
+    ('cases', '[*].demographic.year_of_birth',
+     1, {1951}),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis',
+     1, {47}),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy',
+     1, {'unknown'}),
+    ('cases', '[*].exposures.[*].cigarettes_per_day',
+     1, {10}),
+    ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
+     1, {'Married'}),
+    ('files', '[*].index_files.[*].file_name',
+     1, {'index-file-2.bam.bai'}),
+    ('files', '[*].analysis.[*].input_files.[*].data_category',
+     1, {'Sequencing Data'}),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
+     1, {'Simple Nucleotide Variation'}),
+    ('files', '[*].downstream_analyses.[*].output_files.[*].state',
+     1, {'submitted'}),
+    ('files', '[*].type.[*]',
+     5, {'simple_somatic_mutation',
+         'aligned_reads',
+         'biospecimen_supplement',
+         'clinical_supplement',
+         'copy_number_segment'}),
+])
+def test_path_value_set_equals(index, doc_type, path, expected, count):
+    results = parse(path).find(getattr(index, doc_type))
+    actual = {r.value for r in results}
+    assert actual == expected
+    assert len(results) == count
+
+
+def test_no_submitted_aligned_reads(graph, index):
+    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
+    assert not [d for d in index.files if d['file_id'] in f_ids]
+
+
+def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
+    for doc in simple_somatic_mutations:
+        assert doc['analysis'].get('input_files')
+        assert len(doc['analysis']['input_files']) == 1
         for f in doc['analysis']['input_files']:
-            self.assertTrue(f['file_name'])
-            self.assertTrue(f['data_format'])
+            assert f['file_name']
+            assert f['data_format']
 
-    def test_aligned_reads_analysis_read_group(self):
-        doc = self.get_aligned_reads_doc()
-        self.assertIn('metadata', doc['analysis'])
-        self.assertIn('read_groups', doc['analysis']['metadata'])
-        self.assertIn(
-            'read_group_id',
-            doc['analysis']['metadata']['read_groups'][0])
 
-    def test_submitted_aligned_reads_has_downstream_analysis(self):
-        self.convert_documents()
-        docs = [
-            d for d in self.file_docs
-            if d['file_id'] in [
-                self.submitted_aligned_reads1.node_id,
-                self.submitted_aligned_reads2.node_id,
-            ]
-        ]
-        for doc in docs:
-            self.assertIn('downstream_analysis', doc)
-            self.assertIn('output_files', doc['downstream_analysis'])
+def test_aligned_reads_analysis_read_group(index, aligned_reads):
+    for doc in aligned_reads:
+        assert doc['analysis'].get('metadata')
+        assert doc['analysis']['metadata']['read_groups']
+        for rg in doc['analysis']['metadata']['read_groups']:
+            assert rg['read_group_id']
+
+
+def test_project_file_counts(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for project in index.projects:
+        builder.validate_project_file_counts(project, index.files)
+
+
+def test_data_category_count(index, builder, monkeypatch):
+    monkeypatch.setattr(builder, 'error', raise_test_error)
+    for case in index.cases:
+        builder.verify_data_category_count(case)
+
+
+def test_case_summary_data_category_counts(index):
+    for case in index.cases:
+        actual_counts = {}
+        for f in case['files']:
+            category = f['data_category']
+            actual_counts[category] = actual_counts.get(category, 0) + 1
+
+        for entry in case['summary']['data_categories']:
+            category, count = entry['data_category'], entry['file_count']
+            assert category in actual_counts
+            assert actual_counts[category] == count, category
+
+
+def test_case_summary_file_counts(index):
+    for case in index.cases:
+        actual_count = len([
+            f for f in index.files
+            if f['cases'][0]['case_id'] == case['case_id']
+        ])
+        assert actual_count == case['summary']['file_count']

@@ -1,11 +1,12 @@
-from base import TestBase
+from unittest import TestCase
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from esbuild.reports.download_report import DownloadStatsIndexBuilder
-from prelude import create_prelude_nodes
 
 import uuid
-import es_fixtures
+import data
+
+from conftest import _graph
 
 from gdcdatamodel.models import (
     File,
@@ -18,23 +19,18 @@ from gdcdatamodel.models import (
 )
 
 
-class DownloadStatsIndexBuilderTest(TestBase):
-
-    @classmethod
-    def setUpClass(cls):
-        super(DownloadStatsIndexBuilderTest, cls).setUpClass()
-        cls.delete_all_nodes()
-        create_prelude_nodes(cls.g)
+class DownloadStatsIndexBuilderTest(TestCase):
 
     def setUp(self):
         super(DownloadStatsIndexBuilderTest, self).setUp()
         # TODO maybe think about a better / more general way to do this
-        FileReport.metadata.create_all(self.g.engine)
-        es_fixtures.insert(self.g)
+        FileReport.metadata.create_all(_graph.engine)
+        data.insert(_graph)
+
         self.es = Elasticsearch(["localhost"])
         self.index_name = "download_stats_test"
         self.builder = DownloadStatsIndexBuilder(
-            graph=self.g,
+            graph=_graph,
             es=self.es,
             index_name=self.index_name
         )
@@ -42,7 +38,7 @@ class DownloadStatsIndexBuilderTest(TestBase):
 
     def tearDown(self):
         self.es.indices.delete(index=self.index_name)
-        with self.g.session_scope() as session:
+        with _graph.session_scope() as session:
             session.execute(FileReport.__table__.delete())
 
     def create_file(self):
@@ -66,15 +62,15 @@ class DownloadStatsIndexBuilderTest(TestBase):
             timestamp=datetime.now(),
             username=username,
         )
-        self.g.current_session().merge(download)
+        _graph.current_session().merge(download)
 
     def test_basic_index_build(self):
-        with self.g.session_scope():
-            aliquot = self.g.nodes(Aliquot)\
+        with _graph.session_scope():
+            aliquot = _graph.nodes(Aliquot)\
                                 .ids("84df0f82-69c4-4cd3-a4bd-f40d2d6ef916").one()
-            tag = self.g.nodes(Tag).props(name="snv").one()
-            strat = self.g.nodes(ExperimentalStrategy).props(name="RNA-Seq").one()
-            platform = self.g.nodes(Platform).props(name="Illumina HiSeq").one()
+            tag = _graph.nodes(Tag).props(name="snv").one()
+            strat = _graph.nodes(ExperimentalStrategy).props(name="RNA-Seq").one()
+            platform = _graph.nodes(Platform).props(name="Illumina HiSeq").one()
             file = self.create_file()
             self.create_download(file, username='FOO')
             file.aliquots = [aliquot]
@@ -82,8 +78,8 @@ class DownloadStatsIndexBuilderTest(TestBase):
             file.tags = [tag]
             file.experimental_strategies = [strat]
             file.platforms = [platform]
-        with self.g.session_scope():
-            brca = self.g.nodes(Project).props(code="BRCA").one()
+        with _graph.session_scope():
+            brca = _graph.nodes(Project).props(code="BRCA").one()
             self.builder.go(projects=[brca])
         self.es.indices.refresh(index=self.index_name)
         result = self.es.get(
@@ -104,10 +100,10 @@ class DownloadStatsIndexBuilderTest(TestBase):
         self.assertEqual(result["continents"][0]["continent"], "North America")
         self.assertEqual(result["continents"][0]["size"], 1000)
         # confirm that we can update once index exists
-        with self.g.session_scope():
+        with _graph.session_scope():
             self.create_download(file, country='CA', size=500)
-        with self.g.session_scope():
-            brca = self.g.nodes(Project).props(code="BRCA").one()
+        with _graph.session_scope():
+            brca = _graph.nodes(Project).props(code="BRCA").one()
             self.builder.go(projects=[brca])
         result = self.es.get(
             index=self.index_name,

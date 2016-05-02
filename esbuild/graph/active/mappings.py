@@ -26,30 +26,38 @@ from ..common.mappings import (
 
 class ActiveESMapper(ESMapper):
 
-    file_labels = [
-        c.label for c in Node.get_subclasses()
-        if c._dictionary['category'] == 'data_file'
-    ]
+    @staticmethod
+    def update_no_overwrite(original, new):
+        for key, value in new.iteritems():
+            if key not in original:
+                original[key] = value
 
     @classmethod
     def get_file_es_mapping(cls, *args, **kwargs):
         files = Dict(super(ActiveESMapper, ActiveESMapper)
                      .get_file_es_mapping(*args, **kwargs))
 
+        file_base_props = cls.multifield('file_id')
+        file_base_props.update(cls.get_properties_by_category('index_file'))
+        file_base_props.update(cls.get_properties_by_category('data_file'))
+
+        # Update file properties to allow props from all file types
+        cls.update_no_overwrite(files.properties, file_base_props)
+
+        index_files = files.properties.index_files
+        cls.update_no_overwrite(index_files.properties, file_base_props)
+
+        # Input/output files
         input_files = Dict()
         input_files.type = 'nested'
-        input_files.properties.data_type = STRING
-        input_files.properties.data_category = STRING
-        input_files.properties.data_format = STRING
-        input_files.properties.file_id = STRING
-        input_files.properties.file_name = STRING
-        input_files.properties.file_size = LONG
-
+        cls.update_no_overwrite(input_files.properties, file_base_props)
         output_files = Dict(deepcopy(input_files.to_dict()))
 
         # Analysis
         analysis = Dict()
         analysis.properties = cls.get_properties_by_category('analysis')
+        analysis.properties.analysis_id = STRING
+        analysis.properties.analysis_type = STRING
         analysis.properties.input_files = input_files
 
         # Metadata
@@ -58,12 +66,14 @@ class ActiveESMapper(ESMapper):
         analysis.properties.metadata = metadata
 
         # Downstream analysis
-        ds_analysis = Dict()
+        ds_analysis = Dict(type='nested')
         ds_analysis.properties = cls.get_properties_by_category('analysis')
+        ds_analysis.properties.analysis_id = STRING
+        ds_analysis.properties.analysis_type = STRING
         ds_analysis.properties.output_files = output_files
 
         files.properties.analysis = analysis
-        files.properties.downstream_analysis = ds_analysis
+        files.properties.downstream_analyses = ds_analysis
 
         return files.to_dict()
 

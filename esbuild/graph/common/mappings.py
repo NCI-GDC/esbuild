@@ -8,6 +8,7 @@ Common definitions for building GDC Elasticsearch mappings
 """
 
 from addict import Dict
+from gdcdictionary import gdcdictionary
 from copy import deepcopy
 from psqlgraph import Node
 
@@ -71,7 +72,6 @@ class ESMapper(object):
 
     multifields = {
         'project': [
-            'code',
             'disease_type',
             'name',
             'primary_site',
@@ -121,6 +121,7 @@ class ESMapper(object):
         # Biospecimen subtree
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
@@ -133,16 +134,11 @@ class ESMapper(object):
         case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
 
         # Clinical subtree
-        case_tree.clinical.corr = (ONE_TO_ONE, 'clinical')
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
-
-        # For TARGET
-        case_tree.aliquot = case_tree.sample.portion.analyte.aliquot
-        case_tree.sample.aliquot = case_tree.sample.portion.analyte.aliquot
 
         return case_tree
 
@@ -208,14 +204,95 @@ class ESMapper(object):
     # ======================================================================
     # Utility functions
 
-    @staticmethod
-    def _get_header(source):
+    @classmethod
+    def get_prop_description(cls, label, prop):
+        """Look the description up from the ``term`` if it exists, else try
+        the jsonschema property description, else return None
+
+        """
+
+        definition = gdcdictionary.schema[label]['properties'].get(prop)
+        if not definition:
+            return None
+
+        term = definition.get('term', None)
+
+        if not term or not isinstance(term, dict):
+            return definition.get('description', None)
+        else:
+            return term.get('description', None)
+
+    @classmethod
+    def get_descriptions_from_tree(cls, tree, root_name):
+        """Given a tree (file, case, etc) recurively aggregate the
+        descriptions
+
+        :returns:
+            Flattened dict of descriptions with keys like
+            ``diagnoses.submitter_id``
+
+        """
+        descriptions = {}
+
+        for label in [key for key in tree if key != 'corr']:
+            _, name = tree[label]['corr']
+
+            # recur
+            descriptions.update(cls.get_descriptions_from_tree(
+                tree[label], root_name))
+
+            # add current level
+            descriptions.update({
+                '{}.{}.{}'.format(root_name, name, prop):
+                cls.get_prop_description(label, prop)
+                for prop in Node.get_subclass(label).__pg_properties__
+            })
+
+        return descriptions
+
+    @classmethod
+    def get_descriptions(cls):
+        """Get a description for properties of all defined node types
+
+        """
+        descriptions = {}
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_annotation_tree(), 'annotations'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_case_tree(), 'cases'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_file_tree(), 'files'))
+        descriptions.update(cls.get_descriptions_from_tree(
+            cls.get_project_tree(), 'projects'))
+
+        descriptions.update({
+            'files.file.{}'.format(prop):
+            cls.get_prop_description('file', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+        descriptions.update({
+            'cases.case.{}'.format(prop):
+            cls.get_prop_description('case', prop)
+            for prop in Node.get_subclass('case').__pg_properties__})
+        descriptions.update({
+            'projects.project.{}'.format(prop):
+            cls.get_prop_description('project', prop)
+            for prop in Node.get_subclass('project').__pg_properties__})
+        descriptions.update({
+            'annotations.annotation.{}'.format(prop):
+            cls.get_prop_description('annotation', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+
+        return descriptions
+
+    @classmethod
+    def _get_header(cls, source):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
         header._source.compress = True
         header._source.excludes = ["__comment__"]
         header._id = {'path': '{}_id'.format(source)}
+        header._meta.descriptions = cls.get_descriptions()
         return header
 
     @staticmethod
@@ -240,6 +317,10 @@ class ESMapper(object):
             doc[field] = {'type': _type}
             if str(_type) == 'string':
                 doc[field]['index'] = 'not_analyzed'
+
+        if source != 'project':
+            doc.pop('project_id', None)
+
         return doc
 
     @staticmethod
@@ -282,12 +363,6 @@ class ESMapper(object):
         # data_type is renamed data_category, viz.
         # https://jira.opensciencedatacloud.org/browse/PGDC-1472
         root.data_category = STRING
-
-    @staticmethod
-    def patch_file_timestamps(doc):
-        doc.properties.uploaded_datetime = LONG
-        doc.properties.published_datetime = LONG
-        return doc
 
     @classmethod
     def nested(cls, source):
@@ -332,9 +407,6 @@ class ESMapper(object):
         for c in classes:
             doc.update(cls.get_base_properties(c.label, include_id=False))
 
-        doc.analysis_id = STRING
-        doc.analysis_type = STRING
-
         return doc
 
     # ======================================================================
@@ -361,6 +433,9 @@ class ESMapper(object):
 
         cls.flatten_data_type(files.properties)
 
+        # Specify the type of file
+        files.properties.type = STRING
+
         # Specify the entity the file was derived from
         files.properties.associated_entities.type = 'nested'
         files.properties.associated_entities.properties.entity_type = STRING
@@ -372,7 +447,7 @@ class ESMapper(object):
         cls.add_multifields(files, 'files')
 
         # Related files
-        metadata_files = cls.patch_file_timestamps(cls.nested('file'))
+        metadata_files = cls.nested('file')
         metadata_files.properties.type = STRING
         #   data_type is renamed data_category, viz.
         #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -385,12 +460,9 @@ class ESMapper(object):
         files.properties.metadata_files = metadata_files
 
         # Index files
-        index_files = cls.patch_file_timestamps(cls.nested('file'))
+        index_files = cls.nested('file')
         index_files.properties.data_format = STRING
         files.properties.index_files = index_files
-
-        # Temporary until datetimes are backported
-        cls.patch_file_timestamps(files)
 
         # File access
         files.properties.access = STRING
@@ -416,6 +488,9 @@ class ESMapper(object):
             cls.get_base_properties('case')
         )
         case.properties.days_to_index = LONG
+
+        # Remove case.samples.aliquots from mapping
+        case.properties.samples.properties.pop('aliquots')
 
         # Patch project
         cls.patch_project(case.properties.project.properties)
@@ -464,11 +539,6 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        # Clinical
-        clinical = case.properties.clinical.properties
-        clinical.age_at_diagnosis = INTEGER
-        clinical.days_to_death = INTEGER
-
         return deepcopy(case.to_dict())
 
     @classmethod
@@ -490,6 +560,9 @@ class ESMapper(object):
 
         # Patch annotation mutlifields
         cls.add_multifields(annotation, 'annotation')
+
+        # Remove annotation.creator viz. PGDC-2114
+        annotation.properties.pop('creator', None)
 
         # Add the project and program
         annotation.properties.update(Dict({

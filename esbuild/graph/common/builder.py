@@ -8,17 +8,18 @@ graph index.
 
 """
 
-import random
-import logging
-import networkx as nx
-import itertools
-
 from cdisutils.log import get_logger
 from collections import defaultdict
 from copy import copy, deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
-from math import ceil
+from psqlgraph import Node
+
+import itertools
+import logging
+import networkx as nx
+import random
+import re
 
 from .mappings import (
     ONE_TO_MANY,
@@ -102,6 +103,11 @@ class GraphIndexBuilder(object):
         nodes like ``tag`` that only have a ``name`` property. See
         ``self.flatten`` for a complete list.
 
+    * hidden_properties:
+        Some nodes should have properties hidden, e.g.
+        ``annotation.creator``. In addition, ``project_id`` will be
+        hidden on all nodes.
+
     * s/data_type/data_category/g:
         data_type is renamed data_category, viz.
         https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -123,9 +129,29 @@ class GraphIndexBuilder(object):
     # [['file'], ['sample', 'aliquot', 'file']]
     case_to_file_paths = None
 
+    # in addition, project_id will be hidden on all nodes
+    # {node.label: {set of property keys}}
+    hidden_properties = {
+        'annotation': {
+            'creator',
+        }
+    }
+
     required_attrs = [
         'mapper',
         'case_to_file_paths',
+        'file_labels',
+    ]
+
+    supplement_regexes = [
+        re.compile(regex) for regex in [
+            'nationwidechildrens.org_biospecimen.([a-zA-Z0-9-]+).xml',
+            'nationwidechildrens.org_control.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_biospecimen.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_control.([a-zA-Z0-9-]+).xml',
+            'nationwidechildrens.org_clinical.([a-zA-Z0-9-]+).xml',
+            'genome.wustl.edu_clinical.([a-zA-Z0-9-]+).xml',
+        ]
     ]
 
     def __init__(self, psqlgraph_driver):
@@ -160,7 +186,7 @@ class GraphIndexBuilder(object):
 
         self.leaf_nodes = ['center', 'tissue_source_site']
         self.experimental_strategies = {}
-        self.data_types = {}
+        self.data_categories = {}
         self.popular_nodes = {}
         self.cases = None
         self.projects = None
@@ -169,7 +195,7 @@ class GraphIndexBuilder(object):
         self.annotation_entities = None
         self.entity_cases = None
 
-        # Different from ``self.data_types`` in that it's a
+        # Different from ``self.data_categories`` in that it's a
         # replacement for a hardcoded dict of data_type, data_subtype
         # relationships.  This is populated by
         # ``self._cache_existing_data_types()``
@@ -187,7 +213,6 @@ class GraphIndexBuilder(object):
             ('TCGA', 'DEV1'),
             ('TCGA', 'DEV2'),
             ('TCGA', 'DEV3'),
-            ('CGCI', 'BLGSP'),
         }
 
         # The body of these nested documents will be flattened into
@@ -336,7 +361,7 @@ class GraphIndexBuilder(object):
             self.copy_tree(original[node], new[node])
         return new
 
-    def _get_base_doc(self, node):
+    def _get_base_doc(self, node, include_id=True):
         """This is the basic document generator.  Take all the properties of a
         node and add it the the result.  The result doc will have *_id
         where * is the node type.
@@ -345,21 +370,25 @@ class GraphIndexBuilder(object):
 
         base = {}
 
-        if node.label in self.mapper.file_labels:
+        if include_id and node.label in self.file_labels:
             base.update({'file_id': node.node_id})
-        elif node._dictionary['category'] == 'analysis':
+
+        elif include_id and node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
-        else:
+
+        elif include_id:
             base.update({'{}_id'.format(node.label): node.node_id})
 
         base.update({
             key: value
             for key, value in node._props.iteritems()
+            # Only use props in the pinned version of the dictionary
             if key in node.__pg_properties__
+            # Ignore certain keys by type
+            and key not in self.hidden_properties.get(node.label, [])
+            # Hide project_id for all nodes but project, viz. PGDC-1550
+            and (key != 'project_id' or node.label == 'project')
         })
-
-        if node.label != 'project':
-            base.pop('project_id', None)
 
         return base
 
@@ -394,23 +423,23 @@ class GraphIndexBuilder(object):
     def remove_bam_index_files(self, files):
         return {f for f in files if not f['file_name'].endswith('.bai')}
 
-    def patch_tcga_ages(self, case):
-        """Because TCGA reports ages in years, and target in days, we
-        normalize TCGA age_at_diagnosis fields to be
-        int(ceil(d*365.25)) where d is the age in days
-
-        """
-        program_name = case['project']['program']['name']
-        if program_name == 'TCGA':
-            clinical = case.get('clinical', {})
-            age_in_years = clinical.get('age_at_diagnosis')
-            if age_in_years:
-                age_in_days = int(ceil(age_in_years*365.25))
-                case['clinical']['age_at_diagnosis'] = age_in_days
-
     ###################################################################
     #                          Cases
     ##################################################################
+
+    def remove_hidden_nodes(self, nodes):
+        """Returns a subset of :param:`nodes` for which
+        ``self.is_node_hidden(node)`` is not True.
+
+        :param nodes: iterable of nodes to filter
+        :returns: subset set of :param:`nodes`
+
+        """
+
+        return {
+            node for node in nodes
+            if not self.is_node_hidden(node)
+        }
 
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
@@ -431,8 +460,9 @@ class GraphIndexBuilder(object):
         case.update(visited_ids)
 
         # Walk from case to all file leaves
-        files = self.remove_bam_index_files(
-            self.walk_paths(node, self.case_to_file_paths))
+        files = self.remove_hidden_nodes(
+            self.remove_bam_index_files(
+                self.walk_paths(node, self.case_to_file_paths)))
 
         # Create case summary
         case['summary'] = self.get_case_summary(node, files)
@@ -446,18 +476,12 @@ class GraphIndexBuilder(object):
         project = case['project']
 
         # Denormalize the cases files
-        def get_file(f):
-            return self.denormalize_file(f, ptree)
-        case['files'] = map(get_file, files)
-
-        # TODO move this logic to project level normalization? It was
-        # requested to do this transformation in the es build and not
-        # in the data itself, so it is here for now.
-        self.patch_tcga_ages(case)
+        case['files'] = [
+            self.denormalize_file(f, ptree) for f in files
+        ]
 
         # Add properties to all annotations
-        for a in [a for f in case['files']
-                  for a in f.get('annotations', [])]:
+        for a in [a for f in case['files'] for a in f.get('annotations', [])]:
             a['case_id'] = node.node_id
 
         # Create a flattened copy of visited_ids to filter relevant
@@ -466,10 +490,12 @@ class GraphIndexBuilder(object):
                         for eid in etype] + [node.node_id]
 
         # Create copy of annotations and add properties
-        annotations = {a['annotation_id']: copy(a)
-                       for f in case['files']
-                       for a in f.get('annotations', [])
-                       if a['entity_id'] in relevant_ids}
+        annotations = {
+            a['annotation_id']: copy(a)
+            for f in case['files']
+            for a in f.get('annotations', [])
+            if a['entity_id'] in relevant_ids
+        }
         for a in annotations.itervalues():
             a['project'] = project
             a['case_id'] = node.node_id
@@ -499,23 +525,25 @@ class GraphIndexBuilder(object):
         for exp_strat, file_list in self.experimental_strategies.iteritems():
             intersection = (file_list & files)
             if intersection:
-                yield {'experimental_strategy': exp_strat['name'],
-                       'file_count': len(intersection)}
+                yield {
+                    'experimental_strategy': exp_strat,
+                    'file_count': len(intersection)
+                }
 
-    def get_data_types(self, files):
-        """Get the set of data_types where intersection of the
+    def get_data_categories(self, files):
+        """Get the set of data_categories where intersection of the
         set `files` and the set of files that relate to that
-        data_type is non-null
+        data_category is non-null
 
         """
-        self._cache_data_types()
-        for data_type, file_list in self.data_types.iteritems():
+        self._cache_data_categories()
+        for data_category, file_list in self.data_categories.iteritems():
             intersection = (file_list & files)
             if intersection:
                 yield {
                     # data_type is renamed data_category, viz.
                     # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-                    'data_category': data_type['name'],
+                    'data_category': data_category,
                     'file_count': len(intersection),
                 }
 
@@ -530,7 +558,7 @@ class GraphIndexBuilder(object):
             'experimental_strategies': list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            'data_categories': list(self.get_data_types(files)),
+            'data_categories': list(self.get_data_categories(files)),
         }
 
     def reconstruct_biospecimen_paths(self, case):
@@ -606,10 +634,9 @@ class GraphIndexBuilder(object):
         doc = self._get_base_doc(node)
 
         # Add file fields
-        self.patch_file_datetimes(doc)
-        self.add_file_origin(node, doc)
+        self.add_node_type(node, doc)
         self.add_file_neighbors(node, doc)
-        self.add_data_type(node, doc)
+        self.add_data_category(node, doc)
         self.add_related_files(node, doc)
         self.add_index_files(node, doc)
         self.add_archives(node, doc)
@@ -621,6 +648,9 @@ class GraphIndexBuilder(object):
         self.add_file_data_format(node, doc)
 
         return doc
+
+    def add_node_type(self, node, doc):
+        doc['type'] = node.label
 
     def get_data_format(self, node):
         """Return the ``data_format`` given a file node based on
@@ -704,10 +734,6 @@ class GraphIndexBuilder(object):
                     doc[label] = []
                 doc[label].append(base)
 
-    def patch_file_datetimes(self, doc):
-        doc['published_datetime'] = None
-        doc['uploaded_datetime'] = 1425340539
-
     def is_index_file(self, node):
         """Given a node, return whether it is considerend an 'index file'
 
@@ -715,12 +741,20 @@ class GraphIndexBuilder(object):
 
         """
 
-        if node._dictionary['category'] not in ['data_file']:
+        if node._dictionary['category'] not in ['data_file', 'index_file']:
             return False
 
         for extension in self.index_file_extensions:
             if node['file_name'].endswith(extension):
                 return True
+
+    def get_file_index_files(self, node):
+        """Given a file, return any neighboring index files"""
+        return [
+            n for n in list(self.neighbors_labeled(node, 'file'))
+            if self.G[node][n].get("label") == "related_to"
+            and self.is_index_file(n)
+        ]
 
     def add_index_files(self, node, doc):
         """Given a file, walk to any neighboring index files and add
@@ -728,13 +762,7 @@ class GraphIndexBuilder(object):
 
         """
         index_file_docs = []
-
-        # Get related_files
-        index_files = [
-            n for n in list(self.neighbors_labeled(node, 'file'))
-            if self.G[node][n].get("label") == "related_to"
-            and self.is_index_file(n)
-        ]
+        index_files = self.get_file_index_files(node)
 
         log.debug('Found index files for {}: {}'.format(node, index_files))
 
@@ -742,7 +770,6 @@ class GraphIndexBuilder(object):
             index_file_doc = self._get_base_doc(index_file)
             index_file_doc['data_format'] = self.get_data_format(index_file)
 
-            self.patch_file_datetimes(index_file_doc)
             index_file_docs.append(index_file_doc)
 
         if index_file_docs:
@@ -759,6 +786,12 @@ class GraphIndexBuilder(object):
         """
         rf_docs = []
 
+        metadata_labels = [
+            'analysis_metadata',
+            'run_metadata',
+            'experiment_metadata',
+        ]
+
         # Get related_files
         related_files = [
             n for n in list(self.neighbors_labeled(node, 'file'))
@@ -766,9 +799,11 @@ class GraphIndexBuilder(object):
             and not self.is_index_file(n)
         ]
 
+        related_files += list(self.neighbors_labeled(node, metadata_labels))
+
         for related_file in related_files:
-            rf_doc = self._get_base_doc(related_file)
-            self.patch_file_datetimes(rf_doc)
+            rf_doc = self._get_base_doc(related_file, include_id=False)
+            rf_doc['file_id'] = related_file.node_id
 
             # Data types
             data_subtypes = self.neighbors_labeled(
@@ -780,7 +815,7 @@ class GraphIndexBuilder(object):
                 # data_subtype is renamed data_type, viz.
                 # https://jira.opensciencedatacloud.org/browse/PGDC-1472
                 rf_doc['data_type'] = dst['name']
-                self.add_data_type(related_file, rf_doc)
+                self.add_data_category(related_file, rf_doc)
 
             # Type
             if related_file['file_name'].endswith('.sdrf.txt'):
@@ -825,21 +860,21 @@ class GraphIndexBuilder(object):
             if self.G[node][archive].get('label') == 'member_of':
                 doc['archive'] = self._get_base_doc(archive)
 
-    def add_data_type(self, node, doc):
-        """Add the data_subtype to the file document with child data_type
+    def add_data_category(self, node, doc):
+        """Add the data_subtype to the file document with child data_category
 
         """
 
-        self._cache_data_types()
-        data_types = [
-            data_type['name']
-            for data_type, files in self.data_types.items()
+        self._cache_data_categories()
+        data_categories = [
+            data_category
+            for data_category, files in self.data_categories.items()
             if node in files
         ]
-        if data_types:
+        if data_categories:
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            doc['data_category'] = data_types[0]
+            doc['data_category'] = data_categories[0]
 
     def add_cases(self, node, ptree, doc):
         """Given a file and a case tree, re-insert the case as a
@@ -855,7 +890,6 @@ class GraphIndexBuilder(object):
             lambda p: self.walk_tree(p, ptree, self.ptree_mapping, [])[0],
             ptree)
         for p in doc['cases']:
-            self.patch_tcga_ages(p)
             self.patch_project(p['project'])
             self.reconstruct_biospecimen_paths(p)
         return relevant
@@ -908,13 +942,6 @@ class GraphIndexBuilder(object):
         if docs:
             doc['associated_entities'] = docs
 
-    def add_file_origin(self, node, doc):
-        source = node._sysan.get('source')
-        if source and "alignment" in source:
-            doc["origin"] = "harmonized"
-        else:
-            doc["origin"] = "migrated"
-
     def upsert_file_into_dict(self, files, file_doc):
         did = file_doc['file_id']
         if did not in files:
@@ -958,33 +985,44 @@ class GraphIndexBuilder(object):
             case_files[case] = self.remove_bam_index_files(
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
+
+        # filter files
+        files = {
+            f for f in files
+            if not self.is_node_hidden(f)
+        }
+
         log.info('Got {} files from {} cases'.format(
             len(files), len(case_files)))
 
-        # Get data types
+        # Get experimental strategies
         exp_strat_summaries = []
         self._cache_experimental_strategies()
         for exp_strat in self.experimental_strategies.keys():
-            log.info('{} {}'.format(exp_strat, exp_strat['name']))
+            log.info('exp_strat: {}'.format(exp_strat))
             exp_files = (self.experimental_strategies[exp_strat] & files)
+
             if not len(exp_files):
                 continue
-            case_count = len(
-                {p for p, p_files in case_files.iteritems()
-                 if len(exp_files & p_files)})
+
+            case_count = len({
+                p for p, p_files in case_files.iteritems()
+                if len(exp_files & p_files)
+            })
+
             exp_strat_summaries.append({
                 'case_count': case_count,
-                'experimental_strategy': exp_strat['name'],
+                'experimental_strategy': exp_strat,
                 'file_count': len(exp_files),
             })
 
         # Get data types
-        data_type_summaries = []
-        self._cache_data_types()
+        data_category_summaries = []
+        self._cache_data_categories()
 
-        for data_type in self.data_types.keys():
-            log.info('{} {}'.format(data_type, data_type['name']))
-            dt_files = (self.data_types[data_type] & files)
+        for data_category in self.data_categories.keys():
+            log.info('data_category: {}'.format(data_category))
+            dt_files = (self.data_categories[data_category] & files)
 
             if not len(dt_files):
                 continue
@@ -994,11 +1032,11 @@ class GraphIndexBuilder(object):
                 if len(dt_files & p_files)
             })
 
-            data_type_summaries.append({
+            data_category_summaries.append({
                 'case_count': case_count,
                 # data_type is renamed data_category, viz.
                 # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-                'data_category': data_type['name'],
+                'data_category': data_category,
                 'file_count': len(dt_files),
             })
 
@@ -1008,12 +1046,15 @@ class GraphIndexBuilder(object):
             'file_count': len(files),
             'file_size': sum([f['file_size'] for f in files]),
         }
+
         if exp_strat_summaries:
             doc['summary']['experimental_strategies'] = exp_strat_summaries
-        if data_type_summaries:
+
+        if data_category_summaries:
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-            doc['summary']['data_categories'] = data_type_summaries
+            doc['summary']['data_categories'] = data_category_summaries
+
         return doc
 
     ###################################################################
@@ -1148,10 +1189,28 @@ class GraphIndexBuilder(object):
             if n.label in labels:
                 yield n
 
-    def neighbors_labeled(self, node, labels):
+    @staticmethod
+    def node_labels_by_category(categories):
+        """Returns an iterator of node labels that are files
+
+        """
+
+        categories = (
+            tuple(categories) if hasattr(categories, '__iter__')
+            else (categories,)
+        )
+
+        return [
+            n.label for n in Node.get_subclasses()
+            if n._dictionary['category'] in categories
+        ]
+
+    def neighbors_labeled(self, node, labels, expected=None):
         """For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
         string or list of strings.
+
+        :param is_expected: Int count of expected elements
 
         """
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
@@ -1169,8 +1228,16 @@ class GraphIndexBuilder(object):
             else:
                 neighbors = {n for n in temp if n.label in labels}
 
+        count = 0
         for n in neighbors:
+            count += 1
             yield n
+
+        if expected is not None and count != expected:
+            self.warning(
+                "{}: unexpected no. of '{}' neighbors".format(node, labels),
+                '{}: {} != {} (expected)'.format(node, count, expected),
+                tags=["{}:{}".format(node.label, node.node_id)])
 
     ###################################################################
     #                       Validation functions
@@ -1185,7 +1252,7 @@ class GraphIndexBuilder(object):
         expected = project_doc['summary']['file_count']
         if actual != expected:
             self.error(
-                'Annotation has multiple entities',
+                'File count mismatch',
                 '{} file count mismatch: {} != {}'.format(
                     project_doc['project_id'], actual, expected),
                 tags=["project_id:{}".format(project_doc['project_id'])],
@@ -1196,7 +1263,7 @@ class GraphIndexBuilder(object):
             self.validate_project_file_counts(project_doc, file_docs)
             case_sample = random.sample(case_docs, min(len(case_docs), 100))
             for case_doc in case_sample:
-                self.verify_data_type_count(case_doc)
+                self.verify_data_category_count(case_doc)
         self.validate_annotations(ann_docs)
 
     def validate_annotations(self, ann_docs):
@@ -1211,23 +1278,23 @@ class GraphIndexBuilder(object):
                             ann_doc.get("annotation_id", "?"))],
                     )
 
-    def verify_data_type_count(self, case):
-        for data_type in self.existing_data_types.keys():
+    def verify_data_category_count(self, case):
+        for data_category in self.existing_data_types.keys():
             calc = len([
                 f for f in case['files']
-                if f.get('data_type') == data_type
+                if f.get('data_category') == data_category
             ])
 
             act = ([
                 d['file_count']
-                for d in case['summary']['data_types']
-                if d['data_type'] == data_type
+                for d in case['summary']['data_categories']
+                if d['data_category'] == data_category
             ][:1] or [0])[0]
 
             if act != calc:
                 self.error(
-                    'Inconsistent data_type count',
-                    '{}: {} != {}'.format(data_type, act, calc),
+                    'Inconsistent data_category count',
+                    '{}: {} != {}'.format(data_category, act, calc),
                     tags=["case_id:{}".format(case.get("case_id", "?"))],
                 )
 
@@ -1276,14 +1343,38 @@ class GraphIndexBuilder(object):
     #                       Caching functions
     ###################################################################
 
+    @staticmethod
+    def is_harmonized_file(node):
+        return (
+            node.label == 'file' and
+            node._sysan.get('source', '').endswith('_alignment')
+        )
+
+    def is_old_supplement_file(self, node):
+        return (
+            node.label == 'file' and
+            any(
+                p.match(node._props.get('file_name', ''))
+                for p in self.supplement_regexes
+            )
+        )
+
     def is_file_indexed(self, node):
         """Returns false if node is a file that is not supposed to be indexed.
 
         """
 
         # This function should only be for files
-        if node.label not in self.mapper.file_labels:
+        if node.label not in self.file_labels:
             return True
+
+        # Skip old versions of supplement xmls
+        if self.is_old_supplement_file(node):
+            return False
+
+        # Skip old representation of harmonized files
+        if self.is_harmonized_file(node):
+            return False
 
         # Is file to_delete
         if node.system_annotations.get("to_delete"):
@@ -1295,47 +1386,73 @@ class GraphIndexBuilder(object):
 
         return True
 
-    def is_from_omitted_project(self, node):
+    def is_omitted_project_or_neighbor_case(self, node):
         """Returns false if the node is a project that is not supposed to be
         indexed.
 
         """
 
-        # Get the project and program
         if node.label == 'project':
-            project_code = node.code
-            program_name = list(self.neighbors_labeled(
-                node, 'program'))[0].name
+            projects = [node]
         elif node.label == 'case':
-            project = list(self.neighbors_labeled(node, 'project'))[0]
-            program = list(self.neighbors_labeled(project, 'program'))[0]
-            project_code = project.code
-            program_name = program.name
-        else:
-            program_name, project_code = (None, None)
-
-        # Check project and program against omitted_projects
-        if (program_name, project_code) in self.omitted_projects:
-            return True
+            projects = list(self.neighbors_labeled(node, 'project', 1))
         else:
             return False
+
+        project_codes = [project.code for project in projects]
+        program_names = [
+            program.name
+            for project in projects
+            for program in self.neighbors_labeled(project, 'program', 1)
+        ]
+
+        # Check project and program against omitted_projects
+        for program_name in program_names:
+            for project_code in project_codes:
+                if (program_name, project_code) in self.omitted_projects:
+                    return True
+
+        return False
+
+    def is_unindexed_case(self, node):
+        return (
+            node.label == 'case'
+            and not list(self.neighbors_labeled(node, 'project', 1))
+        )
 
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
 
         """
 
+        if self.is_unindexed_case(node):
+            log.info('Node not indexed (case not indexed): {}'.format(node))
+            return False
+
         # Check for non-indexed files
-        if not self.is_file_indexed(node):
+        elif not self.is_file_indexed(node):
             log.info('Node not indexed (file not indexed): {}'.format(node))
             return False
 
         # Check for omitted_projects
-        if self.is_from_omitted_project(node):
+        if self.is_omitted_project_or_neighbor_case(node):
             log.info('Node not indexed (omitted project ): {}'.format(node))
             return False
 
         return True
+
+    def is_node_hidden(self, node):
+        """Return True if the node should be traversed (and therefore must
+        remain in the cache) but should not appear in any documents
+
+        """
+
+        # Hide all submitted_* node types from indices
+        if node.label.startswith('submitted_'):
+            return True
+
+        return False
+
 
     @staticmethod
     def truncate_path(path, label):
@@ -1476,7 +1593,7 @@ class GraphIndexBuilder(object):
 
         self._cache_existing_data_types()
         self._cache_experimental_strategies()
-        self._cache_data_types()
+        self._cache_data_categories()
         self._cache_annotations()
         self._cache_relevant_nodes()
         self._cache_entity_cases()
@@ -1524,12 +1641,16 @@ class GraphIndexBuilder(object):
     def _cache_relevant_nodes(self):
         if self.relevant_nodes:
             return
-        files = list(self.nodes_labeled(self.mapper.file_labels))
+
         self.relevant_nodes = {}
+
+        files = list(self.nodes_labeled(self.file_labels))
         pbar = self.pbar('Caching file paths: ', len(files))
+
         for f in files:
             self.relevant_nodes[f] = self.walk_paths(
                 f, self.file_to_case_paths, whole=True)
+
             pbar.update(pbar.currval+1)
         pbar.finish()
 
@@ -1563,7 +1684,7 @@ class GraphIndexBuilder(object):
             n for n in neighbors if n.label in labels}
         return self.popular_nodes[node][labels]
 
-    def _cache_data_types(self):
+    def _cache_data_categories(self):
         """Looking up the files that are classified in each data_type is a
         common computation.  Here we cache this information for easy retrieval.
 
@@ -1573,13 +1694,21 @@ class GraphIndexBuilder(object):
 
         """
 
-        if len(self.data_types):
+        if len(self.data_categories):
             return
 
-        log.info('Caching data types')
-        for data_type in self.nodes_labeled('data_type'):
-            self.data_types[data_type] = self.remove_bam_index_files(
-                set(self.walk_path(data_type, ['data_subtype', 'file'])))
+        log.info('Caching data categories')
+        for data_category in self.nodes_labeled('data_type'):
+            category = data_category._props['name']
+            self.data_categories[category] = self.remove_bam_index_files(
+                set(self.walk_path(data_category, ['data_subtype', 'file'])))
+
+        # New files have 'data_category' as a property
+        for file_ in self.nodes_labeled(self.file_labels):
+            category = file_._props.get('data_category')
+            if not category:
+                continue
+            self.data_categories.setdefault(category, set()).add(file_)
 
     def _cache_experimental_strategies(self):
         """Looking up the files that are classified in each
@@ -1590,10 +1719,19 @@ class GraphIndexBuilder(object):
 
         if len(self.experimental_strategies):
             return
+
         log.info('Caching experitmental strategies')
         for exp_strat in self.nodes_labeled('experimental_strategy'):
-            self.experimental_strategies[exp_strat] = set(self.walk_path(
+            strategy = exp_strat._props['name']
+            self.experimental_strategies[strategy] = set(self.walk_path(
                 exp_strat, ['file']))
+
+        # New files have 'experimental_strategy' as a property
+        for file_ in self.nodes_labeled(self.file_labels):
+            strategy = file_._props.get('experimental_strategy')
+            if not strategy:
+                continue
+            self.experimental_strategies.setdefault(strategy, set()).add(file_)
 
     def _cache_existing_data_types(self):
         """The last version of this code imported a hard coded list and called

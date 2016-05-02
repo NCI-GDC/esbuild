@@ -6,7 +6,7 @@ Defines :class:`ActiveGraphIndexBuilder` for building the graph index
 for Active projects.
 
 Strategy to add analysis and file types:
-
+o
 - An attempt to balance abstraction by creating the traversals from a
 known point to limit wandering through the graph.  Currently the
 subgraph that includes active data_file and analysis nodes is isolated
@@ -88,7 +88,7 @@ def get_case_to_file_paths():
 
     """
 
-    paths_to_aliquot = [
+    case_to_aliquot = [
         ['sample', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
@@ -100,12 +100,15 @@ def get_case_to_file_paths():
 
     case_to_file_paths = [
         ['file'],
-        ['sample', 'portion', 'file'],
+        ['biospecimen_supplement'],
+        ['clinical_supplement'],
+        case_to_aliquot + [
+            'submitted_tangent_copy_number',
+            'copy_number_liftover_workflow',
+            'copy_number_segment'],
     ]
 
-    # Legacy files
-    case_to_file_paths += list_product(paths_to_aliquot, [['file']])
-    case_to_file_paths += list_product(paths_to_aliquot, readgroup_subtree)
+    case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
 
     return case_to_file_paths
 
@@ -115,34 +118,50 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     mapper = ActiveESMapper
     case_to_file_paths = get_case_to_file_paths()
 
+    file_labels = GraphIndexBuilder.node_labels_by_category([
+        'data_file',
+        'index_file',
+    ])
+
     def denormalize_file(self, node, ptree):
         doc = (super(ActiveGraphIndexBuilder, self)
                .denormalize_file(node, ptree))
 
         self.add_file_analysis(node, doc)
-        self.add_file_downstream_analysis(node, doc)
+        self.add_file_downstream_analyses(node, doc)
 
         return doc
+
+    def get_file_index_files(self, node):
+        """Given a file, return any neighboring index files"""
+        return [
+            n for n in list(self.get_child_with_category(node, 'index_file'))
+            if self.is_index_file(n)
+        ]
 
     def get_parent_with_category(self, node, category):
         """returns iterable of neighors from outbound edges with category
 
         """
 
-        return self.neighbors_labeled(node, [
+        labels = [
             l['dst_type'].label for l in node._pg_links.values()
             if l['dst_type']._dictionary['category'] == category
-        ])
+        ]
+
+        return self.neighbors_labeled(node, labels)
 
     def get_child_with_category(self, node, category):
         """returns iterable of neighors from inbound edges with category
 
         """
 
-        return self.neighbors_labeled(node, [
+        labels = [
             l['src_type'].label for l in node._pg_backrefs.values()
             if l['src_type']._dictionary['category'] == category
-        ])
+        ]
+
+        return self.neighbors_labeled(node, labels)
 
     def add_file_analysis(self, node, doc):
         """Add the 'analysis' that produced the current file.
@@ -168,35 +187,27 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                 tags=["file_id:{}".format(node.node_id)],
             )
 
-    def add_file_downstream_analysis(self, node, doc):
+    def add_file_downstream_analyses(self, node, doc):
         """Add the 'analysis' that produced the current file.
 
         """
 
         analyses = list(self.get_child_with_category(node, 'analysis'))
 
-        if analyses:
-            # Add the first downstream analyisis
-            analysis = analyses.pop()
+        for analysis in analyses:
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_output_files(analysis, analysis_doc)
-            doc['downstream_analysis'] = analysis_doc
-
-        # If there are remaining analysis, record a warning and skip
-        if analyses:
-            self.warning(
-                "Multiple downstream analysis on {}".format(node),
-                ("{} has multiple downstream analyses {}, "
-                 "this is unexpected.").format(node, analyses),
-                tags=["file_id:{}".format(node.node_id)],
-            )
+            doc.setdefault('downstream_analyses', []).append(analysis_doc)
 
     def add_analysis_input_files(self, node, doc):
         """For a given analysis node, add the input_files to the doc.
 
         """
 
-        input_files = self.get_parent_with_category(node, 'data_file')
+        input_files = [
+            f for f in self.get_parent_with_category(node, 'data_file')
+            if not self.is_node_hidden(f)
+        ]
         input_file_docs = map(self.get_simple_file_doc, input_files)
 
         if input_file_docs:
@@ -207,7 +218,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        output_files = self.get_child_with_category(node, 'data_file')
+        output_files = [
+            f for f in self.get_child_with_category(node, 'data_file')
+            if not self.is_node_hidden(f)
+        ]
         output_file_docs = map(self.get_simple_file_doc, output_files)
 
         if output_file_docs:
@@ -247,14 +261,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        doc = {}
-        self.add_data_type(node, doc)
+        doc = self._get_base_doc(node)
+        self.add_data_category(node, doc)
+        doc['data_format'] = self.get_data_format(node)
+
         for dst in self.neighbors_labeled(node, 'data_subtype'):
             doc['data_type'] = dst['name']
-
-        doc['file_id'] = node.node_id
-        doc['file_name'] = node._props.get('file_name')
-        doc['file_size'] = node._props.get('file_size')
-        doc['data_format'] = self.get_data_format(node)
 
         return doc

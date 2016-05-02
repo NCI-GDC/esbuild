@@ -8,52 +8,16 @@ Test the build scripts that wrap core functionality
 """
 
 from subprocess import check_call
-from unittest import TestCase
+from conftest import BIN_DIR
 
+import pytest
 import os
 
-from base import (
-    PG_HOST,
-    PG_USER,
-    PG_PASSWORD,
-    PG_DATABASE,
-    TEST_DIR,
-)
 
-BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
-
-os.environ['ELASTICSEARCH_HOST'] = 'localhost'
-os.environ['ES_USER'] = ''
-os.environ['ES_PASSWORD'] = ''
-
-os.environ['PG_HOST'] = PG_HOST
-os.environ['PG_USER'] = PG_USER
-os.environ['PG_PASS'] = PG_PASSWORD
-os.environ['PG_NAME'] = PG_DATABASE
-
-
-class TestLegacyBuildScript(TestCase):
-
-    def test_script_runs(self):
-        check_call([
-            'python',
-            os.path.join(BIN_DIR, 'build_legacy_graph_index.py')
-        ])
-
-
-class TestActiveBuildScript(TestCase):
-
-    def test_script_runs(self):
-        check_call([
-            'python',
-            os.path.join(BIN_DIR, 'build_active_graph_index.py')
-        ])
-
-
-class TestDownloadReportBuildScript(TestCase):
-
-    def test_script_runs(self):
-        check_call([
-            'python',
-            os.path.join(BIN_DIR, 'build_download_stats_index.py')
-        ])
+@pytest.mark.parametrize('path', [
+    'build_legacy_graph_index.py',
+    'build_active_graph_index.py',
+    'build_download_stats_index.py',
+])
+def test_script_runs(environment, path):
+    check_call(['python', os.path.join(BIN_DIR, path)])

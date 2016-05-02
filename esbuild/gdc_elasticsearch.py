@@ -330,11 +330,28 @@ class GDCElasticsearch(object):
         if roll_alias:
             # ensure all writes are visible
             self.es.indices.refresh(index=new_index)
+
             # sanity checks that there are the correct number of docs in the new index
-            assert self.es.count(index=new_index, doc_type="file")["count"] == len(file_docs)
-            assert self.es.count(index=new_index, doc_type="case")["count"] == len(case_docs)
-            assert self.es.count(index=new_index, doc_type="annotation")["count"] == len(ann_docs)
-            assert self.es.count(index=new_index, doc_type="project")["count"] == len(project_docs)
+            msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
+
+            file_count = self.es.count(index=new_index, doc_type="file")["count"]
+            case_count = self.es.count(index=new_index, doc_type="case")["count"]
+            ann_count = self.es.count(index=new_index, doc_type="annotation")["count"]
+            project_count = self.es.count(index=new_index, doc_type="project")["count"]
+
+            if file_count != len(file_docs):
+                self.log.warning(msg.format('file', file_count, len(file_docs)))
+
+            if case_count != len(case_docs):
+                self.log.warning(msg.format('case', case_count, len(case_docs)))
+
+            if ann_count != len(ann_docs):
+                self.log.warning(msg.format('annotation', ann_count, len(ann_docs)))
+
+            if project_count != len(project_docs):
+                self.log.warning(msg.format('project', project_count, len(project_docs)))
+
+            # Roll indices
             self.log.info("Rolling alias and deleting old indices")
             old_index = self.lookup_index_by_alias()
             if old_index:
