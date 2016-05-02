@@ -361,7 +361,7 @@ class GraphIndexBuilder(object):
             self.copy_tree(original[node], new[node])
         return new
 
-    def _get_base_doc(self, node):
+    def _get_base_doc(self, node, include_id=True):
         """This is the basic document generator.  Take all the properties of a
         node and add it the the result.  The result doc will have *_id
         where * is the node type.
@@ -370,13 +370,13 @@ class GraphIndexBuilder(object):
 
         base = {}
 
-        if node.label in self.file_labels:
+        if include_id and node.label in self.file_labels:
             base.update({'file_id': node.node_id})
 
-        elif node._dictionary['category'] == 'analysis':
+        elif include_id and node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
 
-        else:
+        elif include_id:
             base.update({'{}_id'.format(node.label): node.node_id})
 
         base.update({
@@ -786,6 +786,12 @@ class GraphIndexBuilder(object):
         """
         rf_docs = []
 
+        metadata_labels = [
+            'analysis_metadata',
+            'run_metadata',
+            'experiment_metadata',
+        ]
+
         # Get related_files
         related_files = [
             n for n in list(self.neighbors_labeled(node, 'file'))
@@ -793,8 +799,11 @@ class GraphIndexBuilder(object):
             and not self.is_index_file(n)
         ]
 
+        related_files += list(self.neighbors_labeled(node, metadata_labels))
+
         for related_file in related_files:
-            rf_doc = self._get_base_doc(related_file)
+            rf_doc = self._get_base_doc(related_file, include_id=False)
+            rf_doc['file_id'] = related_file.node_id
 
             # Data types
             data_subtypes = self.neighbors_labeled(
