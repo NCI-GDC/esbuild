@@ -236,15 +236,15 @@ class GraphIndexBuilder(object):
             ('file', 'related_to', 'file'),
         ]
 
+        self.file_to_case_paths = [
+            list(reversed(l))[1:]+['case']
+            for l in self.case_to_file_paths
+        ]
+
         self.possible_associated_entites = [
             'portion',
             'aliquot',
             'case',
-        ]
-
-        self.file_to_case_paths = [
-            list(reversed(l))[1:]+['case']
-            for l in self.case_to_file_paths
         ]
 
         self.index_file_extensions = {
@@ -506,8 +506,10 @@ class GraphIndexBuilder(object):
 
         # Trim other cases from fiels
         for f in case['files']:
-            f['cases'] = [p for p in f['cases']
-                          if p['case_id'] == node.node_id]
+            f['cases'] = [
+                p for p in f['cases']
+                if p['case_id'] == node.node_id
+            ]
             f.pop('annotations', None)
             f.pop('associated_entities', None)
 
@@ -642,7 +644,7 @@ class GraphIndexBuilder(object):
         self.add_archives(node, doc)
         doc['cases'] = []
         relevant = self.add_cases(node, ptree, doc)
-        self.add_file_derived_from_entities(node, doc, case_id)
+        self.add_file_associated_entities(node, doc, case_id)
         self.add_annotations(node, relevant, doc)
         self.add_acl(node, doc)
         self.add_file_data_format(node, doc)
@@ -919,26 +921,37 @@ class GraphIndexBuilder(object):
             doc['access'] = 'controlled'
         doc['acl'] = node.acl
 
-    def add_file_derived_from_entities(self, node, doc, case_id):
+    def get_file_associated_entities(self, node):
+        """Returns a list of entities that are 'associated' with a file"""
+
+        return list(self.neighbors_labeled(
+            node, self.possible_associated_entites))
+
+    def add_file_associated_entities(self, node, doc, case_id):
         self._cache_entity_cases()
-        entities = self.neighbors_labeled(
-            node, self.possible_associated_entites)
+
         docs = []
+        entities = self.get_file_associated_entities(node)
+
         for e in entities:
+
             if e not in self.entity_cases:
                 # Skip, the cases is likely missing because it is omitted
                 continue
+
             case = self.entity_cases[e]
             subdoc = {
                 'entity_type': e.label,
                 'entity_id': e.node_id,
                 'case_id': case.node_id
             }
-            # NOTE: Use _props here to avoid overhead of proxy dictionary
-            esid = e._props.get('submitter_id')
-            if esid:
-                subdoc['entity_submitter_id'] = esid
+
+            entity_submitter_id = e._props.get('submitter_id')
+            if entity_submitter_id:
+                subdoc['entity_submitter_id'] = entity_submitter_id
+
             docs.append(subdoc)
+
         if docs:
             doc['associated_entities'] = docs
 
@@ -1613,16 +1626,21 @@ class GraphIndexBuilder(object):
     def _cache_entity_cases(self):
         if self.entity_cases:
             return
+
         entities = list(self.nodes_labeled(self.possible_associated_entites))
         pbar = self.pbar('Caching entity cases: ', len(entities))
         self.entity_cases = {}
+
         for e in entities:
             if e.label == "case":
                 # if the associated entity is a case, it's case is
                 # just itself. this is kindy of sketchy but w/e
                 self.entity_cases[e] = e
                 continue
-            paths = [p[1:] for p in self.file_to_case_paths if p[0] == e.label]
+
+            paths = self.file_to_case_paths + [
+                p[1:] for p in self.file_to_case_paths if p[0] == e.label
+            ]
             cases = self.walk_paths(e, paths)
 
             if len(cases) > 1:
@@ -1635,6 +1653,7 @@ class GraphIndexBuilder(object):
 
             if len(cases) != 0:
                 self.entity_cases[e] = cases.pop()
+
             pbar.update(pbar.currval+1)
         pbar.finish()
 
@@ -1743,6 +1762,7 @@ class GraphIndexBuilder(object):
             ``{'data_type.name': ['data_subtype.name']}``
 
         """
+
         with self.g.session_scope():
             return {
                 data_type.name: [
