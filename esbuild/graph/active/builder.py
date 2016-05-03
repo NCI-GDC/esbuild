@@ -18,6 +18,9 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
+from cdisutils.log import get_logger
+
+import logging
 
 from gdcdatamodel.models import(
     ReadGroup
@@ -30,6 +33,10 @@ from ..common.builder import (
 from .mappings import (
     ActiveESMapper,
 )
+
+
+log = get_logger("graph_active_index")
+log.setLevel(level=logging.INFO)
 
 
 def list_product(roots, subtrees):
@@ -82,10 +89,13 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
     return paths
 
 
-def get_case_to_file_paths():
-    """Since the Active index has more complicated paths from case to
-    file, this is an attempt not to hard code them.  See module doc.
+class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
+    mapper = ActiveESMapper
+
+    """
+    Since the Active index has more complicated paths from case to
+    file, this is an attempt not to hard code them.  See module doc.
     """
 
     case_to_aliquot = [
@@ -98,30 +108,33 @@ def get_case_to_file_paths():
         subtree_paths_to_file(ReadGroup)
     )
 
+    aliquot_to_copy_number_paths = [
+        ['submitted_tangent_copy_number',
+         'copy_number_liftover_workflow',
+         'copy_number_segment'],
+    ]
+
     case_to_file_paths = [
         ['file'],
         ['biospecimen_supplement'],
         ['clinical_supplement'],
-        case_to_aliquot + [
-            'submitted_tangent_copy_number',
-            'copy_number_liftover_workflow',
-            'copy_number_segment'],
     ]
 
+    case_to_copy_number_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_paths)
+
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-
-    return case_to_file_paths
-
-
-class ActiveGraphIndexBuilder(GraphIndexBuilder):
-
-    mapper = ActiveESMapper
-    case_to_file_paths = get_case_to_file_paths()
+    case_to_file_paths += case_to_copy_number_paths
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',
         'index_file',
     ])
+
+    # Pre-calculate the paths to read_group from each type of file
+    file_to_read_group_paths = {}
+    for path in readgroup_subtree:
+        file_to_read_group_paths.setdefault(path[-1], []).append(path[-2::-1])
 
     def denormalize_file(self, node, ptree):
         doc = (super(ActiveGraphIndexBuilder, self)
@@ -243,18 +256,35 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        parent_files = self.get_parent_with_category(node, 'data_file')
-        read_groups = [
-            rg
-            for f in parent_files
-            for rg in self.neighbors_labeled(f, 'read_group')
-        ]
-
+        read_groups = self.get_analysis_read_groups(node)
         if read_groups:
             doc['read_groups'] = [
                 self._get_base_doc(rg)
                 for rg in read_groups
             ]
+
+    def get_file_read_groups(self, node):
+        """Given a data_file node, traverse up the tree to read_groups
+
+        :returns: set of read_groups
+
+        """
+
+        paths = self.file_to_read_group_paths.get(node.label, [])
+        return set(self.walk_paths(node, paths))
+
+    def get_analysis_read_groups(self, node):
+        """Given a analysis node, traverse up the tree to read_groups:
+
+        :returns: set of read_groups
+
+        """
+
+        return {
+            path
+            for file_ in self.get_parent_with_category(node, 'data_file')
+            for path in self.get_file_read_groups(file_)
+        }
 
     def get_simple_file_doc(self, node):
         """Create a simple file doc for {input,output}_files
@@ -269,3 +299,36 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc['data_type'] = dst['name']
 
         return doc
+
+    def get_file_associated_entities(self, node):
+        """Returns a list of entities that are 'associated' with a file"""
+
+        entities = (super(ActiveGraphIndexBuilder, self)
+                    .get_file_associated_entities(node))
+
+        # Add entities via read_group
+        entities += [
+            entity
+            for rg in self.get_file_read_groups(node)
+            for entity in
+            self.neighbors_labeled(rg, self.possible_associated_entites)
+        ]
+
+        # Add entities with one step through a data_file
+        entities += [
+            entity
+            for parent in self.get_parent_with_category(node, 'data_file')
+            for entity in
+            self.neighbors_labeled(parent, self.possible_associated_entites)
+        ]
+
+        # Copy number paths
+        cnv_paths = [
+            path[-2::-1] for path in
+            list_product([['aliquot']], self.aliquot_to_copy_number_paths)
+        ]
+        entities += [
+            entity for entity in self.walk_paths(node, cnv_paths)
+        ]
+
+        return list(set(entities))

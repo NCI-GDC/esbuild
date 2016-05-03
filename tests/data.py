@@ -51,38 +51,45 @@ NODES = [
     fuzzed(
         SubmittedTangentCopyNumber,
         node_id='cnv-file-1',
+        acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         CopyNumberLiftoverWorkflow,
         node_id='cnv-workflow-1',
+        acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         CopyNumberSegment,
         node_id='cnv-segment-file-1',
+        acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         AnalysisMetadata,
         node_id='analysis-metadata-1',
+        acl=['phs000178'],
         file_name='analysis-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
         RunMetadata,
         node_id='run-metadata-1',
+        acl=['phs000178'],
         file_name='run-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
         ExperimentMetadata,
         node_id='experiment-metadata-1',
+        acl=['phs000178'],
         file_name='experiment-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     File(
         node_id='live-file',
+        acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='TCGA-WR-A838-01A-12R-A406-31_rnaseq_fastq.tar',
         file_size=12916551680,
@@ -95,6 +102,7 @@ NODES = [
     ),
     File(
         node_id='harmonized-file',
+        acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='TCGA-WR-A838-01A-12R-A406-31_aligned.bam',
         file_size=12916551680,
@@ -108,18 +116,35 @@ NODES = [
     fuzzed(
         File,
         node_id='index-file',
+        acl=['phs000178'],
         state='live',
         file_name='test_file.bam.bai',
     ),
     fuzzed(
         AlignedReadsIndex,
         node_id='index-file-2',
+        acl=['phs000178'],
         state='live',
         file_name='index-file-2.bam.bai',
     ),
     fuzzed(
         File,
+        node_id='legacy-file-with-empty-acl',
+        acl=[],
+        state='live',
+        file_name='test-file-3.bam',
+    ),
+    fuzzed(
+        AlignedReads,
+        node_id='active-file-with-empty-acl',
+        acl=[],
+        state='live',
+        file_name='test-file-4.bam',
+    ),
+    fuzzed(
+        File,
         node_id='related-file',
+        acl=['phs000178'],
         state="live",
         file_state='submitted',
         file_name="a_related_file.txt"
@@ -127,10 +152,12 @@ NODES = [
     fuzzed(
         File,
         node_id='non-live-file',
+        acl=['phs000178'],
         state='uploaded'
     ),
     File(
         node_id='to-delete-file',
+        acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='a_file_to_be_deleted.txt',
         file_size=5,
@@ -143,6 +170,7 @@ NODES = [
     ),
     AlignedReads(
         node_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        acl=['phs000178'],
         data_category='Sequencing Data',
         data_type='Aligned Reads',
         error_type='file_size',
@@ -159,6 +187,7 @@ NODES = [
     ),
     AlignmentWorkflow(
         node_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+        acl=['phs000178'],
         project_id='b7ghsa',
         state='submitted',
         submitter_id='jstzk2',
@@ -167,6 +196,7 @@ NODES = [
     ),
     SubmittedAlignedReads(
         node_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+        acl=['phs000178'],
         data_category='Sequencing Data',
         data_type='Aligned Reads',
         error_type='file_size',
@@ -183,6 +213,7 @@ NODES = [
     ),
     SubmittedAlignedReads(
         node_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
+        acl=['phs000178'],
         data_category='Sequencing Data',
         data_type='Aligned Reads',
         error_type='file_size',
@@ -590,16 +621,19 @@ NODES = [
     fuzzed(
         SimpleSomaticMutation,
         node_id='somatic_mutation_1',
+        acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         SimpleSomaticMutation,
         node_id='somatic_mutation_1',
+        acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         BiospecimenSupplement,
         node_id='biospecimen_supplement_1',
+        acl=['phs000178'],
         data_category='Biospecimen',
         data_format='BCR XML',
         data_type='Biospecimen Supplement',
@@ -609,6 +643,7 @@ NODES = [
     fuzzed(
         ClinicalSupplement,
         node_id='clinical_supplement_1',
+        acl=['phs000178'],
         data_category='Clinical',
         data_format='BCR XML',
         data_type='Clinical Supplement',
@@ -618,6 +653,7 @@ NODES = [
     fuzzed(
         File,
         node_id='old-biospecimen-supplement-xml',
+        acl=['phs000178'],
         file_name='nationwidechildrens.org_biospecimen.TCGA-72-4234.xml',
         file_size=129165,
         md5sum='d7e6cbd40ef2f5b6607cb4af982280a9',
@@ -757,6 +793,10 @@ EDGES = [
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromAliquot(
+        src_id='legacy-file-with-empty-acl',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    FileDataFromAliquot(
         src_id='harmonized-file',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
@@ -798,6 +838,10 @@ EDGES = [
     ),
     AlignedReadsDataFromAlignmentWorkflow(
         src_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsDataFromAlignmentWorkflow(
+        src_id='active-file-with-empty-acl',
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     ExposureDescribesCase(
