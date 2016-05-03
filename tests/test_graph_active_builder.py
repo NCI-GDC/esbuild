@@ -227,6 +227,8 @@ def test_path_count(index, doc_type, path, count):
      1, {10}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
+    ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
+     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
