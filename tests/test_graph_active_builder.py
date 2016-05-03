@@ -340,5 +340,6 @@ def test_get_analysis_read_groups(graph, cached_builder, cls, count):
 ])
 def test_get_file_associated_entities(graph, cached_builder, cls, count):
     for node in graph.nodes(cls).all():
-        entities = list(cached_builder.get_file_associated_entities(node))
-        assert len(entities) == count
+        if cached_builder.is_file_indexed(node):
+            entities = list(cached_builder.get_file_associated_entities(node))
+            assert len(entities) == count

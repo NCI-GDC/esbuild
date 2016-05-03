@@ -1381,12 +1381,19 @@ class GraphIndexBuilder(object):
         if node.label not in self.file_labels:
             return True
 
+        # Remove files with no acl entries
+        if len(node.acl) == 0:
+            log.info('File not indexed (empty acl): %s', node)
+            return False
+
         # Skip old versions of supplement xmls
         if self.is_old_supplement_file(node):
+            log.info('File not indexed (deprecated supplement): %s', node)
             return False
 
         # Skip old representation of harmonized files
         if self.is_harmonized_file(node):
+            log.info('File not indexed (deprecated harmonized file): %s', node)
             return False
 
         # Is file to_delete
@@ -1395,6 +1402,7 @@ class GraphIndexBuilder(object):
 
         # Is file not live
         if node.state not in ['live', 'submitted']:
+            log.info('File not indexed (bad state: %s): %s', node, node.state)
             return False
 
         return True
