@@ -82,11 +82,6 @@ class ActiveESMapper(ESMapper):
         case = Dict(super(ActiveESMapper, ActiveESMapper)
                     .get_case_es_mapping(*args, **kwargs))
 
-        files = case.properties.files
-
-        # This is unecessary for searching cases
-        files.properties.analysis.properties.pop('metadata', None)
-
         return case.to_dict()
 
 
