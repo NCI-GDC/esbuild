@@ -23,19 +23,25 @@ from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
     list_product,
     subtree_paths_to_file,
-    get_case_to_file_paths,
 )
 
 
 # ======================================================================
 # Fixtures
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='session')
 def index():
     builder = ActiveGraphIndexBuilder(_graph)
     builder.cache_database()
     index = builder.denormalize_all()
     return Index._make(index)
+
+
+@pytest.fixture
+def cached_builder(scope='session'):
+    builder = ActiveGraphIndexBuilder(_graph)
+    builder.cache_database()
+    return builder
 
 
 @pytest.fixture()
@@ -145,8 +151,8 @@ def test_subtree_paths_to_file_expecting_empty():
     ['case', 'sample', 'portion', 'analyte', 'aliquot'],
     ['case', 'sample', 'aliquot'],
 ])
-def test_get_case_to_file_paths_is_absent(path):
-    assert path not in get_case_to_file_paths()
+def test_case_to_file_paths_is_absent(path):
+    assert path not in ActiveGraphIndexBuilder.case_to_file_paths
 
 
 @pytest.mark.parametrize('doc_type,path', [
@@ -162,7 +168,7 @@ def test_path_is_absent(index, doc_type, path):
     'sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads.alignment_workflow.aligned_reads',
 ])
 def test_get_case_to_file_path_is_present(path):
-    assert path.split('.') in get_case_to_file_paths()
+    assert path.split('.') in ActiveGraphIndexBuilder.case_to_file_paths
 
 
 @pytest.mark.parametrize('prefix', [
@@ -176,7 +182,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
         "aligned_reads",
         "somatic_mutation_calling_workflow",
         "simple_somatic_mutation",
-    ] in get_case_to_file_paths()
+    ] in ActiveGraphIndexBuilder.case_to_file_paths
 
 
 @pytest.mark.parametrize('doc_type,path,count', [
@@ -193,6 +199,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
+    ('files', '[*].associated_entities', 5),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -220,6 +227,8 @@ def test_path_count(index, doc_type, path, count):
      1, {10}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
+    ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
+     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
@@ -296,3 +305,41 @@ def test_case_summary_file_counts(index):
             if f['cases'][0]['case_id'] == case['case_id']
         ])
         assert actual_count == case['summary']['file_count']
+
+
+@pytest.mark.parametrize('label,path', [
+    ('submitted_aligned_reads', ['read_group']),
+    ('aligned_reads', ['alignment_workflow', 'submitted_aligned_reads', 'read_group']),
+])
+def test_file_to_read_group_paths(label, path):
+    assert path in ActiveGraphIndexBuilder.file_to_read_group_paths[label]
+
+
+def test_get_file_read_groups(graph, index):
+    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
+    assert not [d for d in index.files if d['file_id'] in f_ids]
+
+
+@pytest.mark.parametrize('cls,count', [
+    (md.AlignmentWorkflow, 1),
+    (md.SomaticMutationCallingWorkflow, 1),
+])
+def test_get_analysis_read_groups(graph, cached_builder, cls, count):
+    for workflow in graph.nodes(cls).all():
+        read_groups = list(cached_builder.get_analysis_read_groups(workflow))
+        assert len(read_groups) == count
+        for read_group in read_groups:
+            assert read_group.label == 'read_group'
+
+
+@pytest.mark.parametrize('cls,count', [
+    (md.AlignedReads, 1),
+    (md.CopyNumberSegment, 1),
+    (md.RunMetadata, 1),
+    (md.ExperimentMetadata, 1),
+])
+def test_get_file_associated_entities(graph, cached_builder, cls, count):
+    for node in graph.nodes(cls).all():
+        if cached_builder.is_file_indexed(node):
+            entities = list(cached_builder.get_file_associated_entities(node))
+            assert len(entities) == count
