@@ -331,6 +331,4 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             entity for entity in self.walk_paths(node, cnv_paths)
         ]
 
-        print('ASSOCIATED', node, entities)
-
         return list(set(entities))
