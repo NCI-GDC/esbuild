@@ -469,9 +469,8 @@ class GraphIndexBuilder(object):
 
         # Take any out of place nodes and put then in correct place in tree
         self.reconstruct_biospecimen_paths(case)
-        # Get the metadatafiles that generated the case
-        case['metadata_files'] = self.get_metadata_files(node)
 
+        # Get the case's project
         self.patch_project(case['project'])
         project = case['project']
 
@@ -598,19 +597,6 @@ class GraphIndexBuilder(object):
                     if aliquot['aliquot_id'] not in correct_aliquots:
                         portion['analytes'].append([{
                             'aliquots': [aliquot]}])
-
-    def get_metadata_files(self, case):
-        """Return the biospecimen.xml and clinical.xml files that contain a
-        cases biospecimen and clinical information.
-
-        """
-
-        neighbors = self.G[case]
-        files = []
-        for n in neighbors:
-            if self.G[case][n].get('label', None) == 'describes':
-                files.append(self._get_base_doc(n))
-        return files
 
     def patch_project(self, project_doc):
         code = project_doc.pop('code')
