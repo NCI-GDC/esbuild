@@ -25,11 +25,10 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 
-
 # ======================================================================
 # Fixtures
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def index():
     builder = ActiveGraphIndexBuilder(_graph)
     builder.cache_database()
@@ -38,7 +37,7 @@ def index():
 
 
 @pytest.fixture
-def cached_builder(scope='session'):
+def cached_builder(scope='module'):
     builder = ActiveGraphIndexBuilder(_graph)
     builder.cache_database()
     return builder
@@ -345,3 +344,29 @@ def test_get_file_associated_entities(graph, cached_builder, cls, count):
         if cached_builder.is_file_indexed(node):
             entities = list(cached_builder.get_file_associated_entities(node))
             assert len(entities) == count
+
+
+@pytest.mark.parametrize('cls,count', [
+    (md.BiospecimenSupplement, 0),
+    (md.ClinicalSupplement, 0),
+], scope='module')
+def test_add_related_files(graph, cached_builder, cls, count):
+    for node in graph.nodes(cls).all():
+        if cached_builder.is_file_indexed(node):
+            doc = {}
+            cached_builder.add_related_files(node, doc)
+            assert len(doc.get('metadata_files', [])) == count
+
+
+@pytest.mark.parametrize('cls,has_archive', [
+    (md.BiospecimenSupplement, True),
+    (md.ClinicalSupplement, True),
+    (md.AlignedReads, False),
+    (md.CopyNumberSegment, False),
+], scope='module')
+def test_add_archive(graph, cached_builder, cls, has_archive):
+    for node in graph.nodes(cls).all():
+        if cached_builder.is_file_indexed(node):
+            doc = {}
+            cached_builder.add_archives(node, doc)
+            assert ('archive' in doc) == has_archive
