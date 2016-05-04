@@ -195,12 +195,12 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
-    ('files', '[*].(file_size | file_name | file_id)', 5 * 3),  # there should be 5 files
+    ('files', '[*].(file_size | file_name | file_id)', 7 * 3),  # there should be 7 files
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
-    ('files', '[*].associated_entities', 5),
+    ('files', '[*].associated_entities', 7),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -209,7 +209,7 @@ def test_path_count(index, doc_type, path, count):
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1}),
+     5, {1, 3}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
      5, {'Simple Nucleotide Variation',
          'Sequencing Data',
@@ -217,7 +217,7 @@ def test_path_count(index, doc_type, path, count):
          'Clinical',
          'Copy Number Variation'}),
     ('cases', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1}),
+     5, {1, 3}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -229,21 +229,22 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
+     4, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
-     1, {'Sequencing Data'}),
+     3, {'Sequencing Data', 'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
-     1, {'Simple Nucleotide Variation'}),
+     3, {'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
-     1, {'submitted'}),
+     3, {'submitted'}),
     ('files', '[*].type.[*]',
-     5, {'simple_somatic_mutation',
+     7, {'simple_somatic_mutation',
          'aligned_reads',
          'biospecimen_supplement',
          'clinical_supplement',
-         'copy_number_segment'}),
+         'copy_number_segment',
+         'annotated_somatic_mutation'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
