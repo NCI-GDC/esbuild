@@ -96,6 +96,7 @@ def test_mapping_contains(mappings, mapping, path):
     ('file', 'properties.project_id'),
     ('file', 'properties.cases.properties.samples.properties.project_id'),
     ('case', 'properties.project_id'),
+    ('case', 'properties.metadata_files'),
     ('case', 'properties.samples.properties.aliquots'),
     ('case', 'properties.samples.properties.portions.properties.project_id'),
     ('annotation', 'properties.creator'),
@@ -188,6 +189,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 @pytest.mark.parametrize('doc_type,path,count', [
     ('cases', '[*].project.project_id', 1),
     ('cases', '[*].project_id', 0),
+    ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
     ('cases', '[*].samples.[*].sample_id', 2),

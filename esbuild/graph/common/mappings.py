@@ -498,16 +498,6 @@ class ESMapper(object):
         # Patch case mutlifields
         cls.add_multifields(case, 'case')
 
-        # Metadata files
-        case.properties.metadata_files = cls.nested('file')
-        #   data_type is renamed data_category, viz.
-        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        case.properties.metadata_files.properties.data_category = STRING
-        #   data_subtype is renamed data_type, viz.
-        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        case.properties.metadata_files.properties.data_type = STRING
-        case.properties.metadata_files.properties.acl = STRING
-
         # Add top level id aggregation
         for label in cls.top_level_ids:
             case.properties['{}_ids'.format(label)] = STRING
