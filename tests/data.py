@@ -49,6 +49,28 @@ def fuzzed(node_class, node_id=None, **kwargs):
 
 NODES = [
     fuzzed(
+        AnnotatedSomaticMutation,
+        node_id='annotated_somatic_mutation_1',
+        acl=['phs000178'],
+        state='submitted',
+    ),
+    fuzzed(
+        SomaticAnnotationWorkflow,
+        node_id='somatic_annotation_workflow_1',
+        state='submitted',
+    ),
+    fuzzed(
+        SimpleSomaticMutation,
+        node_id='simple_somatic_mutation_1',
+        acl=['phs000178'],
+        state='submitted',
+    ),
+    fuzzed(
+        SomaticMutationCallingWorkflow,
+        node_id='somatic_mutation_calling_workflow_1',
+        state='submitted',
+    ),
+    fuzzed(
         SubmittedTangentCopyNumber,
         node_id='cnv-file-1',
         acl=['phs000178'],
@@ -756,6 +778,22 @@ NODES = [
 
 
 EDGES = [
+    AnnotatedSomaticMutationDataFromSomaticAnnotationWorkflow(
+        src_id='annotated_somatic_mutation_1',
+        dst_id='somatic_annotation_workflow_1',
+    ),
+    SomaticAnnotationWorkflowPerformedOnSimpleSomaticMutation(
+        src_id='somatic_annotation_workflow_1',
+        dst_id='simple_somatic_mutation_1',
+    ),
+    SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
+        src_id='simple_somatic_mutation_1',
+        dst_id='somatic_mutation_calling_workflow_1',
+    ),
+    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+        src_id='somatic_mutation_calling_workflow_1',
+        dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
+    ),
     FileDescribesCase(
         src_id='old-biospecimen-supplement-xml',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
