@@ -213,6 +213,9 @@ class GraphIndexBuilder(object):
             ('TCGA', 'DEV1'),
             ('TCGA', 'DEV2'),
             ('TCGA', 'DEV3'),
+            ('TCGA', 'FPPP'),
+            ('GDC', 'INTERNAL'),
+            ('UAT08', 'BROAD-BCR'),
         }
 
         # The body of these nested documents will be flattened into
@@ -469,9 +472,8 @@ class GraphIndexBuilder(object):
 
         # Take any out of place nodes and put then in correct place in tree
         self.reconstruct_biospecimen_paths(case)
-        # Get the metadatafiles that generated the case
-        case['metadata_files'] = self.get_metadata_files(node)
 
+        # Get the case's project
         self.patch_project(case['project'])
         project = case['project']
 
@@ -598,19 +600,6 @@ class GraphIndexBuilder(object):
                     if aliquot['aliquot_id'] not in correct_aliquots:
                         portion['analytes'].append([{
                             'aliquots': [aliquot]}])
-
-    def get_metadata_files(self, case):
-        """Return the biospecimen.xml and clinical.xml files that contain a
-        cases biospecimen and clinical information.
-
-        """
-
-        neighbors = self.G[case]
-        files = []
-        for n in neighbors:
-            if self.G[case][n].get('label', None) == 'describes':
-                files.append(self._get_base_doc(n))
-        return files
 
     def patch_project(self, project_doc):
         code = project_doc.pop('code')
@@ -835,16 +824,21 @@ class GraphIndexBuilder(object):
 
             rf_docs.append(rf_doc)
 
-        for archive in set(self.neighbors_labeled(node, 'archive')):
-            if self.G[node][archive].get('label') != 'member_of':
-                name = '{}.{}.0.tar.gz'.format(
-                    archive['submitter_id'], archive['revision'])
-                rf_docs.append({
-                    'file_id': archive.node_id,
-                    'file_name': name,
-                    'type': 'magetab',
-                    'access': 'open',
-                })
+        # Legacy files have two different types of relationships to
+        # file, one that is `member_of` (which goes into
+        # file.archives) and one that is `related_to` (which goes
+        # here).  For now, we don't do this for non-legacy files.
+        if node.label == 'file':
+            for archive in set(self.neighbors_labeled(node, 'archive')):
+                if self.G[node][archive].get('label') != 'member_of':
+                    name = '{}.{}.0.tar.gz'.format(
+                        archive['submitter_id'], archive['revision'])
+                    rf_docs.append({
+                        'file_id': archive.node_id,
+                        'file_name': name,
+                        'type': 'magetab',
+                        'access': 'open',
+                    })
 
         if rf_docs:
             # related_files is renamed metadata_files,
@@ -859,7 +853,19 @@ class GraphIndexBuilder(object):
         """
 
         for archive in set(self.neighbors_labeled(node, 'archive')):
-            if self.G[node][archive].get('label') == 'member_of':
+            if 'archive' in doc:
+                return self.warning(
+                    "Duplicate archives for {}".format(node),
+                    ("File {} has more than archive.".format(node)),
+                    tags=["file_id:{}".format(node.node_id)],
+                )
+
+            is_skipped_legacy_edge = (
+                node.label == 'file' and
+                self.G[node][archive].get('label') == 'member_of'
+            )
+
+            if not is_skipped_legacy_edge:
                 doc['archive'] = self._get_base_doc(archive)
 
     def add_data_category(self, node, doc):
