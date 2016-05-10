@@ -200,7 +200,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
-    ('files', '[*].associated_entities', 5),
+    ('files', '[*].associated_entities.[*].entity_type', 5),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -370,3 +370,10 @@ def test_add_archive(graph, cached_builder, cls, has_archive):
             doc = {}
             cached_builder.add_archives(node, doc)
             assert ('archive' in doc) == has_archive
+
+
+def test_aligned_reads_associated_entities(graph, index):
+    aligned_reads_docs = [f for f in index.files if f['type'] == 'aligned_reads']
+    assert aligned_reads_docs
+    for f in aligned_reads_docs:
+        assert len(f['associated_entities']) == 1
