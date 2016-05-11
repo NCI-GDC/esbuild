@@ -211,14 +211,10 @@ NODES = [
         state_comment='qi8sh3',
         submitter_id='280msb',
     ),
-    AlignmentWorkflow(
+    AlignmentCocleaningWorkflow(
         node_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
         acl=['phs000178'],
-        project_id='b7ghsa',
         state='submitted',
-        submitter_id='jstzk2',
-        workflow_link='fsnt4s',
-        workflow_type='STAR 2-Pass'
     ),
     SubmittedAlignedReads(
         node_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
@@ -291,6 +287,10 @@ NODES = [
         target_capture_kit_vendor='es6bwd',
         target_capture_kit_version='nuoood',
         to_trim_adapter_sequence=False,
+    ),
+    ReadGroup(
+        node_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
+        project_id='TCGA-BRCA',
     ),
     Clinical(
         node_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
@@ -870,29 +870,37 @@ EDGES = [
         src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
+    ReadGroupDerivedFromAliquot(
+        src_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
+        dst_id='2708315c-d58a-42d7-a914-d6299aa74936',
+    ),
     SubmittedAlignedReadsDataFromReadGroup(
         src_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
         dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
     ),
     SubmittedAlignedReadsDataFromReadGroup(
         src_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
-        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+        dst_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
     ),
-    AlignmentWorkflowPerformedOnSubmittedAlignedReads(
+    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
         src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
         dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
     ),
-    AlignmentWorkflowPerformedOnSubmittedAlignedReads(
+    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
         src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
         dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
     ),
-    AlignedReadsDataFromAlignmentWorkflow(
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id='a819133c-65c4-438c-93ae-a04e24e82626',
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
-    AlignedReadsDataFromAlignmentWorkflow(
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id='active-file-with-empty-acl',
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsMatchedToSubmittedAlignedReads(
+        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
     ),
     ExposureDescribesCase(
         src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',

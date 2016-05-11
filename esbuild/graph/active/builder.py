@@ -6,7 +6,7 @@ Defines :class:`ActiveGraphIndexBuilder` for building the graph index
 for Active projects.
 
 Strategy to add analysis and file types:
-o
+
 - An attempt to balance abstraction by creating the traversals from a
 known point to limit wandering through the graph.  Currently the
 subgraph that includes active data_file and analysis nodes is isolated
@@ -266,11 +266,40 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     def get_file_read_groups(self, node):
         """Given a data_file node, traverse up the tree to read_groups
 
+        .. note::
+            Skip any paths that traverse through nodes in
+            ``exclude_paths_through``.
+
+            In the index, AlignedReads were associated with two
+            aliquots because they go through the Alignment Cocleaning
+            Workflow. However, they should have edges directly back to
+            a single SubmittedAlignedReads that goes back to a single
+            aliquot. They should only be associated with this aliquot.
+
+            The impact is that the user can not filter properly on the
+            sample types, e.g. tumor versus normal as it returns all
+            of the AlignedReads.
+
+            The solution applied here is to simply remove paths
+            through specific nodes and rely on the shortcut edges when
+            traversing to Read Groups.
+
+            See PGDC-2349 for details.
+
         :returns: set of read_groups
 
         """
 
-        paths = self.file_to_read_group_paths.get(node.label, [])
+        exclude_paths_through = {
+            'alignment_cocleaning_workflow',
+        }
+
+        paths = [
+            path
+            for path in self.file_to_read_group_paths.get(node.label, [])
+            if not exclude_paths_through.intersection(set(path))
+        ]
+
         return set(self.walk_paths(node, paths))
 
     def get_analysis_read_groups(self, node):
