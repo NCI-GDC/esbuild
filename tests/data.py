@@ -860,10 +860,10 @@ EDGES = [
         src_id='active-file-with-empty-acl',
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
-    # AlignedReadsMatchedToSubmittedAlignedReads(
-    #     src_id='a819133c-65c4-438c-93ae-a04e24e82626',
-    #     dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
-    # ),
+    AlignedReadsMatchedToSubmittedAlignedReads(
+        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+    ),
     ExposureDescribesCase(
         src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
