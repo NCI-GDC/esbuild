@@ -98,6 +98,16 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     file, this is an attempt not to hard code them.  See module doc.
     """
 
+
+    # Filter nodes out if their properties are a superset of any of
+    # the dictionaries listed here by label
+    unindexed_by_property = {
+        "annotation": [
+            {"status": "Rescinded"},
+        ],
+    }
+
+
     case_to_aliquot = [
         ['sample', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],

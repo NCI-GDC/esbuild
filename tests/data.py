@@ -639,6 +639,10 @@ NODES = [
         status="Approved",
         submitter_id="0000",
     ),
+    Annotation(
+        node_id='rescinded-annotation',
+        status="Rescinded",
+    ),
     fuzzed(
         SomaticMutationCallingWorkflow,
         node_id='somatic_mutation_calling_workflow_1',
@@ -820,6 +824,10 @@ EDGES = [
     ),
     AnnotationAnnotatesAliquot(
         src_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    AnnotationAnnotatesAliquot(
+        src_id='rescinded-annotation',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileMemberOfDataSubtype(
