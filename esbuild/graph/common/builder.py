@@ -1687,6 +1687,9 @@ class GraphIndexBuilder(object):
 
             paths = self.file_to_case_paths + [
                 p[1:] for p in self.file_to_case_paths if p[0] == e.label
+            ] + [
+                ['analyte', 'portion', 'sample', 'case'],
+                ['sample', 'case'],
             ]
             cases = self.walk_paths(e, paths)
 
