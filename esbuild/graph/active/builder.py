@@ -331,7 +331,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         """
 
         doc = self._get_base_doc(node)
+
         self.add_data_category(node, doc)
+        self.add_file_access(node, doc)
+
         doc['data_format'] = self.get_data_format(node)
 
         for dst in self.neighbors_labeled(node, 'data_subtype'):
