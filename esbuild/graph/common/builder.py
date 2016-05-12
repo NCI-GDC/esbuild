@@ -137,6 +137,12 @@ class GraphIndexBuilder(object):
         }
     }
 
+    # Filter nodes out if their properties are a superset of any of
+    # the dictionaries listed here by label
+    unindexed_by_property = {
+        # "label": [{"key1": "value1", "key2": "value2"}]
+    }
+
     required_attrs = [
         'mapper',
         'case_to_file_paths',
@@ -1447,6 +1453,23 @@ class GraphIndexBuilder(object):
             and not list(self.neighbors_labeled(node, 'project', 1))
         )
 
+    def is_node_unindexed_by_property(self, node):
+        """Returns True if node should be removed because its properties are
+        specified in self.unindexed_by_property as an indication to
+        remove it from the index.
+
+        """
+
+        filters = self.unindexed_by_property.get(node.label, [])
+
+        for filter_ in filters:
+            is_subset = not set(filter_.items()) - set(node._props.items())
+
+            if is_subset:
+                return True
+
+        return False
+
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
 
@@ -1457,8 +1480,13 @@ class GraphIndexBuilder(object):
             return False
 
         # Check for non-indexed files
-        elif not self.is_file_indexed(node):
+        if not self.is_file_indexed(node):
             log.info('Node not indexed (file not indexed): {}'.format(node))
+            return False
+
+        # Check for non-indexed files
+        if self.is_node_unindexed_by_property(node):
+            log.info('Node not indexed (not by property): {}'.format(node))
             return False
 
         # Check for omitted_projects

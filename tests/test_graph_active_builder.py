@@ -200,6 +200,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
+    ('annotations', '[*].annotation_id', 1),
     ('files', '[*].associated_entities.[*].entity_type', 7),
 ])
 def test_path_count(index, doc_type, path, count):
