@@ -79,6 +79,7 @@ def mappings():
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
     ('case', '_meta.descriptions'),
+    ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
     ('case', 'properties.submitter_id.fields.analyzed.index'),
     ('project', 'properties.name.fields.analyzed.index'),
     ('project', '_meta.descriptions'),
