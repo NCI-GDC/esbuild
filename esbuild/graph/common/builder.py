@@ -820,11 +820,8 @@ class GraphIndexBuilder(object):
             else:
                 rf_doc['type'] = None
 
-            # ACL
-            if related_file.acl == ["open"]:
-                rf_doc['access'] = 'open'
-            else:
-                rf_doc['access'] = 'controlled'
+            # Access
+            self.add_file_access(related_file, rf_doc)
 
             rf_doc['data_format'] = self.get_data_format(related_file)
 
@@ -927,11 +924,19 @@ class GraphIndexBuilder(object):
 
         """
 
+        self.add_file_access(node, doc)
+        doc['acl'] = node.acl
+
+    def add_file_access(self, node, doc):
+        """Summarizes whether the ACL implies that the file is either ``open``
+        or ``controlled``
+
+        """
+
         if node.acl == ['open']:
             doc['access'] = 'open'
         else:
             doc['access'] = 'controlled'
-        doc['acl'] = node.acl
 
     def get_file_associated_entities(self, node):
         """Returns a list of entities that are 'associated' with a file"""

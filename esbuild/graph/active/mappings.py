@@ -40,6 +40,7 @@ class ActiveESMapper(ESMapper):
         file_base_props = cls.multifield('file_id')
         file_base_props.update(cls.get_properties_by_category('index_file'))
         file_base_props.update(cls.get_properties_by_category('data_file'))
+        file_base_props.access = STRING
 
         # Update file properties to allow props from all file types
         cls.update_no_overwrite(files.properties, file_base_props)
@@ -51,6 +52,7 @@ class ActiveESMapper(ESMapper):
         input_files = Dict()
         input_files.type = 'nested'
         cls.update_no_overwrite(input_files.properties, file_base_props)
+        input_files.properties.access = STRING
         output_files = Dict(deepcopy(input_files.to_dict()))
 
         # Analysis
