@@ -64,7 +64,9 @@ class ActiveESMapper(ESMapper):
 
         # Metadata
         metadata = Dict()
-        metadata.properties.read_groups = cls.nested('read_group')
+        read_groups = cls.nested('read_group')
+        read_groups.properties.read_group_qcs = cls.nested('read_group_qc')
+        metadata.properties.read_groups = read_groups
         analysis.properties.metadata = metadata
 
         # Downstream analysis
