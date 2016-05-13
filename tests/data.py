@@ -1,5 +1,8 @@
-"""This is the fixture data from a sample biospecemin XML, just
-represented in a way that can be persisted without using xml2psqlgraph.
+"""
+Test data that contains a mix of legacy and active files for the
+builders to build indices from.  All new test data should go here to
+verify that the both builders handle it correctly, as they both pull
+from the same database in the real world.
 
 """
 
@@ -250,6 +253,18 @@ NODES = [
         state_comment='tl16c3',
         submitter_id='submitted_aligned_reads2',
     ),
+    SubmittedAlignedReads(
+        node_id='submitted-aligned-reads-without-downstream',
+        acl=['phs000178'],
+    ),
+    fuzzed(
+        ReadGroupQc,
+        node_id='read-group-qc-1',
+    ),
+    fuzzed(
+        ReadGroup,
+        node_id='read-group-without-downstream',
+    ),
     ReadGroup(
         node_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         RIN=6610844,
@@ -471,7 +486,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01D-A134-01',
     ),
     Aliquot(
-        node_id='c7976361-e689-44f1-9e5a-2a07064f2f95',
+        node_id='aliquot-without-downstream',
         project_id='TCGA-BRCA',
         state='submitted',
         amount=6.67,
@@ -642,6 +657,9 @@ NODES = [
     Annotation(
         node_id='rescinded-annotation',
         status="Rescinded",
+    ),
+    Annotation(
+        node_id='annotation-without-downstream',
     ),
     fuzzed(
         SomaticMutationCallingWorkflow,
@@ -827,6 +845,14 @@ EDGES = [
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     AnnotationAnnotatesAliquot(
+        src_id='annotation-without-downstream',
+        dst_id='aliquot-without-downstream',
+    ),
+    AnnotationAnnotatesAliquot(
+        src_id='annotation-without-downstream',
+        dst_id='aliquot-without-downstream',
+    ),
+    AnnotationAnnotatesAliquot(
         src_id='rescinded-annotation',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
@@ -877,6 +903,14 @@ EDGES = [
     ReadGroupDerivedFromAliquot(
         src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    ReadGroupDerivedFromAliquot(
+        src_id='read-group-without-downstream',
+        dst_id='aliquot-without-downstream',
+    ),
+    SubmittedAlignedReadsDataFromReadGroup(
+        src_id='submitted-aligned-reads-without-downstream',
+        dst_id='read-group-without-downstream',
     ),
     ReadGroupDerivedFromAliquot(
         src_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
@@ -1062,7 +1096,7 @@ EDGES = [
         dst_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
         properties={}),
     AliquotDerivedFromSample(
-        src_id='c7976361-e689-44f1-9e5a-2a07064f2f95',
+        src_id='aliquot-without-downstream',
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AliquotDerivedFromSample(
@@ -1070,7 +1104,7 @@ EDGES = [
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AliquotDerivedFromAnalyte(
-        src_id='c7976361-e689-44f1-9e5a-2a07064f2f95',
+        src_id='aliquot-without-downstream',
         dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         properties={}),
     AliquotDerivedFromSample(
@@ -1106,7 +1140,7 @@ EDGES = [
         dst_id='40407260-e805-4c2e-b2a7-13862bc5e494',
         properties={}),
     AliquotShippedToCenter(
-        src_id='c7976361-e689-44f1-9e5a-2a07064f2f95',
+        src_id='aliquot-without-downstream',
         dst_id='5069ce55-a23f-57c4-a28c-70a3c3cb0e4c',
         properties={'plate_column': '5',
                     'plate_id': 'A134',
