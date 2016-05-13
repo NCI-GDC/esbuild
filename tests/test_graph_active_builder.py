@@ -233,6 +233,8 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      5, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
+    ('files', 'analysis.[*].metadata.[*].read_groups.[*].read_group_qc.[*].read_group_qc_id',
+     1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
