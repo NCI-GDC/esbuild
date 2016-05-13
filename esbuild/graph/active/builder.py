@@ -152,7 +152,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         self.add_file_analysis(node, doc)
         self.add_file_downstream_analyses(node, doc)
-
         return doc
 
     def get_file_index_files(self, node):
@@ -266,12 +265,31 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
+        read_group_docs = []
         read_groups = self.get_analysis_read_groups(node)
-        if read_groups:
-            doc['read_groups'] = [
-                self._get_base_doc(rg)
-                for rg in read_groups
-            ]
+
+        for read_group in read_groups:
+            read_group_doc = self._get_base_doc(read_group)
+
+            read_group_qc_docs = self.get_read_group_qc_docs(read_group)
+            if read_group_qc_docs:
+                read_group_doc['read_group_qcs'] = read_group_qc_docs
+
+            read_group_docs.append(read_group_doc)
+
+
+        if read_group_docs:
+            doc['read_groups'] = read_group_docs
+
+    def get_read_group_qc_docs(self, read_group):
+        """Returns a list of documents for Read Group QCs"""
+
+        read_group_qc_docs = []
+        rg_qcs = self.neighbors_labeled(read_group, 'read_group_qc')
+        for read_group_qc in rg_qcs:
+            read_group_qc_docs.append(self._get_base_doc(read_group_qc))
+
+        return read_group_qc_docs
 
     def get_file_read_groups(self, node):
         """Given a data_file node, traverse up the tree to read_groups

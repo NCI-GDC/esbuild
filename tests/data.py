@@ -900,6 +900,10 @@ EDGES = [
         src_id='related-file',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
+    ReadGroupQcGeneratedFromReadGroup(
+        src_id='read-group-qc-1',
+        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+    ),
     ReadGroupDerivedFromAliquot(
         src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
