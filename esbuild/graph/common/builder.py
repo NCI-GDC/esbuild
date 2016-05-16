@@ -137,6 +137,12 @@ class GraphIndexBuilder(object):
         }
     }
 
+    # Filter nodes out if their properties are a superset of any of
+    # the dictionaries listed here by label
+    unindexed_by_property = {
+        # "label": [{"key1": "value1", "key2": "value2"}]
+    }
+
     required_attrs = [
         'mapper',
         'case_to_file_paths',
@@ -444,6 +450,67 @@ class GraphIndexBuilder(object):
             if not self.is_node_hidden(node)
         }
 
+    def get_case_files(self, node):
+        """Return a list of file nodes by walking out from case"""
+
+        files = self.walk_paths(node, self.case_to_file_paths)
+        files = self.remove_bam_index_files(files)
+        files = self.remove_hidden_nodes(files)
+
+        return files
+
+    def get_case_tree(self, node):
+        """Use tree to create nested json
+
+        :returns: doc, ptree, visited_ids
+
+        """
+        ptree = self.get_case_ptree(node)
+        visited_ids = defaultdict(list)
+        doc = self.walk_tree(
+            node,
+            ptree,
+            self.ptree_mapping,
+            [],
+            ids=visited_ids
+        )[0]
+
+        # Inject a dictionary of ids for each visited entity (in
+        # TOP_LEVEL_IDS)
+        doc.update(visited_ids)
+
+        return doc, ptree, visited_ids
+
+    def get_relevant_ids(self, node, visited_ids):
+        """Create a flattened copy of visited_ids to filter relevant
+        annotations by entity id
+
+        """
+
+        return [
+            _entity_id
+            for _entity_type in visited_ids.itervalues()
+            for _entity_id in _entity_type
+        ] + [node.node_id]
+
+    def get_case_ptree(self, node):
+        """Walk graph naturally for tree of node objects"""
+
+        return {node: self.create_tree(node, self.ptree_mapping, {})}
+
+    def get_relevant_annotations(self, case_doc, relevant_ids):
+        """Return a flat list of annotations who describe entities in
+        :param:`relevant_ids`
+
+        """
+
+        return [
+            annotation
+            for file_ in case_doc['files']
+            for annotation in file_.get('annotations', [])
+            if annotation['entity_id'] in relevant_ids
+        ]
+
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
@@ -451,21 +518,12 @@ class GraphIndexBuilder(object):
 
         """
 
-        # Walk graph naturally for tree of node objects
-        ptree = {node: self.create_tree(node, self.ptree_mapping, {})}
+        # Walk from case to leaves (not files) and create a case doc,
+        # a participant tree, and a list of visited ids
+        case, ptree, visited_ids = self.get_case_tree(node)
 
-        # Use tree to create nested json
-        visited_ids = defaultdict(list)
-        case = self.walk_tree(
-            node, ptree, self.ptree_mapping, [], ids=visited_ids)[0]
-
-        # Inject a dictionary of ids for each visited entity (in TOP_LEVEL_IDS)
-        case.update(visited_ids)
-
-        # Walk from case to all file leaves
-        files = self.remove_hidden_nodes(
-            self.remove_bam_index_files(
-                self.walk_paths(node, self.case_to_file_paths)))
+        # Get the file nodes related to the case
+        files = self.get_case_files(node)
 
         # Create case summary
         case['summary'] = self.get_case_summary(node, files)
@@ -474,50 +532,65 @@ class GraphIndexBuilder(object):
         self.reconstruct_biospecimen_paths(case)
 
         # Get the case's project
-        self.patch_project(case['project'])
-        project = case['project']
+        project = self.patch_project(case['project'])
 
         # Denormalize the cases files
-        case['files'] = [
-            self.denormalize_file(f, ptree) for f in files
-        ]
+        case['files'] = self.get_case_file_docs(node, ptree, files)
 
-        # Add properties to all annotations
-        for a in [a for f in case['files'] for a in f.get('annotations', [])]:
-            a['case_id'] = node.node_id
+        # Flatten ids we visited in traversal to create a list of ids
+        # that are relevant to this case (including the case's id)
+        relevant_ids = self.get_relevant_ids(node, visited_ids)
 
-        # Create a flattened copy of visited_ids to filter relevant
-        # annotations by entity id
-        relevant_ids = [eid for etype in visited_ids.itervalues()
-                        for eid in etype] + [node.node_id]
+        # Pull out the annotations from the case
+        annotations = self.get_relevant_annotations(case, relevant_ids)
 
-        # Create copy of annotations and add properties
-        annotations = {
-            a['annotation_id']: copy(a)
-            for f in case['files']
-            for a in f.get('annotations', [])
-            if a['entity_id'] in relevant_ids
-        }
-        for a in annotations.itervalues():
-            a['project'] = project
-            a['case_id'] = node.node_id
-            a['case_submitter_id'] = node.submitter_id
+        # Set the annotation's case id in-place
+        for annotation in annotations:
+            annotation['case_id'] = node.node_id
 
-        # Copy the files with all cases
-        files = deepcopy(case['files'])
+        # Create copy of annotations to return and add properties
+        # (note: this is *not* in-place)
+        returned_annotations = map(copy, annotations)
+        self.patch_annotations(returned_annotations, node, project)
 
-        # Trim other cases from fiels
-        for f in case['files']:
-            f['cases'] = [
-                p for p in f['cases']
-                if p['case_id'] == node.node_id
-            ]
-            f.pop('annotations', None)
-            f.pop('associated_entities', None)
+        # Copy the files with all cases, do this because the nested
+        # version of each file is about to have its file['cases'] set
+        # to the current case, but we want to return a list of files
+        # *without* all but one case pruned form file['cases']
+        returned_files = deepcopy(case['files'])
 
+        self.patch_case_files(node, case)
         self.validate_case(node, case)
 
-        return case, files, annotations.values()
+        return case, returned_files, returned_annotations
+
+    def get_case_file_docs(self, node, ptree, files):
+        """Given a list of files, return a list of file docs"""
+
+        return [
+            self.denormalize_file(file_, ptree)
+            for file_ in files
+        ]
+
+    def patch_annotations(self, annotations, node, project):
+        """Add misc properties to annotations in-place"""
+
+        for annotation in annotations:
+            annotation['project'] = project
+            annotation['case_id'] = node.node_id
+            annotation['case_submitter_id'] = node.submitter_id
+
+    def patch_case_files(self, case, case_doc):
+        """Trim other cases from files in-place"""
+
+        for nested_file in case_doc['files']:
+            nested_file['cases'] = [
+                _case
+                for _case in nested_file['cases']
+                if _case['case_id'] == case.node_id
+            ]
+            nested_file.pop('annotations', None)
+            nested_file.pop('associated_entities', None)
 
     def get_exp_strats(self, files):
         """Get the set of experimental_strategies where intersection of the
@@ -606,6 +679,8 @@ class GraphIndexBuilder(object):
         program = project_doc['program']['name']
         project_id = '{}-{}'.format(program, code)
         project_doc['project_id'] = project_id
+
+        return project_doc
 
     ###################################################################
     #                       File denormalization
@@ -814,11 +889,8 @@ class GraphIndexBuilder(object):
             else:
                 rf_doc['type'] = None
 
-            # ACL
-            if related_file.acl == ["open"]:
-                rf_doc['access'] = 'open'
-            else:
-                rf_doc['access'] = 'controlled'
+            # Access
+            self.add_file_access(related_file, rf_doc)
 
             rf_doc['data_format'] = self.get_data_format(related_file)
 
@@ -921,11 +993,19 @@ class GraphIndexBuilder(object):
 
         """
 
+        self.add_file_access(node, doc)
+        doc['acl'] = node.acl
+
+    def add_file_access(self, node, doc):
+        """Summarizes whether the ACL implies that the file is either ``open``
+        or ``controlled``
+
+        """
+
         if node.acl == ['open']:
             doc['access'] = 'open'
         else:
             doc['access'] = 'controlled'
-        doc['acl'] = node.acl
 
     def get_file_associated_entities(self, node):
         """Returns a list of entities that are 'associated' with a file"""
@@ -1447,6 +1527,23 @@ class GraphIndexBuilder(object):
             and not list(self.neighbors_labeled(node, 'project', 1))
         )
 
+    def is_node_unindexed_by_property(self, node):
+        """Returns True if node should be removed because its properties are
+        specified in self.unindexed_by_property as an indication to
+        remove it from the index.
+
+        """
+
+        filters = self.unindexed_by_property.get(node.label, [])
+
+        for filter_ in filters:
+            is_subset = not set(filter_.items()) - set(node._props.items())
+
+            if is_subset:
+                return True
+
+        return False
+
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
 
@@ -1457,8 +1554,13 @@ class GraphIndexBuilder(object):
             return False
 
         # Check for non-indexed files
-        elif not self.is_file_indexed(node):
+        if not self.is_file_indexed(node):
             log.info('Node not indexed (file not indexed): {}'.format(node))
+            return False
+
+        # Check for non-indexed files
+        if self.is_node_unindexed_by_property(node):
+            log.info('Node not indexed (not by property): {}'.format(node))
             return False
 
         # Check for omitted_projects
@@ -1654,6 +1756,9 @@ class GraphIndexBuilder(object):
 
             paths = self.file_to_case_paths + [
                 p[1:] for p in self.file_to_case_paths if p[0] == e.label
+            ] + [
+                ['analyte', 'portion', 'sample', 'case'],
+                ['sample', 'case'],
             ]
             cases = self.walk_paths(e, paths)
 

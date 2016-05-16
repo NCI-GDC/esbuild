@@ -223,7 +223,7 @@ class ESMapper(object):
             return term.get('description', None)
 
     @classmethod
-    def get_descriptions_from_tree(cls, tree, root_name):
+    def get_descriptions_from_tree(cls, tree, root_name, path=''):
         """Given a tree (file, case, etc) recurively aggregate the
         descriptions
 
@@ -239,11 +239,11 @@ class ESMapper(object):
 
             # recur
             descriptions.update(cls.get_descriptions_from_tree(
-                tree[label], root_name))
+                tree[label], root_name, path + '.' + name))
 
             # add current level
             descriptions.update({
-                '{}.{}.{}'.format(root_name, name, prop):
+                '{}{}.{}.{}'.format(root_name, path, name, prop):
                 cls.get_prop_description(label, prop)
                 for prop in Node.get_subclass(label).__pg_properties__
             })
