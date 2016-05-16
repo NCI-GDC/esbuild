@@ -68,7 +68,7 @@ def test_annotation_case_submitter_id(graph):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
-    ('files', '[*].file_size', 4),
+    ('files', '[*].file_size', 5),
     ('files', '[*].associated_entities', 4),
     ('annotations', '[*].annotation_id', 2),
 ])
@@ -93,8 +93,8 @@ def test_path_is_absent(index, doc_type, path):
     ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['test_file.bam.bai'], 1),
-    ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement'], 4),
-    ('files', '[*].metadata_files.[*].data_format', ['SRA XML', None], 5),])
+    ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement'], 5),
+    ('files', '[*].metadata_files.[*].data_format', ['SRA XML', None], 5)])
 def test_path_value_in(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len([r.value for r in results]) == count
