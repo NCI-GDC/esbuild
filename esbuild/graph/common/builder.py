@@ -1583,6 +1583,9 @@ class GraphIndexBuilder(object):
         if node.label.startswith('submitted_'):
             return True
 
+        if node.label == 'archive':
+            return True
+
         return False
 
 
