@@ -28,6 +28,7 @@ from esbuild.graph.active.builder import (
 # ======================================================================
 # Fixtures
 
+
 @pytest.fixture(scope='module')
 def index():
     builder = ActiveGraphIndexBuilder(_graph)

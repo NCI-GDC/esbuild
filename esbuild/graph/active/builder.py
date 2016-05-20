@@ -107,7 +107,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ],
     }
 
-
     case_to_aliquot = [
         ['sample', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
@@ -140,6 +139,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         'data_file',
         'index_file',
     ])
+
+    # Do not create file docs for archives
+    file_labels.remove('archive')
 
     # Pre-calculate the paths to read_group from each type of file
     file_to_read_group_paths = {}
