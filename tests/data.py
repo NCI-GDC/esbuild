@@ -59,6 +59,8 @@ NODES = [
     ),
     fuzzed(
         Archive,
+        acl=['phs000178'],
+        state='submitted',
         node_id='archive_1',
     ),
     fuzzed(
