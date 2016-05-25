@@ -52,7 +52,15 @@ def fuzzed(node_class, node_id=None, **kwargs):
 
 NODES = [
     fuzzed(
+        File,
+        node_id='file-only-attached-to-archive-1',
+        acl=['phs0000178'],
+        state='submitted',
+    ),
+    fuzzed(
         Archive,
+        acl=['phs000178'],
+        state='submitted',
         node_id='archive_1',
     ),
     fuzzed(
@@ -831,6 +839,10 @@ EDGES = [
     ClinicalSupplementDerivedFromCase(
         src_id='clinical_supplement_1',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    FileMemberOfArchive(
+        src_id='file-only-attached-to-archive-1',
+        dst_id='archive_1',
     ),
     BiospecimenSupplementMemberOfArchive(
         src_id='biospecimen_supplement_1',
