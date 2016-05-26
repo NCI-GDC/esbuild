@@ -1588,7 +1588,6 @@ class GraphIndexBuilder(object):
 
         return False
 
-
     @staticmethod
     def truncate_path(path, label):
         """
