@@ -937,7 +937,7 @@ class GraphIndexBuilder(object):
 
             is_skipped_legacy_edge = (
                 node.label == 'file' and
-                self.G[node][archive].get('label') == 'member_of'
+                self.G[node][archive].get('label') != 'member_of'
             )
 
             if not is_skipped_legacy_edge:
