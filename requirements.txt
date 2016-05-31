@@ -1,3 +1,4 @@
+filechunkio==1.6
 progressbar==2.2
 addict==0.2.7
 networkx==1.10

@@ -4,16 +4,21 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
+from elasticsearch import Elasticsearch
 from psqlgraph import PsqlGraphDriver, Node, Edge
 
 import data
 import os
 import pytest
+import time
 
 Index = namedtuple('Index', 'cases, files, annotations, projects')
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
+
+ES_HOST = 'localhost'
+ES_PORT = 9200
 
 PG_HOST = 'localhost'
 PG_USER = 'test'
@@ -73,3 +78,40 @@ def graph():
         session.commit, session._commit = session.flush, session.commit
         yield _graph
         session.rollback()
+
+
+# ======================================================================
+# Elasticsearch test index
+
+
+@pytest.yield_fixture(scope='module')
+def test_index():
+    es = Elasticsearch(ES_HOST, port=ES_PORT)
+    index = 'test_index__'
+    doc_type = 'test'
+    docs = [{
+        'id': 'test-doc-1',
+        'value': 1,
+    }, {
+        'id': 'test-doc-2',
+        'value': 2,
+    }]
+
+    es.indices.create(index=index, ignore=400)
+    for doc in docs:
+        es.create(
+            index=index,
+            id=doc['id'],
+            doc_type=doc_type,
+            body=doc,
+            ignore=409,
+        )
+
+    while True:
+        count = es.count(index=index, doc_type=doc_type)['count']
+        if count == len(docs):
+            break
+        time.sleep(0.1)
+
+    yield es, index, doc_type, docs
+    es.indices.delete(index=index, ignore=400)
