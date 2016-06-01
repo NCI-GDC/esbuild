@@ -13,7 +13,8 @@ from collections import defaultdict
 from copy import copy, deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
-from psqlgraph import Node
+from psqlgraph import Node, Edge
+from sqlalchemy.orm import joinedload
 
 import itertools
 import logging
@@ -1680,6 +1681,21 @@ class GraphIndexBuilder(object):
         log.info("Removing %s suppressed nodes", len(suppressed))
         self.G.remove_nodes_from(suppressed)
 
+    def iter_database_edges(self):
+        """Returns an iterable of edges to load from the database.
+
+        Eagerly (with join) loads the source and destination of the edge.
+
+        """
+
+        return itertools.chain(*[
+            self.g.edges(subclass)
+            .options(joinedload(subclass.src))
+            .options(joinedload(subclass.dst))
+            .yield_per(int(1e5))
+            for subclass in Edge.__subclasses__()
+        ])
+
     def cache_database(self):
         """Load the database into memory and remember only edge labels that we
         will need to distinguish later.
@@ -1688,7 +1704,7 @@ class GraphIndexBuilder(object):
 
         with self.g.session_scope():
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
-            for e in self.g.edges().yield_per(int(1e5)):
+            for e in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = (triple in self.differentiated_edges)
