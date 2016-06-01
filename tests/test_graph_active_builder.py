@@ -136,7 +136,6 @@ def test_list_product(a, b, expected):
     (md.RnaExpressionWorkflow, ['gene_expression']),
     (md.ReadGroup, [
         "submitted_aligned_reads",
-        "alignment_cocleaning_workflow",
         "aligned_reads",
         "somatic_mutation_calling_workflow",
         "simple_somatic_mutation",
@@ -181,7 +180,6 @@ def test_get_case_to_file_path_is_present(path):
 def test_get_case_to_file_paths_contains_expected_path(prefix):
     assert prefix + [
         "submitted_aligned_reads",
-        "alignment_cocleaning_workflow",
         "aligned_reads",
         "somatic_mutation_calling_workflow",
         "simple_somatic_mutation",
@@ -233,8 +231,7 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     5, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-         'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
+     4, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      4, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -281,8 +278,9 @@ def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
 def test_aligned_reads_analysis_read_group(index, aligned_reads):
     for doc in aligned_reads:
         assert doc['analysis'].get('metadata')
-        assert doc['analysis']['metadata']['read_groups']
-        for rg in doc['analysis']['metadata']['read_groups']:
+        read_groups = doc['analysis']['metadata']['read_groups']
+        assert len(read_groups) == 1
+        for rg in read_groups:
             assert rg['read_group_id']
 
 
@@ -385,7 +383,10 @@ def test_add_archive(graph, cached_builder, cls, has_archive):
 
 
 def test_aligned_reads_associated_entities(graph, index):
-    aligned_reads_docs = [f for f in index.files if f['type'] == 'aligned_reads']
+    aligned_reads_docs = [
+        f for f in index.files
+        if f['type'] == 'aligned_reads'
+    ]
     assert aligned_reads_docs
     for f in aligned_reads_docs:
         assert len(f['associated_entities']) == 1
