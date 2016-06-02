@@ -420,6 +420,7 @@ class GraphIndexBuilder(object):
             for neighbor in self.neighbors_labeled(node, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
                     yield neighbor
+
                 for n in self.walk_path(neighbor, path[1:], whole):
                     yield n
 
@@ -429,9 +430,12 @@ class GraphIndexBuilder(object):
 
         """
 
-        return {n for n in itertools.chain(
-            *[self.walk_path(node, path, whole=whole)
-              for path in paths])}
+        return {
+            n for n in itertools.chain(*[
+                self.walk_path(node, path, whole=whole)
+                for path in paths
+            ])
+        }
 
     def remove_bam_index_files(self, files):
         return {f for f in files if not f['file_name'].endswith('.bai')}
@@ -759,6 +763,17 @@ class GraphIndexBuilder(object):
     def prune_case(self, relevant_nodes, ptree, keys):
         """Start with whole case tree and remove any nodes that did not
         contribute the the creation of this file.
+
+        .. note:: :param:`ptree` is edited **in place*
+
+        :param relevant_nodes:
+            The ancestors that should not be pruned from the tree
+            (most likely self.relevant_nodes[some_file])
+        :param ptree:
+            The canonical ptree dict tree containing a the descendents
+            of a case
+        :param keys:
+           Only prune a given node ``node`` if ``node.label`` in keys
 
         """
         for node in ptree.keys():
@@ -1751,16 +1766,22 @@ class GraphIndexBuilder(object):
         self._cache_projects()
 
     def _cache_projects(self):
+        """Save a list of all Project nodes"""
+
         if not self.projects:
             log.info('Caching projects...')
             self.projects = list(self.nodes_labeled('project'))
 
     def _cache_cases(self):
+        """Save a list of all Case nodes"""
+
         if not self.cases:
             log.info('Caching cases...')
             self.cases = list(self.nodes_labeled('case'))
 
     def _cache_entity_cases(self):
+        """Cache the related Case nodes for each file"""
+
         if self.entity_cases:
             return
 
@@ -1797,7 +1818,26 @@ class GraphIndexBuilder(object):
             pbar.update(pbar.currval+1)
         pbar.finish()
 
+    def get_cls_file_to_case_paths(self, cls):
+        """Given a node, return the paths the lead monotonically up to case"""
+
+        parent_labels = {
+            link['dst_type'].label
+            for link in cls._pg_links.values()
+        }
+        return (
+            path
+            for path in self.file_to_case_paths
+            if path and path[0] in parent_labels
+        )
+
     def _cache_relevant_nodes(self):
+        """The file documents will need to be pruned to only the nodes that
+        are relevant to the file. Here we cache all of the nodes
+        encountered when traversing to all related cases.
+
+        """
+
         if self.relevant_nodes:
             return
 
@@ -1807,10 +1847,10 @@ class GraphIndexBuilder(object):
         pbar = self.pbar('Caching file paths: ', len(files))
 
         for f in files:
-            self.relevant_nodes[f] = self.walk_paths(
-                f, self.file_to_case_paths, whole=True)
-
+            paths = self.get_cls_file_to_case_paths(f)
+            self.relevant_nodes[f] = self.walk_paths(f, paths, whole=True)
             pbar.update(pbar.currval+1)
+
         pbar.finish()
 
     def _cache_annotations(self):
