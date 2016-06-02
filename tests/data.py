@@ -205,6 +205,14 @@ NODES = [
         submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
         error_type=None,
     ),
+    fuzzed(
+        AlignedReads,
+        node_id='aligned-reads-2',
+        state='submitted',
+        data_format='BAM',
+        file_name='aligned-reads-2.bam',
+        acl=['phs000178'],
+    ),
     AlignedReads(
         node_id='a819133c-65c4-438c-93ae-a04e24e82626',
         acl=['phs000178'],
@@ -828,6 +836,10 @@ EDGES = [
         src_id='somatic_mutation_calling_workflow_1',
         dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
+    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+        src_id='somatic_mutation_calling_workflow_1',
+        dst_id='aligned-reads-2',
+    ),
     FileDescribesCase(
         src_id='old-biospecimen-supplement-xml',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
@@ -953,12 +965,20 @@ EDGES = [
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     AlignedReadsDataFromAlignmentCocleaningWorkflow(
+        src_id='aligned-reads-2',
+        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id='active-file-with-empty-acl',
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     AlignedReadsMatchedToSubmittedAlignedReads(
         src_id='a819133c-65c4-438c-93ae-a04e24e82626',
         dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+    ),
+    AlignedReadsMatchedToSubmittedAlignedReads(
+        src_id='aligned-reads-2',
+        dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
     ),
     ExposureDescribesCase(
         src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
@@ -1105,7 +1125,7 @@ EDGES = [
         properties={}),
     AliquotDerivedFromAnalyte(
         src_id='2708315c-d58a-42d7-a914-d6299aa74936',
-        dst_id='07c974b3-3286-4c4f-8b67-6f8e425936f4',
+        dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         properties={}),
     CaseProcessedAtTissueSourceSite(
         src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
@@ -1129,7 +1149,7 @@ EDGES = [
         properties={}),
     AliquotDerivedFromSample(
         src_id='2708315c-d58a-42d7-a914-d6299aa74936',
-        dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
+        dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AliquotDerivedFromSample(
         src_id='c1fd82a9-f75f-4297-b2c2-ec91c40a57f4',
