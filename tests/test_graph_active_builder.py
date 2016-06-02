@@ -25,6 +25,9 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 
+# Define the number of files that should be loaded as documents
+N_FILES = 8
+
 # ======================================================================
 # Fixtures
 
@@ -196,13 +199,13 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
-    ('files', '[*].(file_size | file_name | file_id)', 7 * 3),  # there should be 7 files
+    ('files', '[*].(file_size | file_name | file_id)', N_FILES * 3),
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
     ('annotations', '[*].annotation_id', 1),
-    ('files', '[*].associated_entities.[*].entity_type', 7),
+    ('files', '[*].associated_entities.[*].entity_type', N_FILES + 3),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -211,7 +214,7 @@ def test_path_count(index, doc_type, path, count):
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 3}),
+     5, {1, 2, 3}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
      5, {'Simple Nucleotide Variation',
          'Sequencing Data',
@@ -219,7 +222,7 @@ def test_path_count(index, doc_type, path, count):
          'Clinical',
          'Copy Number Variation'}),
     ('cases', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 3}),
+     5, {1, 2, 3}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -231,28 +234,29 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     4, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e'}),
+     N_FILES, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+         'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      4, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
-     3, {'Sequencing Data', 'Simple Nucleotide Variation'}),
+     N_FILES - 3, {'Sequencing Data', 'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].access',
-     3, {'controlled'}),
+     N_FILES - 3, {'controlled'}),
     ('files', '[*].analysis.[*].input_files.[*].access',
-     3, {'controlled'}),
+     N_FILES - 3, {'controlled'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
-     3, {'Simple Nucleotide Variation'}),
+     N_FILES - 3, {'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
-     3, {'submitted'}),
+     N_FILES - 3, {'submitted'}),
     ('files', '[*].type.[*]',
-     7, {'simple_somatic_mutation',
-         'aligned_reads',
-         'biospecimen_supplement',
-         'clinical_supplement',
-         'copy_number_segment',
-         'annotated_somatic_mutation'}),
+     N_FILES, {'simple_somatic_mutation',
+               'aligned_reads',
+               'biospecimen_supplement',
+               'clinical_supplement',
+               'copy_number_segment',
+               'annotated_somatic_mutation'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -269,7 +273,7 @@ def test_no_submitted_aligned_reads(graph, index):
 def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
     for doc in simple_somatic_mutations:
         assert doc['analysis'].get('input_files')
-        assert len(doc['analysis']['input_files']) == 1
+        assert len(doc['analysis']['input_files']) == 2
         for f in doc['analysis']['input_files']:
             assert f['file_name']
             assert f['data_format']
@@ -332,8 +336,8 @@ def test_get_file_read_groups(graph, index):
 
 
 @pytest.mark.parametrize('cls,count', [
-    (md.AlignmentWorkflow, 1),
-    (md.SomaticMutationCallingWorkflow, 1),
+    (md.AlignmentWorkflow, 2),
+    (md.SomaticMutationCallingWorkflow, 2),
 ])
 def test_get_analysis_read_groups(graph, cached_builder, cls, count):
     for workflow in graph.nodes(cls).all():
@@ -382,11 +386,16 @@ def test_add_archive(graph, cached_builder, cls, has_archive):
             assert ('archive' in doc) == has_archive
 
 
-def test_aligned_reads_associated_entities(graph, index):
-    aligned_reads_docs = [
-        f for f in index.files
-        if f['type'] == 'aligned_reads'
-    ]
-    assert aligned_reads_docs
-    for f in aligned_reads_docs:
+def test_aligned_reads_count(aligned_reads):
+    assert len(aligned_reads) == 2
+
+
+def test_aligned_reads_associated_entities(graph, index, aligned_reads):
+    for f in aligned_reads:
         assert len(f['associated_entities']) == 1
+
+
+def test_aligned_reads_ancestor_sample_types(graph, index, aligned_reads):
+    for f in aligned_reads:
+        assert len(f['cases']) == 1
+        assert len(f['cases'][0]['samples']) == 1
