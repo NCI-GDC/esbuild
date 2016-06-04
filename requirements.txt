@@ -1,3 +1,4 @@
+filechunkio==1.6
 progressbar==2.2
 addict==0.2.7
 networkx==1.10
@@ -7,6 +8,6 @@ xlrd==0.9.3
 consulate==0.4
 datadog==0.9.0
 -e git+ssh://git@github.com/NCI-GDC/cdisutils.git@4a75cc05c7ba2174e70cca9c9ea7e93947f7a868#egg=cdisutils
--e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@5152302276dead9692240ddd735272949833c2ca#egg=gdcdictionary
+-e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@a0290fc6f1b6ef34134e4e2f8169872103309df5#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@4fbeddeb058ad09741c5d2b9aacbd1c63cfc3dd1#egg=psqlgraph
--e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@1b7b4efae8e9c845e00c0f19ca457a17dc760c07#egg=gdcdatamodel
+-e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@253676bbaa70b8a8fc788785e8667d0377ed0529#egg=gdcdatamodel

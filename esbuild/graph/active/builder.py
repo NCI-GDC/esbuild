@@ -60,7 +60,8 @@ def list_product(roots, subtrees):
 
 
 def subtree_paths_to_file(cls, paths=None, visited=None,
-                          categories={'data_file', 'analysis'}):
+                          categories={'data_file', 'analysis'},
+                          exclude_paths_through=set()):
     """Recurse through all child nodes in categories :param:`categories`
     and return all paths from :param:`cls` to destination child file
     nodes.
@@ -78,13 +79,20 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
 
     for backref in cls._pg_backrefs.values():
         child = backref['src_type']
-        recurse = (
-            child._dictionary['category'] in categories
-            and child.label not in visited
+
+        should_recur = (
+            child._dictionary['category'] in categories and
+            child.label not in visited and
+            child.label not in exclude_paths_through
         )
 
-        if recurse:
-            subtree_paths_to_file(child, paths, visited+[child.label])
+        if should_recur:
+            subtree_paths_to_file(
+                child,
+                paths,
+                visited=visited+[child.label],
+                exclude_paths_through=exclude_paths_through
+            )
 
     return paths
 
@@ -98,6 +106,27 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     file, this is an attempt not to hard code them.  See module doc.
     """
 
+    # Skip any paths that traverse through nodes in
+    # ``exclude_paths_through``.
+    #
+    # In the index, AlignedReads were associated with two aliquots
+    # because they go through the Alignment Cocleaning
+    # Workflow. However, they should have edges directly back to a
+    # single SubmittedAlignedReads that goes back to a single
+    # aliquot. They should only be associated with this aliquot.
+    #
+    # The impact is that the user can not filter properly on the
+    # sample types, e.g. tumor versus normal as it returns all of the
+    # AlignedReads.
+    #
+    # The solution applied here is to simply remove paths through
+    # specific nodes and rely on the shortcut edges when traversing to
+    # Read Groups.
+    #
+    # See PGDC-2349 for details.
+    exclude_paths_through = {
+        'alignment_cocleaning_workflow',
+    }
 
     # Filter nodes out if their properties are a superset of any of
     # the dictionaries listed here by label
@@ -114,7 +143,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
     readgroup_subtree = list_product(
         [[ReadGroup.label]],
-        subtree_paths_to_file(ReadGroup)
+        subtree_paths_to_file(
+            ReadGroup,
+            exclude_paths_through=exclude_paths_through
+        )
     )
 
     aliquot_to_copy_number_paths = [
@@ -198,8 +230,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             # Add the first analysis
             analysis = analyses.pop()
             analysis_doc = self._get_base_doc(analysis)
+            read_groups = self.get_file_read_groups(node)
             self.add_analysis_input_files(analysis, analysis_doc)
-            self.add_analysis_metadata(analysis, analysis_doc)
+            self.add_analysis_metadata(read_groups, analysis_doc)
             doc['analysis'] = analysis_doc
 
         # If there are remaining analysis, record a warning and skip
@@ -251,24 +284,23 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         if output_file_docs:
             doc.setdefault('output_files', []).extend(output_file_docs)
 
-    def add_analysis_metadata(self, node, doc):
+    def add_analysis_metadata(self, read_groups, doc):
         """For a given analysis node, add the metadata to the doc.
 
         """
 
         metadata_doc = {}
-        self.add_analysis_metadata_read_groups(node, metadata_doc)
+        self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
 
         if metadata_doc:
             doc['metadata'] = metadata_doc
 
-    def add_analysis_metadata_read_groups(self, node, doc):
+    def add_analysis_metadata_read_groups(self, read_groups, doc):
         """For a given analysis node, add read_groups to the metadata subdoc.
 
         """
 
         read_group_docs = []
-        read_groups = self.get_analysis_read_groups(node)
 
         for read_group in read_groups:
             read_group_doc = self._get_base_doc(read_group)
@@ -278,7 +310,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                 read_group_doc['read_group_qcs'] = read_group_qc_docs
 
             read_group_docs.append(read_group_doc)
-
 
         if read_group_docs:
             doc['read_groups'] = read_group_docs
@@ -296,40 +327,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     def get_file_read_groups(self, node):
         """Given a data_file node, traverse up the tree to read_groups
 
-        .. note::
-            Skip any paths that traverse through nodes in
-            ``exclude_paths_through``.
-
-            In the index, AlignedReads were associated with two
-            aliquots because they go through the Alignment Cocleaning
-            Workflow. However, they should have edges directly back to
-            a single SubmittedAlignedReads that goes back to a single
-            aliquot. They should only be associated with this aliquot.
-
-            The impact is that the user can not filter properly on the
-            sample types, e.g. tumor versus normal as it returns all
-            of the AlignedReads.
-
-            The solution applied here is to simply remove paths
-            through specific nodes and rely on the shortcut edges when
-            traversing to Read Groups.
-
-            See PGDC-2349 for details.
-
         :returns: set of read_groups
 
         """
 
-        exclude_paths_through = {
-            'alignment_cocleaning_workflow',
-        }
-
-        paths = [
-            path
-            for path in self.file_to_read_group_paths.get(node.label, [])
-            if not exclude_paths_through.intersection(set(path))
-        ]
-
+        paths = self.file_to_read_group_paths.get(node.label, [])
         return set(self.walk_paths(node, paths))
 
     def get_analysis_read_groups(self, node):

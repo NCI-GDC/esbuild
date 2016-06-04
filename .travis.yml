@@ -28,8 +28,10 @@ before_install:
   - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
 
 install:
+  - npm install -g elasticdump
   - pip install -r requirements.txt
   - pip install -r dev-requirements.txt
+  - python setup.py develop
 
 before_script:
   - pip freeze
