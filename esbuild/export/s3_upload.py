@@ -6,7 +6,6 @@ esbuild.export.s3_upload
 Functions for uploading Elasticsearch indices to an s3 interface.
 """
 
-from esbuild.export.elasticdump import export_to_gzip, ExportTypes
 from filechunkio import FileChunkIO
 from boto.s3 import connection
 
@@ -15,6 +14,12 @@ import boto
 import os
 import time
 import math
+
+from esbuild.export.elasticdump import (
+    ExportTypes,
+    add_es_args,
+    export_to_gzip,
+)
 
 
 def get_or_create_bucket(conn, bucket_name):
@@ -71,24 +76,6 @@ def add_s3_args(parser):
     return parser
 
 
-def add_es_args(parser):
-    parser.add_argument('--es-host',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-index',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-port',
-                        default=9200,
-                        help='Elasticsearch source port')
-    parser.add_argument('--es-user',
-                        help='Basic Auth user for ES (if applicable)')
-    parser.add_argument('--es-pass',
-                        help='Basic Auth password for ES (if applicable)')
-
-    return parser
-
-
 def export_to_gzip_and_upload_to_s3(arg_list=None):
     """takes argument list or reads from command line. export and upload
     index to s3.
@@ -107,10 +94,11 @@ def export_to_gzip_and_upload_to_s3(arg_list=None):
     args = parser.parse_args(arg_list)
     base_dir = os.path.expanduser(args.working_directory)
     conn = connect_to_s3(args)
+    timestamp = int(time.time())
 
     for type_ in ExportTypes.ALL:
 
-        name = '{}.{}_{}.gz'.format(args.es_index, type_, int(time.time()))
+        name = '{}.{}_{}.gz'.format(args.es_index, type_, timestamp)
         path = os.path.join(base_dir, name)
 
         export_to_gzip(
