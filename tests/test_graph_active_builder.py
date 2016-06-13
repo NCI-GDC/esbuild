@@ -26,7 +26,7 @@ from esbuild.graph.active.builder import (
 )
 
 # Define the number of files that should be loaded as documents
-N_FILES = 8
+N_FILES = 9
 
 # ======================================================================
 # Fixtures
@@ -205,7 +205,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].cases.[*].project_id', 0),
     ('annotations', '[*].project_id', 0),
     ('annotations', '[*].annotation_id', 1),
-    ('files', '[*].associated_entities.[*].entity_type', N_FILES + 3),
+    ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -214,7 +214,7 @@ def test_path_count(index, doc_type, path, count):
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 2, 3}),
+     5, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
      5, {'Simple Nucleotide Variation',
          'Sequencing Data',
@@ -222,7 +222,7 @@ def test_path_count(index, doc_type, path, count):
          'Clinical',
          'Copy Number Variation'}),
     ('cases', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 2, 3}),
+     5, {1, 2, 4}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -234,18 +234,18 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     N_FILES, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
-     4, {'read-group-qc-1'}),
+     1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
-     N_FILES - 3, {'Sequencing Data', 'Simple Nucleotide Variation'}),
+     N_FILES, {'Sequencing Data', 'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].access',
      N_FILES - 3, {'controlled'}),
     ('files', '[*].analysis.[*].input_files.[*].access',
-     N_FILES - 3, {'controlled'}),
+     N_FILES, {'controlled'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
      N_FILES - 3, {'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
@@ -256,7 +256,8 @@ def test_path_count(index, doc_type, path, count):
                'biospecimen_supplement',
                'clinical_supplement',
                'copy_number_segment',
-               'annotated_somatic_mutation'}),
+               'annotated_somatic_mutation',
+               'aggregated_somatic_mutation'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -405,3 +406,14 @@ def test_no_duplicate_top_level_ids(index):
     for case in index.cases:
         aliquot_ids = case['aliquot_ids']
         assert len(aliquot_ids) == len(set(aliquot_ids))
+
+
+def test_somatic_aggregation_workflow_read_groups(graph, index):
+    aggregated_somatic_mutations = [
+        doc
+        for doc in index.files
+        if doc['data_type'] == 'Aggregated Somatic Mutation'
+    ]
+    assert aggregated_somatic_mutations
+    for asm in aggregated_somatic_mutations:
+        assert not asm['analysis'].get('metadata', {}).get('read_groups', [])
