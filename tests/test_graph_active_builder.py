@@ -399,3 +399,9 @@ def test_aligned_reads_ancestor_sample_types(graph, index, aligned_reads):
     for f in aligned_reads:
         assert len(f['cases']) == 1
         assert len(f['cases'][0]['samples']) == 1
+
+
+def test_no_duplicate_top_level_ids(index):
+    for case in index.cases:
+        aliquot_ids = case['aliquot_ids']
+        assert len(aliquot_ids) == len(set(aliquot_ids))

@@ -353,10 +353,10 @@ class GraphIndexBuilder(object):
             # Aggregate ids as we walk the tree
             top_level_ids = self.mapper.top_level_ids
             if ids is not None and child.label in top_level_ids:
-                ids['{}_ids'.format(child.label)].append(child.node_id)
+                ids['{}_ids'.format(child.label)].add(child.node_id)
                 sub_id = child._props.get('submitter_id')
                 if sub_id is not None:
-                    ids['submitter_{}_ids'.format(child.label)].append(sub_id)
+                    ids['submitter_{}_ids'.format(child.label)].add(sub_id)
 
         if corr == ONE_TO_MANY:
             doc.append(subdoc)
@@ -474,7 +474,7 @@ class GraphIndexBuilder(object):
 
         """
         ptree = self.get_case_ptree(node)
-        visited_ids = defaultdict(list)
+        visited_ids = defaultdict(set)
         doc = self.walk_tree(
             node,
             ptree,
@@ -482,6 +482,9 @@ class GraphIndexBuilder(object):
             [],
             ids=visited_ids
         )[0]
+
+        # Convert to list for later serialization
+        visited_ids = {key: list(ids) for key, ids in visited_ids.iteritems()}
 
         # Inject a dictionary of ids for each visited entity (in
         # TOP_LEVEL_IDS)
