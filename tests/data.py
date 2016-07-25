@@ -488,6 +488,13 @@ NODES = [
         state='submitted',
         submitter_id='TCGA-AR-A2AR',
     ),
+    Case(
+        # case in unreleased project
+        node_id='unreleased-case',
+        project_id='INTERNAL-DEV1',
+        state='submitted',
+        submitter_id='INTERNAL-DEV-CASE-0001',
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
@@ -777,6 +784,11 @@ NODES = [
         dbgap_accession_number="phs000178",
         name="TCGA",
     ),
+    Program(
+        node_id='internal-project',
+        dbgap_accession_number="gdc000000",
+        name="INTERNAL",
+    ),
     Center(
         node_id='ee7a85b3-8177-5d60-a10c-51180eb9009c',
         code="07",
@@ -825,6 +837,16 @@ NODES = [
         disease_type="Breast Invasive Carcinoma",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
+    ),
+    Project(
+        node_id='unreleased-project',
+        released=False,
+        state="open",
+        code="DEV1",
+        primary_site="-",
+        disease_type="-",
+        dbgap_accession_number='gdc000001',
+        name="Dev project",
     ),
     Center(
         node_id='6eba705a-0f00-5aa2-b1d0-04dbf62100cc',
@@ -1130,6 +1152,10 @@ EDGES = [
         src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
+    CaseMemberOfProject(
+        src_id='unreleased-case',
+        dst_id='unreleased-project',
+        properties={}),
     AliquotDerivedFromSample(
         src_id='0395a62f-3f37-4068-bab6-4c1d29cef2d5',
         dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
@@ -1348,6 +1374,10 @@ EDGES = [
     ProjectMemberOfProgram(
         src_id='1334612b-3d2e-5941-a476-d455d71b458f',
         dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
+    ProjectMemberOfProgram(
+        src_id='unreleased-project',
+        dst_id='internal-project',
     ),
 ]
 

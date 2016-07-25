@@ -213,6 +213,7 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
+    ('projects', '[*].name', 1, {'Breast Invasive Carcinoma'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
      5, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
@@ -221,6 +222,7 @@ def test_path_count(index, doc_type, path, count):
          'Biospecimen',
          'Clinical',
          'Copy Number Variation'}),
+    ('cases', '[*].submitter_id', 1, {'TCGA-AR-A1AR'}),
     ('cases', '[*].summary.[*].data_categories.[*].file_count',
      5, {1, 2, 4}),
     ('cases', '[*].demographic.year_of_birth',
