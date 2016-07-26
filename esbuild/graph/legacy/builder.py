@@ -26,6 +26,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         ['sample', 'aliquot', 'file'],
         ['sample', 'portion', 'file'],
         ['sample', 'portion', 'analyte', 'aliquot', 'file'],
+        ['sample', 'portion', 'slide', 'file'],
         ['biospecimen_supplement'],
         ['clinical_supplement'],
     ]
