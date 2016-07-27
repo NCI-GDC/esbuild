@@ -750,6 +750,16 @@ NODES = [
         AggregatedSomaticMutation,
         node_id='aggregated-somatic-mutation-1',
     ),
+    File(
+        node_id='slide-image-file',
+        file_name='TCGA-slide-file-1.svs',
+        file_size=1245610777,
+        md5sum='f03a67148479bccd32ac79c6181e5703',
+        acl=['phs000178'],
+        project_id='TCGA-BRCA',
+        state='live',
+        file_state='submitted',
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -1032,6 +1042,10 @@ EDGES = [
     FileRelatedToFile(
         src_id='live-file',
         dst_id='related-file',
+    ),
+    FileDataFromSlide(
+        src_id='slide-image-file',
+        dst_id='3013e9be-aa3e-4986-990c-559982f00e36',
     ),
     FileDataFromAliquot(
         src_id='live-file',
