@@ -1544,6 +1544,12 @@ class GraphIndexBuilder(object):
             for program in self.neighbors_labeled(project, 'program', 1)
         ]
 
+        # Check if project is not released
+        for project in projects:
+            if project.released is not True:
+                log.info('Omitting %s, project %s not released', node, project)
+                return True
+
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
