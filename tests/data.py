@@ -31,6 +31,12 @@ def fuzzed(node_class, node_id=None, **kwargs):
 
         if key in kwargs:
             continue
+        # State
+        if 'state' not in kwargs and 'state' in node_class.__pg_properties__:
+            kwargs['state'] = 'submitted'
+        # ACL
+        if 'acl' not in kwargs:
+            kwargs['acl'] = ['phs000178']
         # Enum
         elif 'enum' in prop_def:
             kwargs[key] = prop_def['enum'][0]
@@ -482,6 +488,13 @@ NODES = [
         state='submitted',
         submitter_id='TCGA-AR-A2AR',
     ),
+    Case(
+        # case in unreleased project
+        node_id='unreleased-case',
+        project_id='INTERNAL-DEV1',
+        state='submitted',
+        submitter_id='INTERNAL-DEV-CASE-0001',
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
@@ -724,6 +737,36 @@ NODES = [
         state='live',
         file_state='submitted',
     ),
+    fuzzed(
+        SomaticAggregationWorkflow,
+        node_id='somatic-aggregation-workflow-1',
+    ),
+    fuzzed(
+        AnnotatedSomaticMutation,
+        node_id='annotated-somatic-mutation-2',
+    ),
+    fuzzed(
+        AnnotatedSomaticMutation,
+        node_id='annotated-somatic-mutation-3',
+    ),
+    fuzzed(
+        AnnotatedSomaticMutation,
+        node_id='annotated-somatic-mutation-4',
+    ),
+    fuzzed(
+        AggregatedSomaticMutation,
+        node_id='aggregated-somatic-mutation-1',
+    ),
+    File(
+        node_id='slide-image-file',
+        file_name='TCGA-slide-file-1.svs',
+        file_size=1245610777,
+        md5sum='f03a67148479bccd32ac79c6181e5703',
+        acl=['phs000178'],
+        project_id='TCGA-BRCA',
+        state='live',
+        file_state='submitted',
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -750,6 +793,11 @@ NODES = [
         node_id='b80aa962-9650-5110-b3eb-bd087da808db',
         dbgap_accession_number="phs000178",
         name="TCGA",
+    ),
+    Program(
+        node_id='internal-project',
+        dbgap_accession_number="gdc000000",
+        name="INTERNAL",
     ),
     Center(
         node_id='ee7a85b3-8177-5d60-a10c-51180eb9009c',
@@ -800,6 +848,16 @@ NODES = [
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
     ),
+    Project(
+        node_id='unreleased-project',
+        released=False,
+        state="open",
+        code="DEV1",
+        primary_site="-",
+        disease_type="-",
+        dbgap_accession_number='gdc000001',
+        name="Dev project",
+    ),
     Center(
         node_id='6eba705a-0f00-5aa2-b1d0-04dbf62100cc',
         code="13",
@@ -820,6 +878,27 @@ NODES = [
 
 
 EDGES = [
+    # Somatic mutation workflows
+    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+        src_id='somatic-aggregation-workflow-1',
+        dst_id='annotated_somatic_mutation_1',
+    ),
+    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+        src_id='somatic-aggregation-workflow-1',
+        dst_id='annotated-somatic-mutation-2',
+    ),
+    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+        src_id='somatic-aggregation-workflow-1',
+        dst_id='annotated-somatic-mutation-3',
+    ),
+    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+        src_id='somatic-aggregation-workflow-1',
+        dst_id='annotated-somatic-mutation-4',
+    ),
+    AggregatedSomaticMutationDataFromSomaticAggregationWorkflow(
+        src_id='aggregated-somatic-mutation-1',
+        dst_id='somatic-aggregation-workflow-1',
+    ),
     AnnotatedSomaticMutationDataFromSomaticAnnotationWorkflow(
         src_id='annotated_somatic_mutation_1',
         dst_id='somatic_annotation_workflow_1',
@@ -840,6 +919,8 @@ EDGES = [
         src_id='somatic_mutation_calling_workflow_1',
         dst_id='aligned-reads-2',
     ),
+
+    # Supplement nodes
     FileDescribesCase(
         src_id='old-biospecimen-supplement-xml',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
@@ -852,6 +933,94 @@ EDGES = [
         src_id='clinical_supplement_1',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
+
+    # Read Groups
+    ReadGroupQcGeneratedFromReadGroup(
+        src_id='read-group-qc-1',
+        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+    ),
+    ReadGroupDerivedFromAliquot(
+        src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
+    ),
+    ReadGroupDerivedFromAliquot(
+        src_id='read-group-without-downstream',
+        dst_id='aliquot-without-downstream',
+    ),
+    SubmittedAlignedReadsDataFromReadGroup(
+        src_id='submitted-aligned-reads-without-downstream',
+        dst_id='read-group-without-downstream',
+    ),
+    ReadGroupDerivedFromAliquot(
+        src_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
+        dst_id='2708315c-d58a-42d7-a914-d6299aa74936',
+    ),
+
+    # Aligned Reads
+    SubmittedAlignedReadsDataFromReadGroup(
+        src_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
+    ),
+    SubmittedAlignedReadsDataFromReadGroup(
+        src_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
+        dst_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
+    ),
+    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
+        src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+    ),
+    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
+        src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+        dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
+    ),
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+        src_id='aligned-reads-2',
+        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+        src_id='active-file-with-empty-acl',
+        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
+    ),
+    AlignedReadsMatchedToSubmittedAlignedReads(
+        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
+        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
+    ),
+    AlignedReadsMatchedToSubmittedAlignedReads(
+        src_id='aligned-reads-2',
+        dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
+    ),
+
+    # Clinical
+    ExposureDescribesCase(
+        src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    DiagnosisDescribesCase(
+        src_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    TreatmentDescribesDiagnosis(
+        src_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
+        dst_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+    ),
+    DemographicDescribesCase(
+        src_id='fe0dab0c-55d1-4721-8ebd-f5eb7b2c2f01',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    FamilyHistoryDescribesCase(
+        src_id='b56a74f5-650e-4fa4-8870-b0cf1d19c40c',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    ClinicalDescribesCase(
+        src_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+
+    # Legacy edges
     FileMemberOfArchive(
         src_id='file-only-attached-to-archive-1',
         dst_id='archive_1',
@@ -896,6 +1065,10 @@ EDGES = [
         src_id='live-file',
         dst_id='related-file',
     ),
+    FileDataFromSlide(
+        src_id='slide-image-file',
+        dst_id='3013e9be-aa3e-4986-990c-559982f00e36',
+    ),
     FileDataFromAliquot(
         src_id='live-file',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
@@ -923,86 +1096,6 @@ EDGES = [
     FileDataFromAliquot(
         src_id='related-file',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
-    ),
-    ReadGroupQcGeneratedFromReadGroup(
-        src_id='read-group-qc-1',
-        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-    ),
-    ReadGroupDerivedFromAliquot(
-        src_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-        dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
-    ),
-    ReadGroupDerivedFromAliquot(
-        src_id='read-group-without-downstream',
-        dst_id='aliquot-without-downstream',
-    ),
-    SubmittedAlignedReadsDataFromReadGroup(
-        src_id='submitted-aligned-reads-without-downstream',
-        dst_id='read-group-without-downstream',
-    ),
-    ReadGroupDerivedFromAliquot(
-        src_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
-        dst_id='2708315c-d58a-42d7-a914-d6299aa74936',
-    ),
-    SubmittedAlignedReadsDataFromReadGroup(
-        src_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
-        dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-    ),
-    SubmittedAlignedReadsDataFromReadGroup(
-        src_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
-        dst_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
-    ),
-    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
-        src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
-        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
-    ),
-    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
-        src_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
-        dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
-    ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
-        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
-        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
-    ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
-        src_id='aligned-reads-2',
-        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
-    ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
-        src_id='active-file-with-empty-acl',
-        dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
-    ),
-    AlignedReadsMatchedToSubmittedAlignedReads(
-        src_id='a819133c-65c4-438c-93ae-a04e24e82626',
-        dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
-    ),
-    AlignedReadsMatchedToSubmittedAlignedReads(
-        src_id='aligned-reads-2',
-        dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
-    ),
-    ExposureDescribesCase(
-        src_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
-        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
-    ),
-    DiagnosisDescribesCase(
-        src_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
-        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
-    ),
-    TreatmentDescribesDiagnosis(
-        src_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
-        dst_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
-    ),
-    DemographicDescribesCase(
-        src_id='fe0dab0c-55d1-4721-8ebd-f5eb7b2c2f01',
-        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
-    ),
-    FamilyHistoryDescribesCase(
-        src_id='b56a74f5-650e-4fa4-8870-b0cf1d19c40c',
-        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
-    ),
-    ClinicalDescribesCase(
-        src_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
-        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     AliquotDerivedFromAnalyte(
         src_id='7b017050-97d4-45bb-bf83-c89dab812e44',
@@ -1072,6 +1165,10 @@ EDGES = [
     CaseMemberOfProject(
         src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        properties={}),
+    CaseMemberOfProject(
+        src_id='unreleased-case',
+        dst_id='unreleased-project',
         properties={}),
     AliquotDerivedFromSample(
         src_id='0395a62f-3f37-4068-bab6-4c1d29cef2d5',
@@ -1244,6 +1341,12 @@ EDGES = [
         src_id='6d066a72-f59f-45a8-ab90-216000b36da4',
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
+    AnalysisMetadataDerivedFromFile(
+        src_id='analysis-metadata-1',
+        dst_id='live-file',
+    ),
+
+    # Somatic Mutation Calling
     SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
         src_id='somatic_mutation_1',
         dst_id='somatic_mutation_calling_workflow_1',
@@ -1252,10 +1355,8 @@ EDGES = [
         src_id='somatic_mutation_calling_workflow_1',
         dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
-    AnalysisMetadataDerivedFromFile(
-        src_id='analysis-metadata-1',
-        dst_id='live-file',
-    ),
+
+    # SRA metadata
     RunMetadataDerivedFromFile(
         src_id='run-metadata-1',
         dst_id='live-file',
@@ -1264,6 +1365,8 @@ EDGES = [
         src_id='experiment-metadata-1',
         dst_id='live-file',
     ),
+
+    # Copy Number
     SubmittedTangentCopyNumberDerivedFromAliquot(
         src_id='cnv-file-1',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
@@ -1285,6 +1388,10 @@ EDGES = [
     ProjectMemberOfProgram(
         src_id='1334612b-3d2e-5941-a476-d455d71b458f',
         dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
+    ProjectMemberOfProgram(
+        src_id='unreleased-project',
+        dst_id='internal-project',
     ),
 ]
 

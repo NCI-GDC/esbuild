@@ -172,6 +172,15 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         'index_file',
     ])
 
+    # Specify which analysis nodes get which types of
+    # `analysis.metadata` {'metadata type': set({'labels'})}
+    analysis_metadata = {
+        'read_groups': {
+            'alignment_workflow',
+            'alignment_cocleaning_workflow',
+        }
+    }
+
     # Do not create file docs for archives
     file_labels.remove('archive')
 
@@ -196,9 +205,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ]
 
     def get_parent_with_category(self, node, category):
-        """returns iterable of neighors from outbound edges with category
-
-        """
+        """returns iterable of neighors from outbound edges with category"""
 
         labels = [
             l['dst_type'].label for l in node._pg_links.values()
@@ -208,9 +215,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return self.neighbors_labeled(node, labels)
 
     def get_child_with_category(self, node, category):
-        """returns iterable of neighors from inbound edges with category
-
-        """
+        """returns iterable of neighors from inbound edges with category"""
 
         labels = [
             l['src_type'].label for l in node._pg_backrefs.values()
@@ -220,9 +225,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return self.neighbors_labeled(node, labels)
 
     def add_file_analysis(self, node, doc):
-        """Add the 'analysis' that produced the current file.
-
-        """
+        """Add the 'analysis' that produced the current file"""
 
         analyses = list(self.get_parent_with_category(node, 'analysis'))
 
@@ -232,7 +235,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             analysis_doc = self._get_base_doc(analysis)
             read_groups = self.get_file_read_groups(node)
             self.add_analysis_input_files(analysis, analysis_doc)
-            self.add_analysis_metadata(read_groups, analysis_doc)
+            self.add_analysis_metadata(analysis, read_groups, analysis_doc)
             doc['analysis'] = analysis_doc
 
         # If there are remaining analysis, record a warning and skip
@@ -245,9 +248,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             )
 
     def add_file_downstream_analyses(self, node, doc):
-        """Add the 'analysis' that produced the current file.
-
-        """
+        """Add the 'analysis' that produced the current file"""
 
         analyses = list(self.get_child_with_category(node, 'analysis'))
 
@@ -257,9 +258,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc.setdefault('downstream_analyses', []).append(analysis_doc)
 
     def add_analysis_input_files(self, node, doc):
-        """For a given analysis node, add the input_files to the doc.
-
-        """
+        """For a given analysis node, add the input_files to the doc"""
 
         input_files = [
             f for f in self.get_parent_with_category(node, 'data_file')
@@ -271,9 +270,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc.setdefault('input_files', []).extend(input_file_docs)
 
     def add_analysis_output_files(self, node, doc):
-        """For a given analysis node, add the output_files to the doc.
-
-        """
+        """For a given analysis node, add the output_files to the doc"""
 
         output_files = [
             f for f in self.get_child_with_category(node, 'data_file')
@@ -284,21 +281,19 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         if output_file_docs:
             doc.setdefault('output_files', []).extend(output_file_docs)
 
-    def add_analysis_metadata(self, read_groups, doc):
-        """For a given analysis node, add the metadata to the doc.
-
-        """
+    def add_analysis_metadata(self, analysis, read_groups, doc):
+        """For a given analysis node, add the metadata to the doc"""
 
         metadata_doc = {}
-        self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
+
+        if analysis.label in self.analysis_metadata['read_groups']:
+            self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
 
         if metadata_doc:
             doc['metadata'] = metadata_doc
 
     def add_analysis_metadata_read_groups(self, read_groups, doc):
-        """For a given analysis node, add read_groups to the metadata subdoc.
-
-        """
+        """For a given analysis node, add read_groups to the metadata subdoc"""
 
         read_group_docs = []
 

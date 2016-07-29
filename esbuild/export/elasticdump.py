@@ -18,7 +18,11 @@ can be installed via
 """
 
 from subprocess import PIPE, Popen
+
+import argparse
 import gzip
+import os
+import time
 
 CHUNK_SIZE = 1026
 
@@ -84,3 +88,55 @@ def export_to_gzip(path, type_, index, host, **kwargs):
     export.wait()
     output.close()
     raise_for_error(export)
+
+
+def add_es_args(parser):
+    parser.add_argument('--es-host',
+                        required=True,
+                        help='Elasticsearch source host')
+    parser.add_argument('--es-index',
+                        required=True,
+                        help='Elasticsearch source host')
+    parser.add_argument('--es-port',
+                        default=9200,
+                        help='Elasticsearch source port')
+    parser.add_argument('--es-user',
+                        help='Basic Auth user for ES (if applicable)')
+    parser.add_argument('--es-pass',
+                        help='Basic Auth password for ES (if applicable)')
+
+    return parser
+
+
+def export_to_file(arg_list=None):
+    """takes argument list or reads from command line. export index file.
+
+    """
+
+    parser = add_es_args(argparse.ArgumentParser())
+
+    parser.add_argument('--working-directory',
+                        required=True,
+                        help='Where to store local export files while working')
+    parser.add_argument('--leave-files',
+                        action='store_false',
+                        help='Leave local export files when finished')
+
+    args = parser.parse_args(arg_list)
+    base_dir = os.path.expanduser(args.working_directory)
+
+    timestamp = int(time.time())
+
+    for type_ in ExportTypes.ALL:
+
+        name = '{}.{}_{}.gz'.format(args.es_index, type_, timestamp)
+        path = os.path.join(base_dir, name)
+
+        export_to_gzip(
+            path,
+            type_,
+            args.es_index,
+            args.es_host,
+            port=args.es_port,
+            user=args.es_user,
+            password=args.es_pass)

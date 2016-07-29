@@ -353,10 +353,10 @@ class GraphIndexBuilder(object):
             # Aggregate ids as we walk the tree
             top_level_ids = self.mapper.top_level_ids
             if ids is not None and child.label in top_level_ids:
-                ids['{}_ids'.format(child.label)].append(child.node_id)
+                ids['{}_ids'.format(child.label)].add(child.node_id)
                 sub_id = child._props.get('submitter_id')
                 if sub_id is not None:
-                    ids['submitter_{}_ids'.format(child.label)].append(sub_id)
+                    ids['submitter_{}_ids'.format(child.label)].add(sub_id)
 
         if corr == ONE_TO_MANY:
             doc.append(subdoc)
@@ -438,7 +438,10 @@ class GraphIndexBuilder(object):
         }
 
     def remove_bam_index_files(self, files):
-        return {f for f in files if not f['file_name'].endswith('.bai')}
+        return {
+            f for f in files
+            if not self.is_index_file(f)
+        }
 
     ###################################################################
     #                          Cases
@@ -474,7 +477,7 @@ class GraphIndexBuilder(object):
 
         """
         ptree = self.get_case_ptree(node)
-        visited_ids = defaultdict(list)
+        visited_ids = defaultdict(set)
         doc = self.walk_tree(
             node,
             ptree,
@@ -482,6 +485,9 @@ class GraphIndexBuilder(object):
             [],
             ids=visited_ids
         )[0]
+
+        # Convert to list for later serialization
+        visited_ids = {key: list(ids) for key, ids in visited_ids.iteritems()}
 
         # Inject a dictionary of ids for each visited entity (in
         # TOP_LEVEL_IDS)
@@ -826,12 +832,18 @@ class GraphIndexBuilder(object):
 
         """
 
-        if node._dictionary['category'] not in ['data_file', 'index_file']:
-            return False
+        # Active index files
+        if node._dictionary['category'] == 'index_file':
+            return True
 
-        for extension in self.index_file_extensions:
-            if node['file_name'].endswith(extension):
-                return True
+        # Legacy index files
+        elif node.label == 'file':
+            for extension in self.index_file_extensions:
+                if node._props.get('file_name', '').endswith(extension):
+                    return True
+
+        else:
+            return False
 
     def get_file_index_files(self, node):
         """Given a file, return any neighboring index files"""
@@ -903,7 +915,7 @@ class GraphIndexBuilder(object):
                 self.add_data_category(related_file, rf_doc)
 
             # Type
-            if related_file['file_name'].endswith('.sdrf.txt'):
+            if related_file._props.get('file_name', '').endswith('.sdrf.txt'):
                 rf_doc['type'] = 'magetab'
             else:
                 rf_doc['type'] = None
@@ -1531,6 +1543,12 @@ class GraphIndexBuilder(object):
             for project in projects
             for program in self.neighbors_labeled(project, 'program', 1)
         ]
+
+        # Check if project is not released
+        for project in projects:
+            if project.released is not True:
+                log.info('Omitting %s, project %s not released', node, project)
+                return True
 
         # Check project and program against omitted_projects
         for program_name in program_names:
