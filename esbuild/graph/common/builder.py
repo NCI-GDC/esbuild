@@ -438,7 +438,10 @@ class GraphIndexBuilder(object):
         }
 
     def remove_bam_index_files(self, files):
-        return {f for f in files if not f['file_name'].endswith('.bai')}
+        return {
+            f for f in files
+            if not self.is_index_file(f)
+        }
 
     ###################################################################
     #                          Cases
@@ -829,12 +832,18 @@ class GraphIndexBuilder(object):
 
         """
 
-        if node._dictionary['category'] not in ['data_file', 'index_file']:
-            return False
+        # Active index files
+        if node._dictionary['category'] == 'index_file':
+            return True
 
-        for extension in self.index_file_extensions:
-            if node['file_name'].endswith(extension):
-                return True
+        # Legacy index files
+        elif node.label == 'file':
+            for extension in self.index_file_extensions:
+                if node._props.get('file_name', '').endswith(extension):
+                    return True
+
+        else:
+            return False
 
     def get_file_index_files(self, node):
         """Given a file, return any neighboring index files"""
@@ -906,7 +915,7 @@ class GraphIndexBuilder(object):
                 self.add_data_category(related_file, rf_doc)
 
             # Type
-            if related_file['file_name'].endswith('.sdrf.txt'):
+            if related_file._props.get('file_name', '').endswith('.sdrf.txt'):
                 rf_doc['type'] = 'magetab'
             else:
                 rf_doc['type'] = None
@@ -1534,6 +1543,12 @@ class GraphIndexBuilder(object):
             for project in projects
             for program in self.neighbors_labeled(project, 'program', 1)
         ]
+
+        # Check if project is not released
+        for project in projects:
+            if project.released is not True:
+                log.info('Omitting %s, project %s not released', node, project)
+                return True
 
         # Check project and program against omitted_projects
         for program_name in program_names:

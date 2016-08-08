@@ -24,7 +24,6 @@ import gzip
 import os
 import time
 
-
 CHUNK_SIZE = 1026
 
 
@@ -107,7 +106,6 @@ def add_es_args(parser):
                         help='Basic Auth password for ES (if applicable)')
 
     return parser
-
 
 
 def export_to_file(arg_list=None):
