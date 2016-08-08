@@ -767,6 +767,19 @@ NODES = [
         state='live',
         file_state='submitted',
     ),
+    File(
+        # SNV File: added for regression of removing case.files from the active
+        # index
+        node_id='snv-file',
+        acl=['phs000178'],
+        created_datetime=u'2016-03-23T08:41:05.433262-05:00',
+        file_name=u'genome.wustl.edu.TCGA-04-1332.snv.1aa2d1d8b9f44d7f9e15300c519bd419.vcf.gz',
+        file_size=51758561,
+        file_state='submitted',
+        md5sum=u'645818642cfc77afb97cdb2975ccda2d',
+        state=u'live',
+        updated_datetime=u'2016-08-04T04:08:45.991704-05:00'
+    ),
 
     # Prelude nodes
     DataSubtype(
@@ -1145,6 +1158,14 @@ EDGES = [
         src_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         dst_id='40407260-e805-4c2e-b2a7-13862bc5e494',
         properties={}),
+
+    FileDataFromCase(
+        # Added for regression of removing case.files from the active
+        # index
+        src_id='snv-file',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+        properties={}),
+
     SampleDerivedFromCase(
         src_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',

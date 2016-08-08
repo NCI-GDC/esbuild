@@ -156,7 +156,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     ]
 
     case_to_file_paths = [
-        ['file'],
         ['biospecimen_supplement'],
         ['clinical_supplement'],
     ]
