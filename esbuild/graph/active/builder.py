@@ -156,7 +156,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     ]
 
     case_to_file_paths = [
-        ['file'],
         ['biospecimen_supplement'],
         ['clinical_supplement'],
     ]
@@ -172,6 +171,12 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         'index_file',
     ])
 
+    # Do not create file docs for archives
+    file_labels.remove('archive')
+
+    # Do not include files that are of the general legacy File type
+    file_labels.remove('file')
+
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
     analysis_metadata = {
@@ -180,9 +185,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             'alignment_cocleaning_workflow',
         }
     }
-
-    # Do not create file docs for archives
-    file_labels.remove('archive')
 
     # Pre-calculate the paths to read_group from each type of file
     file_to_read_group_paths = {}
