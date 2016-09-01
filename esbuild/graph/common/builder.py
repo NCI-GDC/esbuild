@@ -258,6 +258,7 @@ class GraphIndexBuilder(object):
             'portion',
             'aliquot',
             'case',
+            'slide',
         ]
 
         self.index_file_extensions = {
@@ -1814,12 +1815,10 @@ class GraphIndexBuilder(object):
                 self.entity_cases[e] = e
                 continue
 
-            paths = self.file_to_case_paths + [
-                p[1:] for p in self.file_to_case_paths if p[0] == e.label
-            ] + [
-                ['analyte', 'portion', 'sample', 'case'],
-                ['sample', 'case'],
-            ]
+            paths = (
+                self.truncate_path(path, e.label)
+                for path in  self.file_to_case_paths
+            )
             cases = self.walk_paths(e, paths)
 
             if len(cases) > 1:

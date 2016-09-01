@@ -69,7 +69,7 @@ def test_annotation_case_submitter_id(graph):
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
     ('files', '[*].file_size', 7),
-    ('files', '[*].associated_entities', 5),
+    ('files', '[*].associated_entities', 6),
     ('annotations', '[*].annotation_id', 2),
 ])
 def test_path_count(index, doc_type, path, count):
