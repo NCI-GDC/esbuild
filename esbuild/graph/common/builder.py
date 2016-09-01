@@ -970,7 +970,15 @@ class GraphIndexBuilder(object):
             )
 
             if not is_skipped_legacy_edge:
-                doc['archive'] = self._get_base_doc(archive)
+                archive_doc = self._get_base_doc(archive)
+
+                # Archive is a file_doc for the legacy index, so it
+                # will have `file_id` not `archive_id`.  If so, coerce
+                # it back here.
+                if 'file_id' in archive_doc:
+                    archive_doc['archive_id'] = archive_doc.pop('file_id')
+
+                doc['archive'] = archive_doc
 
     def add_data_category(self, node, doc):
         """Add the data_subtype to the file document with child data_category
@@ -995,15 +1003,28 @@ class GraphIndexBuilder(object):
 
         """
 
+        if not ptree:
+            log.warn('No ptree (case tree) for %s', node)
+            return []
+
+        if node not in self.relevant_nodes:
+            log.warn('No relevant cases for %s', node)
+            return []
+
         relevant = self.relevant_nodes[node]
-        self.prune_case(relevant, ptree, [
-            'sample', 'portion', 'analyte', 'aliquot', 'file'])
-        doc['cases'] = map(
-            lambda p: self.walk_tree(p, ptree, self.ptree_mapping, [])[0],
-            ptree)
-        for p in doc['cases']:
-            self.patch_project(p['project'])
-            self.reconstruct_biospecimen_paths(p)
+        prune_keys = ['sample', 'portion', 'analyte', 'aliquot', 'file']
+
+        self.prune_case(relevant, ptree, prune_keys)
+
+        doc['cases'] = [
+            self.walk_tree(path, ptree, self.ptree_mapping, [])[0]
+            for path in ptree
+        ]
+
+        for case in doc['cases']:
+            self.patch_project(case['project'])
+            self.reconstruct_biospecimen_paths(case)
+
         return relevant
 
     def add_annotations(self, node, relevant, doc):
@@ -1014,9 +1035,11 @@ class GraphIndexBuilder(object):
         """
 
         annotations = doc.pop('annotations', [])
-        for r in relevant:
-            for a_doc in self.annotation_entities.get(r, {}).itervalues():
-                annotations.append(a_doc)
+
+        for relevant_node in relevant:
+            ann_docs = self.annotation_entities.get(relevant_node, {})
+            annotations.extend(ann_docs.values())
+
         if annotations:
             doc['annotations'] = annotations
 
