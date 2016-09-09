@@ -191,7 +191,7 @@ class GraphIndexBuilder(object):
         self.g = psqlgraph_driver
         self.G = nx.Graph()
 
-        self.leaf_nodes = ['center', 'tissue_source_site']
+        self.leaf_nodes = ['center']
         self.experimental_strategies = {}
         self.data_categories = {}
         self.popular_nodes = {}

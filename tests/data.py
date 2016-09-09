@@ -867,13 +867,6 @@ NODES = [
         short_name="BI",
         center_type="CGCC",
     ),
-    TissueSourceSite(
-        node_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
-        project="Breast invasive carcinoma",
-        bcr_id="NCH",
-        code="AR",
-        name="Mayo",
-    ),
     Center(
         node_id='c8611490-4cbd-5651-8de2-64484a515eec',
         code="02",
@@ -1283,10 +1276,6 @@ EDGES = [
     AliquotDerivedFromAnalyte(
         src_id='2708315c-d58a-42d7-a914-d6299aa74936',
         dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
-        properties={}),
-    CaseProcessedAtTissueSourceSite(
-        src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
-        dst_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
         properties={}),
     AliquotDerivedFromSample(
         src_id='aliquot-without-downstream',
