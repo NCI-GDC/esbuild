@@ -15,6 +15,8 @@ import os
 import time
 import math
 
+
+
 from esbuild.export.elasticdump import (
     ExportTypes,
     add_es_args,
@@ -67,29 +69,9 @@ def add_s3_args(parser):
                         default='elasticsearch_snapshots',
                         help='Host of s3 upload destination')
     parser.add_argument('--s3-access-key',
-                        required=True,
                         help='Access key for s3 upload destination')
     parser.add_argument('--s3-secret-key',
-                        required=True,
                         help='Access key for s3 upload destination')
-
-    return parser
-
-
-def add_es_args(parser):
-    parser.add_argument('--es-host',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-index',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-port',
-                        default=9200,
-                        help='Elasticsearch source port')
-    parser.add_argument('--es-user',
-                        help='Basic Auth user for ES (if applicable)')
-    parser.add_argument('--es-pass',
-                        help='Basic Auth password for ES (if applicable)')
 
     return parser
 
