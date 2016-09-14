@@ -122,6 +122,8 @@ class ESMapper(object):
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
+        case_tree.sample.aliquot.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.sample.aliquot.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
