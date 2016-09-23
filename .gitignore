@@ -1,3 +1,6 @@
+# Test suite viz intermediate file
+*test_suite_data.gv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

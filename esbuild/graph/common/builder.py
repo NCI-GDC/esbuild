@@ -498,32 +498,74 @@ class GraphIndexBuilder(object):
 
     def get_relevant_ids(self, node, visited_ids):
         """Create a flattened copy of visited_ids to filter relevant
-        annotations by entity id
+        annotations by entity id.
+
+        These will be used in `self.get_relevant_annotations()` to
+        filter out annotations inherited on descendants from entities
+        that are not descendants of this case.
 
         """
 
-        return [
+        return {
             _entity_id
             for _entity_type in visited_ids.itervalues()
             for _entity_id in _entity_type
-        ] + [node.node_id]
+        }.union({node.node_id})
 
     def get_case_ptree(self, node):
         """Walk graph naturally for tree of node objects"""
 
         return {node: self.create_tree(node, self.ptree_mapping, {})}
 
-    def get_relevant_annotations(self, case_doc, relevant_ids):
+    def get_relevant_annotations(self, doc, relevant_ids):
         """Return a flat list of annotations who describe entities in
-        :param:`relevant_ids`
+        :param:`relevant_ids` by recursively walking through the case
+        doc and aggregating all annotations.
+
+        :param list relevant_ids:
+            This is a list of ids (strings) that the will filter the
+            annotations by the entity they annotate.  This is required
+            because something like a file, can have ancestors that are
+            not descendants of a case.  The annotations on these
+            extraneous ancestors must be filtered out.
 
         """
 
+        if not isinstance(doc, (list, dict, tuple)):
+            return []
+
+        annotations = []
+
+        entity_info = {}
+        for key, value in doc.iteritems():
+            label = key.split('_')[0]
+            is_doc_id = key.endswith('_id') and Node.get_subclass(label)
+            if is_doc_id:
+                entity_info = {
+                    'entity_type': label,
+                    'entity_id': value
+                }
+                break
+
+        # Recurse here
+        for key, subdoc in doc.iteritems():
+            if key == 'annotations':
+                annotations.extend(
+                    dict(entity_info, **annotation)
+                    for annotation in subdoc
+                )
+            elif isinstance(subdoc, dict):
+                anns = self.get_relevant_annotations(subdoc, relevant_ids)
+                annotations.extend(anns)
+            elif isinstance(subdoc, list):
+                for entry in subdoc:
+                    anns = self.get_relevant_annotations(entry, relevant_ids)
+                    annotations.extend(anns)
+
         return [
             annotation
-            for file_ in case_doc['files']
-            for annotation in file_.get('annotations', [])
-            if annotation['entity_id'] in relevant_ids
+            for annotation in annotations
+            if annotation.get('entity_id') in relevant_ids
         ]
 
     def denormalize_case(self, node):
@@ -553,7 +595,8 @@ class GraphIndexBuilder(object):
         case['files'] = self.get_case_file_docs(node, ptree, files)
 
         # Flatten ids we visited in traversal to create a list of ids
-        # that are relevant to this case (including the case's id)
+        # that are relevant to this case (including the case's
+        # id).
         relevant_ids = self.get_relevant_ids(node, visited_ids)
 
         # Pull out the annotations from the case
@@ -587,13 +630,13 @@ class GraphIndexBuilder(object):
             for file_ in files
         ]
 
-    def patch_annotations(self, annotations, node, project):
+    def patch_annotations(self, annotations, case, project):
         """Add misc properties to annotations in-place"""
 
         for annotation in annotations:
             annotation['project'] = project
-            annotation['case_id'] = node.node_id
-            annotation['case_submitter_id'] = node.submitter_id
+            annotation['case_id'] = case.node_id
+            annotation['case_submitter_id'] = case.submitter_id
 
     def patch_case_files(self, case, case_doc):
         """Trim other cases from files in-place"""
