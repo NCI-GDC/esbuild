@@ -224,8 +224,6 @@ class GraphIndexBuilder(object):
             ('GDC', 'INTERNAL'),
             ('UAT08', 'BROAD-BCR'),
             ('TARGET', 'AML-IF'),
-            ('TARGET', 'ALL-P1'),
-            ('TARGET', 'ALL-P2'),
         }
 
         # The body of these nested documents will be flattened into
