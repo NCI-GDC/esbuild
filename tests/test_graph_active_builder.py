@@ -26,7 +26,7 @@ from esbuild.graph.active.builder import (
 )
 
 # Define the number of files that should be loaded as documents
-N_FILES = 9
+N_FILES = 10
 
 # ======================================================================
 # Fixtures
@@ -259,7 +259,8 @@ def test_path_count(index, doc_type, path, count):
                'clinical_supplement',
                'copy_number_segment',
                'annotated_somatic_mutation',
-               'aggregated_somatic_mutation'}),
+               'aggregated_somatic_mutation',
+               'methylation_beta_value'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -268,8 +269,12 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
-def test_no_submitted_aligned_reads(graph, index):
-    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
+@pytest.mark.parametrize('T', [
+    (md.SubmittedAlignedReads),
+    (md.SubmittedMethylationBetaValue)
+])
+def test_no_submitted_types(graph, index, T):
+    f_ids = {n.node_id for n in graph.nodes(T).all()}
     assert not [d for d in index.files if d['file_id'] in f_ids]
 
 
