@@ -590,6 +590,14 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A135-09',
     ),
+    Aliquot(
+        node_id='ce801df7-fbaf-47e4-a7c8-02a05f07b6be',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        concentration=0.15,
+        source_center='23',
+        submitter_id='TCGA-DJ-A4V5-01A-11D-A258-05',
+    ),
     Slide(
         node_id='3013e9be-aa3e-4986-990c-559982f00e36',
         project_id='TCGA-BRCA',
@@ -781,6 +789,41 @@ NODES = [
         updated_datetime=u'2016-08-04T04:08:45.991704-05:00'
     ),
 
+    # Methylation values
+    SubmittedMethylationBetaValue(
+        node_id='sub-methyl-beta-value',
+        acl=['open'],
+        created_datetime=u'2016-09-29T22:03:22.817635+00:00',
+        file_name=u'jhu-usc.edu_KIRC.HumanMethylation27.3.lvl-3.TCGA-BP-4761-11A-01D-1284-05.txt',
+        data_category='DNA Methylation',
+        data_type='Methylation Beta Value',
+        data_format='TXT',
+        experimental_strategy='Methylation Array',
+        file_size=1283108,
+        file_state=None,
+        md5sum=u'c5693b0ed22bfea43ed76f4b21c685e4',
+        state=u'live',
+        platform='Illumina Human Methylation 27',
+        updated_datetime=u'2016-09-29T22:03:22.817635+00:00'
+    ),
+    MethylationLiftoverWorkflow(
+        node_id='methyl-lift-wf',
+        workflow_type='Liftover'
+    ),
+    MethylationBetaValue(
+        node_id='methyl-beta-value',
+        created_datetime=u'2016-09-29T22:03:22.817635+00:00',
+        data_category='DNA Methylation',
+        data_type='Methylation Beta Value',
+        data_format='TXT',
+        experimental_strategy='Methylation Array',
+        file_name=u'jhu-usc.edu_KIRC.HumanMethylation27.3.lvl-3.TCGA-BP-4761-11A-01D-1284-05.gdc_hg38.txt',
+        file_size=9952417,
+        platform='Illumina Human Methylation 27',
+        md5sum=u'd7f89b0eeb11f7b1b119b8c301b50f86',
+        updated_datetime=u'2016-09-29T22:03:22.817635+00:00'
+    ),
+       
     # Prelude nodes
     DataSubtype(
         node_id='data_subtype_aligned_reads',
@@ -1399,6 +1442,19 @@ EDGES = [
     CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
         src_id='cnv-segment-file-1',
         dst_id='cnv-workflow-1'
+    ),
+
+    SubmittedMethylationBetaValueDerivedFromAliquot(
+        src_id='sub-methyl-beta-value',
+        dst_id='ce801df7-fbaf-47e4-a7c8-02a05f07b6be',
+    ),
+    MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
+        src_id='methyl-lift-wf',
+        dst_id='sub-methyl-beta-value',
+    ),
+    MethylationBetaValueDataFromMethylationLiftoverWorkflow(
+        src_id='methyl-beta-value',
+        dst_id='methyl-lift-wf',
     ),
 
     # Prelude
