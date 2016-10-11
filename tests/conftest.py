@@ -5,8 +5,8 @@ Setup esbuild tests
 
 from collections import namedtuple
 from elasticsearch import Elasticsearch
+from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
-#from gdcdatamodel.viz import create_graphviz
 
 import data
 import logging

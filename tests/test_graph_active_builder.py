@@ -40,6 +40,8 @@ from esbuild.graph.common.builder import (
 
 # Define the number of files that should be loaded as documents
 N_FILES = 10
+N_OUTPUT_FILES = 6
+N_INPUT_FILES = 9
 
 # ======================================================================
 # Fixtures
@@ -155,7 +157,6 @@ def test_mapping_value_in(mappings, mapping, path, expected):
 def test_list_product(a, b, expected):
     assert list_product(a, b) == expected
 
-
 @pytest.mark.parametrize('node,expected', [
     (md.RnaExpressionWorkflow, ['exon_expression']),
     (md.RnaExpressionWorkflow, ['gene_expression']),
@@ -237,16 +238,16 @@ def test_path_count(index, doc_type, path, count):
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].name', 1, {'Breast Invasive Carcinoma'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 2, 4}),
+     6, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
-     5, {'Simple Nucleotide Variation',
+     6, {'Simple Nucleotide Variation',
          'Sequencing Data',
          'Biospecimen',
          'Clinical',
-         'Copy Number Variation'}),
+         'Copy Number Variation',
+         'DNA Methylation',
+     }),
     ('cases', '[*].submitter_id', 1, {'TCGA-AR-A1AR'}),
-    ('cases', '[*].summary.[*].data_categories.[*].file_count',
-     5, {1, 2, 4}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -265,15 +266,15 @@ def test_path_count(index, doc_type, path, count):
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
-     N_FILES, {'Sequencing Data', 'Simple Nucleotide Variation'}),
+     N_INPUT_FILES, {'Sequencing Data', 'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].access',
-     N_FILES - 3, {'controlled'}),
+     N_OUTPUT_FILES, {'controlled'}),
     ('files', '[*].analysis.[*].input_files.[*].access',
-     N_FILES, {'controlled'}),
+     N_INPUT_FILES, {'controlled'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].data_category',
-     N_FILES - 3, {'Simple Nucleotide Variation'}),
+     N_OUTPUT_FILES , {'Simple Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
-     N_FILES - 3, {'submitted'}),
+     N_OUTPUT_FILES , {'submitted'}),
     ('files', '[*].type.[*]',
      N_FILES, {'simple_somatic_mutation',
                'aligned_reads',

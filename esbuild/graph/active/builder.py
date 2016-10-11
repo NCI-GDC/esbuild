@@ -39,6 +39,21 @@ log = get_logger("graph_active_index")
 log.setLevel(level=logging.INFO)
 
 
+def reverse_and_skip_first_entry(path):
+    """Returns a path that
+
+    1. is reversed and
+    2. has the first step (in reversed order) removed
+
+    This was created to traverse paths in reverse order such that the
+    first entry in the path is skipped because we are already visiting
+    that node. Example: ``['a', 'b', 'c'] -> ['b', 'a']``
+
+    """
+
+    return path[-2::-1]
+
+
 def list_product(roots, subtrees):
     """Appends each subtree to each root.
 
@@ -46,7 +61,7 @@ def list_product(roots, subtrees):
 
         roots = [['a', 'b'], ['-', '#']]
         subtrees = [range(0, 2), range(2, 4), range(4, 8)]
-        list(list_product(roots, subtrees)) 
+        list(list_product(roots, subtrees))
         [['a', 'b', 0, 1],
          ['a', 'b', 2, 3],
          ['a', 'b', 4, 5, 6, 7],
@@ -192,7 +207,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         'read_groups': {
             'alignment_workflow',
             'alignment_cocleaning_workflow',
-        }
+        },
     }
 
     # Pre-calculate the paths to read_group from each type of file
@@ -397,12 +412,25 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         # Copy number paths
         cnv_paths = [
-            path[-2::-1] for path in
+            reverse_and_skip_first_entry(path) for path in
             list_product([['aliquot']], self.aliquot_to_copy_number_paths)
         ]
+
+        # Methylation paths
+        methylation_paths = [
+            reverse_and_skip_first_entry(path) for path in
+            list_product([['aliquot']], self.aliquot_to_methylation_value_paths)
+        ]
+
+        # Special case paths to be traversed to possible associated entities
+        custom_paths = (
+            cnv_paths
+            + methylation_paths
+        )
+
         entities += [
-            entity for entity in self.cache.walk_paths(
-                node.node_id, cnv_paths)
+            entity
+            for entity in self.walk_paths(node, custom_paths)
         ]
 
         return list(set(entities))
