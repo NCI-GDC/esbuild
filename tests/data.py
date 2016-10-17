@@ -1055,10 +1055,6 @@ EDGES = [
         dst_id='aliquot-without-downstream',
     ),
     AnnotationAnnotatesAliquot(
-        src_id='annotation-without-downstream',
-        dst_id='aliquot-without-downstream',
-    ),
-    AnnotationAnnotatesAliquot(
         src_id='rescinded-annotation',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
