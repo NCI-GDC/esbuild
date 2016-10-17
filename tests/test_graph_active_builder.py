@@ -36,6 +36,7 @@ N_FILES = 9
 def index():
     builder = ActiveGraphIndexBuilder(_graph)
     builder.cache_database()
+    import ipdb; ipdb.set_trace();
     index = builder.denormalize_all()
     return Index._make(index)
 

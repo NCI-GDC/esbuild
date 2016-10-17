@@ -11,7 +11,6 @@ graph index.
 from cdisutils.log import get_logger
 from collections import defaultdict
 from copy import copy, deepcopy
-from datadog import statsd
 from gdcdatamodel import models as md
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
@@ -22,16 +21,17 @@ import networkx as nx
 import random
 import re
 
+from esbuild.graph.common import (
+    util,
+)
+
+from esbuild.shared_graph import (
+    CachingOptions
+)
+
 from .mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
-)
-
-from progressbar import (
-    ProgressBar,
-    Percentage,
-    Bar,
-    ETA,
 )
 
 log = get_logger("graph_index")
@@ -78,17 +78,7 @@ class GraphIndexBuilder(object):
     remembering which nodes are walked through a lot and remembering
     which neighbors they have with a given label.
 
-    NOTE: An attempt was made to do this whole thing in parallel,
-    however the memory footprint grew to large.  The best method for
-    doing this is to use the main process as a workload distributer,
-    and have child processes denormalizing cases.  This way,
-    the main thread can upsert files on an outbound queue from child
-    processes.
-
     - Josh (jsmiller@uchicago.edu)
-
-    TODOS:
-      - figure out a way to parallelize without excess copies
 
     ===============
     Transformations
@@ -161,10 +151,19 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver):
+
+    def get_caching_options(self):
+        return CachingOptions(
+            case_to_file_paths=self.case_to_file_paths,
+            redacted_but_not_suppressed=self.redacted_but_not_suppressed,
+        )
+
+    def __init__(self, shared_graph):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+
+        self.shared_graph = shared_graph
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -188,25 +187,7 @@ class GraphIndexBuilder(object):
         # Get the actual case mapping to validate against
         self.case_es_mapping = self.mapper.get_case_es_mapping()
 
-        self.g = psqlgraph_driver
-        self.G = nx.Graph()
-
         self.leaf_nodes = ['center', 'tissue_source_site']
-        self.experimental_strategies = {}
-        self.data_categories = {}
-        self.popular_nodes = {}
-        self.cases = None
-        self.projects = None
-        self.relevant_nodes = None
-        self.annotations = None
-        self.annotation_entities = None
-        self.entity_cases = None
-
-        # Different from ``self.data_categories`` in that it's a
-        # replacement for a hardcoded dict of data_type, data_subtype
-        # relationships.  This is populated by
-        # ``self._cache_existing_data_types()``
-        self.existing_data_types = {}
 
         # Suppress entities with redaction annotation if
         # entity.annotation.category not in this list
@@ -264,40 +245,17 @@ class GraphIndexBuilder(object):
             '.tbi',
         }
 
-    def warning(self, title, text, tags=[], *args, **kwargs):
-        log.warning("{}: {}".format(title, text))
-        statsd.event(
-            title,
-            text,
-            source_type_name="esbuild",
-            alert_type="warning",
-            tags=tags,
-        )
+    @staticmethod
+    def warning(*args, **kwargs):
+        """Log a warning to logger and statsd"""
 
-    def error(self, title, text, tags=[], *args, **kwargs):
-        log.error("{}: {}".format(title, text))
-        statsd.event(
-            title,
-            text,
-            source_type_name="esbuild",
-            alert_type="error",
-            tags=tags,
-        )
+        util.log_warning(log, *args, **kwargs)
 
-    def pbar(self, title, maxval):
-        """Create and initialize a custom progressbar
+    @staticmethod
+    def error(*args, **kwargs):
+        """Log a error to logger and statsd"""
 
-        :param str title: The text of the progress bar
-        :param int maxval: The maximumum value of the progress bar
-
-        """
-        maxval = maxval or 1  # prevent maxal of 0
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
-        pbar.update(0)
-        return pbar
+        util.log_error(log, *args, **kwargs)
 
     ###################################################################
     #                        Tree functions
@@ -436,14 +394,8 @@ class GraphIndexBuilder(object):
             ])
         }
 
-    def remove_bam_index_files(self, files):
-        return {
-            f for f in files
-            if not self.is_index_file(f)
-        }
-
     ###################################################################
-    #                          Cases
+    #                          cases
     ##################################################################
 
     def remove_hidden_nodes(self, nodes):
@@ -1227,7 +1179,7 @@ class GraphIndexBuilder(object):
         case_docs, ann_docs, file_docs = [], {}, {}
         if not cases:
             cases = self.cases
-        pbar = self.pbar('Denormalizing cases ', len(cases))
+        pbar = util.get_pbar('Denormalizing cases ', len(cases))
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
@@ -1251,7 +1203,7 @@ class GraphIndexBuilder(object):
         if not projects:
             projects = self.projects
         project_docs = []
-        pbar = self.pbar('Denormalizing projects ', len(projects))
+        pbar = util.get_pbar('Denormalizing projects ', len(projects))
         for project in projects:
             project_docs.append(self.denormalize_project(project))
             pbar.update(pbar.currval+1)
@@ -1326,70 +1278,6 @@ class GraphIndexBuilder(object):
         projs = random.sample(self.projects, 1)
         projects = self.denormalize_projects(projs)
         return cases, files, annotations, projects
-
-    ###################################################################
-    #                         Graph functions
-    ###################################################################
-
-    def nodes_labeled(self, labels):
-        """Returns an iterator over the edges in the graph with label `label`
-
-        """
-
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        for n, p in self.G.nodes_iter(data=True):
-            if n.label in labels:
-                yield n
-
-    @staticmethod
-    def node_labels_by_category(categories):
-        """Returns an iterator of node labels that are files
-
-        """
-
-        categories = (
-            tuple(categories) if hasattr(categories, '__iter__')
-            else (categories,)
-        )
-
-        return [
-            n.label for n in Node.get_subclasses()
-            if n._dictionary['category'] in categories
-        ]
-
-    def neighbors_labeled(self, node, labels, expected=None):
-        """For a given node, return an iterator with generates neighbors to
-        that node that are in a list of labels.  `label` can be either a
-        string or list of strings.
-
-        :param is_expected: Int count of expected elements
-
-        """
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-
-        if node in self.popular_nodes:
-            if labels not in self.popular_nodes[node]:
-                neighbors = self._cache_popular_neighbor(
-                    node, self.G.neighbors(node), labels)
-            else:
-                neighbors = self.popular_nodes[node][labels]
-        else:
-            temp = self.G.neighbors(node)
-            if len(temp) > 200:
-                neighbors = self._cache_popular_neighbor(node, temp, labels)
-            else:
-                neighbors = {n for n in temp if n.label in labels}
-
-        count = 0
-        for n in neighbors:
-            count += 1
-            yield n
-
-        if expected is not None and count != expected:
-            self.warning(
-                "{}: unexpected no. of '{}' neighbors".format(node, labels),
-                '{}: {} != {} (expected)'.format(node, count, expected),
-                tags=["{}:{}".format(node.label, node.node_id)])
 
     ###################################################################
     #                       Validation functions
@@ -1491,144 +1379,6 @@ class GraphIndexBuilder(object):
         # Check for keys that are in the doc but not in the mapping
         self.validate_against_mapping(case, self.case_es_mapping)
 
-    ###################################################################
-    #                       Caching functions
-    ###################################################################
-
-    @staticmethod
-    def is_harmonized_file(node):
-        return (
-            node.label == 'file' and
-            node._sysan.get('source', '').endswith('_alignment')
-        )
-
-    def is_old_supplement_file(self, node):
-        return (
-            node.label == 'file' and
-            any(
-                p.match(node._props.get('file_name', ''))
-                for p in self.supplement_regexes
-            )
-        )
-
-    def is_file_indexed(self, node):
-        """Returns false if node is a file that is not supposed to be indexed.
-
-        """
-
-        # This function should only be for files
-        if node.label not in self.file_labels:
-            return True
-
-        # Remove files with no acl entries
-        if len(node.acl) == 0:
-            log.info('File not indexed (empty acl): %s', node)
-            return False
-
-        # Skip old versions of supplement xmls
-        if self.is_old_supplement_file(node):
-            log.info('File not indexed (deprecated supplement): %s', node)
-            return False
-
-        # Skip old representation of harmonized files
-        if self.is_harmonized_file(node):
-            log.info('File not indexed (deprecated harmonized file): %s', node)
-            return False
-
-        # Is file to_delete
-        if node.system_annotations.get("to_delete"):
-            return False
-
-        # Is file not live
-        if node.state not in ['live', 'submitted']:
-            log.info('File not indexed (bad state: %s): %s', node, node.state)
-            return False
-
-        return True
-
-    def is_omitted_project_or_neighbor_case(self, node):
-        """Returns false if the node is a project that is not supposed to be
-        indexed.
-
-        """
-
-        if node.label == 'project':
-            projects = [node]
-        elif node.label == 'case':
-            projects = list(self.neighbors_labeled(node, 'project', 1))
-        else:
-            return False
-
-        project_codes = [project.code for project in projects]
-        program_names = [
-            program.name
-            for project in projects
-            for program in self.neighbors_labeled(project, 'program', 1)
-        ]
-
-        # Check if project is not released
-        for project in projects:
-            if project.released is not True:
-                log.info('Omitting %s, project %s not released', node, project)
-                return True
-
-        # Check project and program against omitted_projects
-        for program_name in program_names:
-            for project_code in project_codes:
-                if (program_name, project_code) in self.omitted_projects:
-                    return True
-
-        return False
-
-    def is_unindexed_case(self, node):
-        return (
-            node.label == 'case'
-            and not list(self.neighbors_labeled(node, 'project', 1))
-        )
-
-    def is_node_unindexed_by_property(self, node):
-        """Returns True if node should be removed because its properties are
-        specified in self.unindexed_by_property as an indication to
-        remove it from the index.
-
-        """
-
-        filters = self.unindexed_by_property.get(node.label, [])
-
-        for filter_ in filters:
-            is_subset = not set(filter_.items()) - set(node._props.items())
-
-            if is_subset:
-                return True
-
-        return False
-
-    def is_node_indexed(self, node):
-        """Returns false if the node is not supposed to be indexed.
-
-        """
-
-        if self.is_unindexed_case(node):
-            log.info('Node not indexed (case not indexed): {}'.format(node))
-            return False
-
-        # Check for non-indexed files
-        if not self.is_file_indexed(node):
-            log.info('Node not indexed (file not indexed): {}'.format(node))
-            return False
-
-        # Check for non-indexed files
-        if self.is_node_unindexed_by_property(node):
-            log.info('Node not indexed (not by property): {}'.format(node))
-            return False
-
-        # Check for omitted_projects
-        if self.is_omitted_project_or_neighbor_case(node):
-            log.info('Node not indexed (omitted project ): {}'.format(node))
-            return False
-
-        return True
-
     def is_node_hidden(self, node):
         """Return True if the node should be traversed (and therefore must
         remain in the cache) but should not appear in any documents
@@ -1644,218 +1394,6 @@ class GraphIndexBuilder(object):
 
         return False
 
-    @staticmethod
-    def truncate_path(path, label):
-        """
-        Given a path (a list of node labels), "truncate" it from the left
-        such that it starts with the given label, or return [], e.g.:
-
-        truncate_path(["a", "b", "c"], "a") -> ["b", "c"]
-        truncate_path(["c", "d"], "b") -> []
-
-        """
-        for i, currlabel in enumerate(path):
-            if currlabel == label:
-                return path[i+1:]
-        return []
-
-    def get_suppressed_children(self, redacted):
-        """Get the children of a redacted node.
-
-        """
-        to_suppress = []
-        if redacted.label == "case":
-            paths = self.case_to_file_paths
-        else:
-            paths = [self.truncate_path(p, redacted.label)
-                     for p in self.case_to_file_paths]
-            # filter empty paths
-            paths = [p for p in paths if p]
-        log.info("suppressing %s, which is redacted directly.", redacted)
-        to_suppress.append(redacted)
-        log.info("Walking down towards file with paths %s", paths)
-        extra = self.walk_paths(redacted, paths, whole=True)
-        log.info("Found %s other things to suppress by walking from %s",
-                 extra, redacted)
-        to_suppress.extend(extra)
-        return to_suppress
-
-    def suppressed_nodes(self):
-        """
-        Find all nodes that need to be suppressed due to redactions.
-        """
-        redactions = [a for a in self.nodes_labeled('annotation')
-                      if a.classification == "Redaction" and
-                      a.category not in self.redacted_but_not_suppressed]
-        to_suppress = []
-        for redaction in redactions:
-            redacted_list = self.G.neighbors(redaction)
-
-            if len(redacted_list) == 0:
-                # If there is no entity, then we have to move on to
-                # the next annotation
-                self.error(
-                    'Redaction annotation no entities',
-                    "Redaction {} has zero entities associated.".format(
-                        redaction),
-                    tags=["annotation:{}".format(redaction)],
-                )
-                continue
-
-            if len(redacted_list) > 1:
-                # an annotation should only ever annotate one thing,
-                # however, proceed to redact them all
-                self.warning(
-                    'Redaction annotation has multiple entities',
-                    ("{} has more than one entity associated. "
-                     "For security reasons, removing all from index!")
-                    .format(redaction),
-                    tags=["annotation:{}".format(redaction)],
-                )
-
-            for redacted in redacted_list:
-                to_suppress += self.get_suppressed_children(redacted)
-
-            # returning the redaction annotations themselves here might
-            # seem weird, but including the redaction annotations
-            # themselves without the things they point to won't work, so
-            # we have to remove them.
-            log.info("suppressing %s, the redaction annotation.", redaction)
-            to_suppress.append(redaction)
-
-        return to_suppress
-
-    def remove_unindexed_nodes_from_graph(self):
-        log.info('Selecting entities to be removed from cache...')
-        removed_nodes = [node for node in self.G.nodes()
-                         if not self.is_node_indexed(node)]
-        log.info("Removing {} nodes from cache".format(len(removed_nodes)))
-        self.G.remove_nodes_from(removed_nodes)
-        log.info("Finding and removing suppressed nodes")
-        suppressed = self.suppressed_nodes()
-        log.info("Removing %s suppressed nodes", len(suppressed))
-        self.G.remove_nodes_from(suppressed)
-
-    def iter_database_edges(self):
-        """Returns an iterable of edges to load from the database.
-
-        Eagerly (with join) loads the source and destination of the edge.
-
-        """
-
-        return itertools.chain(*[
-            self.g.edges(subclass)
-            .options(joinedload(subclass.src))
-            .options(joinedload(subclass.dst))
-            .yield_per(int(1e5))
-            for subclass in Edge.__subclasses__()
-        ])
-
-    def cache_database(self):
-        """Load the database into memory and remember only edge labels that we
-        will need to distinguish later.
-
-        """
-
-        with self.g.session_scope():
-            pbar = self.pbar('Caching Database: ', self.g.edges().count())
-            for e in self.iter_database_edges():
-                pbar.update(pbar.currval+1)
-                triple = (e.src.label, e.label, e.dst.label)
-                needs_differentiation = (triple in self.differentiated_edges)
-                if triple == ("file", "data_from", "file"):
-                    # for files that are "data_from" other files, the
-                    # centers and aliquots of the source files count
-                    # as neighbors of the dst files
-                    for center in e.src.centers:
-                        self.G.add_edge(e.dst, center)
-                    for aliquot in e.src.aliquots:
-                        self.G.add_edge(e.dst, aliquot)
-                if e.label == 'relates_to' and e.__dst_class__ == 'Case':
-                    pass
-                elif needs_differentiation and e._props:
-                    self.G.add_edge(
-                        e.src, e.dst, label=e.label, props=e._props)
-                elif needs_differentiation and not e._props:
-                    self.G.add_edge(e.src, e.dst, label=e.label)
-                elif e._props:
-                    self.G.add_edge(e.src, e.dst, props=e._props)
-                else:
-                    self.G.add_edge(e.src, e.dst)
-            pbar.finish()
-
-        # Prune graph
-        log.info('Cached {} nodes'.format(self.G.number_of_nodes()))
-        self.remove_unindexed_nodes_from_graph()
-
-        # Aggressively cache relationships, nodes by type, traversals, etc.
-        self._cache_all()
-
-    def _cache_all(self):
-        """Create key value maps to cache nodes by label, by path, etc.
-
-        """
-
-        self._cache_existing_data_types()
-        self._cache_experimental_strategies()
-        self._cache_data_categories()
-        self._cache_annotations()
-        self._cache_relevant_nodes()
-        self._cache_entity_cases()
-        self._cache_cases()
-        self._cache_projects()
-
-    def _cache_projects(self):
-        """Save a list of all Project nodes"""
-
-        if not self.projects:
-            log.info('Caching projects...')
-            self.projects = list(self.nodes_labeled('project'))
-
-    def _cache_cases(self):
-        """Save a list of all Case nodes"""
-
-        if not self.cases:
-            log.info('Caching cases...')
-            self.cases = list(self.nodes_labeled('case'))
-
-    def _cache_entity_cases(self):
-        """Cache the related Case nodes for each file"""
-
-        if self.entity_cases:
-            return
-
-        entities = list(self.nodes_labeled(self.possible_associated_entites))
-        pbar = self.pbar('Caching entity cases: ', len(entities))
-        self.entity_cases = {}
-
-        for e in entities:
-            if e.label == "case":
-                # if the associated entity is a case, it's case is
-                # just itself. this is kindy of sketchy but w/e
-                self.entity_cases[e] = e
-                continue
-
-            paths = (
-                self.truncate_path(path, e.label)
-                for path in  self.file_to_case_paths
-            )
-            cases = self.walk_paths(e, paths)
-
-            if len(cases) > 1:
-                self.warning(
-                    'Entity associated with > 1 case',
-                    '{}: Found {} cases'.format(e, len(cases)),
-                    tags=["entity:{}".format(e)],
-                )
-                return
-
-            if len(cases) != 0:
-                self.entity_cases[e] = cases.pop()
-
-            pbar.update(pbar.currval+1)
-        pbar.finish()
-
     def get_cls_file_to_case_paths(self, cls):
         """Given a node, return the paths the lead monotonically up to case"""
 
@@ -1868,123 +1406,3 @@ class GraphIndexBuilder(object):
             for path in self.file_to_case_paths
             if path and path[0] in parent_labels
         )
-
-    def _cache_relevant_nodes(self):
-        """The file documents will need to be pruned to only the nodes that
-        are relevant to the file. Here we cache all of the nodes
-        encountered when traversing to all related cases.
-
-        """
-
-        if self.relevant_nodes:
-            return
-
-        self.relevant_nodes = {}
-
-        files = list(self.nodes_labeled(self.file_labels))
-        pbar = self.pbar('Caching file paths: ', len(files))
-
-        for f in files:
-            paths = self.get_cls_file_to_case_paths(f)
-            self.relevant_nodes[f] = self.walk_paths(f, paths, whole=True)
-            pbar.update(pbar.currval+1)
-
-        pbar.finish()
-
-    def _cache_annotations(self):
-        if not self.annotations:
-            # cache what nodes are annotations
-            self.annotations = list(self.nodes_labeled('annotation'))
-        if self.annotation_entities:
-            # we've already cached the related entities
-            return
-        if not self.annotations:
-            # there aren't any entities to relate
-            self.annotation_entities = {}
-            log.warn('No annotations found in the cached database!')
-            return
-        pbar = self.pbar('Caching annotations: ', len(self.annotations))
-        self.annotation_entities = {}
-        for a in self.annotations:
-            for n in self.G.neighbors(a):
-                if n not in self.annotation_entities:
-                    self.annotation_entities[n] = {}
-                a_doc = self.denormalize_annotation(a)
-                self.annotation_entities[n][a.node_id] = a_doc
-            pbar.update(pbar.currval+1)
-        pbar.finish()
-
-    def _cache_popular_neighbor(self, node, neighbors, labels):
-        if node not in self.popular_nodes:
-            self.popular_nodes[node] = {}
-        self.popular_nodes[node][labels] = {
-            n for n in neighbors if n.label in labels}
-        return self.popular_nodes[node][labels]
-
-    def _cache_data_categories(self):
-        """Looking up the files that are classified in each data_type is a
-        common computation.  Here we cache this information for easy retrieval.
-
-        ..note::
-            data_type is renamed data_category, viz.
-            https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-        """
-
-        if len(self.data_categories):
-            return
-
-        log.info('Caching data categories')
-        for data_category in self.nodes_labeled('data_type'):
-            category = data_category._props['name']
-            self.data_categories[category] = self.remove_bam_index_files(
-                set(self.walk_path(data_category, ['data_subtype', 'file'])))
-
-        # New files have 'data_category' as a property
-        for file_ in self.nodes_labeled(self.file_labels):
-            category = file_._props.get('data_category')
-            if not category:
-                continue
-            self.data_categories.setdefault(category, set()).add(file_)
-
-    def _cache_experimental_strategies(self):
-        """Looking up the files that are classified in each
-        experimental_strategy is a common computation.  Here we cache
-        this information for easy retrieval.
-
-        """
-
-        if len(self.experimental_strategies):
-            return
-
-        log.info('Caching experitmental strategies')
-        for exp_strat in self.nodes_labeled('experimental_strategy'):
-            strategy = exp_strat._props['name']
-            self.experimental_strategies[strategy] = set(self.walk_path(
-                exp_strat, ['file']))
-
-        # New files have 'experimental_strategy' as a property
-        for file_ in self.nodes_labeled(self.file_labels):
-            strategy = file_._props.get('experimental_strategy')
-            if not strategy:
-                continue
-            self.experimental_strategies.setdefault(strategy, set()).add(file_)
-
-    def _cache_existing_data_types(self):
-        """The last version of this code imported a hard coded list and called
-        it DATA_TYPES.  This function replaces this hardcoded nested
-        dict by pulling it from the graph at runtime.
-
-        :returns:
-            The data types in the graph in the format
-            ``{'data_type.name': ['data_subtype.name']}``
-
-        """
-
-        with self.g.session_scope():
-            return {
-                data_type.name: [
-                    subtype.name
-                    for subtype in data_type.data_subtypes
-                ] for data_type in self.g.nodes(md.DataType).all()
-            }
