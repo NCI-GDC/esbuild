@@ -44,6 +44,7 @@ def shouldnt_delete(node):
     delete them.
 
     """
+
     if isinstance(node, File) and node.derived_files:
         return True
     else:

@@ -133,6 +133,11 @@ class CachedGraph(object):
 
         util.log_error(logger, *args, **kwargs)
 
+    def get_edge(self, src, dst):
+        """Returns any information stored about the edge between two nodes"""
+
+        return self.graph[src][dst]
+
     def get_suppressed_children(self, redacted):
         """Get the children of a redacted node"""
 
@@ -540,10 +545,10 @@ class CachedGraph(object):
 
     def is_old_supplement_file(self, node):
         return (
-            node.label == 'file' and
-            any(
-                p.match(node._props.get('file_name', ''))
-                for p in self.caching_options.supplement_regexes
+            node.label == 'file'
+            and any(
+                pattern.match(node._props.get('file_name', ''))
+                for pattern in self.caching_options.supplement_regexes
             )
         )
 
@@ -671,6 +676,6 @@ class CachedGraph(object):
         return {
             n for n in itertools.chain(*[
                 self.walk_path(node, path, whole=whole)
-                for path in paths
+                for path in paths if path
             ])
         }

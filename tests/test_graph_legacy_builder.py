@@ -10,6 +10,7 @@ Test the builder for graph ES index
 from conftest import Index, _graph
 from data import fuzzed
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
+from esbuild.graph.common.cache import CachedGraph
 from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
@@ -20,11 +21,16 @@ from conftest import (
 )
 
 
+def new_cache(graph=_graph):
+    options = LegacyGraphIndexBuilder.get_caching_options()
+    cache = CachedGraph(graph, options)
+    cache.cache_database()
+    return cache
+
+
 def build_index(graph):
-    builder = LegacyGraphIndexBuilder(graph)
-    builder.cache_database()
-    index = builder.denormalize_all()
-    return Index._make(index)
+    builder = LegacyGraphIndexBuilder(new_cache(graph))
+    return Index._make(builder.denormalize_all())
 
 
 # ======================================================================
@@ -33,7 +39,8 @@ def build_index(graph):
 
 @pytest.fixture()
 def builder():
-    return LegacyGraphIndexBuilder(_graph)
+    return LegacyGraphIndexBuilder(new_cache())
+
 
 
 @pytest.fixture(scope="module")
@@ -103,10 +110,14 @@ def test_path_value_in(index, doc_type, path, expected, count):
         assert actual.value in expected
 
 
-def test_omitted_projects(graph):
-    builder = LegacyGraphIndexBuilder(graph)
-    builder.omitted_projects.add(('TCGA', 'BRCA'))
-    builder.cache_database()
+def test_omitted_projects(graph, monkeypatch):
+    caching_options = LegacyGraphIndexBuilder.get_caching_options()
+    monkeypatch.setattr(caching_options, 'omitted_projects',
+                        caching_options.omitted_projects.union({('TCGA', 'BRCA')}))
+
+    cache = CachedGraph(graph, caching_options)
+    cache.cache_database()
+    builder = LegacyGraphIndexBuilder(cache)
     index = Index._make(builder.denormalize_all())
     assert index.cases == []
 
@@ -146,7 +157,9 @@ def test_non_case_suppression(graph):
         redacted2.aliquots = [aliquot]
         s.add(redacted1)
         s.add(redacted2)
+
     index = build_index(graph)
+
     case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
     sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
     assert portion.node_id not in [

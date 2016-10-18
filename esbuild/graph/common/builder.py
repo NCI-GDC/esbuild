@@ -775,7 +775,7 @@ class GraphIndexBuilder(object):
         """Given a file, return any neighboring index files"""
         return [
             n for n in list(self.cache.neighbors_labeled(node, 'file'))
-            if self.cache[node][n].get("label") == "related_to"
+            if self.cache.get_edge(node, n).get("label") == "related_to"
             and self.is_index_file(n)
         ]
 
@@ -818,7 +818,7 @@ class GraphIndexBuilder(object):
         # Get related_files
         related_files = [
             n for n in list(self.cache.neighbors_labeled(node, 'file'))
-            if self.cache[node][n].get("label") == "related_to"
+            if self.cache.get_edge(node, n).get("label") == "related_to"
             and not self.is_index_file(n)
         ]
 
@@ -859,7 +859,8 @@ class GraphIndexBuilder(object):
         # here).  For now, we don't do this for non-legacy files.
         if node.label == 'file':
             for archive in set(self.cache.neighbors_labeled(node, 'archive')):
-                if self.cache[node][archive].get('label') != 'member_of':
+                edge = self.cache.get_edge(node, archive)
+                if edge.get('label') != 'member_of':
                     name = '{}.{}.0.tar.gz'.format(
                         archive['submitter_id'], archive['revision'])
                     rf_docs.append({
@@ -891,7 +892,7 @@ class GraphIndexBuilder(object):
 
             is_skipped_legacy_edge = (
                 node.label == 'file' and
-                self.cache[node][archive].get('label') != 'member_of'
+                self.cache.get_edge(node, archive).get('label') != 'member_of'
             )
 
             if not is_skipped_legacy_edge:
