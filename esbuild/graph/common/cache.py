@@ -24,6 +24,10 @@ from esbuild.graph.common import (
     util,
 )
 
+from esbuild.graph.common.fake_node import (
+    FakeNode,
+)
+
 logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -317,7 +321,7 @@ class CachedGraph(object):
             for edge in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
 
-                src, dst = edge.src, edge.dst
+                src, dst = FakeNode(edge.src), FakeNode(edge.dst)
 
                 triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
