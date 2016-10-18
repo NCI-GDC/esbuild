@@ -83,7 +83,8 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        cache = CachedGraph(self.graph, converter_class.get_caching_options())
+        caching_options = converter_class.get_caching_options()
+        cache = CachedGraph(self.graph, caching_options)
         converter = converter_class(cache)
 
         self.converter = converter
