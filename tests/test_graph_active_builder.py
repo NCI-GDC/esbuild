@@ -29,6 +29,11 @@ from esbuild.graph.common.cache import (
     CachedGraph,
 )
 
+from esbuild.graph.common.builder import (
+    build_index,
+)
+
+
 # Define the number of files that should be loaded as documents
 N_FILES = 9
 
@@ -45,9 +50,9 @@ def cached_graph():
 
 
 @pytest.fixture(scope='module')
-def index(cached_graph):
-    builder = ActiveGraphIndexBuilder(cached_graph)
-    return Index._make(builder.denormalize_all())
+def index():
+    doc_types = build_index(ActiveGraphIndexBuilder, _graph)
+    return Index._make(doc_types)
 
 
 @pytest.fixture(scope='module')

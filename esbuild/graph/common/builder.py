@@ -13,6 +13,7 @@ from collections import defaultdict
 from copy import copy, deepcopy
 from functools32 import lru_cache
 from gdcdatamodel import models as md
+from multiprocessing import cpu_count, Queue, Process
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
 
@@ -26,6 +27,7 @@ from esbuild.graph.common import (
 
 from esbuild.graph.common.cache import (
     CachingOptions,
+    CachedGraph,
 )
 
 from .mappings import (
@@ -35,6 +37,127 @@ from .mappings import (
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
+
+
+def upsert_file_into_dict(files, file_doc):
+    """Merge this file document into all other relevant file documents (or
+    just add it if none exist)
+
+    TODO: make this more descriptive
+
+    """
+
+    did = file_doc['file_id']
+
+    if did not in files:
+        files[did] = file_doc
+        return
+
+    for case in file_doc['cases']:
+        case_id = case['case_id']
+
+        existing_ids = {
+            case['case_id']
+            for case in files[did]['cases']
+        }
+
+        if case_id not in existing_ids:
+            files[did]['cases'] += file_doc['cases']
+
+
+def build_index_serial(builder_class, graph):
+    """TODO: docstring
+
+    """
+
+    caching_options = builder_class.get_caching_options()
+    cache = CachedGraph(graph, caching_options)
+    builder = builder_class(cache)
+
+    return builder.denormalize_all()
+
+
+def build_worker(builder, case_in_q, result_q):
+    """TODO: docstring
+
+    """
+
+    while True:
+        case = case_in_q.get()
+        if case is None:
+            return log.info('No more work for builder %s', builder)
+        result_q.put(builder.denormalize_case(case))
+
+
+def start_worker_pool(builders, cases):
+    """Setup a process pool and schedule work to the case_in_q"""
+
+    case_in_q, result_q = Queue(), Queue()
+
+    pool = [
+        Process(
+            target=build_worker,
+            args=(builder, case_in_q, result_q)
+        ) for builder in builders
+    ]
+
+    # Schedule work
+    for case in cases:
+        case_in_q.put(case)
+
+    # Put an end of work marker for all workers
+    for _ in range(len(builders)):
+        case_in_q.put(None)
+
+    # Start all of the processes
+    for process in pool:
+        process.start()
+
+    return case_in_q, result_q, pool
+
+
+def build_index(builder_class, graph, cases=None, threads=cpu_count()):
+    """TODO: docstring
+
+    """
+
+    if threads <= 1:
+        return build_index_serial(builder_class, graph)
+
+    caching_options = builder_class.get_caching_options()
+    cache = CachedGraph(graph, caching_options)
+    cache.cache_database()
+
+    case_docs, ann_docs, file_docs = [], {}, {}
+
+    # Map work to worker processes
+    cases = cases or cache.cases
+    builders = [builder_class(cache) for _ in range(threads)]
+    _, result_q, pool = start_worker_pool(builders, cases)
+
+    pbar = util.get_pbar('Denormalizing cases ', len(cases))
+
+    # Collect results
+    while len(case_docs) < len(cases):
+        case_doc, files, annotations = result_q.get()
+        case_docs.append(case_doc)
+
+        # Collect annotation docs
+        for annotation in annotations:
+            if annotation['annotation_id'] not in ann_docs:
+                ann_docs[annotation['annotation_id']] = annotation
+
+        # Collect file docs
+        for file_ in files:
+            upsert_file_into_dict(file_docs, file_)
+
+        pbar.update(pbar.currval+1)
+    pbar.finish()
+
+    for process in pool:
+        process.join()
+
+    return case_docs, file_docs.values(), ann_docs.values()
 
 
 class GraphIndexBuilder(object):
@@ -1031,18 +1154,6 @@ class GraphIndexBuilder(object):
 
         if docs:
             doc['associated_entities'] = docs
-
-    def upsert_file_into_dict(self, files, file_doc):
-        did = file_doc['file_id']
-        if did not in files:
-            files[did] = file_doc
-        else:
-            for case in file_doc['cases']:
-                case_id = case['case_id']
-                existing_ids = {
-                    p['case_id'] for p in files[did]['cases']}
-                if case_id not in existing_ids:
-                    files[did]['cases'] += file_doc['cases']
 
     ###################################################################
     #                       Project summaries
