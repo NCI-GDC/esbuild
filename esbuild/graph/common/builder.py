@@ -1170,7 +1170,8 @@ class GraphIndexBuilder(object):
         """
 
         if not projects:
-            projects = self.projects
+            projects = self.cache.projects
+
         project_docs = []
         pbar = util.get_pbar('Denormalizing projects ', len(projects))
         for project in projects:
