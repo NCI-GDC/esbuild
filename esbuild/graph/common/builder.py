@@ -252,6 +252,7 @@ class GraphIndexBuilder(object):
             omitted_projects=cls.omitted_projects,
             index_file_extensions=cls.index_file_extensions,
             possible_associated_entites=cls.possible_associated_entites,
+            supplement_regexes=cls.supplement_regexes,
         )
 
     @staticmethod

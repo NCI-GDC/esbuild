@@ -12,6 +12,7 @@ import logging
 import itertools
 import networkx as nx
 
+from collections import namedtuple
 from cdisutils.log import get_logger
 from gdcdatamodel import models as md
 from psqlgraph import Edge, Node
@@ -41,6 +42,7 @@ class CachingOptions(object):
             omitted_projects,
             index_file_extensions,
             possible_associated_entites,
+            supplement_regexes,
     ):
         """Options required to cache information to SharedGraph object
 
@@ -69,6 +71,7 @@ class CachingOptions(object):
         self.omitted_projects = omitted_projects
         self.index_file_extensions = index_file_extensions
         self.possible_associated_entites = possible_associated_entites
+        self.supplement_regexes = supplement_regexes
 
         self.file_to_case_paths = util.reverse_paths(
             self.case_to_file_paths, 'case')
@@ -266,31 +269,45 @@ class CachedGraph(object):
                 'Caching Database: ',
                 self.psqlgraph_driver.edges().count())
 
-            for e in self.iter_database_edges():
+            for edge in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
-                triple = (e.src.label, e.label, e.dst.label)
+
+                src, dst = edge.src, edge.dst
+                triple = (src.label, edge.label, dst.label)
+
                 needs_differentiation = (
                     triple in self.caching_options.differentiated_edges
                 )
+
                 if triple == ("file", "data_from", "file"):
                     # for files that are "data_from" other files, the
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
-                    for center in e.src.centers:
-                        self.graph.add_edge(e.dst, center)
-                    for aliquot in e.src.aliquots:
-                        self.graph.add_edge(e.dst, aliquot)
-                if e.label == 'relates_to' and e.__dst_class__ == 'Case':
+                    for center in edge.src.centers:
+                        self.graph.add_edge(dst, center)
+                    for aliquot in edge.src.aliquots:
+                        self.graph.add_edge(dst, aliquot)
+
+                if edge.label == 'relates_to' and edge.__dst_class__ == 'Case':
                     pass
-                elif needs_differentiation and e._props:
+
+                elif needs_differentiation and edge._props:
                     self.graph.add_edge(
-                        e.src, e.dst, label=e.label, props=e._props)
-                elif needs_differentiation and not e._props:
-                    self.graph.add_edge(e.src, e.dst, label=e.label)
-                elif e._props:
-                    self.graph.add_edge(e.src, e.dst, props=e._props)
+                        src,
+                        dst,
+                        label=edge.label,
+                        props=edge._props
+                    )
+
+                elif needs_differentiation and not edge._props:
+                    self.graph.add_edge(src, dst, label=edge.label)
+
+                elif edge._props:
+                    self.graph.add_edge(src, dst, props=edge._props)
+
                 else:
-                    self.graph.add_edge(e.src, e.dst)
+                    self.graph.add_edge(src, dst)
+
             pbar.finish()
 
         # Prune graph
