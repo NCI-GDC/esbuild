@@ -15,9 +15,7 @@ from gdcdatamodel import models as md
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
 
-import itertools
 import logging
-import networkx as nx
 import random
 import re
 

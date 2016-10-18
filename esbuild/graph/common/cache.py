@@ -12,6 +12,7 @@ import logging
 import itertools
 import networkx as nx
 
+from cdisutils.log import get_logger
 from gdcdatamodel import models as md
 from psqlgraph import Edge, Node
 from sqlalchemy.orm import joinedload
@@ -20,7 +21,7 @@ from esbuild.graph.common import (
     util,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 
 
