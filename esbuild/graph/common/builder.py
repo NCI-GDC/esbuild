@@ -1261,25 +1261,6 @@ class GraphIndexBuilder(object):
         projects = self.denormalize_projects()
         return cases, files, annotations, projects
 
-    def denormalize_cases_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation
-         documents
-
-        """
-        cases = random.sample(self.cache.cases, k)
-        cases, files, annotations = self.denormalize_cases(cases)
-        return cases, files, annotations
-
-    def denormalize_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation, and
-        project documents
-
-        """
-        cases, files, annotations = self.denormalize_sample_cases(k)
-        projs = random.sample(self.projects, 1)
-        projects = self.denormalize_projects(projs)
-        return cases, files, annotations, projects
-
     ###################################################################
     #                       Validation functions
     ###################################################################
