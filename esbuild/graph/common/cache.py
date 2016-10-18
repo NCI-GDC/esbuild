@@ -707,7 +707,10 @@ class CachedGraph(object):
     def neighbors(self, node):
         """Return the neighbors of given node"""
 
-        return self.graph.neighbors(self.get_node_in_graph(node))
+        return [
+            neighbor.to_json() for neighbor in
+            self.graph.neighbors(self.get_node_in_graph(node))
+        ]
 
     def walk_path(self, node, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of
