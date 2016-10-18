@@ -76,12 +76,14 @@ class GDCElasticsearch(object):
                            os.environ.get("ES_PASSWORD", "")),
                 timeout=9999)
 
-        self.graph = PsqlGraphDriver(
+        self.psqlgraph_args = (
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
             os.environ["PG_PASS"],
             os.environ["PG_NAME"],
         )
+
+        self.graph = PsqlGraphDriver(self.psqlgraph_args)
 
         caching_options = converter_class.get_caching_options()
         cache = CachedGraph(self.graph, caching_options)

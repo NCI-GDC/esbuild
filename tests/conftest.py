@@ -39,6 +39,15 @@ logger.setLevel(logging.DEBUG)
 
 _graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
 
+@pytest.fixture(scope='session')
+def psqlgraph_args():
+    return (
+        PG_HOST,
+        PG_USER,
+        PG_PASSWORD,
+        PG_DATABASE,
+    )
+
 
 @pytest.fixture
 def clear_database():

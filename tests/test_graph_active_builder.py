@@ -42,16 +42,19 @@ N_FILES = 9
 
 
 @pytest.fixture(scope='module')
-def cached_graph():
+def cached_graph(psqlgraph_args):
     options = ActiveGraphIndexBuilder.get_caching_options()
-    cache = CachedGraph(_graph, options)
+    cache = CachedGraph(
+        caching_options=options,
+        psqlgraph_driver_args=psqlgraph_args,
+    )
     cache.cache_database()
     return cache
 
 
 @pytest.fixture(scope='module')
-def index():
-    doc_types = build_index(ActiveGraphIndexBuilder, _graph)
+def index(psqlgraph_args):
+    doc_types = build_index(ActiveGraphIndexBuilder, psqlgraph_args)
     return Index._make(doc_types)
 
 

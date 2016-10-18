@@ -12,10 +12,11 @@ import logging
 import itertools
 import networkx as nx
 
-from collections import namedtuple
 from cdisutils.log import get_logger
+from collections import namedtuple
 from gdcdatamodel import models as md
-from psqlgraph import Edge, Node
+from multiprocessing.managers import BaseManager
+from psqlgraph import Edge, Node, PsqlGraphDriver
 from sqlalchemy.orm import joinedload
 from types import StringTypes
 
@@ -103,10 +104,16 @@ class CachedGraph(object):
 
     """
 
-    def __init__(self, psqlgraph_driver, caching_options):
+    @classmethod
+    def __init__(self, caching_options, psqlgraph_driver_args=None,
+                 psqlgraph_driver_kwargs=None, psqlgraph_driver=None):
 
         # Injected Dependencies
-        self.psqlgraph_driver = psqlgraph_driver
+        self.psqlgraph_driver = psqlgraph_driver or PsqlGraphDriver(
+            *(psqlgraph_driver_args or []),
+            **(psqlgraph_driver_kwargs or {})
+        )
+
         self.graph = nx.Graph()
         self.caching_options = caching_options
 
@@ -125,6 +132,7 @@ class CachedGraph(object):
         # relationships.  This is populated by
         # ``self._cache_existing_data_types()``
         self.existing_data_types = {}
+
 
     def iter_database_edges(self):
         """Returns an iterable of edges to load from the database.
@@ -152,6 +160,11 @@ class CachedGraph(object):
         """Log a error to logger and statsd"""
 
         util.log_error(logger, *args, **kwargs)
+
+    def get_cases(self):
+        """Proxy to get cached cases"""
+
+        return self.cases
 
     def get_edge(self, src, dst):
         """Returns any information stored about the edge between two nodes"""
@@ -723,3 +736,10 @@ class CachedGraph(object):
                 for path in paths if path
             ])
         }
+
+
+class CacheManager(BaseManager):
+    pass
+
+
+CacheManager.register('new_cached_graph', CachedGraph)

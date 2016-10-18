@@ -28,6 +28,7 @@ from esbuild.graph.common import (
 from esbuild.graph.common.cache import (
     CachingOptions,
     CachedGraph,
+    CacheManager,
 )
 
 from .mappings import (
@@ -122,22 +123,27 @@ def start_worker_pool(builders, cases):
     return case_in_q, result_q, pool
 
 
-def build_index(builder_class, graph, cases=None, threads=cpu_count()):
+def build_index(builder_class, psqlgraph_driver_args, cases=None,
+                threads=cpu_count()):
     """TODO: docstring
 
     """
 
-    if threads <= 1:
-        return build_index_serial(builder_class, graph)
-
+    # Create managed cache
     caching_options = builder_class.get_caching_options()
-    cache = CachedGraph(graph, caching_options)
+
+    manager = CacheManager()
+    manager.start()
+    cache = manager.new_cached_graph(
+        caching_options=caching_options,
+        psqlgraph_driver_args=psqlgraph_driver_args,
+    )
     cache.cache_database()
 
     case_docs, ann_docs, file_docs = [], {}, {}
 
     # Map work to worker processes
-    cases = cases or cache.cases
+    cases = cases or cache.get_cases()
     builders = [builder_class(cache) for _ in range(threads)]
     _, result_q, pool = start_worker_pool(builders, cases)
 
