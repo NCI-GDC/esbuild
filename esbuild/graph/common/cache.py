@@ -17,6 +17,7 @@ from cdisutils.log import get_logger
 from gdcdatamodel import models as md
 from psqlgraph import Edge, Node
 from sqlalchemy.orm import joinedload
+from types import StringTypes
 
 from esbuild.graph.common import (
     util,
@@ -25,8 +26,25 @@ from esbuild.graph.common import (
 logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 
+def to_node_id(node_or_node_id):
+    """Returns the node_id of a node if provided a Node, elif it's a
+    string, assume it's a node_id and return that
+
+    """
+
+    if hasattr(node_or_node_id, 'node_id'):
+        return node_or_node_id.node_id
+
+    elif isinstance(node_or_node_id, StringTypes)
+        return node_or_node_id.node_id
+
+    else:
+        raise TypeError("Not sure how to convert {} to node_id"
+                        .format(node_or_node_id))
+
 
 class CachingOptions(object):
+
     """An object to hold the options required to hold the required options
     to cache information to a SharedGraph object
 
@@ -92,6 +110,7 @@ class CachedGraph(object):
         self.caching_options = caching_options
 
         # Cached information
+        self.nodes = {}
         self.experimental_strategies = {}
         self.data_categories = {}
         self.popular_nodes = {}
@@ -161,6 +180,15 @@ class CachedGraph(object):
         to_suppress.extend(extra)
 
         return to_suppress
+
+    def get_node_in_graph(self, node_or_node_id):
+        return self.nodes[node_or_node_id(node_or_node_id)]
+
+    def neighbors(self, node_or_node_id):
+        """Get the neighbors of a given node"""
+
+        node = self.get_node_in_graph(node_or_node_id)
+
 
     def suppressed_nodes(self):
         """
@@ -326,6 +354,7 @@ class CachedGraph(object):
 
         """
 
+        self._cache_node_ids()
         self._cache_existing_data_types()
         self._cache_experimental_strategies()
         self._cache_data_categories()
@@ -333,6 +362,14 @@ class CachedGraph(object):
         self._cache_entity_cases()
         self._cache_cases()
         self._cache_projects()
+
+    def cache_node_ids(self):
+        """Create a hashtable from node_id to node in the graph"""
+
+        self.nodes = {
+            node.node_id: node
+            for node in self.graph.nodes_iter()
+        }
 
     def _cache_projects(self):
         """Save a list of all Project nodes"""
