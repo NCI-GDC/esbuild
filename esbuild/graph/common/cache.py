@@ -99,8 +99,6 @@ class CachedGraph(object):
         self.projects = None
         self.relevant_nodes = None
         self.annotations = None
-        # FIXME
-        self.annotation_entities = {}
         self.entity_cases = None
         # Different from ``self.data_categories`` in that it's a
         # replacement for a hardcoded dict of data_type, data_subtype
@@ -330,8 +328,6 @@ class CachedGraph(object):
         self._cache_entity_cases()
         self._cache_cases()
         self._cache_projects()
-        # FIXME
-        # self._cache_annotations()
 
     def _cache_projects(self):
         """Save a list of all Project nodes"""
@@ -408,29 +404,6 @@ class CachedGraph(object):
             pbar.update(pbar.currval+1)
 
         pbar.finish()
-
-    # def _cache_annotations(self):
-    #     if not self.annotations:
-    #         # cache what nodes are annotations
-    #         self.annotations = list(self.nodes_labeled('annotation'))
-    #     if self.annotation_entities:
-    #         # we've already cached the related entities
-    #         return
-    #     if not self.annotations:
-    #         # there aren't any entities to relate
-    #         self.annotation_entities = {}
-    #         logger.warn('No annotations found in the cached database!')
-    #         return
-    #     pbar = util.get_pbar('Caching annotations: ', len(self.annotations))
-    #     self.annotation_entities = {}
-    #     for a in self.annotations:
-    #         for n in self.graph.neighbors(a):
-    #             if n not in self.annotation_entities:
-    #                 self.annotation_entities[n] = {}
-    #             a_doc = self.denormalize_annotation(a)
-    #             self.annotation_entities[n][a.node_id] = a_doc
-    #         pbar.update(pbar.currval+1)
-    #     pbar.finish()
 
     def _cache_popular_neighbor(self, node, neighbors, labels):
         if node not in self.popular_nodes:

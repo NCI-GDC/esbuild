@@ -11,6 +11,7 @@ graph index.
 from cdisutils.log import get_logger
 from collections import defaultdict
 from copy import copy, deepcopy
+from functools32 import lru_cache
 from gdcdatamodel import models as md
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
@@ -950,6 +951,20 @@ class GraphIndexBuilder(object):
 
         return relevant
 
+    @lru_cache(maxsize=int(2**20))
+    def get_node_annotation_docs(self, node):
+        """Returns the annotation docs for all annotations relevant to this
+        node
+
+        """
+
+        annotations = self.cache.neighbors_labeled(node, 'annotation')
+
+        return [
+            self.denormalize_annotation(annotation)
+            for annotation in annotations
+        ]
+
     def add_annotations(self, node, relevant, doc):
         """Given a file node, aggregate all of the annotations from a pruned
         case tree and insert them at the root level of the file
@@ -960,8 +975,7 @@ class GraphIndexBuilder(object):
         annotations = doc.pop('annotations', [])
 
         for relevant_node in relevant:
-            ann_docs = self.cache.annotation_entities.get(relevant_node, {})
-            annotations.extend(ann_docs.values())
+            annotations.extend(self.get_node_annotation_docs(relevant_node))
 
         if annotations:
             doc['annotations'] = annotations
