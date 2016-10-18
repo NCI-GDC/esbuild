@@ -1131,6 +1131,37 @@ class GraphIndexBuilder(object):
 
         return doc
 
+    def is_node_hidden(self, node):
+        """Return True if the node should be traversed (and therefore must
+        remain in the cache) but should not appear in any documents
+
+        """
+
+        # Hide all submitted_* node types from indices
+        if node.label.startswith('submitted_'):
+            return True
+
+        if node.label == 'archive':
+            return True
+
+        return False
+
+    @staticmethod
+    def node_labels_by_category(categories):
+        """Returns an iterator of node labels that are files
+
+        """
+
+        categories = (
+            tuple(categories) if hasattr(categories, '__iter__')
+            else (categories,)
+        )
+
+        return [
+            n.label for n in Node.get_subclasses()
+            if n._dictionary['category'] in categories
+        ]
+
     ###################################################################
     #                     Topmost denorm functions
     ###################################################################
@@ -1289,7 +1320,7 @@ class GraphIndexBuilder(object):
                     )
 
     def verify_data_category_count(self, case):
-        for data_category in self.existing_data_types.keys():
+        for data_category in self.cache.existing_data_types.keys():
             calc = len([
                 f for f in case['files']
                 if f.get('data_category') == data_category
@@ -1349,34 +1380,3 @@ class GraphIndexBuilder(object):
 
         # Check for keys that are in the doc but not in the mapping
         self.validate_against_mapping(case, self.case_es_mapping)
-
-    def is_node_hidden(self, node):
-        """Return True if the node should be traversed (and therefore must
-        remain in the cache) but should not appear in any documents
-
-        """
-
-        # Hide all submitted_* node types from indices
-        if node.label.startswith('submitted_'):
-            return True
-
-        if node.label == 'archive':
-            return True
-
-        return False
-
-    @staticmethod
-    def node_labels_by_category(categories):
-        """Returns an iterator of node labels that are files
-
-        """
-
-        categories = (
-            tuple(categories) if hasattr(categories, '__iter__')
-            else (categories,)
-        )
-
-        return [
-            n.label for n in Node.get_subclasses()
-            if n._dictionary['category'] in categories
-        ]

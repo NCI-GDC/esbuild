@@ -50,16 +50,9 @@ def index(cached_graph):
     return Index._make(builder.denormalize_all())
 
 
-@pytest.fixture
-def cached_builder(scope='module'):
-    builder = ActiveGraphIndexBuilder(_graph)
-    builder.cache_database()
-    return builder
-
-
-@pytest.fixture()
-def builder():
-    return ActiveGraphIndexBuilder(_graph)
+@pytest.fixture(scope='module')
+def builder(cached_graph):
+    return ActiveGraphIndexBuilder(cached_graph)
 
 
 @pytest.fixture
@@ -343,6 +336,12 @@ def test_file_to_read_group_paths(label, path):
     assert path in ActiveGraphIndexBuilder.file_to_read_group_paths[label]
 
 
+def lookup_expunged_node(builder, node):
+    return next(
+        expunged for expunged in builder.cache.graph.nodes()
+        if expunged.node_id == node.node_id
+    )
+
 def test_get_file_read_groups(graph, index):
     f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
     assert not [d for d in index.files if d['file_id'] in f_ids]
@@ -352,13 +351,13 @@ def test_get_file_read_groups(graph, index):
     (md.AlignmentWorkflow, 2),
     (md.SomaticMutationCallingWorkflow, 2),
 ])
-def test_get_analysis_read_groups(graph, cached_builder, cls, count):
+def test_get_analysis_read_groups(graph, builder, cls, count):
     for workflow in graph.nodes(cls).all():
-        read_groups = list(cached_builder.get_analysis_read_groups(workflow))
+        workflow = lookup_expunged_node(builder, workflow)
+        read_groups = list(builder.get_analysis_read_groups(workflow))
         assert len(read_groups) == count
         for read_group in read_groups:
             assert read_group.label == 'read_group'
-
 
 @pytest.mark.parametrize('cls,count', [
     (md.AlignedReads, 1),
@@ -366,10 +365,11 @@ def test_get_analysis_read_groups(graph, cached_builder, cls, count):
     (md.RunMetadata, 1),
     (md.ExperimentMetadata, 1),
 ])
-def test_get_file_associated_entities(graph, cached_builder, cls, count):
+def test_get_file_associated_entities(graph, builder, cls, count):
     for node in graph.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
-            entities = list(cached_builder.get_file_associated_entities(node))
+        if builder.cache.is_file_indexed(node):
+            node = lookup_expunged_node(builder, node)
+            entities = list(builder.get_file_associated_entities(node))
             assert len(entities) == count
 
 
@@ -377,11 +377,12 @@ def test_get_file_associated_entities(graph, cached_builder, cls, count):
     (md.BiospecimenSupplement, 0),
     (md.ClinicalSupplement, 0),
 ], scope='module')
-def test_add_related_files(graph, cached_builder, cls, count):
+def test_add_related_files(graph, builder, cls, count):
     for node in graph.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
+        if builder.cache.is_file_indexed(node):
+            node = lookup_expunged_node(builder, node)
             doc = {}
-            cached_builder.add_related_files(node, doc)
+            builder.add_related_files(node, doc)
             assert len(doc.get('metadata_files', [])) == count
 
 
@@ -391,11 +392,12 @@ def test_add_related_files(graph, cached_builder, cls, count):
     (md.AlignedReads, False),
     (md.CopyNumberSegment, False),
 ], scope='module')
-def test_add_archive(graph, cached_builder, cls, has_archive):
+def test_add_archive(graph, builder, cls, has_archive):
     for node in graph.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
+        if builder.cache.is_file_indexed(node):
+            node = lookup_expunged_node(builder, node)
             doc = {}
-            cached_builder.add_archives(node, doc)
+            builder.add_archives(node, doc)
             assert ('archive' in doc) == has_archive
 
 

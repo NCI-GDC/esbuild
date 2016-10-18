@@ -263,7 +263,7 @@ class CachedGraph(object):
 
         """
 
-        with self.psqlgraph_driver.session_scope():
+        with self.psqlgraph_driver.session_scope() as session:
 
             pbar = util.get_pbar(
                 'Caching Database: ',
@@ -273,8 +273,8 @@ class CachedGraph(object):
                 pbar.update(pbar.currval+1)
 
                 src, dst = edge.src, edge.dst
-                triple = (src.label, edge.label, dst.label)
 
+                triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
                     triple in self.caching_options.differentiated_edges
                 )
@@ -308,6 +308,7 @@ class CachedGraph(object):
                 else:
                     self.graph.add_edge(src, dst)
 
+            session.expunge_all()
             pbar.finish()
 
         # Prune graph
@@ -569,7 +570,7 @@ class CachedGraph(object):
             node.label == 'file' and
             any(
                 p.match(node._props.get('file_name', ''))
-                for p in self.supplement_regexes
+                for p in self.caching_options.supplement_regexes
             )
         )
 
