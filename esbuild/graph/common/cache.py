@@ -26,6 +26,7 @@ from esbuild.graph.common import (
 logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 
+
 def to_node_id(node_or_node_id):
     """Returns the node_id of a node if provided a Node, elif it's a
     string, assume it's a node_id and return that
@@ -35,7 +36,7 @@ def to_node_id(node_or_node_id):
     if hasattr(node_or_node_id, 'node_id'):
         return node_or_node_id.node_id
 
-    elif isinstance(node_or_node_id, StringTypes)
+    elif isinstance(node_or_node_id, StringTypes):
         return node_or_node_id.node_id
 
     else:
@@ -182,15 +183,15 @@ class CachedGraph(object):
         return to_suppress
 
     def get_node_in_graph(self, node_or_node_id):
-        return self.nodes[node_or_node_id(node_or_node_id)]
+        """Given a node or a node_id, return the corresponding node that is in
+        the NetworkX graph
 
-    def neighbors(self, node_or_node_id):
-        """Get the neighbors of a given node"""
+        """
 
-        node = self.get_node_in_graph(node_or_node_id)
-
+        return self.nodes[to_node_id(node_or_node_id)]
 
     def suppressed_nodes(self):
+
         """
         Find all nodes that need to be suppressed due to redactions.
         """
@@ -342,6 +343,11 @@ class CachedGraph(object):
             session.expunge_all()
             pbar.finish()
 
+        self.nodes = {
+            node.node_id: node
+            for node in self.graph.nodes_iter()
+        }
+
         # Prune graph
         logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
         self.remove_unindexed_nodes_from_graph()
@@ -363,7 +369,7 @@ class CachedGraph(object):
         self._cache_cases()
         self._cache_projects()
 
-    def cache_node_ids(self):
+    def _cache_node_ids(self):
         """Create a hashtable from node_id to node in the graph"""
 
         self.nodes = {
@@ -548,6 +554,7 @@ class CachedGraph(object):
 
         """
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
+        node = self.get_node_in_graph(node)
 
         if node in self.popular_nodes:
             if labels not in self.popular_nodes[node]:
@@ -687,7 +694,7 @@ class CachedGraph(object):
     def neighbors(self, node):
         """Return the neighbors of given node"""
 
-        return self.graph.neighbors(node)
+        return self.graph.neighbors(self.get_node_in_graph(node))
 
     def walk_path(self, node, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of

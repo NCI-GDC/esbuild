@@ -83,10 +83,16 @@ def build_worker(builder, case_in_q, result_q):
     """
 
     while True:
+
         case = case_in_q.get()
         if case is None:
             return log.info('No more work for builder %s', builder)
-        result_q.put(builder.denormalize_case(case))
+
+        try:
+            result_q.put(builder.denormalize_case(case))
+        except Exception as exception:
+            log.exception(exception)
+            result_q.put(exception)
 
 
 def start_worker_pool(builders, cases):
@@ -139,7 +145,12 @@ def build_index(builder_class, graph, cases=None, threads=cpu_count()):
 
     # Collect results
     while len(case_docs) < len(cases):
-        case_doc, files, annotations = result_q.get()
+
+        result = result_q.get()
+        if isinstance(result, Exception):
+            raise result
+
+        case_doc, files, annotations = result
         case_docs.append(case_doc)
 
         # Collect annotation docs
@@ -157,7 +168,9 @@ def build_index(builder_class, graph, cases=None, threads=cpu_count()):
     for process in pool:
         process.join()
 
-    return case_docs, file_docs.values(), ann_docs.values()
+    projects = builders[0].denormalize_projects()
+
+    return case_docs, file_docs.values(), ann_docs.values(), projects
 
 
 class GraphIndexBuilder(object):
