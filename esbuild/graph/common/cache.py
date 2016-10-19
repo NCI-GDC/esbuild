@@ -108,7 +108,6 @@ class CachedGraph(object):
 
     """
 
-    @classmethod
     def __init__(self, caching_options, psqlgraph_driver_args=None,
                  psqlgraph_driver_kwargs=None, psqlgraph_driver=None):
 
@@ -137,22 +136,6 @@ class CachedGraph(object):
         # ``self._cache_existing_data_types()``
         self.existing_data_types = {}
 
-
-    def iter_database_edges(self):
-        """Returns an iterable of edges to load from the database.
-
-        Eagerly (with join) loads the source and destination of the edge.
-
-        """
-
-        return itertools.chain(*[
-            self.psqlgraph_driver.edges(subclass)
-            .options(joinedload(subclass.src))
-            .options(joinedload(subclass.dst))
-            .yield_per(int(1e5))
-            for subclass in Edge.__subclasses__()
-        ])
-
     @staticmethod
     def warning(*args, **kwargs):
         """Log a warning to logger and statsd"""
@@ -169,6 +152,27 @@ class CachedGraph(object):
         """Proxy to get cached cases"""
 
         return self.cases
+
+    def get_projects(self):
+        """Proxy to get cached projects"""
+
+        print self.projects
+        return self.projects
+
+    def get_experimental_strategies(self):
+        """Proxy to get cached experimental_strategies"""
+
+        return self.experimental_strategies
+
+    def get_existing_data_types(self):
+        """Proxy to get cached existing_data_types"""
+
+        return self.existing_data_types
+
+    def get_data_categories(self):
+        """Proxy to get cached data_categories"""
+
+        return self.data_categories
 
     def get_edge(self, src, dst):
         """Returns any information stored about the edge between two nodes"""
@@ -306,6 +310,28 @@ class CachedGraph(object):
         logger.info("Removing %s suppressed nodes", len(suppressed))
         self.graph.remove_nodes_from(suppressed)
 
+    def iter_database_edges(self):
+        """Returns an iterable of edges to load from the database.
+
+        Eagerly (with join) loads the source and destination of the edge.
+
+        """
+
+        return itertools.chain(*[
+            self.psqlgraph_driver.edges(subclass)
+            .options(joinedload(subclass.src))
+            .options(joinedload(subclass.dst))
+            .yield_per(int(1e5))
+            for subclass in Edge.__subclasses__()
+        ])
+
+    def get_fake_node(self, node):
+        """If we've seen this node before, then return the FakeNode version of
+        it, otherwise create a new one and return that.
+
+        """
+        return self.nodes.setdefault(node.node_id, FakeNode(node))
+
     def cache_database(self):
         """Load the database into memory and remember only edge labels that we
         will need to distinguish later.
@@ -321,7 +347,8 @@ class CachedGraph(object):
             for edge in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
 
-                src, dst = FakeNode(edge.src), FakeNode(edge.dst)
+                src = self.get_fake_node(edge.src)
+                dst = self.get_fake_node(edge.dst)
 
                 triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
@@ -333,20 +360,16 @@ class CachedGraph(object):
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
                     for center in edge.src.centers:
-                        self.graph.add_edge(dst, center)
+                        self.graph.add_edge(dst, FakeNode(center))
                     for aliquot in edge.src.aliquots:
-                        self.graph.add_edge(dst, aliquot)
+                        self.graph.add_edge(dst, FakeNode(aliquot))
 
                 if edge.label == 'relates_to' and edge.__dst_class__ == 'Case':
                     pass
 
                 elif needs_differentiation and edge._props:
                     self.graph.add_edge(
-                        src,
-                        dst,
-                        label=edge.label,
-                        props=edge._props
-                    )
+                        src, dst, label=edge.label, props=edge._props)
 
                 elif needs_differentiation and not edge._props:
                     self.graph.add_edge(src, dst, label=edge.label)
@@ -359,11 +382,6 @@ class CachedGraph(object):
 
             session.expunge_all()
             pbar.finish()
-
-        self.nodes = {
-            node.node_id: node
-            for node in self.graph.nodes_iter()
-        }
 
         # Prune graph
         logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
@@ -446,6 +464,16 @@ class CachedGraph(object):
             pbar.update(pbar.currval+1)
         pbar.finish()
 
+    def get_relevant_nodes(self, node):
+        """Return the nodes relevant to this one"""
+
+        return self.relevant_nodes.get(node, [])
+
+    def get_entity_case(self, node):
+        """Return the case associated with this node"""
+
+        return self.entity_cases.get(node, None)
+
     def _cache_relevant_nodes(self):
         """The file documents will need to be pruned to only the nodes that
         are relevant to the file. Here we cache all of the nodes
@@ -473,8 +501,11 @@ class CachedGraph(object):
     def _cache_popular_neighbor(self, node, neighbors, labels):
         if node not in self.popular_nodes:
             self.popular_nodes[node] = {}
+
         self.popular_nodes[node][labels] = {
-            n for n in neighbors if n.label in labels}
+            n for n in neighbors if n.label in labels
+        }
+
         return self.popular_nodes[node][labels]
 
     def _cache_data_categories(self):
@@ -562,7 +593,16 @@ class CachedGraph(object):
             if node.label in labels:
                 yield node
 
-    def neighbors_labeled(self, node, labels, expected=None):
+    def neighbors_labeled(self, *args, **kwargs):
+        """Proxy for self._neighbors_labeled which was original written as a
+        generator to return a list instead
+
+        """
+
+        return list(self._neighbors_labeled(*args, **kwargs))
+
+    def _neighbors_labeled(self, node, labels, expected=None):
+
         """For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
         string or list of strings.
@@ -570,6 +610,7 @@ class CachedGraph(object):
         :param is_expected: Int count of expected elements
 
         """
+
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
         node = self.get_node_in_graph(node)
 
@@ -579,6 +620,7 @@ class CachedGraph(object):
                     node, self.graph.neighbors(node), labels)
             else:
                 neighbors = self.popular_nodes[node][labels]
+
         else:
             temp = self.graph.neighbors(node)
             if len(temp) > 200:
@@ -657,7 +699,7 @@ class CachedGraph(object):
         if node.label == 'project':
             projects = [node]
         elif node.label == 'case':
-            projects = list(self.neighbors_labeled(node, 'project', 1))
+            projects = self.neighbors_labeled(node, 'project', 1)
         else:
             return False
 
@@ -711,10 +753,7 @@ class CachedGraph(object):
     def neighbors(self, node):
         """Return the neighbors of given node"""
 
-        return [
-            neighbor.to_json() for neighbor in
-            self.graph.neighbors(self.get_node_in_graph(node))
-        ]
+        return self.graph.neighbors(self.get_node_in_graph(node))
 
     def walk_path(self, node, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of

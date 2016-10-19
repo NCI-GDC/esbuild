@@ -689,8 +689,9 @@ class GraphIndexBuilder(object):
         experimental_strategy is non-null
 
         """
-        self.cache._cache_experimental_strategies()
-        for exp_strat, file_list in self.cache.experimental_strategies.iteritems():
+
+        exp_strats = self.cache.get_experimental_strategies()
+        for exp_strat, file_list in exp_strats.iteritems():
             intersection = (file_list & files)
             if intersection:
                 yield {
@@ -704,8 +705,9 @@ class GraphIndexBuilder(object):
         data_category is non-null
 
         """
-        self.cache._cache_data_categories()
-        for data_category, file_list in self.cache.data_categories.iteritems():
+        data_categories = self.cache.get_data_categories()
+
+        for data_category, file_list in data_categories.iteritems():
             intersection = (file_list & files)
             if intersection:
                 yield {
@@ -1052,10 +1054,11 @@ class GraphIndexBuilder(object):
         """Add the data_subtype to the file document with child data_category
 
         """
+        cached_data_categories = self.cache.get_data_categories()
 
         data_categories = [
             data_category
-            for data_category, files in self.cache.data_categories.items()
+            for data_category, files in cached_data_categories.items()
             if node in files
         ]
         if data_categories:
@@ -1074,11 +1077,11 @@ class GraphIndexBuilder(object):
             log.warn('No ptree (case tree) for %s', node)
             return []
 
-        if node not in self.cache.relevant_nodes:
+        relevant = self.cache.get_relevant_nodes(node)
+        if not relevant:
             log.warn('No relevant cases for %s', node)
             return []
 
-        relevant = self.cache.relevant_nodes[node]
         prune_keys = ['sample', 'portion', 'analyte', 'aliquot', 'file']
 
         self.prune_case(relevant, ptree, prune_keys)
@@ -1152,20 +1155,20 @@ class GraphIndexBuilder(object):
         docs = []
         entities = self.get_file_associated_entities(node)
 
-        for e in entities:
+        for entity in entities:
 
-            if e not in self.cache.entity_cases:
+            case = self.cache.get_entity_case(entity)
+            if not case:
                 # Skip, the cases is likely missing because it is omitted
                 continue
 
-            case = self.cache.entity_cases[e]
             subdoc = {
-                'entity_type': e.label,
-                'entity_id': e.node_id,
+                'entity_type': entity.label,
+                'entity_id': entity.node_id,
                 'case_id': case.node_id
             }
 
-            entity_submitter_id = e._props.get('submitter_id')
+            entity_submitter_id = entity._props.get('submitter_id')
             if entity_submitter_id:
                 subdoc['entity_submitter_id'] = entity_submitter_id
 
@@ -1186,7 +1189,7 @@ class GraphIndexBuilder(object):
         doc = self._get_base_doc(p)
 
         # Get programs
-        program = self.cache.neighbors_labeled(p, 'program').next()
+        program = self.cache.neighbors_labeled(p, 'program')[0]
         log.info('Program: {}'.format(program))
         doc['program'] = self._get_base_doc(program)
 
@@ -1216,11 +1219,11 @@ class GraphIndexBuilder(object):
             len(files), len(case_files)))
 
         # Get experimental strategies
+        experimental_strategies = self.cache.get_experimental_strategies()
         exp_strat_summaries = []
-        self.cache._cache_experimental_strategies()
-        for exp_strat in self.cache.experimental_strategies.keys():
+        for exp_strat in experimental_strategies:
             log.info('exp_strat: {}'.format(exp_strat))
-            exp_files = (self.cache.experimental_strategies[exp_strat] & files)
+            exp_files = (experimental_strategies[exp_strat] & files)
 
             if not len(exp_files):
                 continue
@@ -1239,9 +1242,10 @@ class GraphIndexBuilder(object):
         # Get data types
         data_category_summaries = []
 
-        for data_category in self.cache.data_categories.keys():
+        cached_data_categories = self.cache.get_data_categories()
+        for data_category in cached_data_categories.keys():
             log.info('data_category: {}'.format(data_category))
-            dt_files = (self.cache.data_categories[data_category] & files)
+            dt_files = (cached_data_categories[data_category] & files)
 
             if not len(dt_files):
                 continue
@@ -1323,7 +1327,7 @@ class GraphIndexBuilder(object):
 
         case_docs, ann_docs, file_docs = [], {}, {}
         if not cases:
-            cases = self.cache.cases
+            cases = self.cache.get_cases()
         pbar = util.get_pbar('Denormalizing cases ', len(cases))
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
@@ -1345,7 +1349,7 @@ class GraphIndexBuilder(object):
         """
 
         if not projects:
-            projects = self.cache.projects
+            projects = self.cache.get_projects()
 
         project_docs = []
         pbar = util.get_pbar('Denormalizing projects ', len(projects))
@@ -1446,7 +1450,7 @@ class GraphIndexBuilder(object):
                     )
 
     def verify_data_category_count(self, case):
-        for data_category in self.cache.existing_data_types.keys():
+        for data_category in self.cache.get_existing_data_types():
             calc = len([
                 f for f in case['files']
                 if f.get('data_category') == data_category
