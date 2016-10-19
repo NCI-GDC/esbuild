@@ -32,6 +32,12 @@ logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def is_case_cache_edge(edge):
+    """Determine if this edge or edge class is just a case cache edge"""
+
+    return edge.label == 'relates_to' and edge.__dst_class__ == 'Case'
+
+
 def to_node_id(node_or_node_id):
     """Returns the node_id of a node if provided a Node, elif it's a
     string, assume it's a node_id and return that
@@ -323,6 +329,21 @@ class CachedGraph(object):
             .options(joinedload(subclass.dst))
             .yield_per(int(1e5))
             for subclass in Edge.__subclasses__()
+            if not is_case_cache_edge(subclass)
+        ])
+
+
+    def count_database_edges(self):
+        """Returns an iterable of edges to load from the database.
+
+        Eagerly (with join) loads the source and destination of the edge.
+
+        """
+
+        return sum([
+            self.psqlgraph_driver.edges(subclass).count()
+            for subclass in Edge.__subclasses__()
+            if not is_case_cache_edge(subclass)
         ])
 
     def get_fake_node(self, node):
@@ -338,17 +359,26 @@ class CachedGraph(object):
 
         """
 
-        with self.psqlgraph_driver.session_scope() as session:
+        nodes = self.nodes
 
-            pbar = util.get_pbar(
-                'Caching Database: ',
-                self.psqlgraph_driver.edges().count())
+        with self.psqlgraph_driver.session_scope() as session:
+            # Meter the progress bar by nodes, because creating the
+            # nodes will be the majority of the time
+            node_count = self.psqlgraph_driver.nodes().count()
+            pbar = util.get_pbar('Caching Database: ', node_count)
 
             for edge in self.iter_database_edges():
-                pbar.update(pbar.currval+1)
+                pbar.update(len(nodes))
 
-                src = self.get_fake_node(edge.src)
-                dst = self.get_fake_node(edge.dst)
+                src = nodes.get(edge.src_id)
+                if not src:
+                    src = FakeNode(edge.src)
+                    nodes[edge.src_id] = src
+
+                dst = nodes.get(edge.dst_id)
+                if not dst:
+                    dst = FakeNode(edge.dst)
+                    nodes[edge.dst_id] = dst
 
                 triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
@@ -364,10 +394,7 @@ class CachedGraph(object):
                     for aliquot in edge.src.aliquots:
                         self.graph.add_edge(dst, FakeNode(aliquot))
 
-                if edge.label == 'relates_to' and edge.__dst_class__ == 'Case':
-                    pass
-
-                elif needs_differentiation and edge._props:
+                if needs_differentiation and edge._props:
                     self.graph.add_edge(
                         src, dst, label=edge.label, props=edge._props)
 
