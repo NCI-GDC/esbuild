@@ -309,12 +309,16 @@ class CachedGraph(object):
 
         logger.info("Removing %s nodes from cache", len(removed_nodes))
         self.graph.remove_nodes_from(removed_nodes)
+        for node in removed_nodes:
+            self.nodes.pop(node.node_id, None)
 
         logger.info("Finding and removing suppressed nodes")
         suppressed = self.suppressed_nodes()
 
         logger.info("Removing %s suppressed nodes", len(suppressed))
         self.graph.remove_nodes_from(suppressed)
+        for node in suppressed:
+            self.nodes.pop(node.node_id, None)
 
     def iter_database_edges(self):
         """Returns an iterable of edges to load from the database.
