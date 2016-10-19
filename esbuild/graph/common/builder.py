@@ -66,18 +66,6 @@ def upsert_file_into_dict(files, file_doc):
             files[did]['cases'] += file_doc['cases']
 
 
-def build_index_serial(builder_class, graph):
-    """TODO: docstring
-
-    """
-
-    caching_options = builder_class.get_caching_options()
-    cache = CachedGraph(graph, caching_options)
-    builder = builder_class(cache)
-
-    return builder.denormalize_all()
-
-
 def build_worker(builder, case_in_q, result_q):
     """TODO: docstring
 
@@ -128,6 +116,16 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     """TODO: docstring
 
     """
+
+    # caching_options = builder_class.get_caching_options()
+    # cache = CachedGraph(
+    #     caching_options=caching_options,
+    #     psqlgraph_driver_args=psqlgraph_driver_args,
+    # )
+    # cache.cache_database()
+    # builder = builder_class(cache)
+
+    # return builder.denormalize_all()
 
     # Create managed cache
     caching_options = builder_class.get_caching_options()
@@ -1332,11 +1330,14 @@ class GraphIndexBuilder(object):
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
+
             for a in an:
                 if a['annotation_id'] not in ann_docs:
                     ann_docs[a['annotation_id']] = a
+
             for f in fi:
-                self.upsert_file_into_dict(file_docs, f)
+                upsert_file_into_dict(file_docs, f)
+
             pbar.update(pbar.currval+1)
         pbar.finish()
         return case_docs, file_docs.values(), ann_docs.values()

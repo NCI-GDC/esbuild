@@ -162,7 +162,6 @@ class CachedGraph(object):
     def get_projects(self):
         """Proxy to get cached projects"""
 
-        print self.projects
         return self.projects
 
     def get_experimental_strategies(self):
@@ -182,6 +181,8 @@ class CachedGraph(object):
 
     def get_edge(self, src, dst):
         """Returns any information stored about the edge between two nodes"""
+
+        src, dst = self.get_node_in_graph(src), self.get_node_in_graph(dst)
 
         return self.graph[src][dst]
 
@@ -224,12 +225,14 @@ class CachedGraph(object):
         """
 
         redactions = [
-            a for a in self.nodes_labeled('annotation')
-            if a.classification == "Redaction" and
-            a.category not in self.caching_options.redacted_but_not_suppressed
+            annotation for annotation in self.nodes_labeled('annotation')
+            if annotation.classification == "Redaction" and
+            annotation.category not in
+            self.caching_options.redacted_but_not_suppressed
         ]
 
         to_suppress = []
+
         for redaction in redactions:
             redacted_list = self.graph.neighbors(redaction)
 
@@ -238,8 +241,8 @@ class CachedGraph(object):
                 # the next annotation
                 self.error(
                     'Redaction annotation no entities',
-                    "Redaction {} has zero entities associated.".format(
-                        redaction),
+                    "Redaction {} has zero entities associated."
+                    .format(redaction),
                     tags=["annotation:{}".format(redaction)],
                 )
                 continue
@@ -355,15 +358,18 @@ class CachedGraph(object):
         it, otherwise create a new one and return that.
 
         """
-        return self.nodes.setdefault(node.node_id, FakeNode(node))
+
+        existing = self.nodes.get(node.node_id)
+        if not existing:
+            existing = self.nodes.setdefault(node.node_id, FakeNode(node))
+
+        return existing
 
     def cache_database(self):
         """Load the database into memory and remember only edge labels that we
         will need to distinguish later.
 
         """
-
-        nodes = self.nodes
 
         with self.psqlgraph_driver.session_scope() as session:
             # Meter the progress bar by nodes, because creating the
@@ -372,17 +378,10 @@ class CachedGraph(object):
             pbar = util.get_pbar('Caching Database: ', node_count)
 
             for edge in self.iter_database_edges():
-                pbar.update(len(nodes))
+                pbar.update(len(self.nodes))
 
-                src = nodes.get(edge.src_id)
-                if not src:
-                    src = FakeNode(edge.src)
-                    nodes[edge.src_id] = src
-
-                dst = nodes.get(edge.dst_id)
-                if not dst:
-                    dst = FakeNode(edge.dst)
-                    nodes[edge.dst_id] = dst
+                src = self.get_fake_node(edge.src)
+                dst = self.get_fake_node(edge.dst)
 
                 triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
@@ -394,11 +393,12 @@ class CachedGraph(object):
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
                     for center in edge.src.centers:
-                        self.graph.add_edge(dst, FakeNode(center))
-                    for aliquot in edge.src.aliquots:
-                        self.graph.add_edge(dst, FakeNode(aliquot))
+                        self.graph.add_edge(dst, self.get_fake_node(center))
 
-                if needs_differentiation and edge._props:
+                    for aliquot in edge.src.aliquots:
+                        self.graph.add_edge(dst, self.get_fake_node(aliquot))
+
+                elif needs_differentiation and edge._props:
                     self.graph.add_edge(
                         src, dst, label=edge.label, props=edge._props)
 
@@ -784,7 +784,9 @@ class CachedGraph(object):
     def neighbors(self, node):
         """Return the neighbors of given node"""
 
-        return self.graph.neighbors(self.get_node_in_graph(node))
+        node = self.get_node_in_graph(node)
+
+        return self.graph.neighbors(node)
 
     def walk_path(self, node, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of
@@ -792,6 +794,7 @@ class CachedGraph(object):
         along the traversal.
 
         """
+        node = self.get_node_in_graph(node)
 
         if path:
             for neighbor in self.neighbors_labeled(node, path[0]):
@@ -806,6 +809,7 @@ class CachedGraph(object):
         `whole` is true, return every node along each traversal.
 
         """
+        node = self.get_node_in_graph(node)
 
         return {
             n for n in itertools.chain(*[
