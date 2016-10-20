@@ -156,7 +156,6 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     project_docs = builders[0].denormalize_projects()
     map(index.add_project_doc, project_docs)
 
-
     return index
 
 
