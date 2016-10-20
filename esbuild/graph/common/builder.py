@@ -120,7 +120,7 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     # Map work to worker processes
     cases = cases or cache.get_cases()
-    builders = [builder_class(cache) for _ in range(threads)]
+    builders = [builder_class(cache, index) for _ in range(threads)]
     _, result_q, pool = start_worker_pool(builders, cases)
 
     pbar = util.get_pbar('Denormalizing cases ', len(cases))
