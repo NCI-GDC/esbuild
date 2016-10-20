@@ -96,16 +96,16 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     """
 
-    disk_index = DiskGraphIndex('~/indexes')
+    index = DiskGraphIndex('~/indexes')
 
-    caching_options = builder_class.get_caching_options()
-    cache = CachedGraph(
-        caching_options=caching_options,
-        psqlgraph_driver_args=psqlgraph_driver_args,
-    )
-    cache.cache_database()
-    builder = builder_class(cache, disk_index)
-    return builder.denormalize_all()
+    # caching_options = builder_class.get_caching_options()
+    # cache = CachedGraph(
+    #     caching_options=caching_options,
+    #     psqlgraph_driver_args=psqlgraph_driver_args,
+    # )
+    # cache.cache_database()
+    # builder = builder_class(cache, index)
+    # return builder.denormalize_all()
 
     # Create managed cache
     caching_options = builder_class.get_caching_options()
@@ -117,8 +117,6 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
         psqlgraph_driver_args=psqlgraph_driver_args,
     )
     cache.cache_database()
-
-    index = MemoryGraphIndex()
 
     # Map work to worker processes
     cases = cases or cache.get_cases()
