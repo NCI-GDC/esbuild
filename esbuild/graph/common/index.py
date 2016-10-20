@@ -63,6 +63,25 @@ def read_dir_json_files(path):
         return  # only walk the first level
 
 
+def merge_file_doc(existing_file_doc, file_doc):
+    """Merges the file doc into the existing file doc"""
+
+    existing_case_subdocs = {
+        case_doc['case_id']: case_doc
+        for case_doc in existing_file_doc['cases']
+    }
+
+    this_case_subdocs = {
+        case_doc['case_id']: case_doc
+        for case_doc in file_doc['cases']
+    }
+
+    all_case_subdocs = dict(existing_case_subdocs, **this_case_subdocs)
+    existing_file_doc['cases'] = all_case_subdocs
+
+    return existing_file_doc
+
+
 class GraphIndex(object):
     """Base class to represent a complete or in progress index"""
 
@@ -141,18 +160,10 @@ class MemoryGraphIndex(GraphIndex):
 
         if file_id not in self._file_docs:
             self._file_docs[file_id] = file_doc
-            return
 
-        for case_subdoc in file_doc['cases']:
-            case_id = case_subdoc['case_id']
-
-            existing_case_ids = {
-                case['case_id']
-                for case in self._file_docs[file_id]['cases']
-            }
-
-            if case_id not in existing_case_ids:
-                self._file_docs[file_id]['cases'] += file_doc['cases']
+        else:
+            self._file_docs[file_id] = merge_file_doc(
+                self._file_docs[file_id], file_doc)
 
     def add_annotation_doc(self, annotation_doc):
         """Adds a annotation document to this index"""
@@ -176,10 +187,8 @@ class DiskGraphIndex(GraphIndex):
     """Class to represent a complete or in progress index on memory"""
 
 
-    def __init__(self, data_dir_base=None, delete=False):
+    def __init__(self, data_dir_base=None):
         """Index constructor"""
-
-        logger.info('Creating new %s', self)
 
         rel_data_dir = '{}_{}'.format(data_dir_base, int(time.time()))
         self.data_dir = os.path.abspath(os.path.expanduser(rel_data_dir))
@@ -191,7 +200,13 @@ class DiskGraphIndex(GraphIndex):
         self._seen_case_ids = set()
         self._seen_file_ids = set()
 
+        logger.info('Creating new %s', self)
+
         self.create_data_dir()
+
+    def __repr__(self):
+        return "<{}('{}')>".format(self.__class__.__name__, self.data_dir)
+
 
     def __iter__(self):
         """Iterate over the index (for backwards compatible unpacking)"""
@@ -206,7 +221,7 @@ class DiskGraphIndex(GraphIndex):
     def delete(self):
         """Deletes the entire data_dir"""
 
-        logger.info('Deleting DiskGraphIndex %s', self)
+        logger.info('Deleting %s', self)
         shutil.rmtree(self.data_dir)
 
     def create_data_dir(self):
@@ -236,26 +251,6 @@ class DiskGraphIndex(GraphIndex):
 
         create_file(path, json.dumps(case_doc))
 
-    def _merge_file_doc(self, path, file_doc):
-        """Merges the file doc into the existing file doc"""
-
-        existing_file_doc = read_json_file(path)
-
-        existing_case_subdocs = {
-            case_doc['case_id']: case_doc
-            for case_doc in existing_file_doc['cases']
-        }
-
-        this_case_subdocs = {
-            case_doc['case_id']: case_doc
-            for case_doc in file_doc['cases']
-        }
-
-        all_case_subdocs = dict(existing_case_subdocs, **this_case_subdocs)
-        existing_file_doc['cases'] = all_case_subdocs
-
-        write_file(path, existing_file_doc)
-
     def add_file_doc(self, file_doc):
         """Adds a file document to this index"""
 
@@ -266,7 +261,9 @@ class DiskGraphIndex(GraphIndex):
             create_file(path, json.dumps(file_doc))
 
         else:
-            self._merge_file_doc(path, file_doc)
+            existing_file_doc = read_json_file(path)
+            updated_file_doc = merge_file_doc(existing_file_doc, file_doc)
+            write_file(path, json.dumps(updated_file_doc))
 
         self._seen_file_ids.add(file_id)
 
