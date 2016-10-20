@@ -142,6 +142,117 @@ class CachedGraph(object):
         # ``self._cache_existing_data_types()``
         self.existing_data_types = {}
 
+    ###################################################################
+    #                        Path functions
+    ###################################################################
+
+    def nodes_labeled(self, labels):
+        """Returns an iterator over the edges in the graph with label `label`
+
+        """
+
+        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
+        for node, _ in self.graph.nodes_iter(data=True):
+            if node.label in labels:
+                yield node
+
+    def neighbors_labeled(self, *args, **kwargs):
+        """Proxy for self._neighbors_labeled which was original written as a
+        generator to return a list instead
+
+        """
+
+        return list(self._neighbors_labeled(*args, **kwargs))
+
+    def _neighbors_labeled(self, node, labels, expected=None):
+
+        """For a given node, return an iterator with generates neighbors to
+        that node that are in a list of labels.  `label` can be either a
+        string or list of strings.
+
+        :param is_expected: Int count of expected elements
+
+        """
+
+        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
+        node = self.get_node_in_graph(node)
+
+        if node in self.popular_nodes:
+            if labels not in self.popular_nodes[node]:
+                neighbors = self._cache_popular_neighbor(
+                    node, self.graph.neighbors(node), labels)
+            else:
+                neighbors = self.popular_nodes[node][labels]
+
+        else:
+            temp = self.graph.neighbors(node)
+            if len(temp) > 200:
+                neighbors = self._cache_popular_neighbor(node, temp, labels)
+            else:
+                neighbors = {n for n in temp if n.label in labels}
+
+        count = 0
+        for neighbor in neighbors:
+            count += 1
+            yield neighbor
+
+        if expected is not None and count != expected:
+            self.warning(
+                "{}: unexpected no. of '{}' neighbors".format(node, labels),
+                '{}: {} != {} (expected)'.format(node, count, expected),
+                tags=["{}:{}".format(node.label, node.node_id)])
+
+    def neighbors(self, node):
+        """Return the neighbors of given node"""
+
+        node = self.get_node_in_graph(node)
+
+        return self.graph.neighbors(node)
+
+    def walk_path(self, node, path, whole=False):
+        """Given a list of strings, treat it as a path, and yield the end of
+        possible traversals.  If `whole` is true, return every node
+        along the traversal.
+
+        """
+        node = self.get_node_in_graph(node)
+
+        if path:
+            for neighbor in self.neighbors_labeled(node, path[0]):
+                if whole or (len(path) == 1 and path[0] == neighbor.label):
+                    yield neighbor
+
+                for node in self.walk_path(neighbor, path[1:], whole):
+                    yield node
+
+    def walk_paths(self, node, paths, whole=False):
+        """Given a list of paths, yield the result of walking each path. If
+        `whole` is true, return every node along each traversal.
+
+        """
+        node = self.get_node_in_graph(node)
+
+        return {
+            n for n in itertools.chain(*[
+                self.walk_path(node, path, whole=whole)
+                for path in paths if path
+            ])
+        }
+
+    ###################################################################
+    #                        Proxy Methods
+    ###################################################################
+
+    def get_relevant_nodes(self, node):
+        """Return the nodes relevant to this one"""
+
+        return self.relevant_nodes.get(node, [])
+
+    def get_entity_case(self, node):
+        """Return the case associated with this node"""
+
+        return self.entity_cases.get(node, None)
+
     @staticmethod
     def warning(*args, **kwargs):
         """Log a warning to logger and statsd"""
@@ -186,7 +297,19 @@ class CachedGraph(object):
 
         return self.graph[src][dst]
 
-    def get_suppressed_children(self, redacted):
+    def get_node_in_graph(self, node_or_node_id):
+        """Given a node or a node_id, return the corresponding node that is in
+        the NetworkX graph
+
+        """
+
+        return self.nodes[to_node_id(node_or_node_id)]
+
+    ###################################################################
+    #                        Setup Methods
+    ###################################################################
+
+    def _get_suppressed_children(self, redacted):
         """Get the children of a redacted node"""
 
         to_suppress = []
@@ -210,16 +333,7 @@ class CachedGraph(object):
 
         return to_suppress
 
-    def get_node_in_graph(self, node_or_node_id):
-        """Given a node or a node_id, return the corresponding node that is in
-        the NetworkX graph
-
-        """
-
-        return self.nodes[to_node_id(node_or_node_id)]
-
-    def suppressed_nodes(self):
-
+    def _suppressed_nodes(self):
         """
         Find all nodes that need to be suppressed due to redactions.
         """
@@ -259,7 +373,7 @@ class CachedGraph(object):
                 )
 
             for redacted in redacted_list:
-                to_suppress += self.get_suppressed_children(redacted)
+                to_suppress += self._get_suppressed_children(redacted)
 
             # returning the redaction annotations themselves here might
             # seem weird, but including the redaction annotations
@@ -270,18 +384,18 @@ class CachedGraph(object):
 
         return to_suppress
 
-    def is_unindexed_case(self, node):
+    def _is_unindexed_case(self, node):
         return (
             node.label == 'case'
             and not list(self.neighbors_labeled(node, 'project', 1))
         )
 
-    def is_node_indexed(self, node):
+    def _is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed.
 
         """
 
-        if self.is_unindexed_case(node):
+        if self._is_unindexed_case(node):
             logger.info('Node not indexed (case not indexed): %s', node)
             return False
 
@@ -302,12 +416,12 @@ class CachedGraph(object):
 
         return True
 
-    def remove_unindexed_nodes_from_graph(self):
+    def _remove_unindexed_nodes_from_graph(self):
         logger.info('Selecting entities to be removed from cache...')
 
         removed_nodes = [
             node for node in self.graph.nodes()
-            if not self.is_node_indexed(node)
+            if not self._is_node_indexed(node)
         ]
 
         logger.info("Removing %s nodes from cache", len(removed_nodes))
@@ -316,14 +430,14 @@ class CachedGraph(object):
             self.nodes.pop(node.node_id, None)
 
         logger.info("Finding and removing suppressed nodes")
-        suppressed = self.suppressed_nodes()
+        suppressed = self._suppressed_nodes()
 
         logger.info("Removing %s suppressed nodes", len(suppressed))
         self.graph.remove_nodes_from(suppressed)
         for node in suppressed:
             self.nodes.pop(node.node_id, None)
 
-    def iter_database_edges(self):
+    def _iter_database_edges(self):
         """Returns an iterable of edges to load from the database.
 
         Eagerly (with join) loads the source and destination of the edge.
@@ -340,20 +454,7 @@ class CachedGraph(object):
         ])
 
 
-    def count_database_edges(self):
-        """Returns an iterable of edges to load from the database.
-
-        Eagerly (with join) loads the source and destination of the edge.
-
-        """
-
-        return sum([
-            self.psqlgraph_driver.edges(subclass).count()
-            for subclass in Edge.__subclasses__()
-            if not is_case_cache_edge(subclass)
-        ])
-
-    def get_fake_node(self, node):
+    def _get_fake_node(self, node):
         """If we've seen this node before, then return the FakeNode version of
         it, otherwise create a new one and return that.
 
@@ -377,11 +478,11 @@ class CachedGraph(object):
             node_count = self.psqlgraph_driver.nodes().count()
             pbar = util.get_pbar('Caching Database: ', node_count)
 
-            for edge in self.iter_database_edges():
+            for edge in self._iter_database_edges():
                 pbar.update(len(self.nodes))
 
-                src = self.get_fake_node(edge.src)
-                dst = self.get_fake_node(edge.dst)
+                src = self._get_fake_node(edge.src)
+                dst = self._get_fake_node(edge.dst)
 
                 triple = (src.label, edge.label, dst.label)
                 needs_differentiation = (
@@ -393,10 +494,10 @@ class CachedGraph(object):
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
                     for center in edge.src.centers:
-                        self.graph.add_edge(dst, self.get_fake_node(center))
+                        self.graph.add_edge(dst, self._get_fake_node(center))
 
                     for aliquot in edge.src.aliquots:
-                        self.graph.add_edge(dst, self.get_fake_node(aliquot))
+                        self.graph.add_edge(dst, self._get_fake_node(aliquot))
 
                 elif needs_differentiation and edge._props:
                     self.graph.add_edge(
@@ -416,7 +517,7 @@ class CachedGraph(object):
 
         # Prune graph
         logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
-        self.remove_unindexed_nodes_from_graph()
+        self._remove_unindexed_nodes_from_graph()
 
         # Aggressively cache relationships, nodes by type, traversals, etc.
         self._cache_all()
@@ -494,16 +595,6 @@ class CachedGraph(object):
 
             pbar.update(pbar.currval+1)
         pbar.finish()
-
-    def get_relevant_nodes(self, node):
-        """Return the nodes relevant to this one"""
-
-        return self.relevant_nodes.get(node, [])
-
-    def get_entity_case(self, node):
-        """Return the case associated with this node"""
-
-        return self.entity_cases.get(node, None)
 
     def _cache_relevant_nodes(self):
         """The file documents will need to be pruned to only the nodes that
@@ -609,66 +700,6 @@ class CachedGraph(object):
                     for subtype in data_type.data_subtypes
                 ] for data_type in self.psqlgraph_driver.nodes(md.DataType)
             }
-
-    ###################################################################
-    #                         Graph functions
-    ###################################################################
-
-    def nodes_labeled(self, labels):
-        """Returns an iterator over the edges in the graph with label `label`
-
-        """
-
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        for node, _ in self.graph.nodes_iter(data=True):
-            if node.label in labels:
-                yield node
-
-    def neighbors_labeled(self, *args, **kwargs):
-        """Proxy for self._neighbors_labeled which was original written as a
-        generator to return a list instead
-
-        """
-
-        return list(self._neighbors_labeled(*args, **kwargs))
-
-    def _neighbors_labeled(self, node, labels, expected=None):
-
-        """For a given node, return an iterator with generates neighbors to
-        that node that are in a list of labels.  `label` can be either a
-        string or list of strings.
-
-        :param is_expected: Int count of expected elements
-
-        """
-
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        node = self.get_node_in_graph(node)
-
-        if node in self.popular_nodes:
-            if labels not in self.popular_nodes[node]:
-                neighbors = self._cache_popular_neighbor(
-                    node, self.graph.neighbors(node), labels)
-            else:
-                neighbors = self.popular_nodes[node][labels]
-
-        else:
-            temp = self.graph.neighbors(node)
-            if len(temp) > 200:
-                neighbors = self._cache_popular_neighbor(node, temp, labels)
-            else:
-                neighbors = {n for n in temp if n.label in labels}
-
-        count = 0
-        for neighbor in neighbors:
-            count += 1
-            yield neighbor
-
-        if expected is not None and count != expected:
-            self.warning(
-                "{}: unexpected no. of '{}' neighbors".format(node, labels),
-                '{}: {} != {} (expected)'.format(node, count, expected),
-                tags=["{}:{}".format(node.label, node.node_id)])
 
     @staticmethod
     def is_harmonized_file(node):
@@ -776,48 +807,6 @@ class CachedGraph(object):
                 return True
 
         return False
-
-    ###################################################################
-    #                        Path functions
-    ###################################################################
-
-    def neighbors(self, node):
-        """Return the neighbors of given node"""
-
-        node = self.get_node_in_graph(node)
-
-        return self.graph.neighbors(node)
-
-    def walk_path(self, node, path, whole=False):
-        """Given a list of strings, treat it as a path, and yield the end of
-        possible traversals.  If `whole` is true, return every node
-        along the traversal.
-
-        """
-        node = self.get_node_in_graph(node)
-
-        if path:
-            for neighbor in self.neighbors_labeled(node, path[0]):
-                if whole or (len(path) == 1 and path[0] == neighbor.label):
-                    yield neighbor
-
-                for node in self.walk_path(neighbor, path[1:], whole):
-                    yield node
-
-    def walk_paths(self, node, paths, whole=False):
-        """Given a list of paths, yield the result of walking each path. If
-        `whole` is true, return every node along each traversal.
-
-        """
-        node = self.get_node_in_graph(node)
-
-        return {
-            n for n in itertools.chain(*[
-                self.walk_path(node, path, whole=whole)
-                for path in paths if path
-            ])
-        }
-
 
 class CacheManager(BaseManager):
     pass

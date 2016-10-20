@@ -44,3 +44,9 @@ class FakeNode(object):
 
     def __getitem__(self, key):
         return self.props[key]
+
+    def __eq__(self, other):
+        return bool(self.node_id == other.node_id)
+
+    def __ne__(self, other):
+        return bool(self.node_id != other.node_id)

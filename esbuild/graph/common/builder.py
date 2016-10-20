@@ -124,7 +124,6 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     # )
     # cache.cache_database()
     # builder = builder_class(cache)
-
     # return builder.denormalize_all()
 
     # Create managed cache
