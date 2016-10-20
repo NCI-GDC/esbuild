@@ -55,7 +55,7 @@ def cached_graph(psqlgraph_args):
 @pytest.fixture(scope='module')
 def index(psqlgraph_args):
     doc_types = build_index(ActiveGraphIndexBuilder, psqlgraph_args)
-    return Index._make(doc_types)
+    return Index._make(map(list, doc_types))
 
 
 @pytest.fixture(scope='module')

@@ -25,6 +25,10 @@ from esbuild.graph.common import (
     util,
 )
 
+from esbuild.graph.common.index import (
+    MemoryGraphIndex,
+)
+
 from esbuild.graph.common.cache import (
     CachingOptions,
     CachedGraph,
@@ -38,32 +42,6 @@ from .mappings import (
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
-
-
-def upsert_file_into_dict(files, file_doc):
-    """Merge this file document into all other relevant file documents (or
-    just add it if none exist)
-
-    TODO: make this more descriptive
-
-    """
-
-    did = file_doc['file_id']
-
-    if did not in files:
-        files[did] = file_doc
-        return
-
-    for case in file_doc['cases']:
-        case_id = case['case_id']
-
-        existing_ids = {
-            case['case_id']
-            for case in files[did]['cases']
-        }
-
-        if case_id not in existing_ids:
-            files[did]['cases'] += file_doc['cases']
 
 
 def build_worker(builder, case_in_q, result_q):
@@ -117,14 +95,14 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     """
 
-    # caching_options = builder_class.get_caching_options()
-    # cache = CachedGraph(
-    #     caching_options=caching_options,
-    #     psqlgraph_driver_args=psqlgraph_driver_args,
-    # )
-    # cache.cache_database()
-    # builder = builder_class(cache)
-    # return builder.denormalize_all()
+    caching_options = builder_class.get_caching_options()
+    cache = CachedGraph(
+        caching_options=caching_options,
+        psqlgraph_driver_args=psqlgraph_driver_args,
+    )
+    cache.cache_database()
+    builder = builder_class(cache)
+    return builder.denormalize_all()
 
     # Create managed cache
     caching_options = builder_class.get_caching_options()
@@ -137,7 +115,7 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     )
     cache.cache_database()
 
-    case_docs, ann_docs, file_docs = [], {}, {}
+    index = MemoryGraphIndex()
 
     # Map work to worker processes
     cases = cases or cache.get_cases()
@@ -147,23 +125,18 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     pbar = util.get_pbar('Denormalizing cases ', len(cases))
 
     # Collect results
-    while len(case_docs) < len(cases):
+    while index.case_doc_count() < len(cases):
 
         result = result_q.get()
         if isinstance(result, Exception):
             raise result
 
-        case_doc, files, annotations = result
-        case_docs.append(case_doc)
+        case_doc, file_docs, annotation_docs = result
 
-        # Collect annotation docs
-        for annotation in annotations:
-            if annotation['annotation_id'] not in ann_docs:
-                ann_docs[annotation['annotation_id']] = annotation
-
-        # Collect file docs
-        for file_ in files:
-            upsert_file_into_dict(file_docs, file_)
+        # Collect docs
+        index.add_case_doc(case_doc)
+        map(index.add_annotation_doc, annotation_docs)
+        map(index.add_file_doc, file_docs)
 
         pbar.update(pbar.currval+1)
     pbar.finish()
@@ -171,9 +144,12 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     for process in pool:
         process.join()
 
-    projects = builders[0].denormalize_projects()
+    # Create project docs serially
+    project_docs = builders[0].denormalize_projects()
+    map(index.add_project_doc, project_docs)
 
-    return case_docs, file_docs.values(), ann_docs.values(), projects
+
+    return index
 
 
 class GraphIndexBuilder(object):
@@ -1335,7 +1311,7 @@ class GraphIndexBuilder(object):
                     ann_docs[a['annotation_id']] = a
 
             for f in fi:
-                upsert_file_into_dict(file_docs, f)
+                util.upsert_file_into_dict(file_docs, f)
 
             pbar.update(pbar.currval+1)
         pbar.finish()
@@ -1406,9 +1382,18 @@ class GraphIndexBuilder(object):
         project documents
 
         """
-        cases, files, annotations = self.denormalize_cases()
-        projects = self.denormalize_projects()
-        return cases, files, annotations, projects
+
+        index = MemoryGraphIndex()
+
+        case_docs, file_docs, annotation_docs = self.denormalize_cases()
+        project_docs = self.denormalize_projects()
+
+        map(index.add_case_doc, case_docs)
+        map(index.add_file_doc, file_docs)
+        map(index.add_annotation_doc, annotation_docs)
+        map(index.add_project_doc, project_docs)
+
+        return index
 
     ###################################################################
     #                       Validation functions

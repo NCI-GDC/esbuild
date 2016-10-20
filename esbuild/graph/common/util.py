@@ -17,6 +17,32 @@ from progressbar import (
 )
 
 
+def upsert_file_into_dict(files, file_doc):
+    """Merge this file document into all other relevant file documents (or
+    just add it if none exist)
+
+    TODO: make this more descriptive
+
+    """
+
+    did = file_doc['file_id']
+
+    if did not in files:
+        files[did] = file_doc
+        return
+
+    for case in file_doc['cases']:
+        case_id = case['case_id']
+
+        existing_ids = {
+            case['case_id']
+            for case in files[did]['cases']
+        }
+
+        if case_id not in existing_ids:
+            files[did]['cases'] += file_doc['cases']
+
+
 def get_file_to_case_paths(cls, file_to_case_paths):
     """Given a node, return the paths the lead monotonically up to case"""
 
