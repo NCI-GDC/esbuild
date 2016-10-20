@@ -27,6 +27,7 @@ from esbuild.graph.common import (
 
 from esbuild.graph.common.index import (
     MemoryGraphIndex,
+    DiskGraphIndex,
 )
 
 from esbuild.graph.common.cache import (
@@ -95,13 +96,15 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     """
 
+    disk_index = DiskGraphIndex('~/indexes')
+
     caching_options = builder_class.get_caching_options()
     cache = CachedGraph(
         caching_options=caching_options,
         psqlgraph_driver_args=psqlgraph_driver_args,
     )
     cache.cache_database()
-    builder = builder_class(cache)
+    builder = builder_class(cache, disk_index)
     return builder.denormalize_all()
 
     # Create managed cache
@@ -126,6 +129,11 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     # Collect results
     while index.case_doc_count() < len(cases):
+        try:
+            if result_q.qsize() > 20:
+                log.warning("Primary thread overworked! %d", result_q.qsize())
+        except NotImplementedError:
+            pass  #  on Mac OSX because of broken sem_getvalue()
 
         result = result_q.get()
         if isinstance(result, Exception):
@@ -323,11 +331,15 @@ class GraphIndexBuilder(object):
         'file_labels',
     ]
 
-    def __init__(self, cached_graph):
+    def __init__(self, cached_graph, index):
         """Walks the graph to produce elasticsearch json documents.
+
+        :param cached_graph: Instance of CachedGraph (post .cached_database())
+        :param index: Instance of GraphIndex
 
         """
 
+        self.index = index
         self.cache = cached_graph
 
         # verify required attributes are set
@@ -1383,17 +1395,15 @@ class GraphIndexBuilder(object):
 
         """
 
-        index = MemoryGraphIndex()
-
         case_docs, file_docs, annotation_docs = self.denormalize_cases()
         project_docs = self.denormalize_projects()
 
-        map(index.add_case_doc, case_docs)
-        map(index.add_file_doc, file_docs)
-        map(index.add_annotation_doc, annotation_docs)
-        map(index.add_project_doc, project_docs)
+        map(self.index.add_case_doc, case_docs)
+        map(self.index.add_file_doc, file_docs)
+        map(self.index.add_annotation_doc, annotation_docs)
+        map(self.index.add_project_doc, project_docs)
 
-        return index
+        return self.index
 
     ###################################################################
     #                       Validation functions

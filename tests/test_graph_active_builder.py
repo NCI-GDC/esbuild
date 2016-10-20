@@ -29,6 +29,10 @@ from esbuild.graph.common.cache import (
     CachedGraph,
 )
 
+from esbuild.graph.common.index import (
+    DiskGraphIndex,
+)
+
 from esbuild.graph.common.builder import (
     build_index,
 )
@@ -60,7 +64,8 @@ def index(psqlgraph_args):
 
 @pytest.fixture(scope='module')
 def builder(cached_graph):
-    return ActiveGraphIndexBuilder(cached_graph)
+    disk_index = DiskGraphIndex('~/indexes')
+    return ActiveGraphIndexBuilder(cached_graph, disk_index)
 
 
 @pytest.fixture
