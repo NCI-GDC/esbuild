@@ -90,13 +90,13 @@ def start_worker_pool(builders, cases):
     return case_in_q, result_q, pool
 
 
-def build_index(builder_class, psqlgraph_driver_args, cases=None,
+def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
                 threads=cpu_count()):
     """TODO: docstring
 
     """
 
-    index = DiskGraphIndex('~/indexes')
+    index = DiskGraphIndex(data_dir)
 
     # caching_options = builder_class.get_caching_options()
     # cache = CachedGraph(

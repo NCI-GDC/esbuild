@@ -58,7 +58,11 @@ def cached_graph(psqlgraph_args):
 
 @pytest.yield_fixture(scope='module')
 def index(psqlgraph_args):
-    disk_index = build_index(ActiveGraphIndexBuilder, psqlgraph_args)
+    disk_index = build_index(
+        ActiveGraphIndexBuilder,
+        psqlgraph_args,
+        '~/indexes',
+    )
     yield Index._make(map(list, disk_index))
     disk_index.delete()
 
