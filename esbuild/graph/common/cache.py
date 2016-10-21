@@ -11,8 +11,9 @@ graph information between processes
 import logging
 import itertools
 import networkx as nx
+import types
+import cdisutils
 
-from cdisutils.log import get_logger
 from collections import namedtuple
 from gdcdatamodel import models as md
 from multiprocessing.managers import BaseManager
@@ -28,7 +29,7 @@ from esbuild.graph.common.fake_node import (
     FakeNode,
 )
 
-logger = get_logger(__name__)
+logger = cdisutils.log.get_logger(__name__)
 logger.setLevel(logging.INFO)
 
 
@@ -36,23 +37,6 @@ def is_case_cache_edge(edge):
     """Determine if this edge or edge class is just a case cache edge"""
 
     return edge.label == 'relates_to' and edge.__dst_class__ == 'Case'
-
-
-def to_node_id(node_or_node_id):
-    """Returns the node_id of a node if provided a Node, elif it's a
-    string, assume it's a node_id and return that
-
-    """
-
-    if hasattr(node_or_node_id, 'node_id'):
-        return node_or_node_id.node_id
-
-    elif isinstance(node_or_node_id, StringTypes):
-        return node_or_node_id.node_id
-
-    else:
-        raise TypeError("Not sure how to convert {} to node_id"
-                        .format(node_or_node_id))
 
 
 class CachingOptions(object):
@@ -164,7 +148,7 @@ class CachedGraph(object):
 
         return list(self._neighbors_labeled(*args, **kwargs))
 
-    def _neighbors_labeled(self, node, labels, expected=None):
+    def _neighbors_labeled(self, node_id, labels, expected=None):
 
         """For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
@@ -175,7 +159,7 @@ class CachedGraph(object):
         """
 
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        node = self.get_node_in_graph(node)
+        node = self.get_node_in_graph(node_id)
 
         if node in self.popular_nodes:
             if labels not in self.popular_nodes[node]:
@@ -202,39 +186,37 @@ class CachedGraph(object):
                 '{}: {} != {} (expected)'.format(node, count, expected),
                 tags=["{}:{}".format(node.label, node.node_id)])
 
-    def neighbors(self, node):
+    def neighbors(self, node_id):
         """Return the neighbors of given node"""
 
-        node = self.get_node_in_graph(node)
-
+        node = self.get_node_in_graph(node_id)
         return self.graph.neighbors(node)
 
-    def walk_path(self, node, path, whole=False):
+    def walk_path(self, node_id, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of
         possible traversals.  If `whole` is true, return every node
         along the traversal.
 
         """
-        node = self.get_node_in_graph(node)
+        node = self.get_node_in_graph(node_id)
 
         if path:
-            for neighbor in self.neighbors_labeled(node, path[0]):
+            for neighbor in self.neighbors_labeled(node.node_id, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
                     yield neighbor
 
-                for node in self.walk_path(neighbor, path[1:], whole):
+                for node in self.walk_path(neighbor.node_id, path[1:], whole):
                     yield node
 
-    def walk_paths(self, node, paths, whole=False):
+    def walk_paths(self, node_id, paths, whole=False):
         """Given a list of paths, yield the result of walking each path. If
         `whole` is true, return every node along each traversal.
 
         """
-        node = self.get_node_in_graph(node)
 
         return {
             n for n in itertools.chain(*[
-                self.walk_path(node, path, whole=whole)
+                self.walk_path(node_id, path, whole=whole)
                 for path in paths if path
             ])
         }
@@ -243,14 +225,16 @@ class CachedGraph(object):
     #                        Proxy Methods
     ###################################################################
 
-    def get_relevant_nodes(self, node):
+    def get_relevant_nodes(self, node_id):
         """Return the nodes relevant to this one"""
 
+        node = self.get_node_in_graph(node_id)
         return self.relevant_nodes.get(node, [])
 
-    def get_entity_case(self, node):
+    def get_entity_case(self, node_id):
         """Return the case associated with this node"""
 
+        node = self.get_node_in_graph(node_id)
         return self.entity_cases.get(node, None)
 
     @staticmethod
@@ -290,20 +274,23 @@ class CachedGraph(object):
 
         return self.data_categories
 
-    def get_edge(self, src, dst):
+    def get_edge(self, src_id, dst_id):
         """Returns any information stored about the edge between two nodes"""
 
-        src, dst = self.get_node_in_graph(src), self.get_node_in_graph(dst)
+        src = self.get_node_in_graph(src_id)
+        dst = self.get_node_in_graph(dst_id)
 
         return self.graph[src][dst]
 
-    def get_node_in_graph(self, node_or_node_id):
+    def get_node_in_graph(self, node_id):
         """Given a node or a node_id, return the corresponding node that is in
         the NetworkX graph
 
         """
 
-        return self.nodes[to_node_id(node_or_node_id)]
+        assert isinstance(node_id, types.StringTypes)
+
+        return self.nodes[node_id]
 
     ###################################################################
     #                        Setup Methods
@@ -325,7 +312,7 @@ class CachedGraph(object):
         to_suppress.append(redacted)
 
         logger.info("Walking down towards file with paths %s", paths)
-        extra = self.walk_paths(redacted, paths, whole=True)
+        extra = self.walk_paths(redacted.node_id, paths, whole=True)
 
         logger.info("Found %s other things to suppress by walking from %s",
                     extra, redacted)
@@ -387,7 +374,7 @@ class CachedGraph(object):
     def _is_unindexed_case(self, node):
         return (
             node.label == 'case'
-            and not list(self.neighbors_labeled(node, 'project', 1))
+            and not list(self.neighbors_labeled(node.node_id, 'project', 1))
         )
 
     def _is_node_indexed(self, node):
@@ -580,7 +567,7 @@ class CachedGraph(object):
                 util.truncate_path(path, entity.label)
                 for path in  self.caching_options.file_to_case_paths
             )
-            cases = self.walk_paths(entity, paths)
+            cases = self.walk_paths(entity.node_id, paths)
 
             if len(cases) > 1:
                 self.warning(
@@ -615,7 +602,7 @@ class CachedGraph(object):
             paths = util.get_file_to_case_paths(
                 file_, self.caching_options.file_to_case_paths)
             self.relevant_nodes[file_] = self.walk_paths(
-                file_, paths, whole=True)
+                file_.node_id, paths, whole=True)
             pbar.update(pbar.currval+1)
 
         pbar.finish()
@@ -648,7 +635,8 @@ class CachedGraph(object):
             category = data_category._props['name']
 
             self.data_categories[category] = util.remove_index_files(
-                set(self.walk_path(data_category, ['data_subtype', 'file'])),
+                set(self.walk_path(
+                    data_category.node_id, ['data_subtype', 'file'])),
                 self.caching_options.index_file_extensions,
             )
 
@@ -673,7 +661,7 @@ class CachedGraph(object):
         for exp_strat in self.nodes_labeled('experimental_strategy'):
             strategy = exp_strat._props['name']
             self.experimental_strategies[strategy] = set(self.walk_path(
-                exp_strat, ['file']))
+                exp_strat.node_id, ['file']))
 
         # New files have 'experimental_strategy' as a property
         for file_ in self.nodes_labeled(self.caching_options.file_labels):
@@ -761,7 +749,7 @@ class CachedGraph(object):
         if node.label == 'project':
             projects = [node]
         elif node.label == 'case':
-            projects = self.neighbors_labeled(node, 'project', 1)
+            projects = self.neighbors_labeled(node.node_id, 'project', 1)
         else:
             return False
 
@@ -769,7 +757,7 @@ class CachedGraph(object):
         program_names = [
             program.name
             for project in projects
-            for program in self.neighbors_labeled(project, 'program', 1)
+            for program in self.neighbors_labeled(project.node_id, 'program', 1)
         ]
 
         # Check if project is not released

@@ -98,14 +98,14 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
 
     index = DiskGraphIndex('~/indexes')
 
-    caching_options = builder_class.get_caching_options()
-    cache = CachedGraph(
-        caching_options=caching_options,
-        psqlgraph_driver_args=psqlgraph_driver_args,
-    )
-    cache.cache_database()
-    builder = builder_class(cache, index)
-    return builder.denormalize_all()
+    # caching_options = builder_class.get_caching_options()
+    # cache = CachedGraph(
+    #     caching_options=caching_options,
+    #     psqlgraph_driver_args=psqlgraph_driver_args,
+    # )
+    # cache.cache_database()
+    # builder = builder_class(cache, index)
+    # return builder.denormalize_all()
 
     # Create managed cache
     caching_options = builder_class.get_caching_options()
@@ -417,7 +417,7 @@ class GraphIndexBuilder(object):
             return {}
         submap = mapping[node.label]
 
-        for child in self.cache.neighbors(node):
+        for child in self.cache.neighbors(node.node_id):
             if child.label not in submap:
                 continue
             tree[child] = {}
@@ -518,7 +518,7 @@ class GraphIndexBuilder(object):
     def get_case_files(self, node):
         """Return a list of file nodes by walking out from case"""
 
-        files = self.cache.walk_paths(node, self.case_to_file_paths)
+        files = self.cache.walk_paths(node.node_id, self.case_to_file_paths)
         files = self.remove_index_files(files)
         files = self.remove_hidden_nodes(files)
 
@@ -809,7 +809,8 @@ class GraphIndexBuilder(object):
 
         else:
             # get data_format from edge to DataFormat
-            formats = list(self.cache.neighbors_labeled(node, 'data_format'))
+            formats = list(self.cache.neighbors_labeled(
+                node.node_id, 'data_format'))
 
             # Get the first format
             if formats:
@@ -867,7 +868,10 @@ class GraphIndexBuilder(object):
             n for n in dict(self.ftree_mapping['file']).keys()
             if n not in ['archive', 'portion', 'file']
         ]
-        for neighbor in set(self.cache.neighbors_labeled(node, auto_neighbors)):
+        neighbors = set(self.cache.neighbors_labeled(
+                node.node_id, auto_neighbors))
+
+        for neighbor in neighbors:
             corr, label = self.ftree_mapping['file'][neighbor.label]['corr']
             if neighbor.label in self.flatten:
                 base = neighbor[self.flatten[neighbor.label]]
@@ -900,8 +904,9 @@ class GraphIndexBuilder(object):
     def get_file_index_files(self, node):
         """Given a file, return any neighboring index files"""
         return [
-            n for n in list(self.cache.neighbors_labeled(node, 'file'))
-            if self.cache.get_edge(node, n).get("label") == "related_to"
+            n for n in list(self.cache.neighbors_labeled(node.node_id, 'file'))
+            if self.cache.get_edge(node.node_id, n.node_id)
+            .get("label") == "related_to"
             and self.is_index_file(n)
         ]
 
@@ -943,12 +948,15 @@ class GraphIndexBuilder(object):
 
         # Get related_files
         related_files = [
-            n for n in list(self.cache.neighbors_labeled(node, 'file'))
-            if self.cache.get_edge(node, n).get("label") == "related_to"
+            n for n in list(self.cache.neighbors_labeled(
+                node.node_id, 'file'))
+            if self.cache.get_edge(node.node_id, n.node_id)
+            .get("label") == "related_to"
             and not self.is_index_file(n)
         ]
 
-        related_files += list(self.cache.neighbors_labeled(node, metadata_labels))
+        related_files += list(self.cache.neighbors_labeled(
+            node.node_id, metadata_labels))
 
         for related_file in related_files:
             rf_doc = self._get_base_doc(related_file, include_id=False)
@@ -956,7 +964,7 @@ class GraphIndexBuilder(object):
 
             # Data types
             data_subtypes = self.cache.neighbors_labeled(
-                related_file,
+                related_file.node_id,
                 'data_subtype',
             )
 
@@ -984,8 +992,9 @@ class GraphIndexBuilder(object):
         # file.archives) and one that is `related_to` (which goes
         # here).  For now, we don't do this for non-legacy files.
         if node.label == 'file':
-            for archive in set(self.cache.neighbors_labeled(node, 'archive')):
-                edge = self.cache.get_edge(node, archive)
+            archives = set(self.cache.neighbors_labeled(node.node_id, 'archive'))
+            for archive in archives:
+                edge = self.cache.get_edge(node.node_id, archive.node_id)
                 if edge.get('label') != 'member_of':
                     name = '{}.{}.0.tar.gz'.format(
                         archive['submitter_id'], archive['revision'])
@@ -1008,7 +1017,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        for archive in set(self.cache.neighbors_labeled(node, 'archive')):
+        for archive in set(self.cache.neighbors_labeled(node.node_id, 'archive')):
             if 'archive' in doc:
                 return self.warning(
                     "Duplicate archives for {}".format(node),
@@ -1018,7 +1027,8 @@ class GraphIndexBuilder(object):
 
             is_skipped_legacy_edge = (
                 node.label == 'file' and
-                self.cache.get_edge(node, archive).get('label') != 'member_of'
+                self.cache.get_edge(node.node_id, archive)
+                .get('label') != 'member_of'
             )
 
             if not is_skipped_legacy_edge:
@@ -1059,7 +1069,7 @@ class GraphIndexBuilder(object):
             log.warn('No ptree (case tree) for %s', node)
             return []
 
-        relevant = self.cache.get_relevant_nodes(node)
+        relevant = self.cache.get_relevant_nodes(node.node_id)
         if not relevant:
             log.warn('No relevant cases for %s', node)
             return []
@@ -1086,7 +1096,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        annotations = self.cache.neighbors_labeled(node, 'annotation')
+        annotations = self.cache.neighbors_labeled(node.node_id, 'annotation')
 
         return [
             self.denormalize_annotation(annotation)
@@ -1103,7 +1113,8 @@ class GraphIndexBuilder(object):
         annotations = doc.pop('annotations', [])
 
         for relevant_node in relevant:
-            annotations.extend(self.get_node_annotation_docs(relevant_node))
+            annotations = self.get_node_annotation_docs(relevant_node)
+            annotations.extend(annotations)
 
         if annotations:
             doc['annotations'] = annotations
@@ -1131,7 +1142,7 @@ class GraphIndexBuilder(object):
         """Returns a list of entities that are 'associated' with a file"""
 
         return list(self.cache.neighbors_labeled(
-            node, self.possible_associated_entites))
+            node.node_id, self.possible_associated_entites))
 
     def add_file_associated_entities(self, node, doc, case_id):
         docs = []
@@ -1139,7 +1150,7 @@ class GraphIndexBuilder(object):
 
         for entity in entities:
 
-            case = self.cache.get_entity_case(entity)
+            case = self.cache.get_entity_case(entity.node_id)
             if not case:
                 # Skip, the cases is likely missing because it is omitted
                 continue
@@ -1171,7 +1182,7 @@ class GraphIndexBuilder(object):
         doc = self._get_base_doc(p)
 
         # Get programs
-        program = self.cache.neighbors_labeled(p, 'program')[0]
+        program = self.cache.neighbors_labeled(p.node_id, 'program')[0]
         log.info('Program: {}'.format(program))
         doc['program'] = self._get_base_doc(program)
 
@@ -1179,7 +1190,7 @@ class GraphIndexBuilder(object):
         self.patch_project(doc)
 
         log.info('Finding cases')
-        cases = list(self.cache.neighbors_labeled(p, 'case'))
+        cases = list(self.cache.neighbors_labeled(p.node_id, 'case'))
         log.info('Got {} cases'.format(len(cases)))
 
         # Get files
@@ -1188,7 +1199,7 @@ class GraphIndexBuilder(object):
         case_files = {}
         for case in cases:
             case_files[case] = self.remove_index_files(
-                self.cache.walk_paths(case, self.case_to_file_paths))
+                self.cache.walk_paths(case.node_id, self.case_to_file_paths))
             files = files.union(case_files[case])
 
         # filter files
@@ -1353,7 +1364,7 @@ class GraphIndexBuilder(object):
         """
 
         ann_doc = self._get_base_doc(node)
-        entities = self.cache.neighbors(node)
+        entities = self.cache.neighbors(node.node_id)
 
         if len(entities) == 0:
             self.error(

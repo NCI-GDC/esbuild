@@ -273,7 +273,8 @@ class DiskGraphIndex(GraphIndex):
         annotation_id = annotation_doc['annotation_id']
         path = os.path.join(self.annotation_dir, annotation_id)
 
-        create_file(path, json.dumps(annotation_doc))
+        if not os.path.exists(path):
+            create_file(path, json.dumps(annotation_doc))
 
     def add_project_doc(self, project_doc):
         """Adds a project document to this index"""
