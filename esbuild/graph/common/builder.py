@@ -110,12 +110,18 @@ def build_index(builder_class, psqlgraph_driver_args, cases=None,
     # Create managed cache
     caching_options = builder_class.get_caching_options()
 
-    manager = CacheManager()
-    manager.start()
-    cache = manager.new_cached_graph(
+    cache = CachedGraph(
         caching_options=caching_options,
         psqlgraph_driver_args=psqlgraph_driver_args,
     )
+
+    # manager = CacheManager()
+    # manager.start()
+    # cache = manager.new_cached_graph(
+    #     caching_options=caching_options,
+    #     psqlgraph_driver_args=psqlgraph_driver_args,
+    # )
+
     cache.cache_database()
 
     # Map work to worker processes
