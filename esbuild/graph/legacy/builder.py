@@ -86,7 +86,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        archives = self.nodes_labeled('archive')
+        archives = self.cache.nodes_labeled('archive')
         file_docs = []
 
         if visited_file_ids is None:
@@ -95,7 +95,8 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         for archive in archives:
             file_docs.append(self.get_archive_as_file_doc(archive))
 
-            for file_ in self.neighbors_labeled(archive, self.file_labels):
+            files = self.cache.neighbors_labeled(archive, self.file_labels)
+            for file_ in files:
                 # skip any files visited in or before this function
                 if file_.node_id in visited_file_ids:
                     continue

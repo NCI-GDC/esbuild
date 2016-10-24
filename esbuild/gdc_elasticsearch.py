@@ -19,6 +19,7 @@ from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
+from esbuild.graph.common.cache import CachedGraph
 
 # TODO this could probably be bumped now that the number of bulk
 # threads in the config is higher, c.f.
@@ -44,6 +45,7 @@ def shouldnt_delete(node):
     delete them.
 
     """
+
     if isinstance(node, File) and node.derived_files:
         return True
     else:
@@ -55,8 +57,7 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, es=None,
-                 index_base="gdc_from_graph"):
+    def __init__(self, converter_class, es=None, index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
@@ -75,14 +76,20 @@ class GDCElasticsearch(object):
                            os.environ.get("ES_PASSWORD", "")),
                 timeout=9999)
 
-        self.graph = PsqlGraphDriver(
+        self.psqlgraph_args = (
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
             os.environ["PG_PASS"],
             os.environ["PG_NAME"],
         )
 
-        self.converter = converter_class(self.graph)
+        self.graph = PsqlGraphDriver(self.psqlgraph_args)
+
+        caching_options = converter_class.get_caching_options()
+        cache = CachedGraph(self.graph, caching_options)
+        converter = converter_class(cache)
+
+        self.converter = converter
 
     def go(self, roll_alias=True):
         self.log.info("Caching database")
@@ -90,7 +97,7 @@ class GDCElasticsearch(object):
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
-            self.converter.cache_database()
+            self.converter.cache.cache_database()
             self.log.info("Querying for old nodes to delete")
             to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
             to_delete = [n for n in to_delete if not shouldnt_delete(n)]
