@@ -436,7 +436,7 @@ class CachedGraph(object):
             .options(joinedload(subclass.src))
             .options(joinedload(subclass.dst))
             .yield_per(int(1e5))
-            for subclass in Edge.__subclasses__()
+            for subclass in sorted(Edge.__subclasses__())
             if not is_case_cache_edge(subclass)
         ])
 

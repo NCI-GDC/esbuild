@@ -98,15 +98,6 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
 
     index = DiskGraphIndex(data_dir)
 
-    # caching_options = builder_class.get_caching_options()
-    # cache = CachedGraph(
-    #     caching_options=caching_options,
-    #     psqlgraph_driver_args=psqlgraph_driver_args,
-    # )
-    # cache.cache_database()
-    # builder = builder_class(cache, index)
-    # return builder.denormalize_all()
-
     # Create managed cache
     caching_options = builder_class.get_caching_options()
 
@@ -123,6 +114,7 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
     # )
 
     cache.cache_database()
+    return builder_class(cache, index).denormalize_all()
 
     # Map work to worker processes
     cases = cases or cache.get_cases()
@@ -1095,14 +1087,13 @@ class GraphIndexBuilder(object):
 
         return relevant
 
-    @lru_cache(maxsize=int(2**20))
-    def get_node_annotation_docs(self, node):
+    def get_node_annotation_docs(self, node_id):
         """Returns the annotation docs for all annotations relevant to this
         node
 
         """
 
-        annotations = self.cache.neighbors_labeled(node.node_id, 'annotation')
+        annotations = self.cache.neighbors_labeled(node_id, 'annotation')
 
         return [
             self.denormalize_annotation(annotation)
@@ -1119,7 +1110,7 @@ class GraphIndexBuilder(object):
         annotations = doc.pop('annotations', [])
 
         for relevant_node in relevant:
-            annotations = self.get_node_annotation_docs(relevant_node)
+            annotations = self.get_node_annotation_docs(relevant_node.node_id)
             annotations.extend(annotations)
 
         if annotations:
