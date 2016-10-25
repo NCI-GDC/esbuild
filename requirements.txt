@@ -10,4 +10,4 @@ datadog==0.9.0
 -e git+ssh://git@github.com/NCI-GDC/cdisutils.git@4a75cc05c7ba2174e70cca9c9ea7e93947f7a868#egg=cdisutils
 -e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@570f49c0eb42c7198f4f3baa10b4c4ec83590768#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@4fbeddeb058ad09741c5d2b9aacbd1c63cfc3dd1#egg=psqlgraph
--e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@d7870982db5f084a9f8af62038af1fb40d7056cf#egg=gdcdatamodel
+-e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@636c6908e07c538973eae9496f879833cc3dc803#egg=gdcdatamodel
