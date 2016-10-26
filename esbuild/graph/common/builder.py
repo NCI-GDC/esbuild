@@ -955,6 +955,14 @@ class GraphIndexBuilder(object):
         """
 
         for archive in set(self.neighbors_labeled(node, 'archive')):
+            is_skipped_legacy_edge = (
+                node.label == 'file' and
+                self.G[node][archive].get('label') != 'member_of'
+            )
+
+            if is_skipped_legacy_edge:
+                continue
+
             if 'archive' in doc:
                 return self.warning(
                     "Duplicate archives for {}".format(node),
@@ -962,21 +970,15 @@ class GraphIndexBuilder(object):
                     tags=["file_id:{}".format(node.node_id)],
                 )
 
-            is_skipped_legacy_edge = (
-                node.label == 'file' and
-                self.G[node][archive].get('label') != 'member_of'
-            )
+            archive_doc = self._get_base_doc(archive)
 
-            if not is_skipped_legacy_edge:
-                archive_doc = self._get_base_doc(archive)
+            # Archive is a file_doc for the legacy index, so it
+            # will have `file_id` not `archive_id`.  If so, coerce
+            # it back here.
+            if 'file_id' in archive_doc:
+                archive_doc['archive_id'] = archive_doc.pop('file_id')
 
-                # Archive is a file_doc for the legacy index, so it
-                # will have `file_id` not `archive_id`.  If so, coerce
-                # it back here.
-                if 'file_id' in archive_doc:
-                    archive_doc['archive_id'] = archive_doc.pop('file_id')
-
-                doc['archive'] = archive_doc
+            doc['archive'] = archive_doc
 
     def add_data_category(self, node, doc):
         """Add the data_subtype to the file document with child data_category
