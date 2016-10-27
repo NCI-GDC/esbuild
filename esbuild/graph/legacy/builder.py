@@ -20,6 +20,7 @@ from .mappings import (
 class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
     mapper = LegacyESMapper
+    file_mapping = mapper.get_file_es_mapping()
 
     case_to_file_paths = [
         ['file'],
@@ -36,6 +37,9 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         'file',
         'biospecimen_supplement',
         'clinical_supplement',
+        # Archives are manually included regardless of path to
+        # case. see self.denormalize_archive_files()
+        'archive',
     ]
 
     def denormalize_all(self):
@@ -61,6 +65,16 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         projects = self.denormalize_projects()
         return cases, files, annotations, projects
 
+
+    def get_archive_as_file_doc(self, archive):
+        """Returns a an archive doc in format consistent with file index"""
+
+        archive_doc = self.denormalize_file(archive, {})
+        self.validate_against_mapping(archive_doc, self.file_mapping)
+
+        return archive_doc
+
+
     def denormalize_archive_files(self, visited_file_ids=None):
         """Starting at each archive in the graph, denormalize its files.
 
@@ -79,11 +93,14 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
             visited_file_ids = set()
 
         for archive in archives:
+            file_docs.append(self.get_archive_as_file_doc(archive))
+
             for file_ in self.neighbors_labeled(archive, self.file_labels):
                 # skip any files visited in or before this function
                 if file_.node_id in visited_file_ids:
                     continue
 
+                # Denormalize the file
                 file_docs.append(self.denormalize_file(file_, {}))
                 visited_file_ids.add(file_.node_id)
 
