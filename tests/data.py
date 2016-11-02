@@ -480,6 +480,8 @@ NODES = [
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='TCGA-AR-A1AR',
+        primary_site='Breast',
+        disease_type='Breast Invasive Carcinoma'
     ),
     Case(
         # floating case. has no neighbors
@@ -487,6 +489,8 @@ NODES = [
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='TCGA-AR-A2AR',
+        primary_site='Breast',
+        disease_type='Breast Invasive Carcinoma'
     ),
     Case(
         # case in unreleased project
@@ -494,6 +498,8 @@ NODES = [
         project_id='INTERNAL-DEV1',
         state='submitted',
         submitter_id='INTERNAL-DEV-CASE-0001',
+        primary_site="-",
+        disease_type="-",
     ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
@@ -895,8 +901,6 @@ NODES = [
         released=True,
         state="legacy",
         code="BRCA",
-        primary_site="Breast",
-        disease_type="Breast Invasive Carcinoma",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
     ),
@@ -905,8 +909,6 @@ NODES = [
         released=False,
         state="open",
         code="DEV1",
-        primary_site="-",
-        disease_type="-",
         dbgap_accession_number='gdc000001',
         name="Dev project",
     ),
