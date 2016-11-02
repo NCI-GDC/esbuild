@@ -88,6 +88,11 @@ def environment(monkeypatch):
     monkeypatch.setenv('PG_USER', PG_USER)
     monkeypatch.setenv('PG_PASS', PG_PASSWORD)
     monkeypatch.setenv('PG_NAME', PG_DATABASE)
+    monkeypatch.setenv('SAVE_DIR', 'tempdir')
+    monkeypatch.setenv('S3_HOST', 's3.amazonaws.com')
+    monkeypatch.setenv('S3_BUCKET', 'test_bucket')
+    monkeypatch.setenv('S3_ACCESS_KEY', 'test_access_key')
+    monkeypatch.setenv('S3_SECRET_KEY', '_test_secret_key')
 
 
 @pytest.fixture(scope="module", autouse=True)

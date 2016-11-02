@@ -20,12 +20,24 @@ export PG_USER=<REPLACE_ME>  # PostgreSQL user
 export PG_PASS=<REPLACE_ME>  # PostgreSQL password
 export PG_NAME=<REPLACE_ME>  # PostgreSQL database name
 
-export ELASTICSEARCH_HOST=<REPLACE_ME>  # Elasticsearch hostname
-export ES_USER=<REPLACE_ME>  # Elasticsearch user
-export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
+export ELASTICSEARCH_HOST=<REPLACE_ME>   # Elasticsearch hostname
+export ES_USER=<REPLACE_ME>              # Elasticsearch user
+export ES_PASSWORD=<REPLACE_ME>          # Elasticsearch password
 
-python bin/build_graph_index.py
+export SAVE_DIR=<REPLACE_ME>  # Directory where you save the archived backup
+
+export S3_HOST=<REPLACE_ME>        # S3 host address
+export S3_BUCKET=<REPLACE_ME>      # S3 bucket name
+export S3_ACCESS_KEY=<REPLACE_ME>  # S3 access key
+export S3_SECRET_KEY=<REPLACE_ME>  # S3 secret key
+
+# sets up the graph
+python bin/build_download_stats_index.py
+
+# saves graph indices to disk/elasticsearch/s3
+python bin/gdc_datarelease.py [-h] [--test] [--legacy]
 ```
+
 
 # Installation
 
