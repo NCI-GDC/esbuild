@@ -116,7 +116,6 @@ class ESMapper(object):
         case_tree.project.corr = (ONE_TO_ONE, 'project')
         case_tree.project.program.corr = (ONE_TO_ONE, 'program')
         case_tree.file.corr = (ONE_TO_MANY, 'files')
-        case_tree.tissue_source_site.corr = (ONE_TO_ONE, 'tissue_source_site')
 
         # Biospecimen subtree
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
