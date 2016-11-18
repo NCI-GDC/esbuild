@@ -254,18 +254,23 @@ class DiskGraphIndex(GraphIndex):
     def add_file_doc(self, file_doc):
         """Adds a file document to this index"""
 
-        file_id = file_doc['file_id']
-        path = os.path.join(self.file_dir, file_id)
+        try:
+            file_id = file_doc['file_id']
+            path = os.path.join(self.file_dir, file_id)
 
-        if file_id not in self._seen_file_ids:
-            create_file(path, json.dumps(file_doc))
+            if file_id not in self._seen_file_ids:
+                return create_file(path, json.dumps(file_doc))
 
-        else:
             existing_file_doc = read_json_file(path)
+
             updated_file_doc = merge_file_doc(existing_file_doc, file_doc)
             write_file(path, json.dumps(updated_file_doc))
 
-        self._seen_file_ids.add(file_id)
+        except Exception as e:
+            print str(e)
+        finally:
+            self._seen_file_ids.add(file_id)
+
 
     def add_annotation_doc(self, annotation_doc):
         """Adds a annotation document to this index"""

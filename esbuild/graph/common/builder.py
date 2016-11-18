@@ -57,10 +57,14 @@ def build_worker(builder, case_in_q, result_q):
             return log.info('No more work for builder %s', builder)
 
         try:
-            result_q.put(builder.denormalize_case(case))
+            result = builder.denormalize_case(case)
         except Exception as exception:
             log.exception(exception)
-            result_q.put(exception)
+            result = exception
+
+        result_q.put(result)
+        del result
+
 
 
 def start_worker_pool(builders, cases):
@@ -91,7 +95,7 @@ def start_worker_pool(builders, cases):
 
 
 def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
-                threads=cpu_count()):
+                threads=4):
     """TODO: docstring
 
     """
@@ -114,7 +118,7 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
     # )
 
     cache.cache_database()
-    return builder_class(cache, index).denormalize_all()
+    # return builder_class(cache, index).denormalize_all()
 
     # Map work to worker processes
     cases = cases or cache.get_cases()
@@ -141,6 +145,11 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
         index.add_case_doc(case_doc)
         map(index.add_annotation_doc, annotation_docs)
         map(index.add_file_doc, file_docs)
+
+        del result
+        del case_doc
+        del file_docs
+        del annotation_docs
 
         pbar.update(pbar.currval+1)
     pbar.finish()
