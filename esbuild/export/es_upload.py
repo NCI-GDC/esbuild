@@ -1,70 +1,29 @@
-# -*- coding: utf-8 -*-
-"""
-esbuild.gdc_elasticsearch
-----------------------------------
-
-Defines functions to build graph indices and upload them to
-Elasticsearch
-
-"""
 
 import os
 import re
-import json
 
 from cdisutils.log import get_logger
-from datadog import statsd
 from elasticsearch import NotFoundError, Elasticsearch
 from elasticsearch.exceptions import AuthorizationException
-from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
-from psqlgraph import PsqlGraphDriver
 
 # TODO this could probably be bumped now that the number of bulk
 # threads in the config is higher, c.f.
 # https://github.com/NCI-GDC/tungsten/commit/3ac690d19dd49f8ad2f30bf55ca6fe70ff2cc51d
 BATCH_SIZE = 4
 
-
 INDEX_PATTERN = '{base}_{n}'
 
-
-def shouldnt_delete(node):
-    """In most cases, we delete any node that's marked
-    `to_delete`. However, if the node is a file, we don't, for two reasons:
-
-    1. We would lose the information about the alignment.
-
-    2. CGHub sometimes suppresses and then unsupresses files. In most
-    cases this is fine, but if a file has derived files, deleting and
-    recreating it will cause the relevant edge to be lost, which we
-    don't want.
-
-    This is a predicate to filter files with derived files so we don't
-    delete them.
-
-    """
-    if isinstance(node, File) and node.derived_files:
-        return True
-    else:
-        return False
-
-
-class GDCElasticsearch(object):
-
-    """
-    """
-
-    def __init__(self, converter_class, es=None,
-                 index_base="gdc_from_graph"):
-        """Walks the graph to produce elasticsearch json documents.
-
-        :param es: An instance of Elasticsearch class
-        :param converter_class: Class to use as a converter
-
-        """
-        self.index_base = index_base
+class GDCElasticsearch():
+    def __init__(self,converter_class, es=None, index_base='gdc_from_graph'):
+        '''
+            Upload docs to elasticsearch
+        '''
         self.log = get_logger("gdc_elasticsearch")
+
+        self.index_base = index_base
+        self.converter = converter_class
+
         if es:
             self.es = es
         else:
@@ -75,60 +34,12 @@ class GDCElasticsearch(object):
                            os.environ.get("ES_PASSWORD", "")),
                 timeout=9999)
 
-        self.graph = PsqlGraphDriver(
-            os.environ["PG_HOST"],
-            os.environ["PG_USER"],
-            os.environ["PG_PASS"],
-            os.environ["PG_NAME"],
-        )
-
-        self.converter = converter_class(self.graph)
-
-    def go(self, roll_alias=True):
-        self.log.info("Caching database")
-        # having a transation out here is important, since it ensures
-        # that the cached database and which nodes get deleted is
-        # consistent
-        with self.graph.session_scope() as session:
-            self.converter.cache_database()
-            self.log.info("Querying for old nodes to delete")
-            to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
-            to_delete = [n for n in to_delete if not shouldnt_delete(n)]
-            self.log.info("Found %s to_delete nodes, saving for later",
-                          len(to_delete))
-        self.log.info("Denormalizing database into JSON docs")
-        case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-        self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
-                      len(case_docs),
-                      len(file_docs),
-                      len(ann_docs),
-                      len(project_docs))
-        self.log.info("Validating docs produced")
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
-        self.log.info("Deploying new ES index with new docs and bumping alias")
-        new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                roll_alias=roll_alias)
-        with self.graph.session_scope() as session:
-            for expired_node in to_delete:
-                node = self.graph.nodes(expired_node.__class__)\
-                                 .ids(expired_node.node_id)\
-                                 .scalar()
-                if node:
-                    self.log.info("Deleting %s", node)
-                    session.delete(node)
-        statsd.event(
-            "esbuild finished",
-            "successfully built index {}".format(new_index),
-            source_type_name="esbuild",
-            alert_type="success",
-            tags=["es_index:{}".format(new_index)],
-        )
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
+        :param int maxval: The maximumum value of the progress bar
 
         """
         pbar = ProgressBar(widgets=[
@@ -138,13 +49,14 @@ class GDCElasticsearch(object):
         pbar.update(0)
         return pbar
 
+
     def bulk_upload(self, index, doc_type, docs, batch_size=BATCH_SIZE):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
 
         :param str index: The index to upload documents to
-        :param str doc_type: The type of document to pload as
+        :param str doc_type: The type of document to upload as
         :param list docs: The documents to upload
         :param int batch_size: The number of docs per batch
 
@@ -160,6 +72,7 @@ class GDCElasticsearch(object):
                 yield instruction
                 yield doc
                 pbar.update(pbar.currval+1)
+
         while pbar.currval < len(docs):
             res = self.es.bulk(body=body())
             if res['errors']:
@@ -167,6 +80,7 @@ class GDCElasticsearch(object):
                     d for d in res['items'] if d['index']['status'] != 100
                 ], indent=2))
         pbar.finish()
+
 
     def put_mappings(self, index):
         """Add mappings to index.
@@ -193,6 +107,7 @@ class GDCElasticsearch(object):
                 body=self.converter.mapper.get_annotation_es_mapping()),
         ]
 
+
     def index_populate(self, index, case_docs=[], file_docs=[],
                        ann_docs=[], project_docs=[],
                        batch_size=BATCH_SIZE):
@@ -200,6 +115,7 @@ class GDCElasticsearch(object):
         self.bulk_upload(index, 'annotation', ann_docs, batch_size)
         self.bulk_upload(index, 'case', case_docs, batch_size)
         self.bulk_upload(index, 'file', file_docs, batch_size)
+
 
     def index_create_and_populate(self, index, case_docs=[],
                                   file_docs=[], ann_docs=[], project_docs=[],
@@ -231,6 +147,7 @@ class GDCElasticsearch(object):
         self.index_populate(index, case_docs, file_docs, ann_docs,
                             project_docs, batch_size)
 
+
     def swap_index(self, old_index, new_index):
         """Atomically switch the resolution of `alias` from `old_index` to
         `new_index`
@@ -245,6 +162,7 @@ class GDCElasticsearch(object):
             {'remove': {'index': old_index, 'alias': self.index_base}},
             {'add': {'index': new_index, 'alias': self.index_base}}]})
 
+
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
         have gdc_from_graph_23, gdc_from_graph_24, and
@@ -255,6 +173,7 @@ class GDCElasticsearch(object):
         matches = [p.match(index) for index in indices if p.match(index)]
         numbers = sorted([int(m.group(1)) for m in matches])
         return numbers
+
 
     def lookup_index_by_alias(self):
         """Find the index that an Elasticsearch alias is poiting to. Return
@@ -268,6 +187,7 @@ class GDCElasticsearch(object):
             return keys[0]
         except NotFoundError:
             return None
+
 
     def cleanup_old_indices(self, kept):
         self.log.info("Deleting old indices")

@@ -8,14 +8,19 @@ indices.
 from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic
 from elasticsearch.exceptions import AuthorizationException
-from esbuild.gdc_elasticsearch import GDCElasticsearch
+from bin.gdc_datarelease import GDCDataRelease
+from esbuild.export.es_upload import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
+from psqlgraph import PsqlGraphDriver
 from unittest import TestCase
 
 import data
 import json
 import os
+import tempfile
+import shutil
+
 
 from conftest import (
     PG_HOST,
@@ -35,9 +40,12 @@ class GDCElasticsearchTest(object):
         os.environ["PG_USER"] = PG_USER
         os.environ["PG_PASS"] = PG_PASSWORD
         os.environ["PG_NAME"] = PG_DATABASE
+
         os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
-        self.es = Elasticsearch("localhost")
+        os.environ["SAVE_DIR"] = tempfile.mkdtemp()
+
+        self.es = Elasticsearch(os.environ['ELASTICSEARCH_HOST'])
         self.delete_all_indices()
 
     def delete_all_indices(self):
@@ -52,6 +60,10 @@ class GDCElasticsearchTest(object):
         super(GDCElasticsearchTest, self).tearDown()
         self.delete_all_indices()
 
+        # if os.path.exists(os.environ['SAVE_DIR']):
+            # shutil.rmtree(os.environ['SAVE_DIR'])
+
+
     def make_gdc_es(self):
         raise NotImplementedError()
 
@@ -59,8 +71,8 @@ class GDCElasticsearchTest(object):
         return self.es.indices.get_aliases().keys()
 
     def test_basic_es_generate(self):
-        gdces = self.make_gdc_es()
-        gdces.go()
+        gdces, denorm_docs  = self.make_gdc_es()
+        gdces.save_to_elasticsearch(index_base="gdc_es_test", denorm_docs=denorm_docs)
         self.assertEqual(len(self.get_es_indices()), 1)
         # also verify that the to_delete file is not in the index and
         # got deleted
@@ -83,28 +95,32 @@ class GDCElasticsearchTest(object):
                 }))
             })
 
-        gdces = self.make_gdc_es()
-        gdces.go()
+        gdces, denorm_docs = self.make_gdc_es()
+        gdces.save_to_elasticsearch(index_base="gdc_es_test", denorm_docs=denorm_docs)
         self.assertEqual(len(self.get_es_indices()), 1)
 
     def test_doesnt_delete_file_with_derived_files(self):
-        gdces = self.make_gdc_es()
+        gdces, denorm_docs = self.make_gdc_es()
         with _graph.session_scope():
             to_delete_file = _graph.nodes(File).ids("to-delete-file").one()
             derived_file = data.fuzzed(File, state="live")
             to_delete_file.derived_files = [derived_file]
-        gdces.go()
+
+        gdces.save_to_elasticsearch(index_base="gdc_es_test", denorm_docs=denorm_docs)
         self.assertEqual(len(self.get_es_indices()), 1)
-        # verify that th eto_delete file did not get deleted
+
+        # verify that the to_delete file did not get deleted
         with _graph.session_scope():
             self.assertEqual(_graph.nodes(File).get('to-delete-file').file_name,
                              "a_file_to_be_deleted.txt")
 
     def test_old_index_cleanup(self):
         for i in range(7):
-            gdces = self.make_gdc_es()
-            gdces.go()
+            gdces, denorm_docs = self.make_gdc_es()
+            gdces.save_to_elasticsearch(index_base="gdc_es_test", denorm_docs=denorm_docs)
+
         indices = self.get_es_indices()
+
         # running the index build seven times should delete indicies 1 and 2
         self.assertEqual(set(indices), {"gdc_es_test_3",
                                         "gdc_es_test_4",
@@ -119,16 +135,15 @@ class GDCElasticsearchTest(object):
 class GDCActiveElasticsearchTest(GDCElasticsearchTest, TestCase):
 
     def make_gdc_es(self):
-        return GDCElasticsearch(
-            converter_class=ActiveGraphIndexBuilder,
-            index_base="gdc_es_test",
-        )
+        g = GDCDataRelease(converter_class=ActiveGraphIndexBuilder)
+        _, denorm_docs = g.save_to_disk(g.active)
+        return g, denorm_docs
 
 
 class GDCLegacyElasticsearchTest(GDCElasticsearchTest, TestCase):
 
     def make_gdc_es(self):
-        return GDCElasticsearch(
-            converter_class=LegacyGraphIndexBuilder,
-            index_base="gdc_es_test",
-        )
+        g = GDCDataRelease(converter_class=LegacyGraphIndexBuilder)
+        _, denorm_docs = g.save_to_disk(g.legacy)
+        return g, denorm_docs
+

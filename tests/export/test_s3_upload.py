@@ -1,50 +1,31 @@
-from conftest import ES_HOST, ES_PORT
+import os
+
+from esbuild.export.s3_upload import GDCS3
 from moto import mock_s3
-
-import boto
-
-from esbuild.export.elasticdump import (
-    export_to_gzip,
-    ExportTypes,
-)
-
-from esbuild.export.s3_upload import (
-    export_to_gzip_and_upload_to_s3,
-    upload_to_s3,
-)
-
+from tempfile import NamedTemporaryFile
 
 @mock_s3
-def test_upload_to_s3(test_index, tmpdir):
-    es, index, doc_type, docs = test_index
-    conn = boto.connect_s3()
+def test_upload_to_s3():
 
-    name = 'test_index.mapping.gz'
-    f = tmpdir.join(name)
-    export_to_gzip(f.strpath, ExportTypes.MAPPING, index, ES_HOST)
+    bucket_name = 'test_bucket'
 
-    bucket = 'test_bucket'
-    upload_to_s3(conn, bucket, f.strpath)
-    assert conn.get_bucket(bucket).get_key(name).get_contents_as_string()
+    os.environ['S3_HOST']       = 's3.amazonaws.com'
+    os.environ['S3_BUCKET']     = bucket_name
+    os.environ['S3_ACCESS_KEY'] = 'test_access_key'
+    os.environ['S3_SECRET_KEY'] = 'test_secret_key'
 
+    gdcs3 = GDCS3()
+    gdcs3.create_connection()
 
-@mock_s3
-def test_upload_to_s3_script(test_index, tmpdir):
-    es, index, doc_type, docs = test_index
+    gdcs3.get_or_create_bucket()
 
-    bucket = 'test_bucket'
-    args = [
-        '--working-directory', tmpdir.strpath,
-        '--s3-host', 's3.amazonaws.com',
-        '--s3-bucket', bucket,
-        '--s3-access-key', 'test_access_key',
-        '--s3-secret-key', 'test_secret_key',
-        '--es-host', ES_HOST,
-        '--es-index', index,
-        '--es-port', str(ES_PORT),
-    ]
+    # file pointer
+    full_path_to_archive = NamedTemporaryFile()
+    full_path_to_archive.write('sample text')
+    full_path_to_archive.seek(0)
 
-    export_to_gzip_and_upload_to_s3(args)
+    name = os.path.basename(full_path_to_archive.name)
 
-    conn = boto.connect_s3()
-    assert len(list(conn.get_bucket(bucket).list())) == 3
+    gdcs3.upload_to_s3(full_path_to_archive.name)
+
+    assert gdcs3.conn.get_bucket(bucket_name).get_key(name).get_contents_as_string()

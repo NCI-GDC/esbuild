@@ -65,3 +65,6 @@ package.json
 
 # vim
 *.swp
+
+# diskIO stuff
+*.tar.gz
