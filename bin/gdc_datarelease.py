@@ -93,18 +93,20 @@ class GDCDataRelease(object):
             self.converter.cache_database()
 
         log.info("Denormalizing database into JSON docs")
-        case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-
-        self.denormalized = (case_docs, file_docs, ann_docs, project_docs)
+        self.denormalized = self.converter.denormalize_all()
 
         log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
-                      len(case_docs),
-                      len(file_docs),
-                      len(ann_docs),
-                      len(project_docs))
+                      len(self.denormalized[0]),
+                      len(self.denormalized[1]),
+                      len(self.denormalized[2]),
+                      len(self.denormalized[3]))
 
         log.info("Validating docs produced")
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+        self.converter.validate_docs(
+            self.denormalized[0],
+            self.denormalized[1],
+            self.denormalized[2],
+            self.denormalized[3])
 
 
     def save_to_disk(self, builder_type='active'):
@@ -117,17 +119,29 @@ class GDCDataRelease(object):
         for i, d in enumerate(DocTypes().all_types):
             g.save_doctype(self.denormalized[i], d)
 
+        log.info('Saving indices to disk')
         g.write_archive()
-        log.info('Saving indices to disk as {}'.format(g.full_path_to_archive))
+        log.info('Archive {} save: COMPLETE'.format(g.full_path_to_archive))
 
-        log.info('Deleting indices from disk')
+        log.info('Reading indices from disk')
         read_doctypes = g.read_archive()
+        log.info('Reading indices from disk: COMPLETE')
 
         log.info('Cleaning up old indices on disk')
-        g.cleanup_old_indices()
+        g.cleanup_old_archives()
+        log.info('Cleaning up old indices on disk: COMPLETE')
 
-        if not documents_eq(read_doctypes, self.denormalized):
-            log.warning('Documents not written or read correctly to or from disk')
+        denorm_md5 = g.indices_md5sum(self.denormalized)
+
+        # be kind to your memory and it will be kind to you
+        del self.denormalized
+
+        read_md5 = g.indices_md5sum(read_doctypes)
+
+        if not documents_eq(denorm_md5, read_md5):
+            log.error('Documents not written or read correctly to or from disk')
+            log.warning('md5sum from disk: {}'.format(read_md5))
+            log.warning('md5sum from graph: {}'.format(denorm_md5))
 
         return g.full_path_to_archive, read_doctypes
 
@@ -239,7 +253,7 @@ def main():
         os.environ['S3_SECRET_KEY'] = '_test_secret_key'
 
     keys = ('PG_HOST', 'PG_USER','PG_PASS', 'PG_NAME', 'ELASTICSEARCH_HOST',
-            'S3_HOST', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY')
+            'S3_HOST', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'SAVE_DIR')
 
     for key in keys:
         if key not in os.environ:
@@ -284,4 +298,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+    log.info('GDC Data Release COMPLETE')
 

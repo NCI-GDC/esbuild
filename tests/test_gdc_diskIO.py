@@ -1,14 +1,17 @@
 
 import glob
+import json
 import os
 import tempfile
 import shutil
 
+from cdisutils import md5sum
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from esbuild.gdc_diskIO import DocTypes, GDCDiskIO, documents_eq
 from psqlgraph import PsqlGraphDriver
 from unittest import TestCase
+
 
 from conftest import (
         PG_HOST,
@@ -16,6 +19,11 @@ from conftest import (
         PG_PASSWORD,
         PG_DATABASE,
 )
+
+
+def get_md5sum(indices):
+    indices = [ json.dumps(sorted(index), sort_keys=True) for index in indices ]
+    return md5sum(''.join(indices))
 
 
 class DiskIOTest(TestCase):
@@ -92,13 +100,14 @@ class DiskIOTest(TestCase):
         # wrong length
         f2 = ( [a,c], [b,c] )
 
+
         # wrong elements
         f3 = ( [a,a], [b,b], [c,c], [a,c] )
 
         self.assertTrue(
-                documents_eq(t1, t2) == True  and
-                documents_eq(f1, f2) == False and
-                documents_eq(f1, f3) == False
+                documents_eq(get_md5sum(t1), get_md5sum(t2)) == True  and
+                documents_eq(get_md5sum(f1), get_md5sum(f2)) == False and
+                documents_eq(get_md5sum(f1), get_md5sum(f3)) == False
         )
 
 
@@ -126,12 +135,12 @@ class DiskIOTest(TestCase):
 
 
         self.assertTrue(
-                documents_eq(self.denormalized, r1)  and
-                documents_eq(empty_denorm, r2)
+                documents_eq(get_md5sum(self.denormalized), get_md5sum(r1))  and
+                documents_eq(get_md5sum(empty_denorm), get_md5sum(r2))
         )
 
 
-    def test_cleanup_old_indices(self):
+    def test_cleanup_old_archives(self):
         ''' only keep the last 5 indices '''
 
         for _ in xrange(6):
@@ -139,6 +148,6 @@ class DiskIOTest(TestCase):
                 self.gdio.save_doctype(self.denormalized[i], d)
             self.gdio.write_archive()
 
-        self.gdio.cleanup_old_indices()
+        self.gdio.cleanup_old_archives()
 
         self.assertEqual( len(glob.glob(os.environ['SAVE_DIR'] + '/*tar.gz')), 5 )

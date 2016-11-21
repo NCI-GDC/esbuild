@@ -7,6 +7,10 @@ import shutil
 import tarfile
 import time
 
+from cdisutils import md5sum
+from cdisutils.log import get_logger
+
+
 class DocTypes():
     def __init__(self):
         self.case       = 'case_docs'
@@ -39,7 +43,7 @@ class GDCDiskIO():
             can be uploaded elsewhere like ES or S3 afterward
 
             high level overview of the file structure:
-            gdc-doc-archive-active-123456678.90.tar.gz/
+            gdc-indices-active-123456678.90.tar.gz/
             |        ./case_docs
             |        |        1111-1111-1111-1111
             |        |        2222-2222-2222-2222
@@ -48,6 +52,8 @@ class GDCDiskIO():
             |        ./annotation_docs
             ...
         '''
+
+        self.log = get_logger('GDC_DiskIO')
 
         self.builder_type = builder_type
         # this will be where the archive is stored
@@ -58,7 +64,7 @@ class GDCDiskIO():
         if not os.path.exists(self.file_directory):
             os.mkdir(self.file_directory)
 
-        self.archive_name_scheme = 'gdc-doc-archive'
+        self.archive_name_scheme = 'gdc-indices'
         self.archive_name = None
 
         # keep reference of this filename
@@ -70,7 +76,7 @@ class GDCDiskIO():
 
     def _generate_archive_name(self):
         '''
-            naming scheme should look like gdc-doc-archive-{{timestamp}}.tar.gz
+            naming scheme should look like gdc-indices-{{timestamp}}.tar.gz
 
             tar puts everything into one file
             gzip compresses that one file
@@ -81,6 +87,7 @@ class GDCDiskIO():
         '''
         self.archive_name = '{}-{}-{}.tar.gz'.format(self.archive_name_scheme,
                 self.builder_type, str(time.time()))
+
         self.full_path_to_archive = self.file_directory + self.archive_name
 
 
@@ -98,11 +105,16 @@ class GDCDiskIO():
 
         '''
 
-        # might be a string or json blob (dict) depending on where it's coming from
         full_path = self.file_directory + doc_type + '/'
         if not os.path.exists(full_path):
+            self.log.info('Directory not found')
+            self.log.info('Creating directory {}'.format(full_path))
             os.mkdir(full_path)
+        else:
+            self.log.info('Directory found. Using directory {}'.format(full_path))
 
+
+        # would be too many to log
         for doc_index, doc in enumerate(docs):
 
             # this will get the doc ID associated with each type
@@ -111,7 +123,9 @@ class GDCDiskIO():
             with open(doc_file_name, 'w') as f:
                 f.write(json.dumps(doc))
 
+        self.log.info('{} successfully saved'.format(doc_type))
         return full_path
+
 
     def write_archive(self):
         '''
@@ -130,10 +144,12 @@ class GDCDiskIO():
         os.chdir(self.file_directory)
 
         self._generate_archive_name()
+        self.log.info('Archive name: {}'.format(self.archive_name))
 
         # use colon if you don't need to do file seek ops
         with tarfile.open(self.archive_name, 'w:gz') as t:
             for d in self.types.all_types:
+                self.log.info('Adding {} index to {}'.format(d, self.archive_name))
                 t.add(d)
 
                 # delete the folders after everything is archived
@@ -141,7 +157,7 @@ class GDCDiskIO():
 
         os.chdir(cwd)
 
-    def _get_files_in_dir(self):
+    def _get_archives_in_dir(self):
         '''
             get all the archived doc files in the directory
 
@@ -153,23 +169,28 @@ class GDCDiskIO():
         formatted_glob = '{}{}-{}-*.tar.gz'.format(self.file_directory,
                 self.archive_name_scheme, self.builder_type)
 
-        return sorted( glob.glob(formatted_glob) )
+        # glob does not do any sorting, but the files get loaded in
+        # in the order they show up on disk
+        # this is usually in sorted order by time, but I'm not taking chances
+        return sorted(glob.glob(formatted_glob))
 
 
-    def cleanup_old_indices(self):
+    def cleanup_old_archives(self):
         '''
-            only want to keep the latest 5 full docs
+            only want to keep the latest 5 full doc archives
             get all the files in the path and delete everything older
             than the last 5
 
             that means there will be 5 doc archives stored on disk at all times,
+            for each active and legacy data
+
             so you can delete the last 5 after you've inserted the new 5.
             it currently uses the to_delete variable to determine which
             files to delete, but this needs to change to fit into the disksave idea
 
         '''
 
-        for f in self._get_files_in_dir()[:-5]:
+        for f in self._get_archives_in_dir()[:-5]:
             os.remove(f)
 
 
@@ -189,46 +210,64 @@ class GDCDiskIO():
             extract it in the current working directory, delete the files after
         '''
 
-        #
-        if archive_name is None and self.full_path_to_archive is not None:
-            archive_name = self.full_path_to_archive
+        # we want to extract in the working directory chosen by SAVE_DIR env var
+        cwd = os.getcwd()
+        os.chdir(self.file_directory)
+
+        if archive_name is None:
+            archive_name = self.archive_name
+
 
         # use a colon in 'r:gz' when you don't need to file seek
         with tarfile.open(archive_name, 'r:gz') as t:
+            self.log.info('Opening archive {}'.format(archive_name))
             t.extractall()
 
         results = []
         # the folders are named after the doctype
         for i, folder_name in enumerate(self.types.all_types):
 
+            self.log.info('Reading files from [{}] into memory'.format(folder_name))
+
+            # top level will hold indices
             results.append([])
             for filename in glob.glob(folder_name + '/*'):
+
                 with open(filename, 'r') as f:
-                    # order of this list will be dependant on the filename
+                    # order of this list will be dependant on the filenames
                     # which creates a different ordering than denormalize_all()
-                    results[i].append(json.loads(f.read()))
+                    tmp = f.read()
+                    json_tmp  = json.loads(tmp)
+                    del tmp
+                    results[i].append(json_tmp)
+                    del json_tmp
 
             # clean up the folders that got unpacked
+            self.log.info('Cleaning up leftover folders')
             shutil.rmtree(folder_name)
 
+        os.chdir(cwd)
         return tuple(results)
 
 
-def documents_eq(a, b):
+    def indices_md5sum(self, indices):
+        '''
+            When the docs are writen to disk, they become out of order when
+            compared to the denormalize_all() version because files are saved
+            by ID name and are then read in a different order
+        '''
+
+        # sort the list of indices, AND the keys of the dictionaries inside those lists
+        indices = [ json.dumps(sorted(index), sort_keys=True) for index in indices ]
+
+        # one large string for md5sum
+        return md5sum(''.join(indices))
+
+
+def documents_eq(md5_one, md5_two):
     '''
-        a, b: tuple of doctypes, each containing a list of documents/json blobs
-        When the docs are writen to disk, they become out of order compared
-        to the denormalize_all() version because files are saved by ID name
-        and are then read in a different order
+        md5_one, md5_two : md5sums of indices in hopes of a smaller memory footprint
     '''
 
-    # case_doc, file_doc, ann_doc, project_doc => len 4
-    if len(a) == 4 and len(a) != len(b):
-        return False
-
-    for i, _ in enumerate(a):
-        if sorted(a[i]) != sorted(b[i]):
-            return False
-
-    return True
+    return md5_one == md5_two
 

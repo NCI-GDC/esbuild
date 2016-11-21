@@ -254,9 +254,9 @@ class GDCElasticsearch():
             # sanity checks that there are the correct number of docs in the new index
             msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
 
-            file_count    = self.es.count(index=new_index, doc_type="file")["count"]
-            case_count    = self.es.count(index=new_index, doc_type="case")["count"]
-            ann_count     = self.es.count(index=new_index, doc_type="annotation")["count"]
+            file_count = self.es.count(index=new_index, doc_type="file")["count"]
+            case_count = self.es.count(index=new_index, doc_type="case")["count"]
+            ann_count = self.es.count(index=new_index, doc_type="annotation")["count"]
             project_count = self.es.count(index=new_index, doc_type="project")["count"]
 
             if file_count != len(file_docs):

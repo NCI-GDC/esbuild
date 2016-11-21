@@ -15,9 +15,9 @@ import os
 
 
 @pytest.mark.parametrize('path,test,graph_type', [
+    ('build_download_stats_index.py', '', ''),
     ('gdc_datarelease.py', '--test', ''),
     ('gdc_datarelease.py', '--test', '--legacy'),
-    ('build_download_stats_index.py', '', ''),
 ])
 def test_script_runs(environment, path, test, graph_type):
     # build_download_stats_index doesn't take any args, but it also doesn't import argparse
