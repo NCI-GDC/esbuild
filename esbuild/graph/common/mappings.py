@@ -335,7 +335,7 @@ class ESMapper(object):
 
         # Analyzed
         doc.fields.analyzed.index = "analyzed"
-        doc.fields.analyzed.index_analyzer = "id_index"
+        doc.fields.analyzed.analyzer = "id_index"
         doc.fields.analyzed.search_analyzer = "id_search"
         doc.fields.analyzed.type = "text"
 
