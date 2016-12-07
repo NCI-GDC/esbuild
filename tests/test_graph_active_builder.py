@@ -81,18 +81,18 @@ def mappings():
 # Tests
 
 @pytest.mark.parametrize('mapping,path', [
-    ('file', 'properties.file_name.fields.analyzed.index'),
+    ('file', 'properties.file_name.fields'),
     ('file', 'properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs'),
     ('file', 'properties.analysis.properties.input_files.properties.data_category'),
-    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
+    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
-    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields'),
     ('case', '_meta.descriptions'),
     ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
-    ('case', 'properties.submitter_id.fields.analyzed.index'),
-    ('project', 'properties.name.fields.analyzed.index'),
+    ('case', 'properties.submitter_id.fields'),
+    ('project', 'properties.name.fields'),
     ('project', '_meta.descriptions'),
-    ('annotation', 'properties.entity_id.fields.analyzed.index'),
+    ('annotation', 'properties.entity_id.fields'),
     ('annotation', '_meta.descriptions'),
 ])
 def test_mapping_contains(mappings, mapping, path):
