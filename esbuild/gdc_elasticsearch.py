@@ -174,22 +174,35 @@ class GDCElasticsearch(object):
         :param int batch_size: The number of docs per batch
 
         """
+
         if not docs:
             return
-        instruction = {"index": {"_index": index, "_type": doc_type}}
+
         pbar = self.pbar('{} upload '.format(doc_type), len(docs))
 
         def body():
+            """Alternatingly yield instruction/doc, instruction/doc..."""
+
             start = pbar.currval
             for doc in docs[start:start+batch_size]:
+                instruction = dict(
+                    index=dict(
+                        _index=index,
+                        _type=doc_type,
+                        _id=doc[doc_type+'_id'],
+                    )
+                )
                 yield instruction
                 yield doc
+
                 pbar.update(pbar.currval+1)
+
         while pbar.currval < len(docs):
             res = self.es.bulk(body=body())
             if res['errors']:
                 raise RuntimeError(json.dumps([
-                    d for d in res['items'] if d['index']['status'] != 100
+                    doc for doc in res['items']
+                    if doc['index']['status'] != 100
                 ], indent=2))
         pbar.finish()
 
@@ -270,12 +283,23 @@ class GDCElasticsearch(object):
             {'remove': {'index': old_index, 'alias': self.index_base}},
             {'add': {'index': new_index, 'alias': self.index_base}}]})
 
+    def get_indices(self):
+        """Returns a list of open and closed index names"""
+
+        return (
+            # Closed indices
+            self.es.cluster.state()['blocks'].get('indices', {}).keys()
+            # Open indices
+            + self.es.indices.stats()['indices'].keys()
+        )
+
+
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
         have gdc_from_graph_23, gdc_from_graph_24, and
         gdc_from_graph_25, this will return [23, 24, 25].
         """
-        indices = set(self.es.indices.get_aliases().keys())
+        indices = set(self.get_indices())
         p = re.compile(INDEX_PATTERN.format(base=self.index_base, n='(\d+)')+'$')
         matches = [p.match(index) for index in indices if p.match(index)]
         numbers = sorted([int(m.group(1)) for m in matches])
