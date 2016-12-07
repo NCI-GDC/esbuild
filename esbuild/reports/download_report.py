@@ -74,7 +74,7 @@ class DownloadStatsIndexBuilder(object):
     # since the table is pretty small
 
     MAPPING = {
-        '_id': {'path': 'project_id'},
+        # '_id': {'path': 'project_id'},
         '_all': {'enabled': False}
     }
 
@@ -107,7 +107,7 @@ class DownloadStatsIndexBuilder(object):
             self.log.info("Attempting to create %s index", self.index_name)
             self.es.indices.create(self.index_name)
         except TransportError as e:
-            if e.status_code == 400 and "IndexAlreadyExistsException" in e.error:
+            if e.status_code == 400 and "index_already_exists" in e.error:
                 self.log.info("Index %s appears to already exist")
             else:
                 raise e
@@ -134,7 +134,8 @@ class DownloadStatsIndexBuilder(object):
                 self.es.index(
                     index=self.index_name,
                     doc_type=self.doc_type,
-                    body=body
+                    body=body,
+                    id=body['project_id'],
                 )
 
     def produce_json(self, project):
@@ -165,6 +166,7 @@ class DownloadStatsIndexBuilder(object):
         country_breakdown = self.country_breakdown(code)
         self.log.info("Computing continent breakdown")
         continent_breakdown = self.continent_breakdown(country_breakdown)
+
         return {
             "timestamp": calendar.timegm(time.gmtime()),
             "project_id": "{}-{}".format(program.name, project.code),

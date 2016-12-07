@@ -3,12 +3,12 @@ language: python
 python:
   - "2.7"
 
-sudo: false
-
 node: 6
 
 services:
   - elasticsearch
+
+sudo: true
 
 cache:
   # pip: true  # We have overridden the default install step, caching manually
@@ -21,9 +21,13 @@ cache:
 env:
   ES_HOST='localhost'
   NODE_VERSION=4
+  ES_VERSION=5.0.2
 
 addons:
   postgresql: '9.4'
+  apt:
+    packages:
+      - oracle-java8-installer
 
 before_install:
   # Upgrade npm
@@ -33,12 +37,24 @@ before_install:
   # changing
   - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
 
+
 install:
   # Update nodejs
   - rm -rf ~/.nvm
   - git clone https://github.com/creationix/nvm.git ~/.nvm 
   - (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`)
   - source ~/.nvm/nvm.sh && nvm install $NODE_VERSION
+
+  # Update to java8
+  - sudo update-java-alternatives -s java-8-oracle
+  - export JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
+  - java -version
+
+  # Install elasticsearch 5.0.2
+  - curl -L -o /tmp/es-snap.zip https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.zip
+  - unzip /tmp/es-snap.zip -d /tmp/
+  - /tmp/elasticsearch-${ES_VERSION}/bin/elasticsearch -E script.inline=true -E path.repo=/tmp -E repositories.url.allowed_urls='http://*' -E node.attr.testattr=test -d
+
   - npm install -g elasticdump
   - pip install -r requirements.txt
   - pip install -r dev-requirements.txt

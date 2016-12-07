@@ -41,11 +41,8 @@ class GDCElasticsearchTest(object):
         self.delete_all_indices()
 
     def delete_all_indices(self):
-        indices = self.es.indices.get_aliases()
-        for index, info in indices.items():
-            if info.get("aliases"):
-                for alias in info["aliases"].keys():
-                    self.es.indices.delete_alias(index=index, name=alias)
+        indices = self.get_es_indices()
+        for index in indices:
             self.es.indices.delete(index)
 
     def tearDown(self):
@@ -56,7 +53,12 @@ class GDCElasticsearchTest(object):
         raise NotImplementedError()
 
     def get_es_indices(self):
-        return self.es.indices.get_aliases().keys()
+        return (
+            # Closed indices
+            self.es.cluster.state()['blocks'].get('indices', {}).keys()
+            # Open indices
+            + self.es.indices.stats()['indices'].keys()
+        )
 
     def test_basic_es_generate(self):
         gdces = self.make_gdc_es()
@@ -68,6 +70,14 @@ class GDCElasticsearchTest(object):
             self.assertFalse(self.es.exists(index="gdc_es_test",
                                             doc_type="file",
                                             id="to-delete-file"))
+
+        # Test Case exists by id
+        with _graph.session_scope():
+            self.assertTrue(self.es.exists(
+                index="gdc_es_test",
+                doc_type="case",
+                id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c'))
+
 
     def test_unexpected_properties(self):
         with _graph.session_scope() as s:
