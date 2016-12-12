@@ -77,7 +77,7 @@ def merge_file_doc(existing_file_doc, file_doc):
     }
 
     all_case_subdocs = dict(existing_case_subdocs, **this_case_subdocs)
-    existing_file_doc['cases'] = all_case_subdocs
+    existing_file_doc['cases'] = all_case_subdocs.values()
 
     return existing_file_doc
 
@@ -254,20 +254,24 @@ class DiskGraphIndex(GraphIndex):
     def add_file_doc(self, file_doc):
         """Adds a file document to this index"""
 
-        try:
-            file_id = file_doc['file_id']
-            path = os.path.join(self.file_dir, file_id)
+        file_id = file_doc['file_id']
+        path = os.path.join(self.file_dir, file_id)
 
+        try:
             if file_id not in self._seen_file_ids:
                 return create_file(path, json.dumps(file_doc))
 
             existing_file_doc = read_json_file(path)
-
             updated_file_doc = merge_file_doc(existing_file_doc, file_doc)
+
             write_file(path, json.dumps(updated_file_doc))
 
         except Exception as e:
             print str(e)
+            logger.exception(e)
+            import pdb; pdb.set_trace()
+            raise
+
         finally:
             self._seen_file_ids.add(file_id)
 

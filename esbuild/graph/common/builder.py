@@ -95,7 +95,7 @@ def start_worker_pool(builders, cases):
 
 
 def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
-                threads=4):
+                threads=16):
     """TODO: docstring
 
     """
@@ -110,15 +110,7 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
         psqlgraph_driver_args=psqlgraph_driver_args,
     )
 
-    # manager = CacheManager()
-    # manager.start()
-    # cache = manager.new_cached_graph(
-    #     caching_options=caching_options,
-    #     psqlgraph_driver_args=psqlgraph_driver_args,
-    # )
-
     cache.cache_database()
-    # return builder_class(cache, index).denormalize_all()
 
     # Map work to worker processes
     cases = cases or cache.get_cases()

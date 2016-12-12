@@ -8,15 +8,17 @@ graph information between processes
 
 """
 
-import logging
+import cdisutils
+import gc
 import itertools
+import logging
 import networkx as nx
 import types
-import cdisutils
 
 from collections import namedtuple
 from gdcdatamodel import models as md
 from multiprocessing.managers import BaseManager
+from multiprocessing import Pool, Queue, TimeoutError
 from psqlgraph import Edge, Node, PsqlGraphDriver
 from sqlalchemy.orm import joinedload
 from types import StringTypes
@@ -646,7 +648,6 @@ class CachedGraph(object):
             if not category:
                 continue
             self.data_categories.setdefault(category, set()).add(file_)
-
     def _cache_experimental_strategies(self):
         """Looking up the files that are classified in each
         experimental_strategy is a common computation.  Here we cache
