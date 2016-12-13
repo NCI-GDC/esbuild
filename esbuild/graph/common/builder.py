@@ -688,10 +688,19 @@ class GraphIndexBuilder(object):
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
+        """Generates the project_id field from the project code and the
+        program name and converts primary_site and disease_type to lists if
+        they are not already
+
+        """
         code = project_doc.pop('code')
         program = project_doc['program']['name']
         project_id = '{}-{}'.format(program, code)
         project_doc['project_id'] = project_id
+
+        for field in ['primary_site', 'disease_type']:
+            if field in project_doc and not type(project_doc[field]) is list:
+                project_doc[field] = [project_doc[field]]
 
         return project_doc
 

@@ -270,6 +270,15 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
+@pytest.mark.parametrize('doc_type,path,count,expected', [
+    ('projects', '[*].disease_type', 1, list),
+    ('projects', '[*].primary_site', 1, list),
+])
+def test_type(index, doc_type, path, count, expected):
+    results = parse(path).find(getattr(index, doc_type))
+    assert all([type(r.value) is list for r in results ])
+    assert len(results) == count
+
 @pytest.mark.parametrize('T', [
     (md.SubmittedAlignedReads),
     (md.SubmittedMethylationBetaValue)
