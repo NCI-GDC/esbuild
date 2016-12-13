@@ -66,7 +66,6 @@ def build_worker(builder, case_in_q, result_q):
         del result
 
 
-
 def start_worker_pool(builders, cases):
     """Setup a process pool and schedule work to the case_in_q"""
 
@@ -84,7 +83,7 @@ def start_worker_pool(builders, cases):
         case_in_q.put(case)
 
     # Put an end of work marker for all workers
-    for _ in range(len(builders)):
+    for _ in range(len(builders)*2):
         case_in_q.put(None)
 
     # Start all of the processes
@@ -146,8 +145,8 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
         pbar.update(pbar.currval+1)
     pbar.finish()
 
-    for process in pool:
-        process.join()
+    # for process in pool:
+    #     process.join()
 
     # Create project docs serially
     project_docs = builders[0].denormalize_projects()
