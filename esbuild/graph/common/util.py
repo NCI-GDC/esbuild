@@ -7,6 +7,9 @@ Common utilities for things like logging
 
 """
 
+from sqlalchemy.ext.declarative.api import DeclarativeMeta
+from psqlgraph import Node
+
 from datadog import statsd
 
 from progressbar import (
@@ -43,13 +46,24 @@ def upsert_file_into_dict(files, file_doc):
             files[did]['cases'] += file_doc['cases']
 
 
+def get_node_class(entity):
+    if isinstance(entity, DeclarativeMeta):
+        return entity
+
+    try:
+        return Node.get_subclass(entity.label())
+    except TypeError:
+        return Node.get_subclass(entity.label)
+
+
 def get_file_to_case_paths(cls, file_to_case_paths):
     """Given a node, return the paths the lead monotonically up to case"""
 
     parent_labels = {
         link['dst_type'].label
-        for link in cls._pg_links.values()
+        for link in get_node_class(cls)._pg_links.values()
     }
+
     return (
         path
         for path in file_to_case_paths

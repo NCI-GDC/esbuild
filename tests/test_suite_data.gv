@@ -15,6 +15,9 @@ digraph {
 			"b3601406-3676-4f76-9aa0-ed68ed6c3a05" -> "64f66bc3-1cee-41d7-ae86-cb443e84f30e"
 			"973bd442-04a0-4189-8f02-c8c7e041afe9" -> "b3601406-3676-4f76-9aa0-ed68ed6c3a05"
 			"a819133c-65c4-438c-93ae-a04e24e82626" -> "b3601406-3676-4f76-9aa0-ed68ed6c3a05"
+		"methyl-lift-wf" [label=<MethylationLiftoverWorkflow(methyl-lift-wf)>]
+			"methyl-lift-wf" -> "sub-methyl-beta-value"
+			"methyl-beta-value" -> "methyl-lift-wf"
 		"07c974b3-3286-4c4f-8b67-6f8e425936f4" [label=<Analyte(07c974b3-3286-4c4f-8b67-6f8e425936f4)>]
 			"07c974b3-3286-4c4f-8b67-6f8e425936f4" -> "5b2a99b7-e1a8-4739-acaf-d5f75cc47021"
 			"84df0f82-69c4-4cd3-a4bd-f40d2d6ef916" -> "07c974b3-3286-4c4f-8b67-6f8e425936f4"
@@ -30,6 +33,7 @@ digraph {
 			"non-live-file" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
 			"to-delete-file" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
 			"related-file" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
+			"sub-methyl-beta-value" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
 			"d7cb38ff-0ca2-5496-896b-92c5a76b6109" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
 			"rescinded-annotation" -> "84df0f82-69c4-4cd3-a4bd-f40d2d6ef916"
 		biospecimen_supplement_1 [label=<BiospecimenSupplement(biospecimen_supplement_1)>]
@@ -60,6 +64,7 @@ digraph {
 		"05c45162-6c94-4a15-accc-b6239451064c" [label=<Aliquot(05c45162-6c94-4a15-accc-b6239451064c)>]
 			"05c45162-6c94-4a15-accc-b6239451064c" -> "3febc6c8-85ae-4d38-ba55-c959959846db"
 			"05c45162-6c94-4a15-accc-b6239451064c" -> "c8611490-4cbd-5651-8de2-64484a515eec"
+		"methyl-beta-value" [label=<MethylationBetaValue(methyl-beta-value)>]
 		"aliquot-attached-to-sample" [label=<Aliquot(aliquot-attached-to-sample)>]
 			"aliquot-attached-to-sample" -> "c1e5beaa-6103-409d-bdd4-a86c0f210014"
 		"b80aa962-9650-5110-b3eb-bd087da808db" [label=<Program(b80aa962-9650-5110-b3eb-bd087da808db)>]
@@ -101,6 +106,7 @@ digraph {
 		"b56a74f5-650e-4fa4-8870-b0cf1d19c40c" [label=<FamilyHistory(b56a74f5-650e-4fa4-8870-b0cf1d19c40c)>]
 			"b56a74f5-650e-4fa4-8870-b0cf1d19c40c" -> "eda6d2d5-4199-4f76-a45b-1d0401b4e54c"
 		"326acbfa-fcdf-4d25-9247-c393b988aa09" [label=<Tag(326acbfa-fcdf-4d25-9247-c393b988aa09)>]
+		"sub-methyl-beta-value" [label=<SubmittedMethylationBetaValue(sub-methyl-beta-value)>]
 		"3239e85f-6be7-417b-b8e9-073c4d9c311c" [label=<Clinical(3239e85f-6be7-417b-b8e9-073c4d9c311c)>]
 			"3239e85f-6be7-417b-b8e9-073c4d9c311c" -> "eda6d2d5-4199-4f76-a45b-1d0401b4e54c"
 		annotated_somatic_mutation_1 [label=<AnnotatedSomaticMutation(annotated_somatic_mutation_1)>]
@@ -119,7 +125,6 @@ digraph {
 			"c1fd82a9-f75f-4297-b2c2-ec91c40a57f4" -> "956ca84c-1124-53ff-824f-fa0c84425425"
 		"cnv-file-1" [label=<SubmittedTangentCopyNumber(cnv-file-1)>]
 			"cnv-workflow-1" -> "cnv-file-1"
-		"non-live-file" [label=<File(non-live-file)>]
 		"snv-file" [label=<File(snv-file)>]
 			"snv-file" -> "eda6d2d5-4199-4f76-a45b-1d0401b4e54c"
 		"bd4d1c78-c448-4bbf-8348-a77f3786c648" [label=<ReadGroup(bd4d1c78-c448-4bbf-8348-a77f3786c648)>]
@@ -149,7 +154,7 @@ digraph {
 		"a58e8309-8346-4648-945d-e48efdc1a635" [label=<Analyte(a58e8309-8346-4648-945d-e48efdc1a635)>]
 			"a58e8309-8346-4648-945d-e48efdc1a635" -> "5b2a99b7-e1a8-4739-acaf-d5f75cc47021"
 		somatic_mutation_1 [label=<SimpleSomaticMutation(somatic_mutation_1)>]
-		"ed523719-86fa-4131-bd14-a13f06d453ae" [label=<Platform(ed523719-86fa-4131-bd14-a13f06d453ae)>]
+		"non-live-file" [label=<File(non-live-file)>]
 		"slide-image-file" [label=<File(slide-image-file)>]
 			"slide-image-file" -> "3013e9be-aa3e-4986-990c-559982f00e36"
 		"a819133c-65c4-438c-93ae-a04e24e82626" [label=<AlignedReads(a819133c-65c4-438c-93ae-a04e24e82626)>]
@@ -182,6 +187,7 @@ digraph {
 			"aliquot-without-downstream" -> "5069ce55-a23f-57c4-a28c-70a3c3cb0e4c"
 			"read-group-without-downstream" -> "aliquot-without-downstream"
 			"annotation-without-downstream" -> "aliquot-without-downstream"
+		"ed523719-86fa-4131-bd14-a13f06d453ae" [label=<Platform(ed523719-86fa-4131-bd14-a13f06d453ae)>]
 		"ce5d360b-db30-4f60-a926-e8788fc0ed3b" [label=<Case(ce5d360b-db30-4f60-a926-e8788fc0ed3b)>]
 		"run-metadata-1" [label=<RunMetadata(run-metadata-1)>]
 		"annotation-without-downstream" [label=<Annotation(annotation-without-downstream)>]

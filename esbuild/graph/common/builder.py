@@ -107,9 +107,7 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
     pg_host, pg_user, pg_password, pg_database = psqlgraph_driver_args
 
     cache = CachedGraph(
-        caching_options=caching_options,
-        pg_host, pg_user, pg_password, pg_database
-    )
+        caching_options, pg_host, pg_user, pg_password, pg_database)
 
     cache.cache_database()
 

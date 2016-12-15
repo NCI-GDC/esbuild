@@ -234,7 +234,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         """returns iterable of neighors from outbound edges with category"""
 
         labels = [
-            l['dst_type'].label for l in node._pg_links.values()
+            l['dst_type'].label
+            for l in Node.get_subclass(node.label())._pg_links.values()
             if l['dst_type']._dictionary['category'] == category
         ]
 
@@ -244,7 +245,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         """returns iterable of neighors from inbound edges with category"""
 
         labels = [
-            l['src_type'].label for l in node._pg_backrefs.values()
+            l['src_type'].label
+            for l in Node.get_subclass(node.label())._pg_backrefs.values()
             if l['src_type']._dictionary['category'] == category
         ]
 

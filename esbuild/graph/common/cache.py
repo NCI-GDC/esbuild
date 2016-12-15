@@ -13,8 +13,9 @@ import gc
 import itertools
 import logging
 import networkx as nx
-import types
 import resbuild
+import types
+import yaml
 
 from collections import namedtuple
 from gdcdictionary import gdcdictionary
@@ -41,6 +42,11 @@ def is_case_cache_edge(edge):
     """Determine if this edge or edge class is just a case cache edge"""
 
     return edge.label == 'relates_to' and edge.__dst_class__ == 'Case'
+
+
+def to_list(value):
+    """Convert iterables to lists and scalars to single value lists"""
+    return list(value) if hasattr(value, '__iter__') else [value]
 
 
 class CachingOptions(object):
@@ -103,15 +109,22 @@ class CachedGraph(object):
     """
 
     def __init__(self, caching_options, pg_host, pg_user, pg_password, pg_database):
-        schemas = map(yaml.dump, gdcdictionary.schema.values())
+        self.pg_host = pg_host
+        self.pg_user = pg_user
+        self.pg_password = pg_password
+        self.pg_database = pg_database
 
-        self.graph = resbuild.RustCachedGraph(
-            schema, pg_host, pg_database, pg_user, pg_password)
+        self.psqlgraph_driver = PsqlGraphDriver(
+            host=pg_host,
+            user=pg_user,
+            password=pg_password,
+            database=pg_database)
+
+        self.graph = None
 
         self.caching_options = caching_options
 
         # Cached information
-        self.nodes = {}
         self.experimental_strategies = {}
         self.data_categories = {}
         self.popular_nodes = {}
@@ -135,7 +148,7 @@ class CachedGraph(object):
 
         """
 
-        return self.graph.nodes_labeled(labels)
+        return self.graph.nodes_labeled(to_list(labels))
 
     def neighbors_labeled(self, node_id, labels):
         """Proxy for self._neighbors_labeled which was original written as a
@@ -143,13 +156,11 @@ class CachedGraph(object):
 
         """
 
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        return self.graph.neighbors_labeled(node_id, labels)
+        return self.graph.neighbors_labeled(node_id, to_list(labels))
 
     def neighbors(self, node_id):
         """Return the neighbors of given node"""
 
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
         return self.graph.neighbors(node_id)
 
     def walk_path(self, node_id, path, whole=False):
@@ -158,14 +169,13 @@ class CachedGraph(object):
         along the traversal.
 
         """
-        node = self.get_node_in_graph(node_id)
 
         if path:
-            for neighbor in self.neighbors_labeled(node.node_id, path[0]):
+            for neighbor in self.neighbors_labeled(node_id, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
                     yield neighbor
 
-                for node in self.walk_path(neighbor.node_id, path[1:], whole):
+                for node in self.walk_path(neighbor.node_id(), path[1:], whole):
                     yield node
 
     def walk_paths(self, node_id, paths, whole=False):
@@ -188,14 +198,12 @@ class CachedGraph(object):
     def get_relevant_nodes(self, node_id):
         """Return the nodes relevant to this one"""
 
-        node = self.get_node_in_graph(node_id)
-        return self.relevant_nodes.get(node, [])
+        return self.relevant_nodes.get(node_id, [])
 
     def get_entity_case(self, node_id):
         """Return the case associated with this node"""
 
-        node = self.get_node_in_graph(node_id)
-        return self.entity_cases.get(node, None)
+        return self.entity_cases.get(node_id, None)
 
     @staticmethod
     def warning(*args, **kwargs):
@@ -237,20 +245,7 @@ class CachedGraph(object):
     def get_edge(self, src_id, dst_id):
         """Returns any information stored about the edge between two nodes"""
 
-        src = self.get_node_in_graph(src_id)
-        dst = self.get_node_in_graph(dst_id)
-
-        return self.graph[src][dst]
-
-    def get_node_in_graph(self, node_id):
-        """Given a node or a node_id, return the corresponding node that is in
-        the NetworkX graph
-
-        """
-
-        assert isinstance(node_id, types.StringTypes)
-
-        return self.nodes[node_id]
+        return next(self.graph.get_edges(src_id, dst_id))
 
     ###################################################################
     #                        Setup Methods
@@ -272,7 +267,7 @@ class CachedGraph(object):
         to_suppress.append(redacted)
 
         logger.info("Walking down towards file with paths %s", paths)
-        extra = self.walk_paths(redacted.node_id, paths, whole=True)
+        extra = self.walk_paths(redacted.node_id(), paths, whole=True)
 
         logger.info("Found %s other things to suppress by walking from %s",
                     extra, redacted)
@@ -334,7 +329,7 @@ class CachedGraph(object):
     def _is_unindexed_case(self, node):
         return (
             node.label == 'case'
-            and not list(self.neighbors_labeled(node.node_id, 'project', 1))
+            and not list(self.neighbors_labeled(node.node_id(), 'project', 1))
         )
 
     def _is_node_indexed(self, node):
@@ -374,7 +369,7 @@ class CachedGraph(object):
         logger.info("Removing %s nodes from cache", len(removed_nodes))
         self.graph.remove_nodes_from(removed_nodes)
         for node in removed_nodes:
-            self.nodes.pop(node.node_id, None)
+            self.nodes.pop(node.node_id(), None)
 
         logger.info("Finding and removing suppressed nodes")
         suppressed = self._suppressed_nodes()
@@ -382,24 +377,7 @@ class CachedGraph(object):
         logger.info("Removing %s suppressed nodes", len(suppressed))
         self.graph.remove_nodes_from(suppressed)
         for node in suppressed:
-            self.nodes.pop(node.node_id, None)
-
-    def _iter_database_edges(self):
-        """Returns an iterable of edges to load from the database.
-
-        Eagerly (with join) loads the source and destination of the edge.
-
-        """
-
-        return itertools.chain(*[
-            self.psqlgraph_driver.edges(subclass)
-            .options(joinedload(subclass.src))
-            .options(joinedload(subclass.dst))
-            .yield_per(int(1e5))
-            for subclass in sorted(Edge.__subclasses__())
-            if not is_case_cache_edge(subclass)
-        ])
-
+            self.nodes.pop(node.node_id(), None)
 
     def _get_fake_node(self, node):
         """If we've seen this node before, then return the FakeNode version of
@@ -407,9 +385,9 @@ class CachedGraph(object):
 
         """
 
-        existing = self.nodes.get(node.node_id)
+        existing = self.nodes.get(node.node_id())
         if not existing:
-            existing = self.nodes.setdefault(node.node_id, FakeNode(node))
+            existing = self.nodes.setdefault(node.node_id(), FakeNode(node))
 
         return existing
 
@@ -419,52 +397,59 @@ class CachedGraph(object):
 
         """
 
-        with self.psqlgraph_driver.session_scope() as session:
-            # Meter the progress bar by nodes, because creating the
-            # nodes will be the majority of the time
-            node_count = self.psqlgraph_driver.nodes().count()
-            pbar = util.get_pbar('Caching Database: ', node_count)
+        self.graph = resbuild.RustCachedGraph(
+            map(yaml.dump, gdcdictionary.schema.values()),
+            self.pg_host,
+            self.pg_database,
+            self.pg_user,
+            self.pg_password)
 
-            for edge in self._iter_database_edges():
-                pbar.update(len(self.nodes))
+        # with self.psqlgraph_driver.session_scope() as session:
+        #     # Meter the progress bar by nodes, because creating the
+        #     # nodes will be the majority of the time
+        #     node_count = self.psqlgraph_driver.nodes().count()
+        #     pbar = util.get_pbar('Caching Database: ', node_count)
 
-                src = self._get_fake_node(edge.src)
-                dst = self._get_fake_node(edge.dst)
+        #     for edge in self._iter_database_edges():
+        #         pbar.update(len(self.nodes))
 
-                triple = (src.label, edge.label, dst.label)
-                needs_differentiation = (
-                    triple in self.caching_options.differentiated_edges
-                )
+        #         src = self._get_fake_node(edge.src)
+        #         dst = self._get_fake_node(edge.dst)
 
-                if triple == ("file", "data_from", "file"):
-                    # for files that are "data_from" other files, the
-                    # centers and aliquots of the source files count
-                    # as neighbors of the dst files
-                    for center in edge.src.centers:
-                        self.graph.add_edge(dst, self._get_fake_node(center))
+        #         triple = (src.label, edge.label, dst.label)
+        #         needs_differentiation = (
+        #             triple in self.caching_options.differentiated_edges
+        #         )
 
-                    for aliquot in edge.src.aliquots:
-                        self.graph.add_edge(dst, self._get_fake_node(aliquot))
+        #         if triple == ("file", "data_from", "file"):
+        #             # for files that are "data_from" other files, the
+        #             # centers and aliquots of the source files count
+        #             # as neighbors of the dst files
+        #             for center in edge.src.centers:
+        #                 self.graph.add_edge(dst, self._get_fake_node(center))
 
-                elif needs_differentiation and edge._props:
-                    self.graph.add_edge(
-                        src, dst, label=edge.label, props=edge._props)
+        #             for aliquot in edge.src.aliquots:
+        #                 self.graph.add_edge(dst, self._get_fake_node(aliquot))
 
-                elif needs_differentiation and not edge._props:
-                    self.graph.add_edge(src, dst, label=edge.label)
+        #         elif needs_differentiation and edge._props:
+        #             self.graph.add_edge(
+        #                 src, dst, label=edge.label, props=edge._props)
 
-                elif edge._props:
-                    self.graph.add_edge(src, dst, props=edge._props)
+        #         elif needs_differentiation and not edge._props:
+        #             self.graph.add_edge(src, dst, label=edge.label)
 
-                else:
-                    self.graph.add_edge(src, dst)
+        #         elif edge._props:
+        #             self.graph.add_edge(src, dst, props=edge._props)
 
-            session.expunge_all()
-            pbar.finish()
+        #         else:
+        #             self.graph.add_edge(src, dst)
 
-        # Prune graph
-        logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
-        self._remove_unindexed_nodes_from_graph()
+        #     session.expunge_all()
+        #     pbar.finish()
+
+        # # Prune graph
+        # logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
+        # self._remove_unindexed_nodes_from_graph()
 
         # Aggressively cache relationships, nodes by type, traversals, etc.
         self._cache_all()
@@ -474,7 +459,6 @@ class CachedGraph(object):
 
         """
 
-        self._cache_node_ids()
         self._cache_existing_data_types()
         self._cache_experimental_strategies()
         self._cache_data_categories()
@@ -482,14 +466,6 @@ class CachedGraph(object):
         self._cache_entity_cases()
         self._cache_cases()
         self._cache_projects()
-
-    def _cache_node_ids(self):
-        """Create a hashtable from node_id to node in the graph"""
-
-        self.nodes = {
-            node.node_id: node
-            for node in self.graph.nodes_iter()
-        }
 
     def _cache_projects(self):
         """Save a list of all Project nodes"""
@@ -527,7 +503,7 @@ class CachedGraph(object):
                 util.truncate_path(path, entity.label)
                 for path in  self.caching_options.file_to_case_paths
             )
-            cases = self.walk_paths(entity.node_id, paths)
+            cases = self.walk_paths(entity.node_id(), paths)
 
             if len(cases) > 1:
                 self.warning(
@@ -562,7 +538,7 @@ class CachedGraph(object):
             paths = util.get_file_to_case_paths(
                 file_, self.caching_options.file_to_case_paths)
             self.relevant_nodes[file_] = self.walk_paths(
-                file_.node_id, paths, whole=True)
+                file_.node_id(), paths, whole=True)
             pbar.update(pbar.currval+1)
 
         pbar.finish()
@@ -592,20 +568,21 @@ class CachedGraph(object):
 
         logger.info('Caching data categories')
         for data_category in self.nodes_labeled('data_type'):
-            category = data_category._props['name']
+            category = data_category.get_prop('name')
 
             self.data_categories[category] = util.remove_index_files(
                 set(self.walk_path(
-                    data_category.node_id, ['data_subtype', 'file'])),
+                    data_category.node_id(), ['data_subtype', 'file'])),
                 self.caching_options.index_file_extensions,
             )
 
         # New files have 'data_category' as a property
         for file_ in self.nodes_labeled(self.caching_options.file_labels):
-            category = file_._props.get('data_category')
+            category = file_.get_prop('data_category')
             if not category:
                 continue
             self.data_categories.setdefault(category, set()).add(file_)
+
     def _cache_experimental_strategies(self):
         """Looking up the files that are classified in each
         experimental_strategy is a common computation.  Here we cache
@@ -618,13 +595,13 @@ class CachedGraph(object):
 
         logger.info('Caching experitmental strategies')
         for exp_strat in self.nodes_labeled('experimental_strategy'):
-            strategy = exp_strat._props['name']
+            strategy = exp_strat.props()['name']
             self.experimental_strategies[strategy] = set(self.walk_path(
-                exp_strat.node_id, ['file']))
+                exp_strat.node_id(), ['file']))
 
         # New files have 'experimental_strategy' as a property
         for file_ in self.nodes_labeled(self.caching_options.file_labels):
-            strategy = file_._props.get('experimental_strategy')
+            strategy = file_.get_prop('experimental_strategy')
             if not strategy:
                 continue
             self.experimental_strategies.setdefault(strategy, set()).add(file_)
@@ -659,7 +636,7 @@ class CachedGraph(object):
         return (
             node.label == 'file'
             and any(
-                pattern.match(node._props.get('file_name', ''))
+                pattern.match(node.get_prop('file_name', ''))
                 for pattern in self.caching_options.supplement_regexes
             )
         )
@@ -708,7 +685,7 @@ class CachedGraph(object):
         if node.label == 'project':
             projects = [node]
         elif node.label == 'case':
-            projects = self.neighbors_labeled(node.node_id, 'project', 1)
+            projects = self.neighbors_labeled(node.node_id(), 'project', 1)
         else:
             return False
 
@@ -716,7 +693,7 @@ class CachedGraph(object):
         program_names = [
             program.name
             for project in projects
-            for program in self.neighbors_labeled(project.node_id, 'program', 1)
+            for program in self.neighbors_labeled(project.node_id(), 'program', 1)
         ]
 
         # Check if project is not released
@@ -748,7 +725,7 @@ class CachedGraph(object):
         filters = self.caching_options.unindexed_by_property.get(node.label, [])
 
         for filter_ in filters:
-            is_subset = not set(filter_.items()) - set(node._props.items())
+            is_subset = not set(filter_.items()) - set(node.props().items())
 
             if is_subset:
                 return True
