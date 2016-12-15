@@ -14,8 +14,10 @@ import itertools
 import logging
 import networkx as nx
 import types
+import resbuild
 
 from collections import namedtuple
+from gdcdictionary import gdcdictionary
 from gdcdatamodel import models as md
 from multiprocessing.managers import BaseManager
 from multiprocessing import Pool, Queue, TimeoutError
@@ -100,16 +102,12 @@ class CachedGraph(object):
 
     """
 
-    def __init__(self, caching_options, psqlgraph_driver_args=None,
-                 psqlgraph_driver_kwargs=None, psqlgraph_driver=None):
+    def __init__(self, caching_options, pg_host, pg_user, pg_password, pg_database):
+        schemas = map(yaml.dump, gdcdictionary.schema.values())
 
-        # Injected Dependencies
-        self.psqlgraph_driver = psqlgraph_driver or PsqlGraphDriver(
-            *(psqlgraph_driver_args or []),
-            **(psqlgraph_driver_kwargs or {})
-        )
+        self.graph = resbuild.RustCachedGraph(
+            schema, pg_host, pg_database, pg_user, pg_password)
 
-        self.graph = nx.Graph()
         self.caching_options = caching_options
 
         # Cached information
@@ -137,62 +135,22 @@ class CachedGraph(object):
 
         """
 
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        for node, _ in self.graph.nodes_iter(data=True):
-            if node.label in labels:
-                yield node
+        return self.graph.nodes_labeled(labels)
 
-    def neighbors_labeled(self, *args, **kwargs):
+    def neighbors_labeled(self, node_id, labels):
         """Proxy for self._neighbors_labeled which was original written as a
         generator to return a list instead
 
         """
 
-        return list(self._neighbors_labeled(*args, **kwargs))
-
-    def _neighbors_labeled(self, node_id, labels, expected=None):
-
-        """For a given node, return an iterator with generates neighbors to
-        that node that are in a list of labels.  `label` can be either a
-        string or list of strings.
-
-        :param is_expected: Int count of expected elements
-
-        """
-
         labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        node = self.get_node_in_graph(node_id)
-
-        if node in self.popular_nodes:
-            if labels not in self.popular_nodes[node]:
-                neighbors = self._cache_popular_neighbor(
-                    node, self.graph.neighbors(node), labels)
-            else:
-                neighbors = self.popular_nodes[node][labels]
-
-        else:
-            temp = self.graph.neighbors(node)
-            if len(temp) > 200:
-                neighbors = self._cache_popular_neighbor(node, temp, labels)
-            else:
-                neighbors = {n for n in temp if n.label in labels}
-
-        count = 0
-        for neighbor in neighbors:
-            count += 1
-            yield neighbor
-
-        if expected is not None and count != expected:
-            self.warning(
-                "{}: unexpected no. of '{}' neighbors".format(node, labels),
-                '{}: {} != {} (expected)'.format(node, count, expected),
-                tags=["{}:{}".format(node.label, node.node_id)])
+        return self.graph.neighbors_labeled(node_id, labels)
 
     def neighbors(self, node_id):
         """Return the neighbors of given node"""
 
-        node = self.get_node_in_graph(node_id)
-        return self.graph.neighbors(node)
+        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
+        return self.graph.neighbors(node_id)
 
     def walk_path(self, node_id, path, whole=False):
         """Given a list of strings, treat it as a path, and yield the end of
