@@ -282,8 +282,8 @@ class CachedGraph(object):
 
         redactions = [
             annotation for annotation in self.nodes_labeled('annotation')
-            if annotation.classification == "Redaction" and
-            annotation.category not in
+            if annotation.get_prop('classification') == "Redaction" and
+            annotation.getprop('category') not in
             self.caching_options.redacted_but_not_suppressed
         ]
 
@@ -328,14 +328,16 @@ class CachedGraph(object):
 
     def _is_unindexed_case(self, node):
         return (
-            node.label == 'case'
-            and not list(self.neighbors_labeled(node.node_id(), 'project', 1))
+            node.label() == 'case'
+            and not list(self.neighbors_labeled(node.node_id(), 'project'))
         )
 
-    def _is_node_indexed(self, node):
+    def _is_node_indexed(self, node_id):
         """Returns false if the node is not supposed to be indexed.
 
         """
+
+        node = self.graph.get_node(node_id)
 
         if self._is_unindexed_case(node):
             logger.info('Node not indexed (case not indexed): %s', node)
@@ -362,22 +364,19 @@ class CachedGraph(object):
         logger.info('Selecting entities to be removed from cache...')
 
         removed_nodes = [
-            node for node in self.graph.nodes()
-            if not self._is_node_indexed(node)
+            node_id
+            for node_id in self.graph.get_node_ids()
+            if not self._is_node_indexed(node_id)
         ]
 
         logger.info("Removing %s nodes from cache", len(removed_nodes))
         self.graph.remove_nodes_from(removed_nodes)
-        for node in removed_nodes:
-            self.nodes.pop(node.node_id(), None)
 
         logger.info("Finding and removing suppressed nodes")
         suppressed = self._suppressed_nodes()
 
         logger.info("Removing %s suppressed nodes", len(suppressed))
         self.graph.remove_nodes_from(suppressed)
-        for node in suppressed:
-            self.nodes.pop(node.node_id(), None)
 
     def _get_fake_node(self, node):
         """If we've seen this node before, then return the FakeNode version of
@@ -447,9 +446,9 @@ class CachedGraph(object):
         #     session.expunge_all()
         #     pbar.finish()
 
-        # # Prune graph
+        # Prune graph
         # logger.info('Cached {} nodes'.format(self.graph.number_of_nodes()))
-        # self._remove_unindexed_nodes_from_graph()
+        self._remove_unindexed_nodes_from_graph()
 
         # Aggressively cache relationships, nodes by type, traversals, etc.
         self._cache_all()
@@ -647,11 +646,11 @@ class CachedGraph(object):
         """
 
         # This function should only be for files
-        if node.label not in self.caching_options.file_labels:
+        if node.label() not in self.caching_options.file_labels:
             return True
 
         # Remove files with no acl entries
-        if len(node.acl) == 0:
+        if len(node.acl()) == 0:
             logger.info('File not indexed (empty acl): %s', node)
             return False
 
@@ -666,12 +665,13 @@ class CachedGraph(object):
             return False
 
         # Is file to_delete
-        if node.system_annotations.get("to_delete"):
+        if node.get_sysan("to_delete"):
             return False
 
         # Is file not live
-        if node.state not in ['live', 'submitted']:
-            logger.info('File not indexed (bad state: %s): %s', node, node.state)
+        state = node.get_prop('state')
+        if state not in ['live', 'submitted']:
+            logger.info('File not indexed (bad state: %s): %s', node, state)
             return False
 
         return True
@@ -682,23 +682,24 @@ class CachedGraph(object):
 
         """
 
-        if node.label == 'project':
+        if node.label() == 'project':
             projects = [node]
-        elif node.label == 'case':
-            projects = self.neighbors_labeled(node.node_id(), 'project', 1)
+
+        elif node.label() == 'case':
+            projects = self.neighbors_labeled(node.node_id(), 'project')
         else:
             return False
 
-        project_codes = [project.code for project in projects]
+        project_codes = [project.get_prop('code') for project in projects]
         program_names = [
-            program.name
+            program.get_prop('name')
             for project in projects
-            for program in self.neighbors_labeled(project.node_id(), 'program', 1)
+            for program in self.neighbors_labeled(project.node_id(), 'program')
         ]
 
         # Check if project is not released
         for project in projects:
-            if project.released is not True:
+            if project.get_prop('released') is not True:
                 logger.info('Omitting %s, project %s not released',
                             node, project)
                 return True
@@ -722,7 +723,7 @@ class CachedGraph(object):
 
         """
 
-        filters = self.caching_options.unindexed_by_property.get(node.label, [])
+        filters = self.caching_options.unindexed_by_property.get(node.label(), [])
 
         for filter_ in filters:
             is_subset = not set(filter_.items()) - set(node.props().items())
