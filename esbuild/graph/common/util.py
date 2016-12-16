@@ -20,6 +20,22 @@ from progressbar import (
 )
 
 
+import sys
+import pdb
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = file('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+
+
 def upsert_file_into_dict(files, file_doc):
     """Merge this file document into all other relevant file documents (or
     just add it if none exist)
@@ -96,7 +112,7 @@ def is_index_file(node, index_file_extensions):
     """
 
     # Active index files
-    if node._dictionary['category'] == 'index_file':
+    if get_node_class(node)._dictionary['category'] == 'index_file':
         return True
 
     # Legacy index files

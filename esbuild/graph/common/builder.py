@@ -54,7 +54,8 @@ def build_worker(builder, case_in_q, result_q):
         case_id = case_in_q.get()
 
         if case_id is None:
-            return log.info('No more work for builder %s', builder)
+            log.info('No more work for builder %s', builder)
+            return
 
         case = builder.cache.graph.get_node(case_id)
 
@@ -64,8 +65,10 @@ def build_worker(builder, case_in_q, result_q):
             log.exception(exception)
             result = exception
 
+        import pickle
+        pickle.dumps(result)
+
         result_q.put(result)
-        del result
 
 
 def start_worker_pool(builders, case_ids):
@@ -118,25 +121,17 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
     case_ids = [case.node_id() for case in cases]
 
     builders = [builder_class(cache, index) for _ in range(threads)]
-    _, result_q, pool = start_worker_pool(builders, case_ids)
+    input_q, result_q, pool = start_worker_pool(builders, case_ids)
 
     pbar = util.get_pbar('Denormalizing cases ', len(case_ids))
 
     # Collect results
     while index.case_doc_count() < len(case_ids):
-        try:
-            if result_q.qsize() > 20:
-                log.warning("Primary thread overworked! %d", result_q.qsize())
-        except NotImplementedError:
-            pass  #  on Mac OSX because of broken sem_getvalue()
-
         result = result_q.get()
         if isinstance(result, Exception):
             raise result
 
         case_doc, file_docs, annotation_docs = result
-
-        import pdb; pdb.set_trace()
 
         # Collect docs
         index.add_case_doc(case_doc)
@@ -151,8 +146,8 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
         pbar.update(pbar.currval+1)
     pbar.finish()
 
-    # for process in pool:
-    #     process.join()
+    for process in pool:
+        process.join()
 
     # Create project docs serially
     project_docs = builders[0].denormalize_projects()
@@ -610,8 +605,6 @@ class GraphIndexBuilder(object):
         self.reconstruct_biospecimen_paths(case)
 
         # Get the case's project
-        import json
-        print(json.dumps(case, indent=2))
         project = self.patch_project(case['project'])
 
         # Denormalize the cases files
@@ -713,7 +706,7 @@ class GraphIndexBuilder(object):
         """
         return {
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f.get_prop('file_size') for f in files]),
             'experimental_strategies': list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -809,7 +802,7 @@ class GraphIndexBuilder(object):
         """
 
         if node.get_prop('data_format'):
-            format_ = node.get_props('data_format')
+            format_ = node.get_prop('data_format')
 
         elif node.get_prop('file_format'):
             format_ = node.get_prop('file_format')
@@ -1131,7 +1124,7 @@ class GraphIndexBuilder(object):
         """
 
         self.add_file_access(node, doc)
-        doc['acl'] = node.acl
+        doc['acl'] = node.acl()
 
     def add_file_access(self, node, doc):
         """Summarizes whether the ACL implies that the file is either ``open``
@@ -1139,7 +1132,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        if node.acl == ['open']:
+        if node.acl() == ['open']:
             doc['access'] = 'open'
         else:
             doc['access'] = 'controlled'
@@ -1266,7 +1259,7 @@ class GraphIndexBuilder(object):
         doc['summary'] = {
             'case_count': len(cases),
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f.get_prop('file_size') for f in files]),
         }
 
         if exp_strat_summaries:

@@ -18,21 +18,14 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
+
+from ..common import util
+from ..common.builder import GraphIndexBuilder
+from .mappings import ActiveESMapper
 from cdisutils.log import get_logger
+from gdcdatamodel.models import ReadGroup
 
 import logging
-
-from gdcdatamodel.models import(
-    ReadGroup
-)
-
-from ..common.builder import (
-    GraphIndexBuilder,
-)
-
-from .mappings import (
-    ActiveESMapper,
-)
 
 
 log = get_logger("graph_active_index")
@@ -235,22 +228,22 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         labels = [
             l['dst_type'].label
-            for l in Node.get_subclass(node.label())._pg_links.values()
+            for l in util.get_node_class(node)._pg_links.values()
             if l['dst_type']._dictionary['category'] == category
         ]
 
-        return self.cache.neighbors_labeled(node.node_id, labels)
+        return self.cache.neighbors_labeled(node.node_id(), labels)
 
     def get_child_with_category(self, node, category):
         """returns iterable of neighors from inbound edges with category"""
 
         labels = [
             l['src_type'].label
-            for l in Node.get_subclass(node.label())._pg_backrefs.values()
+            for l in util.get_node_class(node)._pg_backrefs.values()
             if l['src_type']._dictionary['category'] == category
         ]
 
-        return self.cache.neighbors_labeled(node.node_id, labels)
+        return self.cache.neighbors_labeled(node.node_id(), labels)
 
     def add_file_analysis(self, node, doc):
         """Add the 'analysis' that produced the current file"""
@@ -272,7 +265,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                 "Multiple analysis on {}".format(node),
                 "{} has multiple analyses {}, this is unexpected."
                 .format(node, analyses),
-                tags=["file_id:{}".format(node.node_id)],
+                tags=["file_id:{}".format(node.node_id())],
             )
 
     def add_file_downstream_analyses(self, node, doc):
@@ -342,7 +335,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         read_group_qc_docs = []
         rg_qcs = self.cache.neighbors_labeled(
-            read_group.node_id, 'read_group_qc')
+            read_group.node_id(), 'read_group_qc')
         for read_group_qc in rg_qcs:
             read_group_qc_docs.append(self._get_base_doc(read_group_qc))
 
@@ -356,7 +349,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         """
 
         paths = self.file_to_read_group_paths.get(node.label, [])
-        return set(self.cache.walk_paths(node.node_id, paths))
+        return set(self.cache.walk_paths(node.node_id(), paths))
 
     def get_analysis_read_groups(self, node):
         """Given a analysis node, traverse up the tree to read_groups:
@@ -383,7 +376,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         doc['data_format'] = self.get_data_format(node)
 
-        for dst in self.cache.neighbors_labeled(node.node_id, 'data_subtype'):
+        for dst in self.cache.neighbors_labeled(node.node_id(), 'data_subtype'):
             doc['data_type'] = dst['name']
 
         return doc
@@ -400,7 +393,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             for rg in self.get_file_read_groups(node)
             for entity in
             self.cache.neighbors_labeled(
-                rg.node_id, self.possible_associated_entites)
+                rg.node_id(), self.possible_associated_entites)
         ]
 
         # Add entities with one step through a data_file
@@ -409,7 +402,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             for parent in self.get_parent_with_category(node, 'data_file')
             for entity in
             self.cache.neighbors_labeled(
-                parent.node_id, self.possible_associated_entites)
+                parent.node_id(), self.possible_associated_entites)
         ]
 
         # Copy number paths
@@ -432,7 +425,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         entities += [
             entity
-            for entity in self.walk_paths(node, custom_paths)
+            for entity in self.cache.walk_paths(node.node_id(), custom_paths)
         ]
 
         return list(set(entities))

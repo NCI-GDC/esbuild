@@ -171,8 +171,9 @@ class CachedGraph(object):
         """
 
         if path:
+
             for neighbor in self.neighbors_labeled(node_id, path[0]):
-                if whole or (len(path) == 1 and path[0] == neighbor.label):
+                if whole or len(path) == 1:
                     yield neighbor
 
                 for node in self.walk_path(neighbor.node_id(), path[1:], whole):
