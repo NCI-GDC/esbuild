@@ -170,14 +170,7 @@ class CachedGraph(object):
 
         """
 
-        if path:
-
-            for neighbor in self.neighbors_labeled(node_id, path[0]):
-                if whole or len(path) == 1:
-                    yield neighbor
-
-                for node in self.walk_path(neighbor.node_id(), path[1:], whole):
-                    yield node
+        return self.graph.walk_path(node_id, path, whole)
 
     def walk_paths(self, node_id, paths, whole=False):
         """Given a list of paths, yield the result of walking each path. If
@@ -185,12 +178,7 @@ class CachedGraph(object):
 
         """
 
-        return {
-            n for n in itertools.chain(*[
-                self.walk_path(node_id, path, whole=whole)
-                for path in paths if path
-            ])
-        }
+        return self.graph.walk_paths(node_id, list(paths), whole)
 
     ###################################################################
     #                        Proxy Methods
@@ -489,21 +477,22 @@ class CachedGraph(object):
 
         entities = list(self.nodes_labeled(
             self.caching_options.possible_associated_entites))
+
         pbar = util.get_pbar('Caching entity cases: ', len(entities))
         self.entity_cases = {}
 
         for entity in entities:
-            if entity.label == "case":
+            if entity.label() == "case":
                 # if the associated entity is a case, it's case is
                 # just itself. this is kindy of sketchy but w/e
-                self.entity_cases[entity] = entity
+                self.entity_cases[entity.node_id()] = entity
                 continue
 
             paths = (
-                util.truncate_path(path, entity.label)
-                for path in  self.caching_options.file_to_case_paths
+                util.truncate_path(path, entity.label())
+                for path in self.caching_options.file_to_case_paths
             )
-            cases = self.walk_paths(entity.node_id(), paths)
+            cases = set(self.walk_paths(entity.node_id(), paths))
 
             if len(cases) > 1:
                 self.warning(
@@ -511,10 +500,9 @@ class CachedGraph(object):
                     '{}: Found {} cases'.format(entity, len(cases)),
                     tags=["entity:{}".format(entity)],
                 )
-                return
 
             if len(cases) != 0:
-                self.entity_cases[entity] = cases.pop()
+                self.entity_cases[entity.node_id()] = cases.pop()
 
             pbar.update(pbar.currval+1)
         pbar.finish()
@@ -645,6 +633,14 @@ class CachedGraph(object):
         """Returns false if node is a file that is not supposed to be indexed.
 
         """
+
+        # Allow to be called with RustNode or Node
+        if isinstance(node, Node):
+            try:
+                node = self.graph.get_node(node.node_id)
+            except Exception as exception:
+                self.warning('Failed to lookup node', node.node_id)
+                return False
 
         # This function should only be for files
         if node.label() not in self.caching_options.file_labels:

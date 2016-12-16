@@ -50,10 +50,8 @@ N_INPUT_FILES = 9
 @pytest.fixture(scope='module')
 def cached_graph(psqlgraph_args):
     options = ActiveGraphIndexBuilder.get_caching_options()
-    cache = CachedGraph(
-        caching_options=options,
-        psqlgraph_driver_args=psqlgraph_args,
-    )
+    pg_host, pg_user, pg_password, pg_database = psqlgraph_args
+    cache = CachedGraph(options, pg_host, pg_user, pg_password, pg_database)
     cache.cache_database()
     return cache
 
@@ -362,10 +360,8 @@ def test_file_to_read_group_paths(label, path):
 
 
 def lookup_expunged_node(builder, node):
-    return next(
-        expunged for expunged in builder.cache.graph.nodes()
-        if expunged.node_id == node.node_id
-    )
+    return builder.cache.graph.get_node(node.node_id)
+
 
 def test_get_file_read_groups(graph, index):
     f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
