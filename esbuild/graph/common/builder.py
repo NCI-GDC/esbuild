@@ -17,6 +17,7 @@ from multiprocessing import cpu_count, Queue, Process
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
 
+import gc
 import logging
 import random
 import re
@@ -57,24 +58,23 @@ def build_worker(builder, case_in_q, result_q):
             log.info('No more work for builder %s', builder)
             return
 
+
         case = builder.cache.graph.get_node(case_id)
 
         try:
-            result = builder.denormalize_case(case)
+            result_q.put(builder.denormalize_case(case))
         except Exception as exception:
             log.exception(exception)
-            result = exception
-
-        import pickle
-        pickle.dumps(result)
-
-        result_q.put(result)
+            result_q.put(exception)
+            raise
+        else:
+            gc.collect()
 
 
 def start_worker_pool(builders, case_ids):
     """Setup a process pool and schedule work to the case_in_q"""
 
-    case_in_q, result_q = Queue(), Queue()
+    case_in_q, result_q = Queue(), Queue(maxsize=len(builders))
 
     pool = [
         Process(
@@ -99,12 +99,13 @@ def start_worker_pool(builders, case_ids):
 
 
 def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
-                threads=16):
+                threads=40):
     """TODO: docstring
 
     """
 
-    index = DiskGraphIndex(data_dir)
+    # index = DiskGraphIndex(data_dir)
+    index = MemoryGraphIndex()
 
     # Create managed cache
     caching_options = builder_class.get_caching_options()
@@ -126,7 +127,8 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
     pbar = util.get_pbar('Denormalizing cases ', len(case_ids))
 
     # Collect results
-    while index.case_doc_count() < len(case_ids):
+    n_results = 0
+    while n_results < len(case_ids):
         result = result_q.get()
         if isinstance(result, Exception):
             raise result
@@ -143,7 +145,9 @@ def build_index(builder_class, psqlgraph_driver_args, data_dir, cases=None,
         del file_docs
         del annotation_docs
 
-        pbar.update(pbar.currval+1)
+        n_results += 1
+        pbar.update(n_results)
+
     pbar.finish()
 
     for process in pool:

@@ -127,7 +127,6 @@ class CachedGraph(object):
         # Cached information
         self.experimental_strategies = {}
         self.data_categories = {}
-        self.popular_nodes = {}
         self.cases = None
         self.projects = None
         self.relevant_nodes = None
@@ -187,12 +186,18 @@ class CachedGraph(object):
     def get_relevant_nodes(self, node_id):
         """Return the nodes relevant to this one"""
 
-        return self.relevant_nodes.get(node_id, [])
+        return [
+            self.graph.get_node(node_id)
+            for node_id in self.relevant_nodes.get(node_id, [])
+        ]
 
     def get_entity_case(self, node_id):
         """Return the case associated with this node"""
 
-        return self.entity_cases.get(node_id, None)
+        if node_id in self.entity_cases:
+            return self.graph.get_node(self.entity_cases[node_id])
+        else:
+            return None
 
     @staticmethod
     def warning(*args, **kwargs):
@@ -475,37 +480,16 @@ class CachedGraph(object):
         if self.entity_cases:
             return
 
-        entities = list(self.nodes_labeled(
-            self.caching_options.possible_associated_entites))
+        file_to_case_paths = self.caching_options.file_to_case_paths
+        truncated_paths = {
+            cls.label: list(util.get_file_to_case_paths(cls, file_to_case_paths))
+            for cls in Node.get_subclasses()
+        }
 
-        pbar = util.get_pbar('Caching entity cases: ', len(entities))
-        self.entity_cases = {}
+        self.entity_cases = self.graph.compute_entity_cases(
+            self.caching_options.possible_associated_entites,
+            truncated_paths)
 
-        for entity in entities:
-            if entity.label() == "case":
-                # if the associated entity is a case, it's case is
-                # just itself. this is kindy of sketchy but w/e
-                self.entity_cases[entity.node_id()] = entity
-                continue
-
-            paths = (
-                util.truncate_path(path, entity.label())
-                for path in self.caching_options.file_to_case_paths
-            )
-            cases = set(self.walk_paths(entity.node_id(), paths))
-
-            if len(cases) > 1:
-                self.warning(
-                    'Entity associated with > 1 case',
-                    '{}: Found {} cases'.format(entity, len(cases)),
-                    tags=["entity:{}".format(entity)],
-                )
-
-            if len(cases) != 0:
-                self.entity_cases[entity.node_id()] = cases.pop()
-
-            pbar.update(pbar.currval+1)
-        pbar.finish()
 
     def _cache_relevant_nodes(self):
         """The file documents will need to be pruned to only the nodes that
@@ -517,29 +501,17 @@ class CachedGraph(object):
         if self.relevant_nodes:
             return
 
-        self.relevant_nodes = {}
+        logger.info('Caching relevant nodes...')
 
-        files = list(self.nodes_labeled(self.caching_options.file_labels))
-        pbar = util.get_pbar('Caching file paths: ', len(files))
-
-        for file_ in files:
-            paths = util.get_file_to_case_paths(
-                file_, self.caching_options.file_to_case_paths)
-            self.relevant_nodes[file_] = self.walk_paths(
-                file_.node_id(), paths, whole=True)
-            pbar.update(pbar.currval+1)
-
-        pbar.finish()
-
-    def _cache_popular_neighbor(self, node, neighbors, labels):
-        if node not in self.popular_nodes:
-            self.popular_nodes[node] = {}
-
-        self.popular_nodes[node][labels] = {
-            n for n in neighbors if n.label in labels
+        file_to_case_paths = self.caching_options.file_to_case_paths
+        truncated_paths = {
+            cls.label: list(util.get_file_to_case_paths(cls, file_to_case_paths))
+            for cls in Node.get_subclasses()
         }
 
-        return self.popular_nodes[node][labels]
+        self.relevant_nodes = self.graph.compute_file_paths(
+            self.caching_options.file_labels,
+            truncated_paths)
 
     def _cache_data_categories(self):
         """Looking up the files that are classified in each data_type is a
