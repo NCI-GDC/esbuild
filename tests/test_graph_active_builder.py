@@ -191,6 +191,8 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 
 
 @pytest.mark.parametrize('doc_type,path,count', [
+    ('projects', '[*].primary_site', 1),
+    ('projects', '[*].disease_type', 1),
     ('cases', '[*].project.project_id', 1),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
@@ -239,6 +241,8 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
+    ('cases', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
+    ('cases', '[*].primary_site', 1, {'Breast'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -266,6 +270,19 @@ def test_path_count(index, doc_type, path, count):
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
     actual = {r.value for r in results}
+    assert actual == expected
+    assert len(results) == count
+
+
+@pytest.mark.parametrize('doc_type,path,count,expected', [
+    ('projects', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
+    ('projects', '[*].primary_site', 1, {'Breast'}),
+    ])
+def test_path_value_set_equals_set(index, doc_type, path, expected, count):
+    results = parse(path).find(getattr(index, doc_type))
+    # reduce the dimensionality because we only really care about the
+    # existing values here and the count
+    actual = reduce(set.union, map(lambda x: set(x.value), results))
     assert actual == expected
     assert len(results) == count
 

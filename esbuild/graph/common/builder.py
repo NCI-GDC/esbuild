@@ -1194,6 +1194,19 @@ class GraphIndexBuilder(object):
                 'file_count': len(dt_files),
             })
 
+        # Summarize diesease_type and primary_site
+        disease_types = set()
+        primary_sites = set()
+
+        for case in cases:
+            if case['disease_type']:
+                disease_types.add(case['disease_type'])
+            if case['primary_site']:
+                primary_sites.add(case['primary_site'])
+
+        doc['disease_type'] = list(disease_types)
+        doc['primary_site'] = list(primary_sites)
+
         # Compile summary
         doc['summary'] = {
             'case_count': len(cases),
