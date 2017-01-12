@@ -1554,11 +1554,6 @@ class GraphIndexBuilder(object):
         if node.system_annotations.get("to_delete"):
             return False
 
-        # Is file not live
-        if node.state not in ['live', 'submitted']:
-            log.info('File not indexed (bad state: %s): %s', node, node.state)
-            return False
-
         return True
 
     def is_omitted_project_or_neighbor_case(self, node):
@@ -1618,28 +1613,53 @@ class GraphIndexBuilder(object):
 
         return False
 
-    def is_node_indexed(self, node):
-        """Returns false if the node is not supposed to be indexed.
+    def is_node_public(self, node):
+        """Returns whether a node is public.
+
+        A node is public if:
+        1. it's a project and it's released
+        2. it's a node with a 'state' that is a submitted state
+        3. it's not a project or it doesn't have a state defined on it
 
         """
 
+        submitted_states = {'live', 'submitted'}
+
+        if node.label == 'project':
+            return node.released is True
+
+        elif 'state' not in node.__pg_properties__:
+            return True
+
+        elif node.state in submitted_states:
+            return True
+
+    def is_node_indexed(self, node):
+        """Returns false if the node is not supposed to be indexed"""
+
+        # Is the node allowed to be displayed publicly
+        if not self.is_node_public(node):
+            log.info('not indexed (unsubmitted state: %s): %s',
+                     node, node._props.get('state'))
+            return False
+
         if self.is_unindexed_case(node):
-            log.info('Node not indexed (case not indexed): {}'.format(node))
+            log.info('not indexed (case not indexed): %s', node)
             return False
 
         # Check for non-indexed files
         if not self.is_file_indexed(node):
-            log.info('Node not indexed (file not indexed): {}'.format(node))
+            log.info('not indexed (file not indexed): %s', node)
             return False
 
         # Check for non-indexed files
         if self.is_node_unindexed_by_property(node):
-            log.info('Node not indexed (not by property): {}'.format(node))
+            log.info('not indexed (by property): %s', node)
             return False
 
         # Check for omitted_projects
         if self.is_omitted_project_or_neighbor_case(node):
-            log.info('Node not indexed (omitted project ): {}'.format(node))
+            log.info('not indexed (omitted project): %s', node)
             return False
 
         return True

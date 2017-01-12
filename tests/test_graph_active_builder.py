@@ -1,3 +1,5 @@
+
+
 # -*- coding: utf-8 -*-
 """
 test_graph_index.py
@@ -285,6 +287,10 @@ def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     actual = reduce(set.union, map(lambda x: set(x.value), results))
     assert actual == expected
     assert len(results) == count
+
+
+def test_no_submitted_aligned_reads(graph, index):
+    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
 
 
 @pytest.mark.parametrize('T', [
