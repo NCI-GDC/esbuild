@@ -1255,6 +1255,19 @@ class GraphIndexBuilder(object):
         pbar.finish()
         return case_docs, file_docs.values(), ann_docs.values()
 
+    def denormalize_cases_from_project(self, project):
+        """Produce documents for a single project"""
+
+        cases = list(self.neighbors_labeled(project, "case"))
+        return self.denormalize_cases(cases)
+
+    def denormalize_cases_by_projects(self):
+        """Yields the (case_docs, file_docs, annotation_docs) for each project
+        in the index"""
+
+        for project in self.nodes_labeled('project'):
+            yield self.denormalize_cases_from_project(project)
+
     def denormalize_projects(self, projects=None):
         """If projects is not specified, denormalize all projects in
         the graph.  If projects is specified, denormalize only those
