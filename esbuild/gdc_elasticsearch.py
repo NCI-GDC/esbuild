@@ -19,6 +19,7 @@ from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
+from threading import Thread
 
 # TODO this could probably be bumped now that the number of bulk
 # threads in the config is higher, c.f.
@@ -48,6 +49,98 @@ def shouldnt_delete(node):
         return True
     else:
         return False
+
+
+def progress_bar(title, maxval):
+    """Create and initialize a custom progressbar
+
+    :param str title: The text of the progress bar
+    "param int maxva': The maximumum value of the progress bar
+
+    """
+
+    pbar = ProgressBar(widgets=[
+        title,
+        Percentage(), ' ',
+        Bar(marker='#', left='[', right=']'),
+        ' ',
+        ETA(),
+        ' ',
+    ], maxval=maxval)
+
+    pbar.update(0)
+
+    return pbar
+
+
+def bulk_upload(es, index, doc_type, docs, batch_size=BATCH_SIZE):
+    """Chunk and upload docs to Elasticsearch.  This function will raise
+    an exception of there were errors inserting any of the
+    documents
+
+    :param es: Elasticsearch client
+    :param str index: The index to upload documents to
+    :param str doc_type: The type of document to pload as
+    :param list docs: The documents to upload
+    :param int batch_size: The number of docs per batch
+
+    """
+
+    if not docs:
+        return
+
+    instruction = {"index": {"_index": index, "_type": doc_type}}
+    pbar = progress_bar('{} upload '.format(doc_type), len(docs))
+
+    def body():
+        start = pbar.currval
+        for doc in docs[start:start+batch_size]:
+            yield instruction
+            yield doc
+            pbar.update(pbar.currval+1)
+    while pbar.currval < len(docs):
+        res = es.bulk(body=body())
+        if res['errors']:
+            raise RuntimeError(json.dumps([
+                d for d in res['items'] if d['index']['status'] != 100
+            ], indent=2))
+    pbar.finish()
+
+
+def upload_to_index(es, index, case_docs, ann_docs, file_docs,
+                    project_docs, batch_size=BATCH_SIZE):
+    """Upload {case,ann,file,project}_docs to `index` with Elasticsearch
+    client `es`
+
+    """
+
+    bulk_upload(es, index, 'project', project_docs, batch_size)
+    bulk_upload(es, index, 'annotation', ann_docs, batch_size)
+    bulk_upload(es, index, 'case', case_docs, batch_size)
+    bulk_upload(es, index, 'file', file_docs, batch_size)
+
+
+def async_upload_to_index(es, index, case_docs, ann_docs, file_docs,
+                          project_docs, batch_size=BATCH_SIZE):
+
+    """Spawn a thread to upload {case,ann,file,project}_docs to `index`
+    with Elasticsearch client `es` asynchronously
+
+    """
+
+    thread = Thread(target=upload_to_index, args=(
+        es,
+        index,
+        case_docs,
+        ann_docs,
+        file_docs,
+        project_docs,
+        batch_size,
+    ))
+
+    thread.start()
+
+    return thread
 
 
 class GDCElasticsearch(object):
@@ -86,26 +179,23 @@ class GDCElasticsearch(object):
 
     def denormalize_database(self):
         """Cache the database, stash the to_delete files, and build the
-        index"""
+        index. Returns a generator yielding (case, file, annotation,
+        project) docs for each project
+
+        """
 
         with self.graph.session_scope(must_inherit=True):
             self.log.info("Caching database")
             self.converter.cache_database()
 
             self.log.info("Denormalizing database into JSON docs")
-            index = self.converter.denormalize_all()
-            case_docs, file_docs, ann_docs, project_docs = index
 
-        self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
-                      len(case_docs),
-                      len(file_docs),
-                      len(ann_docs),
-                      len(project_docs))
+            project_indexes = self.converter.denormalize_all_by_projects()
 
-        self.log.info("Validating docs produced")
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+            for project_index in project_indexes:
+                # (case_docs, file_docs, ann_docs, project_docs)
+                yield project_index
 
-        return index
 
     def get_to_delete_nodes(self):
         """Store list of nodes to be deleted after index is successfully
@@ -128,34 +218,63 @@ class GDCElasticsearch(object):
 
         """
 
+        last_upload_thread = None
+
+        # Create index and upload mapping
+        index = self.setup_new_index()
+
+        case_count = 0
+        file_count = 0
+        annotation_count = 0
+        project_count = 0
+
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope():
+
+            # Store nodes that should be deleted later
             to_delete = self.get_to_delete_nodes()
-            index = self.denormalize_database()
 
-        case_docs, file_docs, ann_docs, project_docs = index
+            # Create generator that returns partial indexes
+            project_indexes = self.denormalize_database()
 
-        self.log.info("Deploying new ES index with new docs and bumping alias")
+            # Consume generator and load into ES asynchronously
+            for project_index in project_indexes:
+                case_docs, file_docs, ann_docs, project_docs = project_index
 
-        # Create index and upload mapping
-        new_index = self.setup_new_index()
+                case_count += len(case_docs)
+                annotation_count += len(ann_docs)
+                file_count += len(file_docs)
+                project_count += len(project_docs)
 
-        self.bulk_upload(new_index, 'project', project_docs, batch_size)
-        self.bulk_upload(new_index, 'annotation', ann_docs, batch_size)
-        self.bulk_upload(new_index, 'case', case_docs, batch_size)
-        self.bulk_upload(new_index, 'file', file_docs, batch_size)
+                # Only allow one index to upload asynchronously at
+                # one time, so join the last one if it exists
+                if last_upload_thread is not None:
+                    self.log.info("Waiting for previous upload thread...")
+                    last_upload_thread.join()
 
+                # Asynchronously upload this project
+                last_upload_thread = async_upload_to_index(
+                    self.es, index, case_docs, ann_docs, file_docs,
+                    project_docs, batch_size)
+                self.log.info("Spawned async upload thread")
+
+        # Wait for last upload thread
+        if last_upload_thread is not None:
+            self.log.info("Waiting on final upload thread.")
+            last_upload_thread.join()
+        else:
+            raise RuntimeError(
+                "No async thread was used, so no docs were uploaded.")
+
+        # Check the total number of docs are in ES
         self.check_document_counts(
-            new_index,
-            len(case_docs),
-            len(file_docs),
-            len(ann_docs),
-            len(project_docs))
+            index, case_count, file_count, annotation_count, project_count)
 
+        # Update the alias to point to the new index
         if roll_alias:
-            self.roll_alias(new_index)
+            self.roll_alias(index)
         else:
             self.log.info("Skipping alias roll / old index deletion")
 
@@ -163,10 +282,10 @@ class GDCElasticsearch(object):
 
         statsd.event(
             "esbuild finished",
-            "successfully built index {}".format(new_index),
+            "successfully built index {}".format(index),
             source_type_name="esbuild",
             alert_type="success",
-            tags=["es_index:{}".format(new_index)],
+            tags=["es_index:{}".format(index)],
         )
 
     def delete_to_delete_nodes(self, to_delete_nodes):
@@ -186,50 +305,6 @@ class GDCElasticsearch(object):
                 if node:
                     self.log.info("Deleting %s", node)
                     session.delete(node)
-
-    def pbar(self, title, maxval):
-        """Create and initialize a custom progressbar
-
-        :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
-
-        """
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
-        pbar.update(0)
-        return pbar
-
-    def bulk_upload(self, index, doc_type, docs, batch_size=BATCH_SIZE):
-        """Chunk and upload docs to Elasticsearch.  This function will raise
-        an exception of there were errors inserting any of the
-        documents
-
-        :param str index: The index to upload documents to
-        :param str doc_type: The type of document to pload as
-        :param list docs: The documents to upload
-        :param int batch_size: The number of docs per batch
-
-        """
-        if not docs:
-            return
-        instruction = {"index": {"_index": index, "_type": doc_type}}
-        pbar = self.pbar('{} upload '.format(doc_type), len(docs))
-
-        def body():
-            start = pbar.currval
-            for doc in docs[start:start+batch_size]:
-                yield instruction
-                yield doc
-                pbar.update(pbar.currval+1)
-        while pbar.currval < len(docs):
-            res = self.es.bulk(body=body())
-            if res['errors']:
-                raise RuntimeError(json.dumps([
-                    d for d in res['items'] if d['index']['status'] != 100
-                ], indent=2))
-        pbar.finish()
 
     def put_mappings(self, index):
         """Add mappings to index.
@@ -337,7 +412,7 @@ class GDCElasticsearch(object):
 
         """
 
-        msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
+        msg = 'There appears to be the wrong number of {0} files. {1} != {2}'
 
         es_file_count = self.es.count(index=index, doc_type="file")["count"]
         es_case_count = self.es.count(index=index, doc_type="case")["count"]
@@ -345,17 +420,16 @@ class GDCElasticsearch(object):
         es_project_count = self.es.count(index=index, doc_type="project")["count"]
 
         if es_file_count != file_count:
-            self.log.warning(msg, 'file', es_file_count, file_count)
+            self.log.warning(msg.format('file', es_file_count, file_count))
 
         if es_case_count != case_count:
-            self.log.warning(msg, 'case', es_case_count, case_count)
+            self.log.warning(msg.format('case', es_case_count, case_count))
 
         if es_ann_count != ann_count:
-            self.log.warning(msg, 'annotation', es_ann_count, ann_count)
+            self.log.warning(msg.format('annotation', es_ann_count, ann_count))
 
         if es_project_count != project_count:
-            self.log.warning(msg, 'project', es_project_count, project_count)
-
+            self.log.warning(msg.format('project', es_project_count, project_count))
 
     def roll_alias(self, new_index):
         """atomically switch the alias to point to the new index, and delete
