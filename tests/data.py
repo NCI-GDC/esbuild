@@ -710,6 +710,16 @@ NODES = [
         status="Rescinded",
     ),
     Annotation(
+        node_id='rescinded-redaction-annotation',
+        category='Administrative Compliance',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Case temporarily redacted',
+        state='submitted',
+        submitter_id='18675',
+        status="Rescinded",
+    ),
+    Annotation(
         node_id='annotation-without-downstream',
         state='submitted',
     ),
@@ -998,6 +1008,10 @@ EDGES = [
     ),
     BiospecimenSupplementDerivedFromCase(
         src_id='biospecimen_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    AnnotationAnnotatesCase(
+        src_id='rescinded-redaction-annotation',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     ClinicalSupplementDerivedFromCase(

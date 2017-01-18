@@ -1715,15 +1715,23 @@ class GraphIndexBuilder(object):
         to_suppress.extend(extra)
         return to_suppress
 
+    def get_redaction_annotations(self):
+        """Returns an iterator of annotations that should cause redactions"""
+
+        return (
+            annotation for annotation in self.nodes_labeled('annotation')
+            if annotation.classification == "Redaction"
+            and annotation.status != 'Rescinded'
+            and annotation.category not in self.redacted_but_not_suppressed
+        )
+
     def suppressed_nodes(self):
         """
         Find all nodes that need to be suppressed due to redactions.
         """
-        redactions = [a for a in self.nodes_labeled('annotation')
-                      if a.classification == "Redaction" and
-                      a.category not in self.redacted_but_not_suppressed]
+
         to_suppress = []
-        for redaction in redactions:
+        for redaction in self.get_redaction_annotations():
             redacted_list = self.G.neighbors(redaction)
 
             if len(redacted_list) == 0:
