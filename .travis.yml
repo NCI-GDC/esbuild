@@ -5,6 +5,8 @@ python:
 
 sudo: false
 
+node: 6
+
 services:
   - elasticsearch
 
