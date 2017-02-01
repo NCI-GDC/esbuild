@@ -27,6 +27,22 @@ export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
 python bin/build_graph_index.py
 ```
 
+# Trouble shooting
+
+Included in the module are two `mimic` builders, one for legacy and
+active.  These can be used to test functionality against nodes,
+e.g. testing `builder.is_node_indexed(node)` to troubleshoot nodes
+that are not showing up in the index.
+
+```python
+>>> from esbuild.graph.active.mimic import ActiveMimic
+>>> from gdcdatamodel.models import Case
+>>> mimic = ActiveMimic(None)
+>>> mimic.is_node_indexed(Case())
+[...][graph_index][   INFO] not indexed (unsubmitted state: <Case(None)>): None
+False
+```
+
 # Installation
 
 Before continuing you must have the following programs installed:
