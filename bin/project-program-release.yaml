@@ -1,0 +1,35 @@
+# NOTES:
+# The assumption for this configuration file is that there will be one block
+# per esbuild run. When the esbuild wrapper is kicked off, there is a line
+# that runs the code to read this file in and migrade the project/program
+# states. In here, we've got what will happen based on which esbuild
+# script is kicked off. Within each, the format is simple. A list of 
+# programs (all caps), a list of projects (or single for all, more on that
+# in a sec), and the desired state for those projects.
+# If it is desired to have all projects for a state set, then the argument
+# to PROJECTS should be '*' (on the same line). Otherwise, a list of projects
+# should be given (even if there's only one project). The output of the
+# program will describe what it does and tell how many states changed.
+
+ACTIVE:
+    PROGRAMS:
+        CCLE:
+            PROJECTS: '*'
+            RELEASED: False
+        TARGET:
+            PROJECTS:
+                - ALL-P1
+                - ALL-P2
+            RELEASED: False
+
+LEGACY:
+    PROGRAMS:
+        CCLE:
+            PROJECTS: '*'
+            RELEASED: True
+        TARGET:
+            PROJECTS:
+                - ALL-P1
+                - ALL-P2
+            RELEASED: True
+
