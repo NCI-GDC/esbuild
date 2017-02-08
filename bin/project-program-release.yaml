@@ -4,12 +4,13 @@
 # that runs the code to read this file in and migrade the project/program
 # states. In here, we've got what will happen based on which esbuild
 # script is kicked off. Within each, the format is simple. A list of 
-# programs (all caps), a list of projects (or single for all, more on that
-# in a sec), and the desired state for those projects.
-# If it is desired to have all projects for a state set, then the argument
-# to PROJECTS should be '*' (on the same line). Otherwise, a list of projects
-# should be given (even if there's only one project). The output of the
-# program will describe what it does and tell how many states changed.
+# programs (matching program.name in psql), a list of projects as (matching
+# project.code, or single entry for all, more on that in a sec), and the
+# desired state for those projects. If it is desired to have all projects 
+# for a state set, then the argument to PROJECTS should be '*' (on the same
+# line). Otherwise, a list of projects should be given (even if there's only 
+# one project). The output of the program will describe what it does and tell
+# how many states changed.
 
 ACTIVE:
     PROGRAMS:
