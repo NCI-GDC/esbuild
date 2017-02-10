@@ -65,6 +65,18 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         projects = self.denormalize_projects()
         return cases, files, annotations, projects
 
+    def is_node_indexed(self, node):
+        """Augments parent's method"""
+        if not super(LegacyGraphIndexBuilder, self).is_node_indexed(node):
+            return False
+        else:
+            if node.label == 'project':
+                return node.state == 'legacy'
+            elif node.label == 'case':
+                projects = list(self.neighbors_labeled(node, 'project', 1))
+                return any([p.state == 'legacy' for p in projects])
+            else:
+                return True
 
     def get_archive_as_file_doc(self, archive):
         """Returns a an archive doc in format consistent with file index"""
@@ -73,7 +85,6 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         self.validate_against_mapping(archive_doc, self.file_mapping)
 
         return archive_doc
-
 
     def denormalize_archive_files(self, visited_file_ids=None):
         """Starting at each archive in the graph, denormalize its files.
