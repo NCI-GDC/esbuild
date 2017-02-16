@@ -516,6 +516,13 @@ NODES = [
         primary_site="-",
         disease_type="-",
     ),
+    Case(
+        # ticket API-188
+        node_id='fake_active_case',
+        project_id='TCGA-MAXPY_fake',
+        state='submitted',
+        submitter_id='fake_submitter',
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
@@ -920,6 +927,15 @@ NODES = [
         code="BRCA",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
+    ),
+    # API-188 ticket
+    Project(
+        node_id='fake_active_project',
+        released=True,
+        state="open",
+        code="MAXPY_fake",
+        dbgap_accession_number=None,
+        name="API-188 jira ticket",
     ),
     Project(
         node_id='unreleased-project',
@@ -1488,6 +1504,16 @@ EDGES = [
     ProjectMemberOfProgram(
         src_id='unreleased-project',
         dst_id='internal-project',
+    ),
+
+    #  Ticket API-188
+    ProjectMemberOfProgram(
+        src_id='fake_active_project',
+        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
+    CaseMemberOfProject(
+        src_id='fake_active_case',
+        dst_id='fake_active_project',
     ),
 ]
 

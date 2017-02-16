@@ -193,9 +193,9 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 
 
 @pytest.mark.parametrize('doc_type,path,count', [
-    ('projects', '[*].primary_site', 1),
-    ('projects', '[*].disease_type', 1),
-    ('cases', '[*].project.project_id', 1),
+    ('projects', '[*].primary_site', 2),
+    ('projects', '[*].disease_type', 2),
+    ('cases', '[*].project.project_id', 2),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
@@ -218,7 +218,7 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].name', 1, {'Breast Invasive Carcinoma'}),
+    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'API-188 jira ticket'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
      6, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
@@ -229,7 +229,7 @@ def test_path_count(index, doc_type, path, count):
          'Copy Number Variation',
          'DNA Methylation',
      }),
-    ('cases', '[*].submitter_id', 1, {'TCGA-AR-A1AR'}),
+    ('cases', '[*].submitter_id', 2, {'TCGA-AR-A1AR', 'fake_submitter'}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -277,8 +277,8 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
-    ('projects', '[*].primary_site', 1, {'Breast'}),
+    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -435,7 +435,7 @@ def test_aligned_reads_ancestor_sample_types(graph, index, aligned_reads):
 
 def test_no_duplicate_top_level_ids(index):
     for case in index.cases:
-        aliquot_ids = case['aliquot_ids']
+        aliquot_ids = case.get('aliquot_ids', [])
         assert len(aliquot_ids) == len(set(aliquot_ids))
 
 
