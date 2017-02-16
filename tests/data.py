@@ -618,6 +618,16 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A135-09',
     ),
+    # Aliquot(
+    #     # API-188 ticket
+    #     node_id='fake_aliquot',
+    #     project_id='TCGA-MAXPY_fake',
+    #     # state='submitted',
+    #     # amount=40.0,
+    #     # concentration=0.08,
+    #     # source_center='23',
+    #     submitter_id='fake_submitter',
+    # ),
     Slide(
         node_id='3013e9be-aa3e-4986-990c-559982f00e36',
         project_id='TCGA-BRCA',
