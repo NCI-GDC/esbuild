@@ -955,6 +955,14 @@ class GraphIndexBuilder(object):
         """
 
         for archive in set(self.neighbors_labeled(node, 'archive')):
+            is_skipped_legacy_edge = (
+                node.label == 'file' and
+                self.G[node][archive].get('label') != 'member_of'
+            )
+
+            if is_skipped_legacy_edge:
+                continue
+
             if 'archive' in doc:
                 return self.warning(
                     "Duplicate archives for {}".format(node),
@@ -962,21 +970,15 @@ class GraphIndexBuilder(object):
                     tags=["file_id:{}".format(node.node_id)],
                 )
 
-            is_skipped_legacy_edge = (
-                node.label == 'file' and
-                self.G[node][archive].get('label') != 'member_of'
-            )
+            archive_doc = self._get_base_doc(archive)
 
-            if not is_skipped_legacy_edge:
-                archive_doc = self._get_base_doc(archive)
+            # Archive is a file_doc for the legacy index, so it
+            # will have `file_id` not `archive_id`.  If so, coerce
+            # it back here.
+            if 'file_id' in archive_doc:
+                archive_doc['archive_id'] = archive_doc.pop('file_id')
 
-                # Archive is a file_doc for the legacy index, so it
-                # will have `file_id` not `archive_id`.  If so, coerce
-                # it back here.
-                if 'file_id' in archive_doc:
-                    archive_doc['archive_id'] = archive_doc.pop('file_id')
-
-                doc['archive'] = archive_doc
+            doc['archive'] = archive_doc
 
     def add_data_category(self, node, doc):
         """Add the data_subtype to the file document with child data_category
@@ -1191,6 +1193,19 @@ class GraphIndexBuilder(object):
                 'data_category': data_category,
                 'file_count': len(dt_files),
             })
+
+        # Summarize diesease_type and primary_site
+        disease_types = set()
+        primary_sites = set()
+
+        for case in cases:
+            if case['disease_type']:
+                disease_types.add(case['disease_type'])
+            if case['primary_site']:
+                primary_sites.add(case['primary_site'])
+
+        doc['disease_type'] = list(disease_types)
+        doc['primary_site'] = list(primary_sites)
 
         # Compile summary
         doc['summary'] = {
@@ -1539,11 +1554,6 @@ class GraphIndexBuilder(object):
         if node.system_annotations.get("to_delete"):
             return False
 
-        # Is file not live
-        if node.state not in ['live', 'submitted']:
-            log.info('File not indexed (bad state: %s): %s', node, node.state)
-            return False
-
         return True
 
     def is_omitted_project_or_neighbor_case(self, node):
@@ -1603,28 +1613,53 @@ class GraphIndexBuilder(object):
 
         return False
 
-    def is_node_indexed(self, node):
-        """Returns false if the node is not supposed to be indexed.
+    def is_node_public(self, node):
+        """Returns whether a node is public.
+
+        A node is public if:
+        1. it's a project and it's released
+        2. it's a node with a 'state' that is a submitted state
+        3. it's not a project or it doesn't have a state defined on it
 
         """
 
+        submitted_states = {'live', 'submitted'}
+
+        if node.label == 'project':
+            return node.released is True
+
+        elif 'state' not in node.__pg_properties__:
+            return True
+
+        elif node.state in submitted_states:
+            return True
+
+    def is_node_indexed(self, node):
+        """Returns false if the node is not supposed to be indexed"""
+
+        # Is the node allowed to be displayed publicly
+        if not self.is_node_public(node):
+            log.info('not indexed (unsubmitted state: %s): %s',
+                     node, node._props.get('state'))
+            return False
+
         if self.is_unindexed_case(node):
-            log.info('Node not indexed (case not indexed): {}'.format(node))
+            log.info('not indexed (case not indexed): %s', node)
             return False
 
         # Check for non-indexed files
         if not self.is_file_indexed(node):
-            log.info('Node not indexed (file not indexed): {}'.format(node))
+            log.info('not indexed (file not indexed): %s', node)
             return False
 
         # Check for non-indexed files
         if self.is_node_unindexed_by_property(node):
-            log.info('Node not indexed (not by property): {}'.format(node))
+            log.info('not indexed (by property): %s', node)
             return False
 
         # Check for omitted_projects
         if self.is_omitted_project_or_neighbor_case(node):
-            log.info('Node not indexed (omitted project ): {}'.format(node))
+            log.info('not indexed (omitted project): %s', node)
             return False
 
         return True
@@ -1680,15 +1715,23 @@ class GraphIndexBuilder(object):
         to_suppress.extend(extra)
         return to_suppress
 
+    def get_redaction_annotations(self):
+        """Returns an iterator of annotations that should cause redactions"""
+
+        return (
+            annotation for annotation in self.nodes_labeled('annotation')
+            if annotation.classification == "Redaction"
+            and annotation.status != 'Rescinded'
+            and annotation.category not in self.redacted_but_not_suppressed
+        )
+
     def suppressed_nodes(self):
         """
         Find all nodes that need to be suppressed due to redactions.
         """
-        redactions = [a for a in self.nodes_labeled('annotation')
-                      if a.classification == "Redaction" and
-                      a.category not in self.redacted_but_not_suppressed]
+
         to_suppress = []
-        for redaction in redactions:
+        for redaction in self.get_redaction_annotations():
             redacted_list = self.G.neighbors(redaction)
 
             if len(redacted_list) == 0:

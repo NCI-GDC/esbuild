@@ -31,6 +31,7 @@ def fuzzed(node_class, node_id=None, **kwargs):
 
         if key in kwargs:
             continue
+
         # State
         if 'state' not in kwargs and 'state' in node_class.__pg_properties__:
             kwargs['state'] = 'submitted'
@@ -180,8 +181,8 @@ NODES = [
     fuzzed(
         AlignedReads,
         node_id='active-file-with-empty-acl',
+        state='submitted',
         acl=[],
-        state='live',
         file_name='test-file-4.bam',
     ),
     fuzzed(
@@ -277,6 +278,7 @@ NODES = [
     ),
     SubmittedAlignedReads(
         node_id='submitted-aligned-reads-without-downstream',
+        state='submitted',
         acl=['phs000178'],
     ),
     fuzzed(
@@ -327,10 +329,12 @@ NODES = [
     ),
     ReadGroup(
         node_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
+        state='submitted',
         project_id='TCGA-BRCA',
     ),
     Clinical(
         node_id='3239e85f-6be7-417b-b8e9-073c4d9c311c',
+        state='submitted',
         project_id='TCGA-BRCA',
         age_at_diagnosis=34,
     ),
@@ -338,6 +342,7 @@ NODES = [
         node_id='fe0dab0c-55d1-4721-8ebd-f5eb7b2c2f01',
         project_id='TCGA-BRCA',
         ethnicity='hispanic or latino',
+        state='submitted',
         gender='male',
         race='white',
         submitter_id='TCGA-AB-2846_demographicID1',
@@ -346,6 +351,7 @@ NODES = [
     ),
     Exposure(
         node_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
+        state='submitted',
         alcohol_history='',
         alcohol_intensity='',
         bmi=-1,
@@ -358,6 +364,7 @@ NODES = [
     ),
     FamilyHistory(
         node_id='b56a74f5-650e-4fa4-8870-b0cf1d19c40c',
+        state='submitted',
         project_id=u'TCGA-DEV1',
         relationship_age_at_diagnosis=10,
         relationship_gender=u'male',
@@ -367,6 +374,7 @@ NODES = [
     ),
     Diagnosis(
         node_id='5880dfde-9cc4-4027-92ec-921148fd0d40',
+        state='submitted',
         age_at_diagnosis=47,
         classification_of_tumor=u'other',
         days_to_birth=-17238,
@@ -388,6 +396,7 @@ NODES = [
     ),
     Treatment(
         node_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
+        state='submitted',
         days_to_treatment=None,
         project_id=u'TCGA-DEV3',
         submitter_id=u'TCGA-DEV-3-CASE-014-DIAG1-TR1',
@@ -480,6 +489,14 @@ NODES = [
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='TCGA-AR-A1AR',
+        primary_site='Breast',
+        disease_type='Breast Invasive Carcinoma'
+    ),
+    Case(
+        node_id='unsubmitted-case',
+        project_id='TCGA-BRCA',
+        state='validated',
+        submitter_id='unsubmitted-case',
     ),
     Case(
         # floating case. has no neighbors
@@ -487,6 +504,8 @@ NODES = [
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='TCGA-AR-A2AR',
+        primary_site='Breast',
+        disease_type='Breast Invasive Carcinoma'
     ),
     Case(
         # case in unreleased project
@@ -494,6 +513,8 @@ NODES = [
         project_id='INTERNAL-DEV1',
         state='submitted',
         submitter_id='INTERNAL-DEV-CASE-0001',
+        primary_site="-",
+        disease_type="-",
     ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
@@ -685,10 +706,22 @@ NODES = [
     ),
     Annotation(
         node_id='rescinded-annotation',
+        state='submitted',
+        status="Rescinded",
+    ),
+    Annotation(
+        node_id='rescinded-redaction-annotation',
+        category='Administrative Compliance',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Case temporarily redacted',
+        state='submitted',
+        submitter_id='18675',
         status="Rescinded",
     ),
     Annotation(
         node_id='annotation-without-downstream',
+        state='submitted',
     ),
     fuzzed(
         SomaticMutationCallingWorkflow,
@@ -895,8 +928,6 @@ NODES = [
         released=True,
         state="legacy",
         code="BRCA",
-        primary_site="Breast",
-        disease_type="Breast Invasive Carcinoma",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
     ),
@@ -905,8 +936,6 @@ NODES = [
         released=False,
         state="open",
         code="DEV1",
-        primary_site="-",
-        disease_type="-",
         dbgap_accession_number='gdc000001',
         name="Dev project",
     ),
@@ -979,6 +1008,10 @@ EDGES = [
     ),
     BiospecimenSupplementDerivedFromCase(
         src_id='biospecimen_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    AnnotationAnnotatesCase(
+        src_id='rescinded-redaction-annotation',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     ClinicalSupplementDerivedFromCase(
@@ -1224,6 +1257,10 @@ EDGES = [
         properties={}),
     CaseMemberOfProject(
         src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+        dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
+        properties={}),
+    CaseMemberOfProject(
+        src_id='unsubmitted-case',
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
     CaseMemberOfProject(

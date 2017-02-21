@@ -55,11 +55,14 @@ def test_annotation_case_submitter_id(graph):
         case.annotations = [annotation]
         s.merge(case)
 
-    index = build_index(graph)
-    for annotation in index.annotations:
-        if annotation['entity_type'] == 'case':
-            assert annotation['case_id'] == annotation['entity_id']
-            assert annotation['case_submitter_id'] == case.submitter_id
+    annotation = [
+        ann for ann in build_index(graph).annotations
+        if ann['annotation_id'] == annotation.node_id
+    ][0]
+
+    assert annotation['entity_type'] == 'case'
+    assert annotation['case_id'] == annotation['entity_id']
+    assert annotation['case_submitter_id'] == case.submitter_id
 
 
 @pytest.mark.parametrize('doc_type,path,count', [
@@ -70,7 +73,7 @@ def test_annotation_case_submitter_id(graph):
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
     ('files', '[*].file_size', 8),
     ('files', '[*].associated_entities', 6),
-    ('annotations', '[*].annotation_id', 2),
+    ('annotations', '[*].annotation_id', 3),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
