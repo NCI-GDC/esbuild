@@ -27,6 +27,36 @@ export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
 python bin/build_graph_index.py
 ```
 
+While running, we have a temporary fix in that allows the proper
+released states to be set per program/project for active vs legacy.
+
+This is a temporary solution that automates the setting of these
+flags. We have a PR in that fixes this at the root level, and when
+that is done, this code should be removed.
+
+This code is automatically run from the esbuild wrapper, so no 
+extra execution is necessary.
+
+In the meantime, the format is this:
+```ACTIVE: # Which build is running, either ACTIVE or LEGACY
+    PROGRAMS: # The set of programs that are to be altered
+        CCLE: # The program name, all in caps
+            PROJECTS: '*' # Wildcard which means "do every project", this
+                          # should never be a list, just a single entry
+            RELEASED: False # The state to set released to for these programs
+        TARGET:
+            PROJECTS: # If wildcard isn't used, a list of project names
+                      # is expected, matching exactly the code in psql
+                      # This should always be a list, so dashes even
+                      # if there's only one project name
+                - ALL-P1
+                - ALL-P2
+            RELEASED: False
+```
+This data is checked in in a yaml file (project-program-release.yaml) in the 
+bin directory of esbuild. It is deployed and can be edited on the esbuild 
+machine to change as need be.
+=======
 # Architecture
 
 ## Build and Upload Process
