@@ -1,0 +1,3 @@
+[submodule "esbuild/graph/common/gdc-models"]
+	path = esbuild/graph/common/gdc-models
+	url = git@github.com:NCI-GDC/gdc-models.git

@@ -1,25 +1,16 @@
-# -*- coding: utf-8 -*-
-"""
-esbuild.graph.common.mappings
-----------------------------------
-
-Common definitions for building GDC Elasticsearch mappings
-
-"""
-
 from addict import Dict
+import yaml
+import os
+
 from gdcdictionary import gdcdictionary
-from copy import deepcopy
 from psqlgraph import Node
 
-# These values specify the multiplicity of the relationship from
-# parent to child.
+
+# ======================================================================
+# Parent-child relationships
+
 ONE_TO_ONE = '__one_to_one__'
 ONE_TO_MANY = '__one_to_many__'
-
-DATA_FILE_CATEGORIES = [
-    'data_file',
-]
 
 # ======================================================================
 # Types
@@ -37,22 +28,7 @@ INTEGER = {
 }
 
 
-def get_es_type(_type):
-    if long in _type or int in _type:
-        return 'long'
-    elif float in _type:
-        return 'double'
-    else:
-        return 'keyword'
-
-
-# ======================================================================
-# Index settings
-
-class ESMapper(object):
-
-    # These are the types of data_file that will be treated as a file
-    file_labels = ['file']
+class BaseESMapper(object):
 
     top_level_ids = [
         'sample',
@@ -62,34 +38,155 @@ class ESMapper(object):
         'slide',
     ]
 
-    flatten = [
-        'tag',
-        'platform',
-        'data_format',
-        'experimental_strategy',
-    ]
+    @staticmethod
+    def get_mapping(mapping_type):
+        """
+        Reads .yaml mapping from gdc-models into a dictionary
 
-    multifields = {
-        'project': [
-            'disease_type',
-            'name',
-            'primary_site',
-        ],
-        'annotation': [
-            'annotation_id',
-            'entity_id',
-        ],
-        'files': [
-            'file_id',
-            'file_name',
-        ],
-        'case': [
-            'primary_site',
-            'disease_type',
-            'case_id',
-            'submitter_id',
-        ],
-    }
+        :mapping_type in ['annotation', 'case', 'file', 'project', 'settings']
+        :returns <dict>
+        """
+        assert mapping_type in ['annotation', 'case', 'file', 'project',
+                                'settings']
+
+        if mapping_type != 'settings':
+            mapping_type = mapping_type + '.mapping'
+
+        def step_up(path, n_times=1):
+            if n_times == 1:
+                return os.path.dirname(path)
+            else:
+                return step_up(os.path.dirname(path), n_times - 1)
+
+        root_dir = step_up(os.path.abspath(__file__), n_times=2)
+        root_dir = os.path.join(root_dir, 'common', 'gdc-models', 'es-models',
+                                'gdc_from_graph')
+        filename = '{}.yaml'.format(mapping_type)
+
+        with open(os.path.join(root_dir, filename), 'r') as f:
+            mapping = yaml.safe_load(f.read())
+
+        return mapping
+
+    @classmethod
+    def get_annotation_es_mapping(cls):
+        mapping = cls.get_mapping('annotation')
+        mapping.update(cls._get_header().to_dict())
+        return mapping
+
+    @classmethod
+    def get_case_es_mapping(cls):
+        mapping = cls.get_mapping('case')
+        mapping.update(cls._get_header().to_dict())
+        return mapping
+
+    @classmethod
+    def get_file_es_mapping(cls):
+        mapping = cls.get_mapping('file')
+        mapping.update(cls._get_header().to_dict())
+        return mapping
+
+    @classmethod
+    def get_project_es_mapping(cls):
+        mapping = cls.get_mapping('project')
+        mapping.update(cls._get_header().to_dict())
+	return mapping
+
+    @classmethod
+    def index_settings(cls):
+        settings = {
+            "settings": {
+	    	"mapping.nested_fields.limit": 150,
+		"index.mapping.total_fields.limit": 2000,
+                "analysis": {
+                    "analyzer": {
+                        "id_search": {
+                            "tokenizer": "whitespace",
+                            "filter": ["lowercase"],
+                            "type": "custom"
+                        },
+                        "id_index": {
+                            "tokenizer": "whitespace",
+                            "filter": [
+                                "lowercase",
+                                "edge_ngram"
+                            ],
+                            "type": "custom"
+                        }
+                    },
+                    "filter": {
+                        "edge_ngram": {
+                            "side": "front",
+                            "max_gram": 20,
+                            "min_gram": 2,
+                            "type": "edge_ngram"
+                        }
+                    }
+                }
+            }
+        }
+	
+	loaded_settings = cls.get_mapping('settings')['analysis']
+	
+	for a in ['analyzer', 'filter']:
+	    settings['settings']['analysis'][a].update(loaded_settings[a])
+
+        return settings
+
+    @classmethod
+    def _get_header(cls):
+        header = Dict()
+        header.dynamic = 'strict'
+        header._all.enabled = False
+        header._source.excludes = ["__comment__"]
+        header._meta.descriptions = cls._get_descriptions()
+        return header
+
+    @classmethod
+    def _get_descriptions(cls):
+        """
+        Get a description for properties of all defined node types
+        """
+        descriptions = {}
+
+        descriptions.update({
+            'files.file.{}'.format(prop):
+                cls._get_prop_description('file', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+        descriptions.update({
+            'cases.case.{}'.format(prop):
+                cls._get_prop_description('case', prop)
+            for prop in Node.get_subclass('case').__pg_properties__})
+        descriptions.update({
+            'projects.project.{}'.format(prop):
+                cls._get_prop_description('project', prop)
+            for prop in Node.get_subclass('project').__pg_properties__})
+        descriptions.update({
+            'annotations.annotation.{}'.format(prop):
+                cls._get_prop_description('annotation', prop)
+            for prop in Node.get_subclass('file').__pg_properties__})
+
+        return descriptions
+
+    @classmethod
+    def _get_prop_description(cls, label, prop):
+        """
+        Look the description up from the ``term`` if it exists, else try
+        the jsonschema property description, else return None
+        """
+
+        definition = gdcdictionary.schema[label]['properties'].get(prop)
+        if not definition:
+            return None
+
+        term = definition.get('term', None)
+
+        if not term or not isinstance(term, dict):
+            return definition.get('description', None)
+        else:
+            return term.get('description', None)
+
+    #################### Handwritten mapping trees ####################
 
     @staticmethod
     def get_file_tree():
@@ -166,431 +263,3 @@ class ESMapper(object):
         project_tree.program.corr = (ONE_TO_ONE, 'program')
 
         return project_tree
-
-    # ======================================================================
-    # Denormalization configuration options
-
-    @staticmethod
-    def index_settings():
-        return {
-            "settings": {
-                "mapping.nested_fields.limit": "150",
-                "index.mapping.total_fields.limit": 2000,
-                "analysis": {
-                    "analyzer": {
-                        "id_search": {
-                            "tokenizer": "whitespace",
-                            "filter": ["lowercase"],
-                            "type": "custom"
-                        },
-                        "id_index": {
-                            "tokenizer": "whitespace",
-                            "filter": [
-                                "lowercase",
-                                "edge_ngram"
-                            ],
-                            "type": "custom"
-                        }
-                    },
-                    "filter": {
-                        "edge_ngram": {
-                            "side": "front",
-                            "max_gram": 20,
-                            "min_gram": 2,
-                            "type": "edge_ngram"
-                        }
-                    }
-                }
-            }
-        }
-
-    # ======================================================================
-    # Utility functions
-
-    @classmethod
-    def get_prop_description(cls, label, prop):
-        """Look the description up from the ``term`` if it exists, else try
-        the jsonschema property description, else return None
-
-        """
-
-        definition = gdcdictionary.schema[label]['properties'].get(prop)
-        if not definition:
-            return None
-
-        term = definition.get('term', None)
-
-        if not term or not isinstance(term, dict):
-            return definition.get('description', None)
-        else:
-            return term.get('description', None)
-
-    @classmethod
-    def get_descriptions_from_tree(cls, tree, root_name, path=''):
-        """Given a tree (file, case, etc) recurively aggregate the
-        descriptions
-
-        :returns:
-            Flattened dict of descriptions with keys like
-            ``diagnoses.submitter_id``
-
-        """
-        descriptions = {}
-
-        for label in [key for key in tree if key != 'corr']:
-            _, name = tree[label]['corr']
-
-            # recur
-            descriptions.update(cls.get_descriptions_from_tree(
-                tree[label], root_name, path + '.' + name))
-
-            # add current level
-            descriptions.update({
-                '{}{}.{}.{}'.format(root_name, path, name, prop):
-                cls.get_prop_description(label, prop)
-                for prop in Node.get_subclass(label).__pg_properties__
-            })
-
-        return descriptions
-
-    @classmethod
-    def get_descriptions(cls):
-        """Get a description for properties of all defined node types
-
-        """
-        descriptions = {}
-        descriptions.update(cls.get_descriptions_from_tree(
-            cls.get_annotation_tree(), 'annotations'))
-        descriptions.update(cls.get_descriptions_from_tree(
-            cls.get_case_tree(), 'cases'))
-        descriptions.update(cls.get_descriptions_from_tree(
-            cls.get_file_tree(), 'files'))
-        descriptions.update(cls.get_descriptions_from_tree(
-            cls.get_project_tree(), 'projects'))
-
-        descriptions.update({
-            'files.file.{}'.format(prop):
-            cls.get_prop_description('file', prop)
-            for prop in Node.get_subclass('file').__pg_properties__})
-        descriptions.update({
-            'cases.case.{}'.format(prop):
-            cls.get_prop_description('case', prop)
-            for prop in Node.get_subclass('case').__pg_properties__})
-        descriptions.update({
-            'projects.project.{}'.format(prop):
-            cls.get_prop_description('project', prop)
-            for prop in Node.get_subclass('project').__pg_properties__})
-        descriptions.update({
-            'annotations.annotation.{}'.format(prop):
-            cls.get_prop_description('annotation', prop)
-            for prop in Node.get_subclass('file').__pg_properties__})
-
-        return descriptions
-
-    @classmethod
-    def _get_header(cls, source):
-        header = Dict()
-        header.dynamic = 'strict'
-        header._all.enabled = False
-        header._source.excludes = ["__comment__"]
-        header._meta.descriptions = cls.get_descriptions()
-        return header
-
-    @classmethod
-    def get_base_properties(cls, source, include_id=True):
-        # Get properties from schema
-        node_type = Node.get_subclass(source)
-        assert node_type, 'No model for {}'.format(source)
-
-        properties = dict(node_type.get_pg_properties())
-        doc = Dict()
-
-        if include_id:
-            # Add id to document
-            id_name = '{}_id'.format(source)
-            doc[id_name] = STRING
-
-        if properties.pop('submitter_id', None):
-            doc.update(cls.multifield('submitter_id'))
-
-        # Add all properties to document
-        fields = properties.keys()
-        for field in fields:
-            _type = get_es_type(properties[field] or [])
-            # assign the type
-            doc[field] = {'type': _type}
-
-        if source != 'project':
-            doc.pop('project_id', None)
-
-        return doc
-
-    @staticmethod
-    def multifield(name):
-        doc = Dict()
-        doc.type = 'text'
-
-        # Raw
-        doc.fields.raw.store = True
-        doc.fields.raw.type = 'keyword'
-
-        # Analyzed
-        doc.fields.analyzed.analyzer = "id_search"
-        doc.fields.analyzed.type = "text"
-
-        # Search
-        doc.fields.search.analyzer = 'id_search'
-        doc.fields.search.type = 'text'
-        return Dict({name: doc})
-
-    @staticmethod
-    def flatten_data_type(root):
-        """Compress nested data_type and sub_type into flat key/value
-
-        ..note::
-            data_type is renamed data_category, viz.
-            https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-        ..note::
-            data_subtype is renamed data_type, viz.
-            https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-        """
-        root.data_type = STRING
-
-        # data_type is renamed data_category, viz.
-        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        root.data_category = STRING
-
-    @classmethod
-    def nested(cls, source):
-        return Dict(type='nested', properties=cls.get_base_properties(source))
-
-    @classmethod
-    def add_multifields(cls, doc, source):
-        for key in cls.multifields[source]:
-            doc.properties.update(cls.multifield(key))
-
-    @staticmethod
-    def patch_project(doc):
-        doc.pop('code')
-
-    @classmethod
-    def _walk_tree(cls, tree, mapping):
-        for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
-            corr, name = v['corr']
-            if name not in mapping:
-                mapping[name] = {'properties': {}}
-            if k in cls.flatten:
-                mapping[name] = STRING
-            elif k == 'annotation':
-                mapping.annotations = cls.annotation_body()
-                mapping.annotations.type = 'nested'
-            else:
-                nested = (corr == ONE_TO_MANY)
-                mapping[name].properties.update(cls.get_base_properties(k))
-                cls._walk_tree(tree[k], mapping[name]['properties'])
-                if nested:
-                    mapping[name]['type'] = 'nested'
-        return mapping
-
-    @classmethod
-    def get_properties_by_category(cls, category):
-        doc = Dict()
-        classes = (
-            c for c in Node.get_subclasses()
-            if c._dictionary['category'] == category
-        )
-
-        for c in classes:
-            doc.update(cls.get_base_properties(c.label, include_id=False))
-
-        return doc
-
-    # ======================================================================
-    # Mappings
-
-    @classmethod
-    def get_file_es_mapping(cls, include_case=True, is_root=True):
-        files = cls._get_header('file') if is_root else Dict()
-
-        # Let top level properties be a union over properties from all
-        # node types that this mapper considers a file
-        files.properties = Dict({
-            key: value
-            for node in Node.get_subclasses()
-            if node.label in cls.file_labels
-            for key, value in
-            cls.get_base_properties(node.label, include_id=False).iteritems()
-        })
-
-        files.properties = cls._walk_tree(
-            cls.get_file_tree(),
-            files.properties
-        )
-
-        cls.flatten_data_type(files.properties)
-
-        # Specify the type of file
-        files.properties.type = STRING
-
-        # Specify the entity the file was derived from
-        files.properties.associated_entities.type = 'nested'
-        files.properties.associated_entities.properties.entity_type = STRING
-        files.properties.associated_entities.properties.entity_id = STRING
-        files.properties.associated_entities.properties.entity_submitter_id = STRING
-        files.properties.associated_entities.properties.update(cls.multifield('case_id'))
-
-        # Patch file mutlifields
-        cls.add_multifields(files, 'files')
-
-        # Related files
-        metadata_files = cls.nested('file')
-        metadata_files.properties.type = STRING
-        #   data_type is renamed data_category, viz.
-        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        metadata_files.properties.data_category = STRING
-        #   data_subtype is renamed data_type, viz.
-        #   https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        metadata_files.properties.data_type = STRING
-        metadata_files.properties.data_format = STRING
-        metadata_files.properties.access = STRING
-        files.properties.metadata_files = metadata_files
-
-        # Index files
-        index_files = cls.nested('file')
-        index_files.properties.data_format = STRING
-        files.properties.index_files = index_files
-
-        # File access
-        files.properties.access = STRING
-        files.properties.acl = STRING
-
-        # Other file properties
-        files.properties.origin = STRING
-
-        # Case
-        files.properties.pop('case', None)
-        if include_case:
-            files.properties.cases = cls.get_case_es_mapping(False, is_root=False)
-            files.properties.cases.type = 'nested'
-
-        return deepcopy(files.to_dict())
-
-    @classmethod
-    def get_case_es_mapping(cls, include_file=True, is_root=True):
-        # case body
-        case = cls._get_header('case') if is_root else Dict()
-        case.properties = cls._walk_tree(
-            cls.get_case_tree(),
-            cls.get_base_properties('case')
-        )
-        case.properties.days_to_index = LONG
-
-        # Remove case.samples.aliquots from mapping
-        case.properties.samples.properties.pop('aliquots')
-
-        # Patch project
-        cls.patch_project(case.properties.project.properties)
-
-        # Patch case mutlifields
-        cls.add_multifields(case, 'case')
-
-        # Add top level id aggregation
-        for label in cls.top_level_ids:
-            case.properties['{}_ids'.format(label)] = STRING
-            case.properties['submitter_{}_ids'.format(label)] = STRING
-
-        # Add pop whatever file is present and add correct files
-        case.properties.pop('file', None)
-        if include_file:
-            case.properties.files = cls.get_file_es_mapping(True, is_root=False)
-            case.properties.files.type = 'nested'
-
-        # Adjust file properties
-        case.properties.files.properties.pop('associated_entities', None)
-        case.properties.files.properties.pop('annotations', None)
-
-        # Summary
-        summary = case.properties.summary.properties
-        summary.file_count = LONG
-        summary.file_size = LONG
-
-        # Summary experimental strategies
-        summary.experimental_strategies.type = 'nested'
-        summary.experimental_strategies.properties.experimental_strategy = STRING
-        summary.experimental_strategies.properties.file_count = LONG
-
-        # Summary data types.  data_type is renamed data_category, viz.
-        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        summary.data_categories.type = 'nested'
-        summary.data_categories.properties.data_category = STRING
-        summary.data_categories.properties.file_count = LONG
-
-        return deepcopy(case.to_dict())
-
-    @classmethod
-    def annotation_body(cls, nested=True):
-        annotation = Dict()
-        annotation.properties = cls.get_base_properties('annotation')
-        annotation.properties.case_submitter_id = STRING
-        annotation.properties.entity_type = STRING
-        annotation.properties.entity_id = STRING
-        annotation.properties.entity_submitter_id = STRING
-        annotation.properties.update(cls.multifield('case_id'))
-        annotation.properties.pop('item_id', None)
-        return annotation
-
-    @classmethod
-    def get_annotation_es_mapping(cls, include_file=True):
-        annotation = cls._get_header('annotation')
-        annotation.update(cls.annotation_body(nested=False))
-
-        # Patch annotation mutlifields
-        cls.add_multifields(annotation, 'annotation')
-
-        # Remove annotation.creator viz. PGDC-2114
-        annotation.properties.pop('creator', None)
-
-        # Add the project and program
-        annotation.properties.update(Dict({
-            'project': {'properties': cls.get_base_properties('project')}}))
-        annotation.properties.project.properties.program = {
-            'properties': cls.get_base_properties('program')}
-
-        return deepcopy(annotation.to_dict())
-
-    @classmethod
-    def get_project_es_mapping(cls):
-        project = cls._get_header('project')
-        project.properties = cls._walk_tree(
-            cls.get_project_tree(),
-            cls.get_base_properties('project'))
-
-        # Patch annotation mutlifields
-        cls.add_multifields(project, 'project')
-
-        # Patch project
-        cls.patch_project(project.properties)
-        project.properties.update(cls.multifield('project_id'))
-
-        # Summary
-        summary = project.properties.summary.properties
-        summary.file_count = LONG
-        summary.file_size = LONG
-        summary.case_count = LONG
-
-        # Summary experimental strategies
-        summary.experimental_strategies.type = 'nested'
-        summary.experimental_strategies.properties.case_count = LONG
-        summary.experimental_strategies.properties.experimental_strategy = STRING
-        summary.experimental_strategies.properties.file_count = LONG
-
-        # Summary data types.  data_type is renamed data_category, viz.
-        # https://jira.opensciencedatacloud.org/browse/PGDC-1472
-        summary.data_categories.type = 'nested'
-        summary.data_categories.properties.case_count = LONG
-        summary.data_categories.properties.data_category = STRING
-        summary.data_categories.properties.file_count = LONG
-
-        return deepcopy(project.to_dict())

@@ -1,0 +1,1 @@
+{"analysis": {"filter": {"edge_ngram": {"type": "edge_ngram", "max_gram": "20", "side": "front", "min_gram": "1"}}, "analyzer": {"lowercase_keyword": {"filter": ["lowercase"], "tokenizer": "keyword"}, "autocomplete_prefix": {"filter": ["lowercase", "edge_ngram"], "tokenizer": "keyword"}, "autocomplete_analyzed": {"filter": ["lowercase", "edge_ngram"], "tokenizer": "standard"}}}}
