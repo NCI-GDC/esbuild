@@ -128,7 +128,7 @@ class GDCElasticsearch(object):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
+        "param int maxval: The maximumum value of the progress bar
 
         """
         pbar = ProgressBar(widgets=[
@@ -268,7 +268,6 @@ class GDCElasticsearch(object):
             + self.es.indices.stats()['indices'].keys()
         )
 
-
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
         have gdc_from_graph_23, gdc_from_graph_24, and
@@ -328,7 +327,6 @@ class GDCElasticsearch(object):
                     self.es.indices.close(index=index)
                 except:
                     self.log.error("Can't close index %s" % index)
-
 
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True,
