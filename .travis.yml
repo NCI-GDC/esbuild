@@ -19,6 +19,7 @@ env:
   ES_HOST='localhost'
   NODE_VERSION=4
   ES_VERSION=5.1.1
+  NODE_VERSION=4
 
 addons:
   postgresql: '9.4'
