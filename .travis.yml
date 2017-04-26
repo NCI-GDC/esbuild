@@ -5,9 +5,6 @@ python:
 
 node: 6
 
-services:
-  - elasticsearch
-
 sudo: true
 
 cache:
@@ -20,7 +17,7 @@ cache:
 
 env:
   ES_HOST='localhost'
-  ES_VERSION=5.0.2
+  ES_VERSION=5.1.1
 
 addons:
   postgresql: '9.4'
@@ -40,11 +37,12 @@ install:
   - export JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
   - java -version
 
-  # Install elasticsearch 5.0.2
-  - curl -L -o /tmp/es-snap.zip https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.zip
-  - unzip /tmp/es-snap.zip -d /tmp/
-  - /tmp/elasticsearch-${ES_VERSION}/bin/elasticsearch -E script.inline=true -E path.repo=/tmp -E repositories.url.allowed_urls='http://*' -E node.attr.testattr=test -d
-
+  # Install and start elasticsearch
+  - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
+  - sudo dpkg -i --force-confnew elasticsearch-${ES_VERSION}.deb
+  - sudo service elasticsearch start
+  
+  # Install elasticdump and other requirements
   - npm install -g elasticdump
   - pip install -r requirements.txt
   - pip install -r dev-requirements.txt
@@ -56,4 +54,4 @@ before_script:
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
 
-script: "PYTHONPATH=. py.test -vv tests/"
+script: "PYTHONPATH=. py.test -vvv tests/"
