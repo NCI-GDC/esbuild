@@ -68,6 +68,7 @@ def export_to_stdout(type_, index, host, **kwargs):
         '--input', construct_es_target(index, host, auth=auth, **kwargs),
         '--output', '$',
         '--type', type_,
+        '--quiet',
     ], stdout=PIPE, stderr=PIPE)
 
 
