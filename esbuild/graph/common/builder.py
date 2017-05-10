@@ -165,11 +165,10 @@ class GraphIndexBuilder(object):
         """Walks the graph to produce elasticsearch json documents.
 
         """
-
-        self.debug = debug
-
+        # if debug:
         # Omit everything except this one (program_name, project_code)
-        self.debug_project = ('TARGET', 'RT')
+        self.debug = debug
+        self.debug_projects = [('TARGET', 'RT'), ('TCGA', 'DLBC')]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -1603,7 +1602,7 @@ class GraphIndexBuilder(object):
         for program_name in program_names:
             for project_code in project_codes:
                 if self.debug:
-                    if (program_name, project_code) == self.debug_project:
+                    if (program_name, project_code) in self.debug_projects:
                         return False
                     else:
                         return True
