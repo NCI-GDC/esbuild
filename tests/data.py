@@ -522,6 +522,8 @@ NODES = [
         project_id='TCGA-MAXPY_fake',
         state='submitted',
         submitter_id='fake_submitter',
+        primary_site='Fake Site',
+        disease_type='Fake and Scary Carcinoma'
     ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',

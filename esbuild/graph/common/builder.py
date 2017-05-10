@@ -161,10 +161,15 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver):
+    def __init__(self, psqlgraph_driver, debug=False):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+
+        self.debug = debug
+
+        # Omit everything except this one (program_name, project_code)
+        self.debug_project = ('TARGET', 'RT')
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -1585,7 +1590,12 @@ class GraphIndexBuilder(object):
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if (program_name, project_code) in self.omitted_projects:
+                if self.debug:
+                    if (program_name, project_code) == self.debug_project:
+                        return False
+                    else:
+                        return True
+                elif (program_name, project_code) in self.omitted_projects:
                     return True
 
         return False

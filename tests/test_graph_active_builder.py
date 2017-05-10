@@ -80,20 +80,22 @@ def mappings():
 # ======================================================================
 # Tests
 
-# NOTE: 7 paths are commented out, as gdc-models does not contain these paths
+# NOTE: 7 paths were changed or commented out, as gdc-models mappings do not contain these paths
 @pytest.mark.parametrize('mapping,path', [
-    # ('file', 'properties.file_name.fields'),
+    ('file', 'properties.file_name.copy_to'),
     ('file', 'properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs'),
     ('file', 'properties.analysis.properties.input_files.properties.data_category'),
-    # ('file', 'properties.analysis.properties.input_files.properties.file_id.fields'),
+    ('file', 'properties.analysis.properties.input_files.properties.file_id'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
-    # ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields'),
+    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id'),
     ('case', '_meta.descriptions'),
     # ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
-    # ('case', 'properties.submitter_id.fields'),
-    # ('project', 'properties.name.fields'),
+    ('case', 'properties.submitter_id.copy_to'),
+    ('case', 'properties.project.properties.disease_type'),
+    ('case', 'properties.project.properties.primary_site'),
+    ('project', 'properties.name.copy_to'),
     ('project', '_meta.descriptions'),
-    # ('annotation', 'properties.entity_id.fields'),
+    ('annotation', 'properties.entity_id.copy_to'),
     ('annotation', '_meta.descriptions'),
 ])
 def test_mapping_contains(mappings, mapping, path):
@@ -196,7 +198,11 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 @pytest.mark.parametrize('doc_type,path,count', [
     ('projects', '[*].primary_site', 2),
     ('projects', '[*].disease_type', 2),
+    ('cases', '[*].primary_site', 2),
+    ('cases', '[*].disease_type', 2),
     ('cases', '[*].project.project_id', 2),
+    ('cases', '[*].project.disease_type', 2),
+    ('cases', '[*].project.primary_site', 2),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
@@ -244,8 +250,9 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
-    ('cases', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
-    ('cases', '[*].primary_site', 1, {'Breast'}),
+    ('cases', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
+                                      'Fake and Scary Carcinoma'}),
+    ('cases', '[*].primary_site', 2, {'Breast', 'Fake Site'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -279,8 +286,9 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma'}),
-    ('projects', '[*].primary_site', 2, {'Breast'}),
+    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
+                                         'Fake and Scary Carcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Fake Site'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
