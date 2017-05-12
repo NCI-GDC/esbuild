@@ -174,8 +174,9 @@ class ESMapper(object):
     def index_settings():
         return {
             "settings": {
-                "mapping.nested_fields.limit": "150",
-                "index.mapping.total_fields.limit": 2000,
+	    	"mapping.nested_fields.limit": 150,
+		"index.mapping.total_fields.limit": 2000,
+		"index.max_result_window" : 100000000,
                 "analysis": {
                     "analyzer": {
                         "id_search": {
