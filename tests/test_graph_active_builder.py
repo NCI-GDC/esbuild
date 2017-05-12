@@ -195,7 +195,11 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 @pytest.mark.parametrize('doc_type,path,count', [
     ('projects', '[*].primary_site', 2),
     ('projects', '[*].disease_type', 2),
-    ('cases', '[*].project.project_id', 2),
+    ('cases', '[*].primary_site', 3),
+    ('cases', '[*].disease_type', 3),
+    ('cases', '[*].project.project_id', 3),
+    ('cases', '[*].project.disease_type', 3),
+    ('cases', '[*].project.primary_site', 3),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
@@ -218,7 +222,7 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'API-188 jira ticket'}),
+    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'Made up active project'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
      6, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
@@ -229,7 +233,7 @@ def test_path_count(index, doc_type, path, count):
          'Copy Number Variation',
          'DNA Methylation',
      }),
-    ('cases', '[*].submitter_id', 2, {'TCGA-AR-A1AR', 'fake_submitter'}),
+    ('cases', '[*].submitter_id', 3, {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2'}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -243,8 +247,10 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
-    ('cases', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
-    ('cases', '[*].primary_site', 1, {'Breast'}),
+    ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
+                                      'Fake and Scary Carcinoma',
+                                      'Yet Another Fake Carcinoma'}),
+    ('cases', '[*].primary_site', 3, {'Breast', 'Fake Site', 'Another Fake Site'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -277,8 +283,10 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma'}),
-    ('projects', '[*].primary_site', 2, {'Breast'}),
+    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
+                                         'Fake and Scary Carcinoma',
+                                         'Yet Another Fake Carcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Fake Site', 'Another Fake Site'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
