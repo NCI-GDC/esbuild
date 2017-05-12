@@ -206,7 +206,6 @@ class GDCElasticsearch(object):
                 body=self.converter.mapper.get_annotation_es_mapping()),
         ]
 
-                
     def index_populate(self, index, case_docs=[], file_docs=[],
                        ann_docs=[], project_docs=[],
                        batch_size=BATCH_SIZE):
