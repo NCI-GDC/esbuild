@@ -24,7 +24,7 @@ def main():
         if not args.json_delete:
             gdc_es.go(roll_alias=not args.no_roll,
                       delete_nodes=args.delete,
-                      skip_build=args.test_delete)
+                      skip_build=args.delete)
         else:
             nodes_to_delete=[]
             with open(args.json_delete, 'r') as in_file:
