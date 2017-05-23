@@ -25,12 +25,19 @@ addons:
   postgresql: '9.4'
 
 before_install:
+  # Upgrade npm
+  - npm install -g npm@'>=4'
+
   # bust only the the part of the cache that we are frequently
   # changing
   - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
 
 install:
-  - npm install -g elasticdump
+  # Update nodejs
+  - rm -rf ~/.nvm
+  - git clone https://github.com/creationix/nvm.git ~/.nvm 
+  - (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`)
+  - source ~/.nvm/nvm.sh && nvm install $NODE_VERSION  - npm install -g elasticdump
   - pip install -r requirements.txt
   - pip install -r dev-requirements.txt
   - python setup.py develop
