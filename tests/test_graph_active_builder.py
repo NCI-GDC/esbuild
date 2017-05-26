@@ -80,6 +80,39 @@ def mappings():
 # ======================================================================
 # Tests
 
+def get_dict_paths(d, path_list=[], path='root'):
+    """
+    Returns list of all paths in a dict and a last path found
+    """
+    for k, v in d.iteritems():
+        subpath = path + '.' + k
+        if isinstance(v, dict):
+            path_list.append(subpath)
+            sublist, subpath = get_dict_paths(v, path_list, subpath)
+        else:
+            sublist = [path + '.' + k]
+        path_list.extend(sublist)
+    return list(set(path_list)), path
+
+
+@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
+def test_mapping_full(mappings, doc_type):
+    import yaml
+    gdcmodels_dir = './esbuild/graph/common/gdc-models/es-models/gdc_from_graph/'
+    es_mapping = mappings[doc_type]
+    true_mapping = yaml.safe_load(open(gdcmodels_dir +
+                                       '{}.mapping.yaml'.format(doc_type), 'r'))
+
+    es_paths = get_dict_paths(es_mapping['properties'])[0]
+    true_paths = get_dict_paths(true_mapping['properties'])[0]
+
+    print
+    pprint (set(true_paths) - set(es_paths))
+    pprint (set(es_paths) - set(true_paths))
+    from pprint import pprint
+    import pdb; pdb.set_trace()
+
+
 @pytest.mark.parametrize('mapping,path', [
     ('file', 'properties.file_name.fields'),
     ('file', 'properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs'),
