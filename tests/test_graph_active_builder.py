@@ -100,11 +100,11 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.skip
+@pytest.skip('esbuild has all requred fields but also some extra fields in case and file.')
 @pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
     import yaml
-    gdcmodels_dir = './esbuild/graph/common/gdc-models/es-models/gdc_from_graph/'
+    gdcmodels_dir = './tests/gdc-models/es-models/gdc_from_graph/'
     es_mapping = mappings[doc_type]
     true_mapping = yaml.safe_load(open(gdcmodels_dir +
                                        '{}.mapping.yaml'.format(doc_type), 'r'))
