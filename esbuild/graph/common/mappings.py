@@ -329,19 +329,7 @@ class ESMapper(object):
     @staticmethod
     def multifield(name):
         doc = Dict()
-        doc.type = 'text'
-
-        # Raw
-        doc.fields.raw.store = True
-        doc.fields.raw.type = 'keyword'
-
-        # Analyzed
-        doc.fields.analyzed.analyzer = "id_search"
-        doc.fields.analyzed.type = "text"
-
-        # Search
-        doc.fields.search.analyzer = 'id_search'
-        doc.fields.search.type = 'text'
+        doc.type = 'keyword'
         return Dict({name: doc})
 
     @staticmethod
