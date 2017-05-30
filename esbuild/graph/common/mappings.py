@@ -3,6 +3,7 @@ import yaml
 import os
 
 from gdcdictionary import gdcdictionary
+from gdcdatamodel import models
 from psqlgraph import Node
 
 
