@@ -161,10 +161,14 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver):
+    def __init__(self, psqlgraph_driver, debug=False):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+        # if debug:
+        # Omit everything except this one (program_name, project_code)
+        self.debug = debug
+        self.debug_projects = [('TARGET', 'RT'), ('TCGA', 'DLBC')]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -1320,6 +1324,18 @@ class GraphIndexBuilder(object):
         """
         cases, files, annotations = self.denormalize_cases()
         projects = self.denormalize_projects()
+
+        # Copy `primary_site` and `disease_type` from projects to cases.project:
+        projects_map = {p['project_id']: {'primary_site': p['primary_site'],
+                                          'disease_type': p['disease_type']}
+                        for p in projects}
+        for i in xrange(len(cases)):
+            project_id = cases[i]['project']['project_id']
+            cases[i]['project']['primary_site'] = projects_map[project_id]\
+                                                              ['primary_site']
+            cases[i]['project']['disease_type'] = projects_map[project_id]\
+                                                              ['disease_type']
+
         return cases, files, annotations, projects
 
     def denormalize_cases_sample(self, k=10):
@@ -1585,7 +1601,12 @@ class GraphIndexBuilder(object):
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if (program_name, project_code) in self.omitted_projects:
+                if self.debug:
+                    if (program_name, project_code) in self.debug_projects:
+                        return False
+                    else:
+                        return True
+                elif (program_name, project_code) in self.omitted_projects:
                     return True
 
         return False

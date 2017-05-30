@@ -128,7 +128,7 @@ class GDCElasticsearch(object):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
+        "param int maxval: The maximumum value of the progress bar
 
         """
         pbar = ProgressBar(widgets=[
@@ -236,7 +236,9 @@ class GDCElasticsearch(object):
 
         index_settings = self.converter.mapper.index_settings()
         self.es.indices.create(index=index, body=index_settings)
+
         self.put_mappings(index)
+
         if not case_docs:
             self.log.warning("There were no case docs passed to populate with!")
         if not project_docs:
@@ -267,7 +269,6 @@ class GDCElasticsearch(object):
             # Open indices
             + self.es.indices.stats()['indices'].keys()
         )
-
 
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
@@ -328,7 +329,6 @@ class GDCElasticsearch(object):
                     self.es.indices.close(index=index)
                 except:
                     self.log.error("Can't close index %s" % index)
-
 
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True,
