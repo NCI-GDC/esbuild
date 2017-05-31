@@ -1150,6 +1150,10 @@ EDGES = [
         src_id='rescinded-annotation',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
+    AnnotationAnnotatesAnalyte(
+        src_id='rescinded-annotation',
+        dst_id='344dffb3-2d2b-479d-8be5-9ead2728541b',
+    ),
     FileMemberOfDataSubtype(
         src_id='live-file',
         dst_id='data_subtype_aligned_reads'
