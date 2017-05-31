@@ -9,8 +9,10 @@ Elasticsearch
 """
 
 import os
+import sys
 import re
 import json
+import datetime
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -83,46 +85,69 @@ class GDCElasticsearch(object):
         )
 
         self.converter = converter_class(self.graph)
+        self.converter_class_name = converter_class.__class__.__name__
 
-    def go(self, roll_alias=True):
+    def go(self, roll_alias=True, delete_nodes=True, skip_build=False):
         self.log.info("Caching database")
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
-            self.converter.cache_database()
+            if not skip_build:
+                self.converter.cache_database()
             self.log.info("Querying for old nodes to delete")
             to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
-            to_delete = [n for n in to_delete if not shouldnt_delete(n)]
+            to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
             self.log.info("Found %s to_delete nodes, saving for later",
                           len(to_delete))
-        self.log.info("Denormalizing database into JSON docs")
-        case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-        self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
-                      len(case_docs),
-                      len(file_docs),
-                      len(ann_docs),
-                      len(project_docs))
-        self.log.info("Validating docs produced")
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
-        self.log.info("Deploying new ES index with new docs and bumping alias")
-        new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                roll_alias=roll_alias)
-        with self.graph.session_scope() as session:
-            for expired_node in to_delete:
-                node = self.graph.nodes(expired_node.__class__)\
-                                 .ids(expired_node.node_id)\
-                                 .scalar()
-                if node:
-                    self.log.info("Deleting %s", node)
-                    session.delete(node)
-        statsd.event(
-            "esbuild finished",
-            "successfully built index {}".format(new_index),
-            source_type_name="esbuild",
-            alert_type="success",
-            tags=["es_index:{}".format(new_index)],
-        )
+            self.log.info(to_delete)
+        
+        if not skip_build:
+            self.log.info("Denormalizing database into JSON docs")
+            case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
+            self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
+                          len(case_docs),
+                          len(file_docs),
+                          len(ann_docs),
+                          len(project_docs))
+            self.log.info("Validating docs produced")
+            self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+            self.log.info("Deploying new ES index with new docs and bumping alias")
+            new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
+                                    roll_alias=roll_alias)
+        self.delete_nodes(to_delete=to_delete,
+                          delete_nodes=delete_nodes)
+        if not skip_build:
+            statsd.event(
+                "esbuild finished",
+                "successfully built index {}".format(new_index),
+                source_type_name="esbuild",
+                alert_type="success",
+                tags=["es_index:{}".format(new_index)],
+            )
+
+    def delete_nodes(self, to_delete=[], delete_nodes=True):
+        if delete_nodes == True:
+            with self.graph.session_scope() as session:
+                for expired_node in to_delete:
+                    #node = self.graph.nodes(expired_node.__class__)\
+                    #                 .ids(expired_node)\
+                    #                 .scalar()
+                    node = self.graph.nodes().get(expired_node)
+                    if node:
+                        if 'to_delete' in node.sysan:
+                            if node.sysan['to_delete']:
+                                self.log.info("Deleting %s", node)
+                                session.delete(node)
+        else:
+            deleted_file_name = '{}/{}-{}.json'.format(os.path.expanduser('~'),
+                                                       'esbuild',
+                                                       datetime.datetime.now().isoformat())
+            self.log.info("Skipping deletion of nodes, saving them to log file {}"
+                          .format(deleted_file_name))
+            with open(deleted_file_name, 'w') as json_file:
+                for entry in to_delete:
+                    json_file.write(entry + '\n')
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
