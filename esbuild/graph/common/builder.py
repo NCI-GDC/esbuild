@@ -1233,6 +1233,7 @@ class GraphIndexBuilder(object):
     ###################################################################
 
     def denormalize_cases(self, cases=None):
+
         """If cases is not specified, denormalize all cases in
         the graph.  If cases is specified, denormalize only those
         given.

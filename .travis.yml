@@ -18,7 +18,6 @@ cache:
 env:
   ES_HOST='localhost'
   ES_VERSION=5.1.1
-
   NODE_VERSION=4
 
 addons:

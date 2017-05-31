@@ -80,19 +80,53 @@ def mappings():
 # ======================================================================
 # Tests
 
+def get_dict_paths(d, path_list=None, path='root'):
+    """
+    Returns list of all paths in a dict and a last path found
+    """
+    if path_list is None:
+        path_list = []
+
+    for k, v in d.iteritems():
+        subpath = path + '.' + k
+        if isinstance(v, dict):
+            sublist, subpath = get_dict_paths(v, path_list, subpath)
+        else:
+            if isinstance(v, list):
+                sublist = [path + '.' + k + '.' + str(e) for e in v]
+            else:
+                sublist = [path + '.' + k + '.' + str(v)]
+        path_list.extend(sublist)
+    return list(set(path_list)), path
+
+
+@pytest.mark.skipif(True, reason='esbuild has all requred fields but also some extra fields in case and file docs. This is yet to be fixed.')
+@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
+def test_mapping_full(mappings, doc_type):
+    import yaml
+    gdcmodels_dir = './tests/gdc-models/es-models/gdc_from_graph/'
+    es_mapping = mappings[doc_type]
+    true_mapping = yaml.safe_load(open(gdcmodels_dir +
+                                       '{}.mapping.yaml'.format(doc_type), 'r'))
+
+    es_paths = get_dict_paths(es_mapping['properties'])[0]
+    true_paths = get_dict_paths(true_mapping['properties'])[0]
+
+    from pprint import pprint
+    print '\n {}'.format(doc_type)
+    pprint (set(true_paths) - set(es_paths))
+    pprint (set(es_paths) - set(true_paths))
+
+    assert set(true_paths) == set(es_paths)
+
+
 @pytest.mark.parametrize('mapping,path', [
-    ('file', 'properties.file_name.fields'),
     ('file', 'properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs'),
     ('file', 'properties.analysis.properties.input_files.properties.data_category'),
-    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
-    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields'),
     ('case', '_meta.descriptions'),
     ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
-    ('case', 'properties.submitter_id.fields'),
-    ('project', 'properties.name.fields'),
     ('project', '_meta.descriptions'),
-    ('annotation', 'properties.entity_id.fields'),
     ('annotation', '_meta.descriptions'),
 ])
 def test_mapping_contains(mappings, mapping, path):
