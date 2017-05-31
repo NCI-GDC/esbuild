@@ -25,8 +25,7 @@ DATA_FILE_CATEGORIES = [
 # Types
 
 STRING = {
-    'index': 'not_analyzed',
-    'type': 'string',
+    'type': 'keyword',
 }
 
 LONG = {
@@ -44,7 +43,7 @@ def get_es_type(_type):
     elif float in _type:
         return 'double'
     else:
-        return 'string'
+        return 'keyword'
 
 
 # ======================================================================
@@ -85,6 +84,8 @@ class ESMapper(object):
             'file_name',
         ],
         'case': [
+            'primary_site',
+            'disease_type',
             'case_id',
             'submitter_id',
         ],
@@ -173,6 +174,9 @@ class ESMapper(object):
     def index_settings():
         return {
             "settings": {
+	    	"mapping.nested_fields.limit": 150,
+		"index.mapping.total_fields.limit": 2000,
+		"index.max_result_window" : 100000000,
                 "analysis": {
                     "analyzer": {
                         "id_search": {
@@ -289,20 +293,17 @@ class ESMapper(object):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
-        header._source.compress = True
         header._source.excludes = ["__comment__"]
-        header._id = {'path': '{}_id'.format(source)}
         header._meta.descriptions = cls.get_descriptions()
         return header
 
-    @staticmethod
-    def get_base_properties(source, include_id=True):
+    @classmethod
+    def get_base_properties(cls, source, include_id=True):
         # Get properties from schema
-        cls = Node.get_subclass(source)
-        assert cls, 'No model for {}'.format(source)
-        properties = cls.get_pg_properties()
-        fields = properties.keys()
+        node_type = Node.get_subclass(source)
+        assert node_type, 'No model for {}'.format(source)
 
+        properties = dict(node_type.get_pg_properties())
         doc = Dict()
 
         if include_id:
@@ -310,13 +311,15 @@ class ESMapper(object):
             id_name = '{}_id'.format(source)
             doc[id_name] = STRING
 
+        if properties.pop('submitter_id', None):
+            doc.update(cls.multifield('submitter_id'))
+
         # Add all properties to document
+        fields = properties.keys()
         for field in fields:
             _type = get_es_type(properties[field] or [])
             # assign the type
             doc[field] = {'type': _type}
-            if str(_type) == 'string':
-                doc[field]['index'] = 'not_analyzed'
 
         if source != 'project':
             doc.pop('project_id', None)
@@ -326,23 +329,19 @@ class ESMapper(object):
     @staticmethod
     def multifield(name):
         doc = Dict()
-        doc.type = 'string'
+        doc.type = 'text'
 
         # Raw
-        doc.fields.raw.index = 'not_analyzed'
-        doc.fields.raw.store = 'yes'
-        doc.fields.raw.type = 'string'
+        doc.fields.raw.store = True
+        doc.fields.raw.type = 'keyword'
 
         # Analyzed
-        doc.fields.analyzed.index = "analyzed"
-        doc.fields.analyzed.index_analyzer = "id_index"
-        doc.fields.analyzed.search_analyzer = "id_search"
-        doc.fields.analyzed.type = "string"
+        doc.fields.analyzed.analyzer = "id_search"
+        doc.fields.analyzed.type = "text"
 
         # Search
-        doc.fields.search.index = 'analyzed'
         doc.fields.search.analyzer = 'id_search'
-        doc.fields.search.type = 'string'
+        doc.fields.search.type = 'text'
         return Dict({name: doc})
 
     @staticmethod
@@ -413,8 +412,8 @@ class ESMapper(object):
     # Mappings
 
     @classmethod
-    def get_file_es_mapping(cls, include_case=True):
-        files = cls._get_header('file')
+    def get_file_es_mapping(cls, include_case=True, is_root=True):
+        files = cls._get_header('file') if is_root else Dict()
 
         # Let top level properties be a union over properties from all
         # node types that this mapper considers a file
@@ -440,8 +439,8 @@ class ESMapper(object):
         files.properties.associated_entities.type = 'nested'
         files.properties.associated_entities.properties.entity_type = STRING
         files.properties.associated_entities.properties.entity_id = STRING
-        files.properties.associated_entities.properties.case_id = STRING
         files.properties.associated_entities.properties.entity_submitter_id = STRING
+        files.properties.associated_entities.properties.update(cls.multifield('case_id'))
 
         # Patch file mutlifields
         cls.add_multifields(files, 'files')
@@ -474,15 +473,15 @@ class ESMapper(object):
         # Case
         files.properties.pop('case', None)
         if include_case:
-            files.properties.cases = cls.get_case_es_mapping(False)
+            files.properties.cases = cls.get_case_es_mapping(False, is_root=False)
             files.properties.cases.type = 'nested'
 
         return deepcopy(files.to_dict())
 
     @classmethod
-    def get_case_es_mapping(cls, include_file=True):
+    def get_case_es_mapping(cls, include_file=True, is_root=True):
         # case body
-        case = cls._get_header('case')
+        case = cls._get_header('case') if is_root else Dict()
         case.properties = cls._walk_tree(
             cls.get_case_tree(),
             cls.get_base_properties('case')
@@ -506,7 +505,7 @@ class ESMapper(object):
         # Add pop whatever file is present and add correct files
         case.properties.pop('file', None)
         if include_file:
-            case.properties.files = cls.get_file_es_mapping(True)
+            case.properties.files = cls.get_file_es_mapping(True, is_root=False)
             case.properties.files.type = 'nested'
 
         # Adjust file properties
@@ -535,11 +534,11 @@ class ESMapper(object):
     def annotation_body(cls, nested=True):
         annotation = Dict()
         annotation.properties = cls.get_base_properties('annotation')
-        annotation.properties.case_id = STRING
         annotation.properties.case_submitter_id = STRING
         annotation.properties.entity_type = STRING
         annotation.properties.entity_id = STRING
         annotation.properties.entity_submitter_id = STRING
+        annotation.properties.update(cls.multifield('case_id'))
         annotation.properties.pop('item_id', None)
         return annotation
 
