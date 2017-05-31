@@ -255,6 +255,13 @@ def test_path_count(index, doc_type, path, count):
     assert len(results) == count
 
 
+@pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
+                                             ('cases', 3), ('files', 10)])
+def test_basic_counts(index, doc_type, count):
+    data = getattr(index, doc_type)
+    assert len(data) == count
+
+
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'Made up active project'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
