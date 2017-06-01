@@ -1325,18 +1325,6 @@ class GraphIndexBuilder(object):
         """
         cases, files, annotations = self.denormalize_cases()
         projects = self.denormalize_projects()
-
-        # Copy `primary_site` and `disease_type` from projects to cases.project:
-        projects_map = {p['project_id']: {'primary_site': p['primary_site'],
-                                          'disease_type': p['disease_type']}
-                        for p in projects}
-        for i in xrange(len(cases)):
-            project_id = cases[i]['project']['project_id']
-            cases[i]['project']['primary_site'] = projects_map[project_id]\
-                                                              ['primary_site']
-            cases[i]['project']['disease_type'] = projects_map[project_id]\
-                                                              ['disease_type']
-
         return cases, files, annotations, projects
 
     def denormalize_cases_sample(self, k=10):
