@@ -57,7 +57,7 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, es=None,
+    def __init__(self, converter_class, debug=False, es=None,
                  index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
@@ -84,7 +84,7 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        self.converter = converter_class(self.graph)
+        self.converter = converter_class(self.graph, debug=debug)
         self.converter_class_name = converter_class.__class__.__name__
 
     def go(self, roll_alias=True, delete_nodes=True, skip_build=False):

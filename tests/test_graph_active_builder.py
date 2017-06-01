@@ -16,11 +16,6 @@ from jsonpath_rw import parse
 
 import pytest
 
-# Workaround for encoding issues with gdcmodels
-import sys
-reload(sys)
-sys.setdefaultencoding('utf-8')
-
 from conftest import (
     raise_test_error,
     Index,
@@ -98,13 +93,10 @@ def get_dict_paths(d, path_list=None, path='root'):
         if isinstance(v, dict):
             sublist, subpath = get_dict_paths(v, path_list, subpath)
         else:
-            try:
-                if isinstance(v, list):
-                    sublist = [path + '.' + k + '.' + str(e) for e in v]
-                else:
-                    sublist = [path + '.' + k + '.' + str(v)]
-            except:
-                import pdb; pdb.set_trace()
+            if isinstance(v, list):
+                sublist = [path + '.' + k + '.' + str(e) for e in v]
+            else:
+                sublist = [path + '.' + k + '.' + str(v)]
         path_list.extend(sublist)
     return list(set(path_list)), path
 
