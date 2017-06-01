@@ -262,6 +262,24 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         self.omitted_projects.add(('CCLE', 'KIRC'))
         self.omitted_projects.add(('CCLE', 'KICH'))
 
+    def denormalize_all(self):
+        cases, files, annotations, projects = (super(ActiveGraphIndexBuilder,
+                                                     self).denormalize_all())
+
+        # Copy `primary_site` and `disease_type` from projects to cases.project:
+        projects_map = {p['project_id']: {'primary_site': p['primary_site'],
+                                          'disease_type': p['disease_type']}
+                        for p in projects}
+
+        for i in xrange(len(cases)):
+            project_id = cases[i]['project']['project_id']
+            cases[i]['project']['primary_site'] = projects_map[project_id]\
+                                                              ['primary_site']
+            cases[i]['project']['disease_type'] = projects_map[project_id]\
+                                                              ['disease_type']
+
+        return cases, files, annotations, projects
+
     def denormalize_file(self, node, ptree):
         doc = (super(ActiveGraphIndexBuilder, self)
                .denormalize_file(node, ptree))
