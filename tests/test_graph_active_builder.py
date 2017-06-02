@@ -11,6 +11,7 @@ Test the builder for graph ES index
 
 
 from gdcdatamodel import models as md
+from gdcmodels import get_es_models
 from jsonpath_rw import parse
 
 import pytest
@@ -100,17 +101,16 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.skipif(True, reason='esbuild has all requred fields but also some extra fields in case and file docs. This is yet to be fixed.')
+@pytest.mark.skipif(True,
+                    reason='esbuild has all requred fields but also some '
+                           'extra fields in case and file docs. This is yet to be fixed.')
 @pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
-    import yaml
-    gdcmodels_dir = './tests/gdc-models/es-models/gdc_from_graph/'
-    es_mapping = mappings[doc_type]
-    true_mapping = yaml.safe_load(open(gdcmodels_dir +
-                                       '{}.mapping.yaml'.format(doc_type), 'r'))
+    es_mapping = mappings[doc_type]['properties']
+    true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
 
-    es_paths = get_dict_paths(es_mapping['properties'])[0]
-    true_paths = get_dict_paths(true_mapping['properties'])[0]
+    es_paths = get_dict_paths(es_mapping)[0]
+    true_paths = get_dict_paths(true_mapping)[0]
 
     from pprint import pprint
     print '\n {}'.format(doc_type)
