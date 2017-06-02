@@ -35,21 +35,17 @@ class LegacyESMapper(ESMapper):
                     "type": "edge_ngram"
                 }
             },
-            'analyzer':  {
-                "id_search": {
-                    "tokenizer": "whitespace",
+            "analyzer": {
+                "lowercase_keyword": {
+                    "tokenizer": "keyword",
                     "filter": ["lowercase"],
-                    "type": "custom"
-                },
-                "id_index": {
-                    "tokenizer": "whitespace",
-                    "filter": ["lowercase", "edge_ngram"],
-                    "type": "custom"
                 }
             }
+
         }
 
         return settings
+
 
 get_file_es_mapping = LegacyESMapper.get_file_es_mapping
 get_case_es_mapping = LegacyESMapper.get_case_es_mapping
