@@ -125,6 +125,7 @@ class ActiveESMapper(ESMapper):
     def get_case_es_mapping(cls, include_file=True, is_root=True):
         case = Dict(super(ActiveESMapper, ActiveESMapper)
                     .get_case_es_mapping(include_file, is_root))
+
         # Add autocomplete and copy_to fields
         if is_root:
             case = cls.add_case_autocomplete(case)
