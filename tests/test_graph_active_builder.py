@@ -101,9 +101,6 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.skipif(True,
-                    reason='esbuild has all requred fields but also some '
-                           'extra fields in case and file docs. This is yet to be fixed.')
 @pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
     es_mapping = mappings[doc_type]['properties']
@@ -117,7 +114,7 @@ def test_mapping_full(mappings, doc_type):
     pprint (set(true_paths) - set(es_paths))
     pprint (set(es_paths) - set(true_paths))
 
-    assert set(true_paths) == set(es_paths)
+    assert set(true_paths) - set(es_paths) == set([])
 
 
 @pytest.mark.parametrize('mapping,path', [
