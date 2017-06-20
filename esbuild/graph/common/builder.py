@@ -182,6 +182,10 @@ class GraphIndexBuilder(object):
                     .format(self.__class__.__name__, required_attr)
                 )
 
+        if self.debug:
+            log.warn('\nRunning in debug mode.\nProjects: {}\n'
+                     .format(self.debug_projects))
+
         # Load mapper tree representations
         self.ptree_mapping = {
             'case': self.mapper.get_case_tree().to_dict()
