@@ -13,6 +13,7 @@ import sys
 import re
 import json
 import datetime
+import subprocess
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -65,6 +66,7 @@ class GDCElasticsearch(object):
         :param converter_class: Class to use as a converter
 
         """
+        self.debug = debug
         self.index_base = index_base
         self.log = get_logger("gdc_elasticsearch")
         if es:
@@ -354,7 +356,6 @@ class GDCElasticsearch(object):
                 except:
                     self.log.error("Can't close index %s" % index)
 
-
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True,
                batch_size=BATCH_SIZE):
@@ -367,15 +368,43 @@ class GDCElasticsearch(object):
         """
         current_numbers = self.get_index_numbers()
         self.log.info("Currently deployed indices are %s", current_numbers)
+
         if not current_numbers:
             n = 1
         else:
-            n = max(current_numbers)+1
+            n = max(current_numbers) + 1
+
         new_index = INDEX_PATTERN.format(base=self.index_base, n=n)
         self.log.info("Deploying to index %s", new_index)
         self.index_create_and_populate(new_index, case_docs,
                                        file_docs, ann_docs,
                                        project_docs, batch_size)
+
+        # Add build metadata
+        doc_counts = {'case': len(case_docs), 'file': len(file_docs),
+                      'project': len(project_docs), 'annotation': len(ann_docs)}
+        git_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+                               '.git')
+        try:
+            commit_hash = subprocess.check_output(['git',
+                                                   '--git-dir={}'.format(git_dir),
+                                                   'rev-parse', 'HEAD'])
+        except:
+            commit_hash = 'unable to parse'
+
+        if self.build_projects:
+            doc_id = ','.join(['-'.join(l) for l in self.build_projects])
+        else:
+            doc_id = 0
+            
+        self.es.create(index=new_index, doc_type='build_metadata',
+                       id=doc_id,
+                       body={
+                           'commit_hash': commit_hash,
+                           'debug': self.debug,
+                           'counts': doc_counts
+                       })
+
         if roll_alias:
             # ensure all writes are visible
             self.es.indices.refresh(index=new_index)
