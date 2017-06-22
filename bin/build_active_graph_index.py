@@ -20,15 +20,22 @@ def main():
     parser.add_argument(
         '--test_delete', action='store_true',
         help='Test the deletion (skip load & build of index)')
-    parser.add_argument('--debug', nargs='*',
+    parser.add_argument('--projects', nargs='*',
                         help='Partial build. Takes list of projects',
                         required=False)
+    parser.add_argument('--upsert-to', help='Index name to upsert projects to')
 
     args = parser.parse_args()
 
+    if args.projects:
+        if not args.upsert_to:
+            raise Exception('Provide --upsert-to <index_name> when using '
+                            'partial build mode')
+
     gdc_es = GDCElasticsearch(
         converter_class=ActiveGraphIndexBuilder,
-        debug=args.debug,
+        build_projects=args.projects,
+        index_name=args.upsert_to,
     )
     if args.delete:
         if not args.json_delete:
@@ -36,7 +43,7 @@ def main():
                       delete_nodes=args.delete,
                       skip_build=args.test_delete)
         else:
-            nodes_to_delete=[]
+            nodes_to_delete = []
             with open(args.json_delete, 'r') as in_file:
                 for line in in_file:
                     nodes_to_delete.append(line.strip('\n'))

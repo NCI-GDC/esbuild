@@ -161,18 +161,18 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, debug=False):
+    def __init__(self, psqlgraph_driver, build_projects=None):
         """Walks the graph to produce elasticsearch json documents.
 
         """
-        self.debug = debug
+        self.build_projects = build_projects
 
-        # Populate self.debug_projects, if debug is set
-        if isinstance(debug, list):
-            if len(debug) == 0:
-                self.debug_projects = [('TARGET', 'RT'), ('TCGA', 'MESO')]
+        # Populate self.build_projects
+        if build_projects is not None:
+            if len(build_projects) == 0:
+                self.build_projects = [('TARGET', 'RT'), ('TCGA', 'MESO')]
             else:
-                self.debug_projects = [p.split('-', 1) for p in debug]
+                self.build_projects = [tuple(p.split('-', 1)) for p in build_projects]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -182,9 +182,9 @@ class GraphIndexBuilder(object):
                     .format(self.__class__.__name__, required_attr)
                 )
 
-        if self.debug:
-            log.warn('\nRunning in debug mode.\nProjects: {}\n'
-                     .format(self.debug_projects))
+        if self.build_projects:
+            log.warn('\nRunning partial build.\nProjects: {}\n'
+                     .format(self.build_projects))
 
         # Load mapper tree representations
         self.ptree_mapping = {
@@ -1598,8 +1598,8 @@ class GraphIndexBuilder(object):
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if self.debug:
-                    if (program_name, project_code) in self.debug_projects:
+                if self.build_projects:
+                    if (program_name, project_code) in self.build_projects:
                         return False
                     else:
                         return True
