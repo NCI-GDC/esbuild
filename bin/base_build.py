@@ -8,6 +8,9 @@ def main(converter):
         '--no-roll', action="store_true",
         help='if passed, do not roll the alias and delete old indices')
     parser.add_argument(
+        '--no-cleanup', action="store_true",
+        help='if passed, do not delete old indices')
+    parser.add_argument(
         '--delete', action="store_true",
         help='if passed, delete the nodes in the json file passed with --json_delete')
     parser.add_argument(
@@ -37,6 +40,7 @@ def main(converter):
         if not args.json_delete:
             gdc_es.go(roll_alias=not args.no_roll,
                       delete_nodes=args.delete,
+                      cleanup_indices=not args.no_cleanup,
                       skip_build=args.test_delete)
         else:
             nodes_to_delete = []
@@ -44,8 +48,10 @@ def main(converter):
                 for line in in_file:
                     nodes_to_delete.append(line.strip('\n'))
             gdc_es.delete_nodes(to_delete=nodes_to_delete,
+                                cleanup_indices=not args.no_cleanup,
                                 delete_nodes=args.delete)
     else:
         gdc_es.go(roll_alias=not args.no_roll,
                   delete_nodes=args.delete,
+                  cleanup_indices=not args.no_cleanup,
                   skip_build=args.test_delete)

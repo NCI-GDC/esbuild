@@ -449,7 +449,8 @@ class GDCElasticsearch(object):
                 self.swap_index(old_index, new_index)
             else:
                 self.es.indices.put_alias(index=new_index, name=self.index_base)
-            self.cleanup_old_indices([old_index, new_index])
+            if cleanup_indices:
+                self.cleanup_old_indices([old_index, new_index])
         else:
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
