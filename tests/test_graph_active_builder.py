@@ -13,6 +13,7 @@ Test the builder for graph ES index
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
+from pprint import pprint
 
 import pytest
 
@@ -101,9 +102,6 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.skipif(True,
-                    reason='esbuild has all requred fields but also some '
-                           'extra fields in case and file docs. This is yet to be fixed.')
 @pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
     es_mapping = mappings[doc_type]['properties']
@@ -112,12 +110,27 @@ def test_mapping_full(mappings, doc_type):
     es_paths = get_dict_paths(es_mapping)[0]
     true_paths = get_dict_paths(true_mapping)[0]
 
-    from pprint import pprint
-    print '\n {}'.format(doc_type)
-    pprint (set(true_paths) - set(es_paths))
-    pprint (set(es_paths) - set(true_paths))
+    missing_paths = set(true_paths) - set(es_paths)
+    extra_paths = set(es_paths) - set(true_paths)
 
-    assert set(true_paths) == set(es_paths)
+    print '\n {}'.format(doc_type)
+    pprint ({'Missing paths': missing_paths, 'Extra paths': extra_paths})
+
+    # Set of missing paths must be empty:
+    assert missing_paths == set([])
+
+    # Set of extra paths must be emty:
+    assert extra_paths == set([])
+
+
+def test_include_switch():
+    mapper = ActiveGraphIndexBuilder.mapper
+
+    mapping = mapper.get_file_es_mapping(include_case=False)
+    assert 'cases' not in mapping['properties']
+
+    mapping = mapper.get_case_es_mapping(include_file=False)
+    assert 'files' not in mapping['properties']
 
 
 @pytest.mark.parametrize('mapping,path', [
