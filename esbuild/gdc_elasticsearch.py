@@ -13,6 +13,7 @@ import sys
 import re
 import json
 import datetime
+import subprocess
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -57,14 +58,17 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, debug=False, es=None,
-                 index_base="gdc_from_graph"):
+    def __init__(self, converter_class, build_projects=None, es=None,
+                 index_base="gdc_from_graph",
+                 index_name=None):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
         :param converter_class: Class to use as a converter
 
         """
+        self.build_projects = build_projects
+        self.index_name = index_name
         self.index_base = index_base
         self.log = get_logger("gdc_elasticsearch")
         if es:
@@ -84,10 +88,11 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        self.converter = converter_class(self.graph, debug=debug)
+        self.converter = converter_class(self.graph, build_projects=build_projects)
         self.converter_class_name = converter_class.__class__.__name__
 
-    def go(self, roll_alias=True, delete_nodes=True, skip_build=False):
+    def go(self, roll_alias=True,
+           cleanup_indices=True, delete_nodes=True, skip_build=False):
         self.log.info("Caching database")
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
@@ -114,7 +119,9 @@ class GDCElasticsearch(object):
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
             self.log.info("Deploying new ES index with new docs and bumping alias")
             new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                    roll_alias=roll_alias)
+                                    index_name=self.index_name,
+                                    roll_alias=roll_alias,
+                                    cleanup_indices=cleanup_indices)
         self.delete_nodes(to_delete=to_delete,
                           delete_nodes=delete_nodes)
         if not skip_build:
@@ -259,13 +266,17 @@ class GDCElasticsearch(object):
 
         """
 
-        index_settings = self.converter.mapper.index_settings()
-        self.es.indices.create(index=index, body=index_settings)
-        self.put_mappings(index)
+        # Create index if it does not exist (otherwise, just add the data)
+        if index not in self.es.indices.get_alias():
+            index_settings = self.converter.mapper.index_settings()
+            self.es.indices.create(index=index, body=index_settings)
+            self.put_mappings(index)
+
         if not case_docs:
             self.log.warning("There were no case docs passed to populate with!")
         if not project_docs:
             self.log.warning("There were no case docs passed to populate with!")
+
         self.index_populate(index, case_docs, file_docs, ann_docs,
                             project_docs, batch_size)
 
@@ -292,7 +303,6 @@ class GDCElasticsearch(object):
             # Open indices
             + self.es.indices.stats()['indices'].keys()
         )
-
 
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
@@ -354,10 +364,9 @@ class GDCElasticsearch(object):
                 except:
                     self.log.error("Can't close index %s" % index)
 
-
     def deploy(self, case_docs, file_docs, ann_docs,
-               project_docs, roll_alias=True,
-               batch_size=BATCH_SIZE):
+               project_docs, roll_alias=True, cleanup_indices=True,
+               batch_size=BATCH_SIZE, index_name=None):
         """Create a new index with an incremented name based on
         self.index_base, populate it with :func
         index_create_and_populate:, atomically switch the alias to
@@ -367,15 +376,48 @@ class GDCElasticsearch(object):
         """
         current_numbers = self.get_index_numbers()
         self.log.info("Currently deployed indices are %s", current_numbers)
-        if not current_numbers:
-            n = 1
+
+        # If explicit name provided, will upsert data to this particular index
+        if index_name:
+            new_index = index_name
+        # Else will create a new index with incremented name
         else:
-            n = max(current_numbers)+1
-        new_index = INDEX_PATTERN.format(base=self.index_base, n=n)
+            if not current_numbers:
+                n = 1
+            else:
+                n = max(current_numbers) + 1
+            new_index = INDEX_PATTERN.format(base=self.index_base, n=n)
+
         self.log.info("Deploying to index %s", new_index)
         self.index_create_and_populate(new_index, case_docs,
                                        file_docs, ann_docs,
                                        project_docs, batch_size)
+
+        # Add build metadata
+        doc_counts = {'case': len(case_docs), 'file': len(file_docs),
+                      'project': len(project_docs), 'annotation': len(ann_docs)}
+        git_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+                               '.git')
+        try:
+            commit_hash = subprocess.check_output(['git',
+                                                   '--git-dir={}'.format(git_dir),
+                                                   'rev-parse', 'HEAD'])
+        except Exception as err:
+            commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
+
+        if self.build_projects:
+            doc_id = ','.join(self.build_projects)
+        else:
+            doc_id = 'ALL PROJECTS'
+
+        self.es.create(index=new_index, doc_type='build_metadata',
+                       id=doc_id,
+                       body={
+                           'commit_hash': commit_hash,
+                           'build_projects': self.build_projects,
+                           'counts': doc_counts
+                       })
+
         if roll_alias:
             # ensure all writes are visible
             self.es.indices.refresh(index=new_index)
@@ -404,11 +446,11 @@ class GDCElasticsearch(object):
             self.log.info("Rolling alias and deleting old indices")
             old_index = self.lookup_index_by_alias()
             if old_index:
-                assert old_index.startswith(self.index_base)
                 self.swap_index(old_index, new_index)
             else:
                 self.es.indices.put_alias(index=new_index, name=self.index_base)
-            self.cleanup_old_indices([old_index, new_index])
+            if cleanup_indices:
+                self.cleanup_old_indices([old_index, new_index])
         else:
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
