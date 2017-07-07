@@ -17,17 +17,17 @@ import subprocess
 
 from cdisutils.log import get_logger
 from datadog import statsd
-from elasticsearch import NotFoundError, Elasticsearch
+from elasticsearch import NotFoundError, Elasticsearch, helpers
 from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-# TODO this could probably be bumped now that the number of bulk
-# threads in the config is higher, c.f.
-# https://github.com/NCI-GDC/tungsten/commit/3ac690d19dd49f8ad2f30bf55ca6fe70ff2cc51d
-BATCH_SIZE = 4
-
+# TODO: Play around with these values and find the sweet spot that
+# minimizes the loading time without crashing the ES cluster
+THREAD_COUNT = 16
+CHUNK_SIZE = 500
+MAX_CHUNK_BYTES = 104857600 #100MB
 
 INDEX_PATTERN = '{base}_{n}'
 
@@ -170,7 +170,8 @@ class GDCElasticsearch(object):
         pbar.update(0)
         return pbar
 
-    def bulk_upload(self, index, doc_type, docs, batch_size=BATCH_SIZE):
+    def bulk_upload(self, index, doc_type, docs, thread_count=THREAD_COUNT,
+                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
@@ -187,28 +188,28 @@ class GDCElasticsearch(object):
 
         pbar = self.pbar('{} upload '.format(doc_type), len(docs))
 
-        def body():
-            """Alternatingly yield instruction/doc, instruction/doc..."""
-
-            start = pbar.currval
-            for doc in docs[start:start+batch_size]:
-                instruction = dict(
-                    index=dict(
-                        _index=index,
-                        _type=doc_type,
-                        _id=doc[doc_type+'_id'],
-                    )
+        def action_gen():
+            for doc in docs:
+                action = dict(
+                    _index=index,
+                    _type=doc_type,
+                    _id=doc[doc_type+'_id'],
+                    _source=doc
                 )
-                yield instruction
-                yield doc
-
+                yield action
                 pbar.update(pbar.currval+1)
 
-        while pbar.currval < len(docs):
-            res = self.es.bulk(body=body())
-            if res['errors']:
+        actions = action_gen()
+        batches = helpers.parallel_bulk(self.es,
+                actions,
+                thread_count=thread_count,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes
+        )
+        for batch in batches:
+            if not batch[0]:
                 raise RuntimeError(json.dumps([
-                    doc for doc in res['items']
+                    doc for doc in batch[1]
                     if doc['index']['status'] != 100
                 ], indent=2))
         pbar.finish()
@@ -240,15 +241,31 @@ class GDCElasticsearch(object):
 
     def index_populate(self, index, case_docs=[], file_docs=[],
                        ann_docs=[], project_docs=[],
-                       batch_size=BATCH_SIZE):
-        self.bulk_upload(index, 'project', project_docs, batch_size)
-        self.bulk_upload(index, 'annotation', ann_docs, batch_size)
-        self.bulk_upload(index, 'case', case_docs, batch_size)
-        self.bulk_upload(index, 'file', file_docs, batch_size)
+                       thread_count=THREAD_COUNT,
+                       chunk_size=CHUNK_SIZE,
+                       max_chunk_bytes=MAX_CHUNK_BYTES):
+        self.bulk_upload(index, 'project', project_docs,
+                         thread_count=thread_count,
+                         chunk_size=chunk_size,
+                         max_chunk_bytes=max_chunk_bytes)
+        self.bulk_upload(index, 'annotation', ann_docs,
+                         thread_count=thread_count,
+                         chunk_size=chunk_size,
+                         max_chunk_bytes=max_chunk_bytes)
+        self.bulk_upload(index, 'case', case_docs,
+                         thread_count=thread_count,
+                         chunk_size=chunk_size,
+                         max_chunk_bytes=max_chunk_bytes)
+        self.bulk_upload(index, 'file', file_docs,
+                         thread_count=thread_count,
+                         chunk_size=chunk_size,
+                         max_chunk_bytes=max_chunk_bytes)
 
     def index_create_and_populate(self, index, case_docs=[],
                                   file_docs=[], ann_docs=[], project_docs=[],
-                                  batch_size=BATCH_SIZE):
+                                  thread_count=THREAD_COUNT,
+                                  chunk_size=CHUNK_SIZE,
+                                  max_chunk_bytes=MAX_CHUNK_BYTES):
         """Create a new index with name `index` and add given documents to it.
         `case_docs` or `project_docs` are empty, the will be generated
         automatically.
@@ -278,7 +295,8 @@ class GDCElasticsearch(object):
             self.log.warning("There were no case docs passed to populate with!")
 
         self.index_populate(index, case_docs, file_docs, ann_docs,
-                            project_docs, batch_size)
+                            project_docs, thread_count=thread_count,
+                            chunk_size=chunk_size, max_chunk_bytes=max_chunk_bytes)
 
     def swap_index(self, old_index, new_index):
         """Atomically switch the resolution of `alias` from `old_index` to
@@ -366,7 +384,8 @@ class GDCElasticsearch(object):
 
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True, cleanup_indices=True,
-               batch_size=BATCH_SIZE, index_name=None):
+               thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
+               max_chunk_bytes=MAX_CHUNK_BYTES, index_name=None):
         """Create a new index with an incremented name based on
         self.index_base, populate it with :func
         index_create_and_populate:, atomically switch the alias to
@@ -391,7 +410,10 @@ class GDCElasticsearch(object):
         self.log.info("Deploying to index %s", new_index)
         self.index_create_and_populate(new_index, case_docs,
                                        file_docs, ann_docs,
-                                       project_docs, batch_size)
+                                       project_docs,
+                                       thread_count=thread_count,
+                                       chunk_size=chunk_size,
+                                       max_chunk_bytes=max_chunk_bytes)
 
         # Add build metadata
         doc_counts = {'case': len(case_docs), 'file': len(file_docs),
