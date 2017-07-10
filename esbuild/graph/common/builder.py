@@ -1852,6 +1852,33 @@ class GraphIndexBuilder(object):
         # Aggressively cache relationships, nodes by type, traversals, etc.
         self._cache_all()
 
+        # Dump cached data to pickle files
+        self.dump_cached_data()
+
+    def dump_cached_data(self):
+        import os
+
+        def pickle_data(data, filename):
+            with open(filename + '.pickle', 'wb') as f:
+                pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
+
+        def save_data(data, filename):
+            print 'Writing {}'.format(filename)
+            with open(filename + '.str', 'wb') as f:
+                f.write(str(data))
+            print 'Done!'
+
+        root = os.path.expanduser('~')
+        save_data(self.experimental_strategies, os.path.join(root, 'experimental_strategies'))
+        save_data(self.data_categories, os.path.join(root, 'data_categories'))
+        save_data(self.popular_nodes, os.path.join(root, 'popular_nodes'))
+        save_data(self.cases, os.path.join(root, 'cases'))
+        save_data(self.projects, os.path.join(root, 'projects'))
+        save_data(self.relevant_nodes, os.path.join(root, 'relevant_nodes'))
+        save_data(self.annotations, os.path.join(root, 'annotations'))
+        save_data(self.annotation_entities, os.path.join(root, 'annotation_entities'))
+        save_data(self.entity_cases, os.path.join(root, 'entity_cases'))
+
     def _cache_all(self):
         """Create key value maps to cache nodes by label, by path, etc.
 
