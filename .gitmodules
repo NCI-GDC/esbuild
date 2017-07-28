@@ -1,3 +1,0 @@
-[submodule "tests/gdc-models"]
-	path = tests/gdc-models
-	url = git@github.com:NCI-GDC/gdc-models.git
