@@ -2,7 +2,7 @@ import argparse
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 
 
-def main(converter):
+def main(converter, index_base):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--no-roll', action="store_true",
@@ -35,6 +35,7 @@ def main(converter):
         converter_class=converter,
         build_projects=args.projects,
         index_name=args.upsert_to,
+        index_base=index_base
     )
     if args.delete:
         if not args.json_delete:

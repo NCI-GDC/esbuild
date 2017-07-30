@@ -5,4 +5,4 @@ from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 
 
 if __name__ == "__main__":
-    main(ActiveGraphIndexBuilder)
+    main(ActiveGraphIndexBuilder, index_base='gdc_from_graph')
