@@ -5,4 +5,4 @@ from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 
 
 if __name__ == "__main__":
-    main(LegacyGraphIndexBuilder)
+    main(LegacyGraphIndexBuilder, index_base='gdc_legacy_graph')
