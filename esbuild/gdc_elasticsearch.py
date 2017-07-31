@@ -9,8 +9,10 @@ Elasticsearch
 """
 
 import os
+import sys
 import re
 import json
+import datetime
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -55,7 +57,7 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, es=None,
+    def __init__(self, converter_class, debug=False, es=None,
                  index_base="gdc_from_graph"):
         """Walks the graph to produce elasticsearch json documents.
 
@@ -82,47 +84,70 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        self.converter = converter_class(self.graph)
+        self.converter = converter_class(self.graph, debug=debug)
+        self.converter_class_name = converter_class.__class__.__name__
 
-    def go(self, roll_alias=True):
+    def go(self, roll_alias=True, delete_nodes=True, skip_build=False):
         self.log.info("Caching database")
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
-            self.converter.cache_database()
+            if not skip_build:
+                self.converter.cache_database()
             self.log.info("Querying for old nodes to delete")
             to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
-            to_delete = [n for n in to_delete if not shouldnt_delete(n)]
+            to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
             self.log.info("Found %s to_delete nodes, saving for later",
                           len(to_delete))
-        self.log.info("Denormalizing database into JSON docs")
-        case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-        self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
-                      len(case_docs),
-                      len(file_docs),
-                      len(ann_docs),
-                      len(project_docs))
-        self.log.info("Validating docs produced")
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
-        self.log.info("Deploying new ES index with new docs and bumping alias")
-        new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                roll_alias=roll_alias)
-        with self.graph.session_scope() as session:
-            for expired_node in to_delete:
-                node = self.graph.nodes(expired_node.__class__)\
-                                 .ids(expired_node.node_id)\
-                                 .scalar()
-                if node:
-                    self.log.info("Deleting %s", node)
-                    session.delete(node)
-        statsd.event(
-            "esbuild finished",
-            "successfully built index {}".format(new_index),
-            source_type_name="esbuild",
-            alert_type="success",
-            tags=["es_index:{}".format(new_index)],
-        )
+            self.log.info(to_delete)
+        
+        if not skip_build:
+            self.log.info("Denormalizing database into JSON docs")
+            case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
+            self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
+                          len(case_docs),
+                          len(file_docs),
+                          len(ann_docs),
+                          len(project_docs))
+            self.log.info("Validating docs produced")
+            self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+            self.log.info("Deploying new ES index with new docs and bumping alias")
+            new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
+                                    roll_alias=roll_alias)
+        self.delete_nodes(to_delete=to_delete,
+                          delete_nodes=delete_nodes)
+        if not skip_build:
+            statsd.event(
+                "esbuild finished",
+                "successfully built index {}".format(new_index),
+                source_type_name="esbuild",
+                alert_type="success",
+                tags=["es_index:{}".format(new_index)],
+            )
+
+    def delete_nodes(self, to_delete=[], delete_nodes=True):
+        if delete_nodes == True:
+            with self.graph.session_scope() as session:
+                for expired_node in to_delete:
+                    #node = self.graph.nodes(expired_node.__class__)\
+                    #                 .ids(expired_node)\
+                    #                 .scalar()
+                    node = self.graph.nodes().get(expired_node)
+                    if node:
+                        if 'to_delete' in node.sysan:
+                            if node.sysan['to_delete']:
+                                self.log.info("Deleting %s", node)
+                                session.delete(node)
+        else:
+            deleted_file_name = '{}/{}-{}.json'.format(os.path.expanduser('~'),
+                                                       'esbuild',
+                                                       datetime.datetime.now().isoformat())
+            self.log.info("Skipping deletion of nodes, saving them to log file {}"
+                          .format(deleted_file_name))
+            with open(deleted_file_name, 'w') as json_file:
+                for entry in to_delete:
+                    json_file.write(entry + '\n')
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
@@ -149,22 +174,35 @@ class GDCElasticsearch(object):
         :param int batch_size: The number of docs per batch
 
         """
+
         if not docs:
             return
-        instruction = {"index": {"_index": index, "_type": doc_type}}
+
         pbar = self.pbar('{} upload '.format(doc_type), len(docs))
 
         def body():
+            """Alternatingly yield instruction/doc, instruction/doc..."""
+
             start = pbar.currval
             for doc in docs[start:start+batch_size]:
+                instruction = dict(
+                    index=dict(
+                        _index=index,
+                        _type=doc_type,
+                        _id=doc[doc_type+'_id'],
+                    )
+                )
                 yield instruction
                 yield doc
+
                 pbar.update(pbar.currval+1)
+
         while pbar.currval < len(docs):
             res = self.es.bulk(body=body())
             if res['errors']:
                 raise RuntimeError(json.dumps([
-                    d for d in res['items'] if d['index']['status'] != 100
+                    doc for doc in res['items']
+                    if doc['index']['status'] != 100
                 ], indent=2))
         pbar.finish()
 
@@ -245,12 +283,23 @@ class GDCElasticsearch(object):
             {'remove': {'index': old_index, 'alias': self.index_base}},
             {'add': {'index': new_index, 'alias': self.index_base}}]})
 
+    def get_indices(self):
+        """Returns a list of open and closed index names"""
+
+        return (
+            # Closed indices
+            self.es.cluster.state()['blocks'].get('indices', {}).keys()
+            # Open indices
+            + self.es.indices.stats()['indices'].keys()
+        )
+
+
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
         have gdc_from_graph_23, gdc_from_graph_24, and
         gdc_from_graph_25, this will return [23, 24, 25].
         """
-        indices = set(self.es.indices.get_aliases().keys())
+        indices = set(self.get_indices())
         p = re.compile(INDEX_PATTERN.format(base=self.index_base, n='(\d+)')+'$')
         matches = [p.match(index) for index in indices if p.match(index)]
         numbers = sorted([int(m.group(1)) for m in matches])

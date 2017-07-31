@@ -516,6 +516,24 @@ NODES = [
         primary_site="-",
         disease_type="-",
     ),
+    Case(
+        # fake case in fake active project
+        node_id='fake_active_case_1',
+        project_id='TCGA-FAKE_ACTIVE',
+        state='submitted',
+        submitter_id='fake_submitter_1',
+        primary_site='Fake Site',
+        disease_type='Fake and Scary Carcinoma'
+    ),
+    Case(
+        # second fake case in fake active project
+        node_id='fake_active_case_2',
+        project_id='TCGA-FAKE_ACTIVE',
+        state='submitted',
+        submitter_id='fake_submitter_2',
+        primary_site='Another Fake Site',
+        disease_type='Yet Another Fake Carcinoma'
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
@@ -930,6 +948,14 @@ NODES = [
         code="BRCA",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
+    ),
+    Project(
+        node_id='fake_active_project',
+        released=True,
+        state="open",
+        code="FAKE_ACTIVE",
+        dbgap_accession_number=None,
+        name="Made up active project",
     ),
     Project(
         node_id='unreleased-project',
@@ -1502,6 +1528,20 @@ EDGES = [
     ProjectMemberOfProgram(
         src_id='unreleased-project',
         dst_id='internal-project',
+    ),
+
+    #  Ticket API-188
+    ProjectMemberOfProgram(
+        src_id='fake_active_project',
+        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
+    CaseMemberOfProject(
+        src_id='fake_active_case_1',
+        dst_id='fake_active_project',
+    ),
+    CaseMemberOfProject(
+        src_id='fake_active_case_2',
+        dst_id='fake_active_project',
     ),
 ]
 

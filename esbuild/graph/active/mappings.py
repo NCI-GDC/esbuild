@@ -27,15 +27,51 @@ from ..common.mappings import (
 class ActiveESMapper(ESMapper):
 
     @staticmethod
+    def multifield(name):
+        doc = Dict()
+        doc.type = 'keyword'
+        return Dict({name: doc})
+
+    @staticmethod
+    def index_settings():
+        settings = super(ActiveESMapper, ActiveESMapper).index_settings()
+
+        settings['settings']['analysis'] = {
+            "filter": {
+                "edge_ngram": {
+                    "min_ngram": '1',
+                    "side": "front",
+                    "type": "edge_ngram",
+                    "max_gram": "20",
+                }
+            },
+            "analyzer": {
+                "autocomplete_prefix": {
+                    "tokenizer": "keyword",
+                    "filter": ["lowercase", "edge_ngram"],
+                },
+                "autocomplete_analyzed": {
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "edge_ngram"],
+                },
+                "lowercase_keyword": {
+                    "tokenizer": "keyword",
+                    "filter": ["lowercase"],
+                }
+            }
+        }
+        return settings
+
+    @staticmethod
     def update_no_overwrite(original, new):
         for key, value in new.iteritems():
             if key not in original:
                 original[key] = value
 
     @classmethod
-    def get_file_es_mapping(cls, *args, **kwargs):
+    def get_file_es_mapping(cls, include_case=True, is_root=True):
         files = Dict(super(ActiveESMapper, ActiveESMapper)
-                     .get_file_es_mapping(*args, **kwargs))
+                     .get_file_es_mapping(include_case, is_root))
 
         file_base_props = cls.multifield('file_id')
         file_base_props.update(cls.get_properties_by_category('index_file'))
@@ -79,14 +115,41 @@ class ActiveESMapper(ESMapper):
         files.properties.analysis = analysis
         files.properties.downstream_analyses = ds_analysis
 
+        # Add autocomplete and copy_to fields
+        if is_root:
+            files = cls.add_file_autocomplete(files)
+
         return files.to_dict()
 
     @classmethod
-    def get_case_es_mapping(cls, *args, **kwargs):
+    def get_case_es_mapping(cls, include_file=True, is_root=True):
         case = Dict(super(ActiveESMapper, ActiveESMapper)
-                    .get_case_es_mapping(*args, **kwargs))
+                    .get_case_es_mapping(include_file, is_root))
+        # Add autocomplete and copy_to fields
+        if is_root:
+            case = cls.add_case_autocomplete(case)
 
         return case.to_dict()
+
+    @classmethod
+    def get_annotation_es_mapping(cls, include_file=True):
+        annotation = Dict(super(ActiveESMapper, ActiveESMapper)
+                          .get_annotation_es_mapping(include_file))
+
+        # Add autocomplete and copy_to fields
+        annotation = cls.add_annotation_autocomplete(annotation)
+
+        return annotation.to_dict()
+
+    @classmethod
+    def get_project_es_mapping(cls):
+        project = Dict(super(ActiveESMapper, ActiveESMapper)
+                       .get_project_es_mapping())
+
+        # Add autocomplete and copy_to fields
+        project = cls.add_project_autocomplete(project)
+
+        return project.to_dict()
 
 
 get_file_es_mapping = ActiveESMapper.get_file_es_mapping

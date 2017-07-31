@@ -161,10 +161,18 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver):
+    def __init__(self, psqlgraph_driver, debug=False):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+        self.debug = debug
+
+        # Populate self.debug_projects, if debug is set
+        if isinstance(debug, list):
+            if len(debug) == 0:
+                self.debug_projects = [('TARGET', 'RT'), ('TCGA', 'MESO')]
+            else:
+                self.debug_projects = [p.split('-', 1) for p in debug]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -1229,6 +1237,7 @@ class GraphIndexBuilder(object):
     ###################################################################
 
     def denormalize_cases(self, cases=None):
+
         """If cases is not specified, denormalize all cases in
         the graph.  If cases is specified, denormalize only those
         given.
@@ -1585,7 +1594,12 @@ class GraphIndexBuilder(object):
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if (program_name, project_code) in self.omitted_projects:
+                if self.debug:
+                    if (program_name, project_code) in self.debug_projects:
+                        return False
+                    else:
+                        return True
+                elif (program_name, project_code) in self.omitted_projects:
                     return True
 
         return False

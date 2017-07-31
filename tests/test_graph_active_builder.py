@@ -11,6 +11,7 @@ Test the builder for graph ES index
 
 
 from gdcdatamodel import models as md
+from gdcmodels import get_es_models
 from jsonpath_rw import parse
 
 import pytest
@@ -80,19 +81,52 @@ def mappings():
 # ======================================================================
 # Tests
 
+def get_dict_paths(d, path_list=None, path='root'):
+    """
+    Returns list of all paths in a dict and a last path found
+    """
+    if path_list is None:
+        path_list = []
+
+    for k, v in d.iteritems():
+        subpath = path + '.' + k
+        if isinstance(v, dict):
+            sublist, subpath = get_dict_paths(v, path_list, subpath)
+        else:
+            if isinstance(v, list):
+                sublist = [path + '.' + k + '.' + str(e) for e in v]
+            else:
+                sublist = [path + '.' + k + '.' + str(v)]
+        path_list.extend(sublist)
+    return list(set(path_list)), path
+
+
+@pytest.mark.skipif(True,
+                    reason='esbuild has all requred fields but also some '
+                           'extra fields in case and file docs. This is yet to be fixed.')
+@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
+def test_mapping_full(mappings, doc_type):
+    es_mapping = mappings[doc_type]['properties']
+    true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
+
+    es_paths = get_dict_paths(es_mapping)[0]
+    true_paths = get_dict_paths(true_mapping)[0]
+
+    from pprint import pprint
+    print '\n {}'.format(doc_type)
+    pprint (set(true_paths) - set(es_paths))
+    pprint (set(es_paths) - set(true_paths))
+
+    assert set(true_paths) == set(es_paths)
+
+
 @pytest.mark.parametrize('mapping,path', [
-    ('file', 'properties.file_name.fields.analyzed.index'),
     ('file', 'properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs'),
     ('file', 'properties.analysis.properties.input_files.properties.data_category'),
-    ('file', 'properties.analysis.properties.input_files.properties.file_id.fields.analyzed.index'),
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
-    ('file', 'properties.downstream_analyses.properties.output_files.properties.file_id.fields.analyzed.index'),
     ('case', '_meta.descriptions'),
     ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
-    ('case', 'properties.submitter_id.fields.analyzed.index'),
-    ('project', 'properties.name.fields.analyzed.index'),
     ('project', '_meta.descriptions'),
-    ('annotation', 'properties.entity_id.fields.analyzed.index'),
     ('annotation', '_meta.descriptions'),
 ])
 def test_mapping_contains(mappings, mapping, path):
@@ -193,9 +227,13 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 
 
 @pytest.mark.parametrize('doc_type,path,count', [
-    ('projects', '[*].primary_site', 1),
-    ('projects', '[*].disease_type', 1),
-    ('cases', '[*].project.project_id', 1),
+    ('projects', '[*].primary_site', 2),
+    ('projects', '[*].disease_type', 2),
+    ('cases', '[*].primary_site', 3),
+    ('cases', '[*].disease_type', 3),
+    ('cases', '[*].project.project_id', 3),
+    ('cases', '[*].project.disease_type', 3),
+    ('cases', '[*].project.primary_site', 3),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
@@ -217,8 +255,15 @@ def test_path_count(index, doc_type, path, count):
     assert len(results) == count
 
 
+@pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
+                                             ('cases', 3), ('files', 10)])
+def test_basic_counts(index, doc_type, count):
+    data = getattr(index, doc_type)
+    assert len(data) == count
+
+
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].name', 1, {'Breast Invasive Carcinoma'}),
+    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'Made up active project'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
      6, {1, 2, 4}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
@@ -229,7 +274,7 @@ def test_path_count(index, doc_type, path, count):
          'Copy Number Variation',
          'DNA Methylation',
      }),
-    ('cases', '[*].submitter_id', 1, {'TCGA-AR-A1AR'}),
+    ('cases', '[*].submitter_id', 3, {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2'}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -243,8 +288,10 @@ def test_path_count(index, doc_type, path, count):
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
-    ('cases', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
-    ('cases', '[*].primary_site', 1, {'Breast'}),
+    ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
+                                      'Fake and Scary Carcinoma',
+                                      'Yet Another Fake Carcinoma'}),
+    ('cases', '[*].primary_site', 3, {'Breast', 'Fake Site', 'Another Fake Site'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -277,8 +324,10 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].disease_type', 1, {'Breast Invasive Carcinoma'}),
-    ('projects', '[*].primary_site', 1, {'Breast'}),
+    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
+                                         'Fake and Scary Carcinoma',
+                                         'Yet Another Fake Carcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Fake Site', 'Another Fake Site'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -435,7 +484,7 @@ def test_aligned_reads_ancestor_sample_types(graph, index, aligned_reads):
 
 def test_no_duplicate_top_level_ids(index):
     for case in index.cases:
-        aliquot_ids = case['aliquot_ids']
+        aliquot_ids = case.get('aliquot_ids', [])
         assert len(aliquot_ids) == len(set(aliquot_ids))
 
 
