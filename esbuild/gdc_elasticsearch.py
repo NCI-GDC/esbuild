@@ -67,10 +67,20 @@ class GDCElasticsearch(object):
         :param converter_class: Class to use as a converter
 
         """
-        self.build_projects = build_projects
-        self.index_name = index_name
-        self.index_base = index_base
         self.log = get_logger("gdc_elasticsearch")
+
+        self.graph = PsqlGraphDriver(
+            os.environ["PG_HOST"],
+            os.environ["PG_USER"],
+            os.environ["PG_PASS"],
+            os.environ["PG_NAME"],
+        )
+
+        self.index_base = index_base
+        self.build_projects = build_projects
+        self.converter = converter_class(self.graph, build_projects=build_projects)
+        self.converter_class_name = converter_class.__class__.__name__
+
         if es:
             self.es = es
         else:
@@ -81,24 +91,26 @@ class GDCElasticsearch(object):
                            os.environ.get("ES_PASSWORD", "")),
                 timeout=9999)
 
-        self.graph = PsqlGraphDriver(
-            os.environ["PG_HOST"],
-            os.environ["PG_USER"],
-            os.environ["PG_PASS"],
-            os.environ["PG_NAME"],
-        )
-
-        self.converter = converter_class(self.graph, build_projects=build_projects)
-        self.converter_class_name = converter_class.__class__.__name__
+        if index_name:
+            self.index_name = index_name
+        else:
+            self.index_name = self.get_index_name()
 
     def go(self, roll_alias=True,
            cleanup_indices=True, delete_nodes=True, skip_build=False):
-        self.log.info("Caching database")
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
             if not skip_build:
+                self.log.info("Caching database")
+                statsd.event(
+                        "caching started",
+                        "starting postgres caching",
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=["es_index:{}".format(self.index_name), 'stage:caching'],
+                )
                 self.converter.cache_database()
             self.log.info("Querying for old nodes to delete")
             to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
@@ -106,9 +118,16 @@ class GDCElasticsearch(object):
             self.log.info("Found %s to_delete nodes, saving for later",
                           len(to_delete))
             self.log.info(to_delete)
-        
+
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
+            statsd.event(
+                    "denormalization started",
+                    "starting denormalizing index".format(self.index_name),
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
+            )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
             self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
                           len(case_docs),
@@ -116,8 +135,22 @@ class GDCElasticsearch(object):
                           len(ann_docs),
                           len(project_docs))
             self.log.info("Validating docs produced")
+            statsd.event(
+                    "validation started",
+                    "starting validating index {}".format(self.index_name),
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+            )
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
             self.log.info("Deploying new ES index with new docs and bumping alias")
+            statsd.event(
+                    "es uploading started",
+                    "starting uploading index {}".format(self.index_name),
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
+            )
             new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
                                     index_name=self.index_name,
                                     roll_alias=roll_alias,
@@ -129,8 +162,8 @@ class GDCElasticsearch(object):
                 "esbuild finished",
                 "successfully built index {}".format(new_index),
                 source_type_name="esbuild",
-                alert_type="success",
-                tags=["es_index:{}".format(new_index)],
+                alert_type="info",
+                tags=["es_index:{}".format(new_index), 'stage:finished'],
             )
 
     def delete_nodes(self, to_delete=[], delete_nodes=True):
@@ -382,6 +415,16 @@ class GDCElasticsearch(object):
                 except:
                     self.log.error("Can't close index %s" % index)
 
+    def get_index_name(self):
+        """Returns incremented index name"""
+        current_numbers = self.get_index_numbers()
+        self.log.info("Currently deployed indices are %s", current_numbers)
+        if not current_numbers:
+            n = 1
+        else:
+            n = max(current_numbers) + 1
+        return INDEX_PATTERN.format(base=self.index_base, n=n)
+
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True, cleanup_indices=True,
                thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
@@ -393,19 +436,13 @@ class GDCElasticsearch(object):
         last 5 versions of this index.
 
         """
-        current_numbers = self.get_index_numbers()
-        self.log.info("Currently deployed indices are %s", current_numbers)
-
+       
         # If explicit name provided, will upsert data to this particular index
         if index_name:
             new_index = index_name
         # Else will create a new index with incremented name
         else:
-            if not current_numbers:
-                n = 1
-            else:
-                n = max(current_numbers) + 1
-            new_index = INDEX_PATTERN.format(base=self.index_base, n=n)
+            new_index = self.get_index_name()
 
         self.log.info("Deploying to index %s", new_index)
         self.index_create_and_populate(new_index, case_docs,
