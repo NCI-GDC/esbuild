@@ -1599,13 +1599,13 @@ class GraphIndexBuilder(object):
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if self.build_projects:
+                if (program_name, project_code) in self.omitted_projects:
+                    return True
+                elif self.build_projects:
                     if (program_name, project_code) in self.build_projects:
                         return False
                     else:
                         return True
-                elif (program_name, project_code) in self.omitted_projects:
-                    return True
 
         return False
 
