@@ -1324,6 +1324,11 @@ class GraphIndexBuilder(object):
         esid = entity._props.get('submitter_id')
         if esid:
             ann_doc['entity_submitter_id'] = esid
+
+        for e in node.edges_out:
+            if e.get_name() == 'AnnotationRelatesToCase':
+                ann_doc['case_id'] = e.dst_id
+
         return ann_doc
 
     def denormalize_all(self):
