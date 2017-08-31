@@ -22,7 +22,8 @@ from conftest import (
 
 def build_index(graph):
     builder = LegacyGraphIndexBuilder(graph)
-    builder.cache_database()
+    with graph.session_scope():
+        builder.cache_database()
     index = builder.denormalize_all()
     return Index._make(index)
 
