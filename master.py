@@ -81,7 +81,7 @@ def split_projects(mylist, n, split_by_program=False):
         raise ValueError('Number of parts should be positive integer. Got: {}'.format(n))
     if n > len(mylist):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
-        
+
     # Split-by-program mode
     if split_by_program:
         programs = set([p.split('-', 1)[0] for p in mylist])

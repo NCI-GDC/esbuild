@@ -9,6 +9,7 @@ from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
 
 import data
+import es_data
 import logging
 import os
 import pytest
@@ -125,18 +126,19 @@ def graph():
 def test_index():
     """Generate an index as a fixture for re-use between tests"""
 
+    # Create test index with dummy docs
     es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
     index = 'test_index__'
     doc_type = 'test'
-    docs = [{
-        'id': 'test-doc-1',
-        'value': 1,
-    }, {
-        'id': 'test-doc-2',
-        'value': 2,
-    }]
+    docs = es_data.dummy_docs
 
+    # Try to remove old test index if any 
+    es_driver.indices.delete(index=index, ignore=404)
+
+    # Create test index
     es_driver.indices.create(index=index, ignore=400)
+
+    # Populate test index
     for doc in docs:
         es_driver.create(
             index=index,
@@ -146,11 +148,30 @@ def test_index():
             ignore=409,
         )
 
-    while True:
-        count = es_driver.count(index=index, doc_type=doc_type)['count']
-        if count == len(docs):
-            break
-        time.sleep(0.1)
+    # Create dummy build_metadata documents
+    metadata_docs = es_data.build_metadata
+
+    for doc in metadata_docs:
+        es_driver.create(index=index, doc_type='build_metadata',
+                         body=doc, id=','.join(doc['build_projects']))
+
+    # Create dummy esbuild docs
+    for dtype in ['case', 'file', 'project', 'annotation']:
+        for doc in getattr(es_data, '{}_docs'.format(dtype)):
+            es_driver.index(index=index, doc_type=dtype, body=doc)
+
+    # Make sure that docs are created:
+    for dtype, dcount in [['test', len(docs)],
+                          ['build_metadata', len(metadata_docs)],
+                          ['case', len(es_data.case_docs)],
+                          ['file', len(es_data.file_docs)],
+                          ['project', len(es_data.project_docs)],
+                          ['annotation', len(es_data.annotation_docs)]]:
+        while True:
+            count = es_driver.count(index=index, doc_type=dtype)['count']
+            if count == dcount:
+                break
+            time.sleep(0.1)
 
     yield es_driver, index, doc_type, docs
     es_driver.indices.delete(index=index, ignore=400)
