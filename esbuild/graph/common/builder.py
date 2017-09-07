@@ -569,10 +569,6 @@ class GraphIndexBuilder(object):
         # Pull out the annotations from the case
         annotations = self.get_relevant_annotations(case, relevant_ids)
 
-        # Set the annotation's case id in-place
-        for annotation in annotations:
-            annotation['case_id'] = node.node_id
-
         # Create copy of annotations to return and add properties
         # (note: this is *not* in-place)
         returned_annotations = map(copy, annotations)
