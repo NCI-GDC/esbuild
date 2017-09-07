@@ -23,6 +23,8 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
+from utils import ReleaseHelper
+
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
 THREAD_COUNT = 16
@@ -59,8 +61,7 @@ class GDCElasticsearch(object):
     """
 
     def __init__(self, converter_class, build_projects=None, es=None,
-                 index_base="gdc_from_graph",
-                 index_name=None):
+                 index_base="gdc_from_graph", index_name=None):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
@@ -96,11 +97,20 @@ class GDCElasticsearch(object):
         else:
             self.index_name = self.get_index_name()
 
-    def go(self, roll_alias=True,
-           cleanup_indices=True, delete_nodes=True, skip_build=False):
+        # Used to clean up data in existing index
+        self.release_helper = ReleaseHelper(self.es)
+
+    def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
+           skip_build=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
+
+        # Prepare index to be augmented by new data
+        # Noop if index does not exist
+        self.release_helper.prepare_index_to_build(self.index_name,
+                                                   self.build_projects)
+
         with self.graph.session_scope() as session:
             if not skip_build:
                 self.log.info("Caching database")

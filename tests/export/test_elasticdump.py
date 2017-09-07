@@ -10,21 +10,13 @@ import pytest
 
 
 def test_export_data_to_gzip(test_index, tmpdir):
-    es, index, doc_type, docs = test_index
+    es, index, _, _ = test_index
 
     f = tmpdir.join('test_index.data.gz')
     export_to_gzip(f.strpath, ExportTypes.DATA, index, ES_HOST)
 
-    expected_dump = {
-        doc['id']: {
-            "_index": index,
-            "_type": doc_type,
-            "_id": doc['id'],
-            "_score": 1,
-            "_source": doc,
-        }
-        for doc in docs
-    }
+    expected_dump = {doc['_id']: doc
+                     for doc in es.search(index=index, size=10000)['hits']['hits']}
 
     with gzip.open(f.strpath, 'rb') as f:
         dump = f.read()
