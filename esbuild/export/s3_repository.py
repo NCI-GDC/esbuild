@@ -16,7 +16,7 @@ class BackupHelper:
 
     def create_repository(self, repository_name):
         """
-        Creates reposirory in es cluster associated with S3 bucket
+        Creates repository in es cluster associated with S3 bucket
         Cluster and bucket are chosen during __init__
         """
         repository_settings = {
@@ -40,7 +40,8 @@ class BackupHelper:
         else:
             self.es_snapshot.delete(repository=repository_name, snapshot=snapshot_name)
 
-    def store_snapshot(self, repository_name, snapshot_name, indices):
+    def store_snapshot(self, repository_name, snapshot_name, indices,
+                       wait_for_completion=True):
         """
         Stores indices as a snapshot in s3 repository
         """
@@ -55,10 +56,11 @@ class BackupHelper:
         }
         self.es_snapshot.create(body=snapshot_settings,
                                 repository=repository_name,
-                                snapshot=snapshot_name)
+                                snapshot=snapshot_name,
+                                wait_for_completion=wait_for_completion)
 
-    def restore_from_snapshot(self, repository_name, snapshot_name,
-                              indices='all', wait_for_completion=True):
+    def restore_from_snapshot(self, repository_name, snapshot_name, indices='all',
+                              rename_pattern=None, wait_for_completion=True):
         # Create repository if not found
         if repository_name not in self.es_snapshot.get_repository():
             self.create_repository(repository_name)
@@ -66,9 +68,12 @@ class BackupHelper:
         restore_settings = {
             "ignore_unavailable": False,
             "include_global_state": True,
-            # "rename_pattern": "index_(.+)",
-            # "rename_replacement": "restored_index_$1"
         }
+
+        if rename_pattern:
+            restore_settings["rename_pattern"] = '(.+)'
+            restore_settings["rename_replacement"] = rename_pattern
+
         if indices != 'all':
             restore_settings['indices'] = ','.join(indices)
 
