@@ -105,12 +105,6 @@ class GDCElasticsearch(object):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
-
-        # Prepare index to be augmented by new data
-        # Noop if index does not exist
-        self.release_helper.prepare_index_to_build(self.index_name,
-                                                   self.build_projects)
-
         with self.graph.session_scope() as session:
             if not skip_build:
                 self.log.info("Caching database")
@@ -153,6 +147,27 @@ class GDCElasticsearch(object):
                     tags=["es_index:{}".format(self.index_name), 'stage:validation'],
             )
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+
+            # Prepare index (if it exists) to be augmented by new data
+            if self.index_name in self.es.indices.get_alias():
+                if self.build_projects:
+                    projects_to_build = ','.join(self.build_projects)
+                else:
+                    projects_to_build = 'all'
+                self.log.info("Preparing ES index to be updated with {} projects"
+                              .format(projects_to_build))
+                statsd.event(
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                              'projects:{}'.format(projects_to_build),
+                              'stage:preparation'],
+                )
+                self.release_helper.prepare_index_to_build(self.index_name,
+                                                           self.build_projects)
+
             self.log.info("Deploying new ES index with new docs and bumping alias")
             statsd.event(
                     "es uploading started",
