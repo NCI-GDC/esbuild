@@ -475,7 +475,7 @@ class ESMapper(object):
         # Add pop whatever file is present and add correct files
         case.properties.pop('file', None)
         if include_file:
-            case.properties.files = cls.get_file_es_mapping(include_case=True, is_root=False)
+            case.properties.files = cls.get_file_es_mapping(include_case=False, is_root=False)
             case.properties.files.type = 'nested'
 
             # Adjust file properties

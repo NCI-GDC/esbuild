@@ -185,6 +185,7 @@ def test_mapping_value_in(mappings, mapping, path, expected):
 def test_list_product(a, b, expected):
     assert list_product(a, b) == expected
 
+
 @pytest.mark.parametrize('node,expected', [
     (md.RnaExpressionWorkflow, ['exon_expression']),
     (md.RnaExpressionWorkflow, ['gene_expression']),

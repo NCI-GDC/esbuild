@@ -523,7 +523,7 @@ class GraphIndexBuilder(object):
 
         return {node: self.create_tree(node, self.ptree_mapping, {})}
 
-    def get_relevant_annotations(self, case_doc, relevant_ids):
+    def get_relevant_annotations(self, file_docs, relevant_ids):
         """Return a flat list of annotations who describe entities in
         :param:`relevant_ids`
 
@@ -531,7 +531,7 @@ class GraphIndexBuilder(object):
 
         return [
             annotation
-            for file_ in case_doc['files']
+            for file_ in file_docs
             for annotation in file_.get('annotations', [])
             if annotation['entity_id'] in relevant_ids
         ]
@@ -560,34 +560,33 @@ class GraphIndexBuilder(object):
         project = self.patch_project(case['project'])
 
         # Denormalize the cases files
-        case['files'] = self.get_case_file_docs(node, ptree, files)
+        returned_files = self.get_case_file_docs(node, ptree, files)
+
+        # Add files to cases
+        # Do not add cases, annotations and associated entities to case.files
+        case['files'] = [{k: f[k] for k in f if k not in ['cases',
+                                                          'annotations',
+                                                          'associated_entities']}
+                         for f in returned_files]
+
+        self.validate_case(node, case)
 
         # Flatten ids we visited in traversal to create a list of ids
         # that are relevant to this case (including the case's id)
         relevant_ids = self.get_relevant_ids(node, visited_ids)
 
-        # Pull out the annotations from the case
-        annotations = self.get_relevant_annotations(case, relevant_ids)
+        # Pull out the annotations from files
+        annotations = self.get_relevant_annotations(returned_files, relevant_ids)
 
         # Create copy of annotations to return and add properties
         # (note: this is *not* in-place)
         returned_annotations = map(copy, annotations)
         self.patch_annotations(returned_annotations, node, project)
 
-        # Copy the files with all cases, do this because the nested
-        # version of each file is about to have its file['cases'] set
-        # to the current case, but we want to return a list of files
-        # *without* all but one case pruned form file['cases']
-        returned_files = deepcopy(case['files'])
-
-        self.patch_case_files(node, case)
-        self.validate_case(node, case)
-
         return case, returned_files, returned_annotations
 
     def get_case_file_docs(self, node, ptree, files):
         """Given a list of files, return a list of file docs"""
-
         return [
             self.denormalize_file(file_, ptree)
             for file_ in files
@@ -600,18 +599,6 @@ class GraphIndexBuilder(object):
             annotation['project'] = project
             annotation['case_id'] = node.node_id
             annotation['case_submitter_id'] = node.submitter_id
-
-    def patch_case_files(self, case, case_doc):
-        """Trim other cases from files in-place"""
-
-        for nested_file in case_doc['files']:
-            nested_file['cases'] = [
-                _case
-                for _case in nested_file['cases']
-                if _case['case_id'] == case.node_id
-            ]
-            nested_file.pop('annotations', None)
-            nested_file.pop('associated_entities', None)
 
     def get_exp_strats(self, files):
         """Get the set of experimental_strategies where intersection of the
@@ -1109,10 +1096,10 @@ class GraphIndexBuilder(object):
         if did not in files:
             files[did] = file_doc
         else:
+            # If file in dict already, merge cases
+            existing_ids = {c['case_id'] for c in files[did]['cases']}
             for case in file_doc['cases']:
                 case_id = case['case_id']
-                existing_ids = {
-                    p['case_id'] for p in files[did]['cases']}
                 if case_id not in existing_ids:
                     files[did]['cases'] += file_doc['cases']
 

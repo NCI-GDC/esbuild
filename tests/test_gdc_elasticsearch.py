@@ -78,7 +78,6 @@ class GDCElasticsearchTest(object):
                 doc_type="case",
                 id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c'))
 
-
     def test_unexpected_properties(self):
         with _graph.session_scope() as s:
             demographic = _graph.nodes(Demographic).one()
