@@ -131,6 +131,8 @@ class ESMapper(object):
         case_tree.sample.portion.analyte.aliquot.center.corr = (ONE_TO_ONE, 'center')
         case_tree.sample.portion.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.center.corr = (ONE_TO_ONE, 'center')
+        case_tree.sample.slide.corr = (ONE_TO_MANY, 'slides')
+        case_tree.sample.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.slide.corr = (ONE_TO_MANY, 'slides')
         case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
 
@@ -610,6 +612,8 @@ class ESMapper(object):
         case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = 'case_autocomplete'
         case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = 'case_autocomplete'
         case.properties.samples.properties.portions.properties.portion_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.slides.properties.slide_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.slides.properties.submitter_id.copy_to = 'case_autocomplete'
         case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = 'case_autocomplete'
         case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = 'case_autocomplete'
         case.properties.samples.properties.portions.properties.submitter_id.copy_to = 'case_autocomplete'
