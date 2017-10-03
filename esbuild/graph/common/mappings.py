@@ -268,7 +268,9 @@ class ESMapper(object):
     @classmethod
     def _get_header(cls, source):
         header = Dict()
-        header.dynamic = 'strict'
+        # Hackety hack hack...setting this manually for a test - Joe
+        #header.dynamic = 'strict'
+        header.dynamic = True
         header._all.enabled = False
         header._source.excludes = ["__comment__"]
         header._meta.descriptions = cls.get_descriptions()
