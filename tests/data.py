@@ -1281,6 +1281,10 @@ EDGES = [
         src_id='3013e9be-aa3e-4986-990c-559982f00e36',
         dst_id='40407260-e805-4c2e-b2a7-13862bc5e494',
         properties={}),
+    SlideDerivedFromSample(
+        src_id='3013e9be-aa3e-4986-990c-559982f00e36',
+        dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
+        properties={}),
     CaseMemberOfProject(
         src_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
