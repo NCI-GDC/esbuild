@@ -651,10 +651,16 @@ class GraphIndexBuilder(object):
 
         """
 
+        # Get all the "correct" aliquots and slides, save them
+        # so we can differentiate between these and the other
+        # linked ones
         samples = case.get('samples', [])
         correct_aliquots = set()
+        correct_slides = set()
         for sample in samples:
             for portion in sample.get('portions', []):
+                for slide in portion.get('slides', []):
+                    correct_slides.add(slide['slide_id'])
                 for analyte in portion.get('analytes', []):
                     for aliquot in analyte.get('aliquots', []):
                         correct_aliquots.add(aliquot['aliquot_id'])
@@ -662,9 +668,19 @@ class GraphIndexBuilder(object):
         for sample in samples:
             sample['portions'] = sample.get('portions', [])
 
+            # Get all slides connected to samples
+            sample_slides = sample.pop('slides', [])
+            for slide in sample_slides:
+                # Put slide under portion
+                if slide['slide_id'] not in correct_slides:
+                    sample['portions'].append({
+                        'slides': [slide]
+                        })
+
             # Get all aliquots connected to samples
             sample_aliquots = sample.pop('aliquots', [])
             for aliquot in sample_aliquots:
+                # Put aliquot under analyte
                 if aliquot['aliquot_id'] not in correct_aliquots:
                     sample['portions'].append({
                         'analytes': [{
