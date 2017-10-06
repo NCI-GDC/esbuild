@@ -135,12 +135,15 @@ def test_index():
     # Try to remove old test index if any 
     es_driver.indices.delete(index=index, ignore=404)
 
-    # Create test index
-    es_driver.indices.create(index=index, ignore=400)
+    # Create test index and put mappings
+    es_driver.indices.create(index=index, ignore=400,
+                             body=es_data.get_index_settings())
 
+    es_driver.indices.put_mapping(index=index, doc_type='test',
+                                  body=es_data.get_mapping('test'))
     # Populate test index
     for doc in docs:
-        es_driver.create(
+        es_driver.index(
             index=index,
             id=doc['id'],
             doc_type=doc_type,
@@ -152,13 +155,18 @@ def test_index():
     metadata_docs = es_data.build_metadata
 
     for doc in metadata_docs:
-        es_driver.create(index=index, doc_type='build_metadata',
-                         body=doc, id=','.join(doc['build_projects']))
+        es_driver.index(index=index, doc_type='build_metadata',
+                        body=doc, id=','.join(doc['build_projects']))
 
     # Create dummy esbuild docs
     for dtype in ['case', 'file', 'project', 'annotation']:
+        mapping = es_data.get_mapping(dtype)
+        es_driver.indices.put_mapping(index=index, doc_type=dtype, body=mapping)
         for doc in getattr(es_data, '{}_docs'.format(dtype)):
-            es_driver.index(index=index, doc_type=dtype, body=doc)
+            if dtype == 'project':
+                es_driver.index(index=index, doc_type=dtype, body=doc, id=doc['project_id'])
+            else:
+                es_driver.index(index=index, doc_type=dtype, body=doc)
 
     # Make sure that docs are created:
     for dtype, dcount in [['test', len(docs)],
