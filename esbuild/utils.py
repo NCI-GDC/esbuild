@@ -35,6 +35,9 @@ class ReleaseHelper:
         self.update_metadata(index_name)
 
     def get_project_ids(self, index_name):
+        """
+        Returns set of projects based on project documents in index
+        """
         query = {
             "query": {},
             "stored_fields": "_id"
@@ -45,45 +48,20 @@ class ReleaseHelper:
             projects = set([project['_id'] for project in res])
         else:
             # Existing index did not contain any project docs
-            projects = {}
+            projects = set()
         return projects
 
     def get_project_ids_from_metadata(self, index_name):
+        """
+        Returns set of projects based on build_metadata
+        """
+
         res = self.es.search(index=index_name, doc_type='build_metadata',
                              size=10000)['hits']['hits']
         projects = set()
         for doc in res:
             projects.update(set(doc['_source']['build_projects']))
         return projects
-
-    def create_build_metadata(self, index_name, delete_old=False):
-        """
-        Creates build_metadata document, based on data in :index_name 
-        """
-        # Handle case when build_metadata exists:
-        if self.es.search(index=index_name, doc_type='build_metadata')['hits']['hits']:
-            if delete_old:
-                self.es.delete_by_query(index=index_name,
-                                        doc_type='build_metadata', body={})
-            else:
-                raise Exception('build_metadata already exists for index {}'
-                                .format(index_name))
-
-        # Extracting project list directly from project docs
-        projects = self.get_project_ids(index_name)
-
-        counts = self.get_index_counts(index_name)
-        commit_hash = self.get_commit_hash()
-        self.es.index(index=index_name, doc_type='build_metadata',
-                      id=','.join(projects),
-                      body={
-                          'commit_hash': commit_hash,
-                          'build_projects': list(projects),
-                          'counts': counts,
-                      })
-
-        # Wait until the document is created
-        self.wait_for_es(index=index_name, doc_type='build_metadata')
 
     def delete_docs_from_index(self, index_name, projects_to_delete):
         """
@@ -143,6 +121,7 @@ class ReleaseHelper:
                                 doc_type='build_metadata', body={})
         self.es.create(index=index_name, id=','.join(projects_after),
                        doc_type='build_metadata', body=metadata_after)
+        self.wait_for_es(index_name, 'build_metadata')
 
     def get_index_counts(self, index_name):
         counts = {}
@@ -150,7 +129,19 @@ class ReleaseHelper:
             counts[dtype] = self.es.count(index=index_name, doc_type=dtype)['count']
         return counts
 
-    def get_commit_hash(self):
+    def wait_for_es(self, index_name, doc_type, query={}, max_wait_sec=30):
+        """
+        Wait for query to return non empty result
+        """
+        time_slept = 0
+        while not self.es.search(index=index_name, doc_type=doc_type, body=query)['hits']['hits']:
+            time.sleep(1)
+            time_slept += 1
+            if time_slept > max_wait_sec:
+                break
+
+    @staticmethod
+    def get_commit_hash():
         git_dir = os.path.join(os.path.dirname(
                                 os.path.dirname(
                                   os.path.realpath(__file__))), '.git')

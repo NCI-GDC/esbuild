@@ -89,7 +89,7 @@ def test_update_metadata(es_after_deletion):
     helper.update_metadata(index_name)
     time.sleep(2)
 
-    projects_after = helper.get_project_ids(index_name)
+    projects_after = helper.get_project_ids_from_metadata(index_name)
 
     # Check that metadata is adjusted correctly
     assert projects_after | set(deleted_projects) == projects_before
