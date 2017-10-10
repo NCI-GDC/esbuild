@@ -1,6 +1,8 @@
 """
 Elasticsearch test documents are defined here
 """
+from esbuild.graph.active.mappings import ESMapper
+
 
 dummy_docs = [{
     'id': 'test-doc-1',
@@ -75,7 +77,8 @@ file_docs = [
     {"cases": [{"project": {"project_id": "TARGET-NBL"}}]},
     {"cases": [{"project": {"project_id": "TCGA-THYM"}}]},
     {"cases": [{"project": {"project_id": "FM-AD"}}]},
-    {"cases": [{"project": {"project_id": "FM-AD"}}]},
+    {"cases": [{"project": {"project_id": "FM-AD"}},
+               {"project": {"project_id": "FM-AD"}}]},
     {"cases": [{"project": {"project_id": "FM-AD"}}]},
 ]
 project_docs = [
@@ -104,3 +107,14 @@ annotation_docs = [
     {"project": {"project_id": "TCGA-THYM"}},
     {"project": {"project_id": "FM-AD"}},
 ]
+
+
+def get_index_settings():
+    return ESMapper.index_settings()
+
+
+def get_mapping(doc_type):
+    if doc_type == 'test':
+        return {'_all': {'enabled': False}}
+    else:
+        return getattr(ESMapper, 'get_{}_es_mapping'.format(doc_type))()

@@ -28,75 +28,40 @@ class ReleaseHelper:
         if index_name not in self.es.indices.get_alias():
             return
 
-        # Get projects that exist in index
-        existing_projects = self.get_build_projects(index_name)
-
         # Remove data associated with projects that are to be build from index
-        projects_to_delete = [project for project in projects_to_build
-                              if project in existing_projects]
-        if projects_to_delete:
-            self.delete_docs_from_index(index_name, projects_to_delete)
+        self.delete_docs_from_index(index_name, projects_to_build)
 
-            # Remove projects form build_metadata
-            self.update_metadata(index_name, projects_to_delete)
+        # Update build_metadata
+        self.update_metadata(index_name)
 
-    def get_build_projects(self, index_name):
+    def get_project_ids(self, index_name):
         """
-        Returns list of all projects that are in the index
+        Returns set of projects based on project documents in index
         """
-        metadata = self.es.search(index=index_name,
-                                  doc_type='build_metadata',
-                                  size=10000)['hits']['hits']
-        if metadata:
-            # Extracting project ids from build_metadata
-            return set([project for group in metadata
-                        for project in group['_source']['build_projects']])
-        else:
-            # Something is wrong: index exists but there is no build metadata
-            # This index must have been built using old code
-            # This logic branch will try to fix the problem and then return what is expected
-            self.create_build_metadata(index_name)
-            return self.get_build_projects(index_name)
-
-    def create_build_metadata(self, index_name, delete_old=False):
-        """
-        Creates build_metadata document, based on data in :index_name 
-        """
-        # Handle case when build_metadata exists:
-        if self.es.search(index=index_name, doc_type='build_metadata')['hits']['hits']:
-            if delete_old:
-                self.es.delete_by_query(index=index_name,
-                                        doc_type='build_metadata', body={})
-            else:
-                raise Exception('build_metadata already exists for index {}'
-                                .format(index_name))
-
-        # Extracting project list directly from project docs
         query = {
             "query": {},
             "stored_fields": "_id"
         }
         res = self.es.search(index=index_name, doc_type='project',
-                             size=100000, body=query)['hits']['hits']
+                             size=10000, body=query)['hits']['hits']
         if res:
             projects = set([project['_id'] for project in res])
         else:
             # Existing index did not contain any project docs
-            projects = {}
+            projects = set()
+        return projects
 
-        counts = self.get_index_counts(index_name)
-        commit_hash = self.get_commit_hash()
-        self.es.index(index=index_name, doc_type='build_metadata',
-                      id=','.join(projects),
-                      body={
-                          'commit_hash': commit_hash,
-                          'build_projects': list(projects),
-                          'counts': counts,
-                      })
+    def get_project_ids_from_metadata(self, index_name):
+        """
+        Returns set of projects based on build_metadata
+        """
 
-        # Wait until the document is created
-        while not self.es.search(index=index_name, doc_type='build_metadata')['hits']['hits']:
-            time.sleep(1)
+        res = self.es.search(index=index_name, doc_type='build_metadata',
+                             size=10000)['hits']['hits']
+        projects = set()
+        for doc in res:
+            projects.update(set(doc['_source']['build_projects']))
+        return projects
 
     def delete_docs_from_index(self, index_name, projects_to_delete):
         """
@@ -107,24 +72,40 @@ class ReleaseHelper:
                           'case': 'project.project_id',
                           'file': 'cases.project.project_id',
                           'annotation': 'project.project_id'}
-            query = {
-                "query": {
-                    "terms": {
-                        path_to_id[doc_type]: projects_to_delete
+            for project in projects_to_delete:
+                if doc_type == 'file':
+                    query = {
+                        "query": {
+                            "nested": {
+                                "path": "cases",
+                                "query": {
+                                    "bool": {
+                                        "must": [
+                                            {"match_phrase": {"cases.project.project_id": project}},
+                                        ]
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
-            }
-            self.es.delete_by_query(index=index_name,
-                                    doc_type=doc_type, body=query)
+                else:
+                    query = {
+                        "query": {
+                            "match_phrase": {
+                                path_to_id[doc_type]: project
+                            }
+                        }
+                    }
 
-    def update_metadata(self, index_name, projects_to_delete):
+                self.es.delete_by_query(index=index_name,
+                                        doc_type=doc_type, body=query)
+
+    def update_metadata(self, index_name):
         """
         Updates build_metadata doc after projects deletion
         """
         # Get new project list
-        projects_before = self.get_build_projects(index_name)
-        projects_after = [p for p in projects_before
-                          if p not in projects_to_delete]
+        projects_after = self.get_project_ids(index_name)
 
         # Get new counts
         counts = self.get_index_counts(index_name)
@@ -133,13 +114,14 @@ class ReleaseHelper:
         commit_hash = self.get_commit_hash()
 
         # Update the metadata
-        metadata_after = {'build_projects': projects_after,
+        metadata_after = {'build_projects': list(projects_after),
                           'commit_hash': commit_hash,
                           'counts': counts}
         self.es.delete_by_query(index=index_name,
                                 doc_type='build_metadata', body={})
         self.es.create(index=index_name, id=','.join(projects_after),
                        doc_type='build_metadata', body=metadata_after)
+        self.wait_for_es(index_name, 'build_metadata')
 
     def get_index_counts(self, index_name):
         counts = {}
@@ -147,7 +129,19 @@ class ReleaseHelper:
             counts[dtype] = self.es.count(index=index_name, doc_type=dtype)['count']
         return counts
 
-    def get_commit_hash(self):
+    def wait_for_es(self, index_name, doc_type, query={}, max_wait_sec=30):
+        """
+        Wait for query to return non empty result
+        """
+        time_slept = 0
+        while not self.es.search(index=index_name, doc_type=doc_type, body=query)['hits']['hits']:
+            time.sleep(1)
+            time_slept += 1
+            if time_slept > max_wait_sec:
+                break
+
+    @staticmethod
+    def get_commit_hash():
         git_dir = os.path.join(os.path.dirname(
                                 os.path.dirname(
                                   os.path.realpath(__file__))), '.git')
