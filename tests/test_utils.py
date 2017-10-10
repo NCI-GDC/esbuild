@@ -7,8 +7,8 @@ import es_data
 from esbuild.utils import ReleaseHelper
 
 
-def test_get_projects_list(test_index):
-    es, index_name, _, _ = test_index
+def test_get_projects_list(test_index_data):
+    es, index_name = test_index_data
     helper = ReleaseHelper(es)
 
     projects = {d['project_id'] for d in es_data.project_docs}
@@ -18,12 +18,12 @@ def test_get_projects_list(test_index):
 
 
 @pytest.fixture(scope='module')
-def es_after_deletion(test_index):
+def es_after_deletion(test_index_data):
     """
     Deletes some projects from the index but not updates the metadata,
     leaving build_metadata inconsistent purposefully
     """
-    es, index_name, _, _ = test_index
+    es, index_name = test_index_data
     helper = ReleaseHelper(es)
 
     # Will delete these projects' data
