@@ -126,22 +126,12 @@ def graph():
 def test_index():
     """Generate an index as a fixture for re-use between tests"""
 
-    # Create test index with dummy docs
     es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
     index = 'test_index__'
     doc_type = 'test'
     docs = es_data.dummy_docs
 
-    # Try to remove old test index if any 
-    es_driver.indices.delete(index=index, ignore=404)
-
-    # Create test index and put mappings
-    es_driver.indices.create(index=index, ignore=400,
-                             body=es_data.get_index_settings())
-
-    es_driver.indices.put_mapping(index=index, doc_type='test',
-                                  body=es_data.get_mapping('test'))
-    # Populate test index
+    es_driver.indices.create(index=index, ignore=400)
     for doc in docs:
         es_driver.index(
             index=index,
@@ -150,6 +140,31 @@ def test_index():
             body=doc,
             ignore=409,
         )
+
+    while True:
+        count = es_driver.count(index=index, doc_type=doc_type)['count']
+        if count == len(docs):
+            break
+        time.sleep(0.1)
+
+    yield es_driver, index, doc_type, docs
+    es_driver.indices.delete(index=index, ignore=400)
+
+
+@pytest.yield_fixture(scope='module')
+def test_index_data():
+    """Generate data index as a fixture for re-use between tests"""
+
+    # Create test index with dummy docs
+    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    index = 'test_index_data__'
+
+    # Try to remove old test index if any 
+    es_driver.indices.delete(index=index, ignore=404)
+
+    # Create test index and put mappings
+    es_driver.indices.create(index=index, ignore=400,
+                             body=es_data.get_index_settings())
 
     # Create dummy build_metadata documents
     metadata_docs = es_data.build_metadata
@@ -169,8 +184,7 @@ def test_index():
                 es_driver.index(index=index, doc_type=dtype, body=doc)
 
     # Make sure that docs are created:
-    for dtype, dcount in [['test', len(docs)],
-                          ['build_metadata', len(metadata_docs)],
+    for dtype, dcount in [['build_metadata', len(metadata_docs)],
                           ['case', len(es_data.case_docs)],
                           ['file', len(es_data.file_docs)],
                           ['project', len(es_data.project_docs)],
@@ -181,5 +195,5 @@ def test_index():
                 break
             time.sleep(0.1)
 
-    yield es_driver, index, doc_type, docs
+    yield es_driver, index
     es_driver.indices.delete(index=index, ignore=400)
