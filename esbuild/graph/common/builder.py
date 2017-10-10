@@ -542,7 +542,6 @@ class GraphIndexBuilder(object):
         that were aggregated to those files.
 
         """
-
         # Walk from case to leaves (not files) and create a case doc,
         # a participant tree, and a list of visited ids
         case, ptree, visited_ids = self.get_case_tree(node)
@@ -673,6 +672,7 @@ class GraphIndexBuilder(object):
             for slide in sample_slides:
                 # Put slide under portion
                 if slide['slide_id'] not in correct_slides:
+                    log.info('Moving {} to correct location'.format(slide['slide_id']))
                     sample['portions'].append({
                         'slides': [slide]
                         })
@@ -1013,7 +1013,6 @@ class GraphIndexBuilder(object):
         direct ancestors of the file.
 
         """
-
         if not ptree:
             log.warn('No ptree (case tree) for %s', node)
             return []
@@ -1249,7 +1248,6 @@ class GraphIndexBuilder(object):
             Tuple containing (case docs, file docs, annotation docs)
 
         """
-
         self._cache_all()
         case_docs, ann_docs, file_docs = [], {}, {}
         if not cases:
