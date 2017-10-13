@@ -21,6 +21,7 @@ import logging
 import networkx as nx
 import random
 import re
+from uuid import uuid4
 
 from .mappings import (
     ONE_TO_MANY,
@@ -674,6 +675,7 @@ class GraphIndexBuilder(object):
                 if slide['slide_id'] not in correct_slides:
                     log.info('Moving {} to correct location'.format(slide['slide_id']))
                     sample['portions'].append({
+                        'portion_id': str(uuid4()),
                         'slides': [slide]
                         })
 
@@ -683,7 +685,9 @@ class GraphIndexBuilder(object):
                 # Put aliquot under analyte
                 if aliquot['aliquot_id'] not in correct_aliquots:
                     sample['portions'].append({
+                        'portion_id': str(uuid4()),
                         'analytes': [{
+                            'analyte_id': str(uuid4()),
                             'aliquots': [aliquot]
                         }]})
 
@@ -696,6 +700,7 @@ class GraphIndexBuilder(object):
                     # Put aliquot under analyte
                     if aliquot['aliquot_id'] not in correct_aliquots:
                         portion['analytes'].append([{
+                            'analyte_id': str(uuid4()),
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
