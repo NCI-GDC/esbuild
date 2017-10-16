@@ -684,12 +684,16 @@ class GraphIndexBuilder(object):
             for aliquot in sample_aliquots:
                 # Put aliquot under analyte
                 if aliquot['aliquot_id'] not in correct_aliquots:
-                    sample['portions'].append({
-                        'portion_id': str(uuid4()),
+                    new_dict = {
                         'analytes': [{
                             'analyte_id': str(uuid4()),
                             'aliquots': [aliquot]
-                        }]})
+                        }]
+                    }
+                    # check if another entry already added the fake id
+                    if 'portion_id' not in sample['portions']:
+                        new_dict['portion_id'] = str(uuid4())
+                    sample['portions'].append(new_dict)
 
             for portion in sample['portions']:
                 portion['analytes'] = portion.get('analytes', [])
