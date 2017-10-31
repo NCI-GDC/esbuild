@@ -393,6 +393,9 @@ class ESMapper(object):
             files.properties
         )
 
+        if not include_case:
+            del files.properties.cases
+        
         cls.flatten_data_type(files.properties)
 
         # Specify the type of file
@@ -452,6 +455,9 @@ class ESMapper(object):
         )
         case.properties.days_to_index = LONG
 
+        if not include_file:
+            del case.properties.files
+
         # Remove case.samples.aliquots from mapping
         case.properties.samples.properties.pop('aliquots')
 
@@ -469,12 +475,12 @@ class ESMapper(object):
         # Add pop whatever file is present and add correct files
         case.properties.pop('file', None)
         if include_file:
-            case.properties.files = cls.get_file_es_mapping(True, is_root=False)
+            case.properties.files = cls.get_file_es_mapping(include_case=True, is_root=False)
             case.properties.files.type = 'nested'
 
-        # Adjust file properties
-        case.properties.files.properties.pop('associated_entities', None)
-        case.properties.files.properties.pop('annotations', None)
+            # Adjust file properties
+            case.properties.files.properties.pop('associated_entities', None)
+            case.properties.files.properties.pop('annotations', None)
 
         # Summary
         summary = case.properties.summary.properties
