@@ -23,6 +23,8 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
+from utils import ReleaseHelper
+
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
 THREAD_COUNT = 16
@@ -59,8 +61,7 @@ class GDCElasticsearch(object):
     """
 
     def __init__(self, converter_class, build_projects=None, es=None,
-                 index_base="gdc_from_graph",
-                 index_name=None):
+                 index_base="gdc_from_graph", index_name=None):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
@@ -96,8 +97,11 @@ class GDCElasticsearch(object):
         else:
             self.index_name = self.get_index_name()
 
-    def go(self, roll_alias=True,
-           cleanup_indices=True, delete_nodes=True, skip_build=False):
+        # Used to clean up data in existing index
+        self.release_helper = ReleaseHelper(self.es)
+
+    def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
+           skip_build=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
@@ -143,6 +147,27 @@ class GDCElasticsearch(object):
                     tags=["es_index:{}".format(self.index_name), 'stage:validation'],
             )
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+
+            # Prepare index (if it exists) to be augmented by new data
+            if self.index_name in self.es.indices.get_alias():
+                if self.build_projects:
+                    projects_to_build = ','.join(self.build_projects)
+                else:
+                    projects_to_build = 'all'
+                self.log.info("Preparing ES index to be updated with {} projects"
+                              .format(projects_to_build))
+                statsd.event(
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                              'projects:{}'.format(projects_to_build),
+                              'stage:preparation'],
+                )
+                self.release_helper.prepare_index_to_build(self.index_name,
+                                                           self.build_projects)
+
             self.log.info("Deploying new ES index with new docs and bumping alias")
             statsd.event(
                     "es uploading started",

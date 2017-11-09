@@ -9,6 +9,7 @@ from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
 
 import data
+import es_data
 import logging
 import os
 import pytest
@@ -128,17 +129,11 @@ def test_index():
     es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
     index = 'test_index__'
     doc_type = 'test'
-    docs = [{
-        'id': 'test-doc-1',
-        'value': 1,
-    }, {
-        'id': 'test-doc-2',
-        'value': 2,
-    }]
+    docs = es_data.dummy_docs
 
     es_driver.indices.create(index=index, ignore=400)
     for doc in docs:
-        es_driver.create(
+        es_driver.index(
             index=index,
             id=doc['id'],
             doc_type=doc_type,
@@ -153,4 +148,52 @@ def test_index():
         time.sleep(0.1)
 
     yield es_driver, index, doc_type, docs
+    es_driver.indices.delete(index=index, ignore=400)
+
+
+@pytest.yield_fixture(scope='module')
+def test_index_data():
+    """Generate data index as a fixture for re-use between tests"""
+
+    # Create test index with dummy docs
+    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    index = 'test_index_data__'
+
+    # Try to remove old test index if any 
+    es_driver.indices.delete(index=index, ignore=404)
+
+    # Create test index and put mappings
+    es_driver.indices.create(index=index, ignore=400,
+                             body=es_data.get_index_settings())
+
+    # Create dummy build_metadata documents
+    metadata_docs = es_data.build_metadata
+
+    for doc in metadata_docs:
+        es_driver.index(index=index, doc_type='build_metadata',
+                        body=doc, id=','.join(doc['build_projects']))
+
+    # Create dummy esbuild docs
+    for dtype in ['case', 'file', 'project', 'annotation']:
+        mapping = es_data.get_mapping(dtype)
+        es_driver.indices.put_mapping(index=index, doc_type=dtype, body=mapping)
+        for doc in getattr(es_data, '{}_docs'.format(dtype)):
+            if dtype == 'project':
+                es_driver.index(index=index, doc_type=dtype, body=doc, id=doc['project_id'])
+            else:
+                es_driver.index(index=index, doc_type=dtype, body=doc)
+
+    # Make sure that docs are created:
+    for dtype, dcount in [['build_metadata', len(metadata_docs)],
+                          ['case', len(es_data.case_docs)],
+                          ['file', len(es_data.file_docs)],
+                          ['project', len(es_data.project_docs)],
+                          ['annotation', len(es_data.annotation_docs)]]:
+        while True:
+            count = es_driver.count(index=index, doc_type=dtype)['count']
+            if count == dcount:
+                break
+            time.sleep(0.1)
+
+    yield es_driver, index
     es_driver.indices.delete(index=index, ignore=400)
