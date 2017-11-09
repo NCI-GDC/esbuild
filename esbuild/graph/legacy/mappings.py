@@ -20,7 +20,31 @@ from ..common.mappings import (
 
 
 class LegacyESMapper(ESMapper):
-    pass
+
+    @staticmethod
+    def index_settings():
+
+        settings = super(LegacyESMapper, LegacyESMapper).index_settings()
+
+        settings['settings']['analysis'] = {
+            'filter': {
+                "edge_ngram": {
+                    "side": "front",
+                    "max_gram": 20,
+                    "min_gram": 2,
+                    "type": "edge_ngram"
+                }
+            },
+            "analyzer": {
+                "lowercase_keyword": {
+                    "tokenizer": "keyword",
+                    "filter": ["lowercase"],
+                }
+            }
+
+        }
+
+        return settings
 
 
 get_file_es_mapping = LegacyESMapper.get_file_es_mapping

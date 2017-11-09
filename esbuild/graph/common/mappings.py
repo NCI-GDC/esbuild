@@ -25,8 +25,7 @@ DATA_FILE_CATEGORIES = [
 # Types
 
 STRING = {
-    'index': 'not_analyzed',
-    'type': 'string',
+    'type': 'keyword',
 }
 
 LONG = {
@@ -44,7 +43,7 @@ def get_es_type(_type):
     elif float in _type:
         return 'double'
     else:
-        return 'string'
+        return 'keyword'
 
 
 # ======================================================================
@@ -85,6 +84,8 @@ class ESMapper(object):
             'file_name',
         ],
         'case': [
+            'primary_site',
+            'disease_type',
             'case_id',
             'submitter_id',
         ],
@@ -173,31 +174,9 @@ class ESMapper(object):
     def index_settings():
         return {
             "settings": {
-                "analysis": {
-                    "analyzer": {
-                        "id_search": {
-                            "tokenizer": "whitespace",
-                            "filter": ["lowercase"],
-                            "type": "custom"
-                        },
-                        "id_index": {
-                            "tokenizer": "whitespace",
-                            "filter": [
-                                "lowercase",
-                                "edge_ngram"
-                            ],
-                            "type": "custom"
-                        }
-                    },
-                    "filter": {
-                        "edge_ngram": {
-                            "side": "front",
-                            "max_gram": 20,
-                            "min_gram": 2,
-                            "type": "edge_ngram"
-                        }
-                    }
-                }
+                "mapping.nested_fields.limit": 150,
+                "index.mapping.total_fields.limit": 2000,
+                "index.max_result_window": 100000000,
             }
         }
 
@@ -289,20 +268,17 @@ class ESMapper(object):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
-        header._source.compress = True
         header._source.excludes = ["__comment__"]
-        header._id = {'path': '{}_id'.format(source)}
         header._meta.descriptions = cls.get_descriptions()
         return header
 
-    @staticmethod
-    def get_base_properties(source, include_id=True):
+    @classmethod
+    def get_base_properties(cls, source, include_id=True):
         # Get properties from schema
-        cls = Node.get_subclass(source)
-        assert cls, 'No model for {}'.format(source)
-        properties = cls.get_pg_properties()
-        fields = properties.keys()
+        node_type = Node.get_subclass(source)
+        assert node_type, 'No model for {}'.format(source)
 
+        properties = dict(node_type.get_pg_properties())
         doc = Dict()
 
         if include_id:
@@ -310,13 +286,15 @@ class ESMapper(object):
             id_name = '{}_id'.format(source)
             doc[id_name] = STRING
 
+        if properties.pop('submitter_id', None):
+            doc.update(cls.multifield('submitter_id'))
+
         # Add all properties to document
+        fields = properties.keys()
         for field in fields:
             _type = get_es_type(properties[field] or [])
             # assign the type
             doc[field] = {'type': _type}
-            if str(_type) == 'string':
-                doc[field]['index'] = 'not_analyzed'
 
         if source != 'project':
             doc.pop('project_id', None)
@@ -326,23 +304,7 @@ class ESMapper(object):
     @staticmethod
     def multifield(name):
         doc = Dict()
-        doc.type = 'string'
-
-        # Raw
-        doc.fields.raw.index = 'not_analyzed'
-        doc.fields.raw.store = 'yes'
-        doc.fields.raw.type = 'string'
-
-        # Analyzed
-        doc.fields.analyzed.index = "analyzed"
-        doc.fields.analyzed.index_analyzer = "id_index"
-        doc.fields.analyzed.search_analyzer = "id_search"
-        doc.fields.analyzed.type = "string"
-
-        # Search
-        doc.fields.search.index = 'analyzed'
-        doc.fields.search.analyzer = 'id_search'
-        doc.fields.search.type = 'string'
+        doc.type = 'keyword'
         return Dict({name: doc})
 
     @staticmethod
@@ -413,8 +375,8 @@ class ESMapper(object):
     # Mappings
 
     @classmethod
-    def get_file_es_mapping(cls, include_case=True):
-        files = cls._get_header('file')
+    def get_file_es_mapping(cls, include_case=True, is_root=True):
+        files = cls._get_header('file') if is_root else Dict()
 
         # Let top level properties be a union over properties from all
         # node types that this mapper considers a file
@@ -431,6 +393,9 @@ class ESMapper(object):
             files.properties
         )
 
+        if not include_case:
+            del files.properties.cases
+        
         cls.flatten_data_type(files.properties)
 
         # Specify the type of file
@@ -440,8 +405,8 @@ class ESMapper(object):
         files.properties.associated_entities.type = 'nested'
         files.properties.associated_entities.properties.entity_type = STRING
         files.properties.associated_entities.properties.entity_id = STRING
-        files.properties.associated_entities.properties.case_id = STRING
         files.properties.associated_entities.properties.entity_submitter_id = STRING
+        files.properties.associated_entities.properties.update(cls.multifield('case_id'))
 
         # Patch file mutlifields
         cls.add_multifields(files, 'files')
@@ -474,20 +439,24 @@ class ESMapper(object):
         # Case
         files.properties.pop('case', None)
         if include_case:
-            files.properties.cases = cls.get_case_es_mapping(False)
+            files.properties.cases = cls.get_case_es_mapping(include_file=False,
+                                                             is_root=False)
             files.properties.cases.type = 'nested'
 
         return deepcopy(files.to_dict())
 
     @classmethod
-    def get_case_es_mapping(cls, include_file=True):
+    def get_case_es_mapping(cls, include_file=True, is_root=True):
         # case body
-        case = cls._get_header('case')
+        case = cls._get_header('case') if is_root else Dict()
         case.properties = cls._walk_tree(
             cls.get_case_tree(),
             cls.get_base_properties('case')
         )
         case.properties.days_to_index = LONG
+
+        if not include_file:
+            del case.properties.files
 
         # Remove case.samples.aliquots from mapping
         case.properties.samples.properties.pop('aliquots')
@@ -506,12 +475,12 @@ class ESMapper(object):
         # Add pop whatever file is present and add correct files
         case.properties.pop('file', None)
         if include_file:
-            case.properties.files = cls.get_file_es_mapping(True)
+            case.properties.files = cls.get_file_es_mapping(include_case=False, is_root=False)
             case.properties.files.type = 'nested'
 
-        # Adjust file properties
-        case.properties.files.properties.pop('associated_entities', None)
-        case.properties.files.properties.pop('annotations', None)
+            # Adjust file properties
+            case.properties.files.properties.pop('associated_entities', None)
+            case.properties.files.properties.pop('annotations', None)
 
         # Summary
         summary = case.properties.summary.properties
@@ -535,11 +504,11 @@ class ESMapper(object):
     def annotation_body(cls, nested=True):
         annotation = Dict()
         annotation.properties = cls.get_base_properties('annotation')
-        annotation.properties.case_id = STRING
         annotation.properties.case_submitter_id = STRING
         annotation.properties.entity_type = STRING
         annotation.properties.entity_id = STRING
         annotation.properties.entity_submitter_id = STRING
+        annotation.properties.update(cls.multifield('case_id'))
         annotation.properties.pop('item_id', None)
         return annotation
 
@@ -596,3 +565,95 @@ class ESMapper(object):
         summary.data_categories.properties.file_count = LONG
 
         return deepcopy(project.to_dict())
+
+    @staticmethod
+    def add_file_autocomplete(files):
+        """
+        Adds file autocomplete fields
+        """
+        files.properties.data_category.copy_to = 'file_autocomplete'
+        files.properties.data_type.copy_to = 'file_autocomplete'
+        files.properties.experimental_strategy.copy_to = 'file_autocomplete'
+        files.properties.file_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
+        files.properties.file_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
+        files.properties.file_autocomplete.fields.analyzed.type = 'text'
+        files.properties.file_autocomplete.fields.lowercase.analyzer = 'lowercase_keyword'
+        files.properties.file_autocomplete.fields.lowercase.type = 'text'
+        files.properties.file_autocomplete.fields.prefix.analyzer = 'autocomplete_prefix'
+        files.properties.file_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
+        files.properties.file_autocomplete.fields.prefix.type = 'text'
+        files.properties.file_autocomplete.type = 'keyword'
+        files.properties.file_id.copy_to = 'file_autocomplete'
+        files.properties.file_name.copy_to = 'file_autocomplete'
+        files.properties.md5sum.copy_to = 'file_autocomplete'
+        files.properties.submitter_id.copy_to = 'file_autocomplete'
+
+        return files
+
+    @staticmethod
+    def add_case_autocomplete(case):
+        """
+        Adds case autocomplete fields
+        """
+        case.properties.case_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
+        case.properties.case_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
+        case.properties.case_autocomplete.fields.analyzed.type = 'text'
+        case.properties.case_autocomplete.fields.lowercase.analyzer = 'lowercase_keyword'
+        case.properties.case_autocomplete.fields.lowercase.type = 'text'
+        case.properties.case_autocomplete.fields.prefix.analyzer = 'autocomplete_prefix'
+        case.properties.case_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
+        case.properties.case_autocomplete.fields.prefix.type = 'text'
+        case.properties.case_autocomplete.type = 'keyword'
+        case.properties.case_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.portion_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.portions.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.sample_id.copy_to = 'case_autocomplete'
+        case.properties.samples.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.submitter_id.copy_to = 'case_autocomplete'
+
+        return case
+
+    @staticmethod
+    def add_project_autocomplete(project):
+        """
+        Adds project autocomplete fields
+        """
+        project.properties.primary_site.copy_to = 'project_autocomplete'
+        project.properties.project_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
+        project.properties.project_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
+        project.properties.project_autocomplete.fields.analyzed.type = 'text'
+        project.properties.project_autocomplete.fields.lowercase.analyzer = 'lowercase_keyword'
+        project.properties.project_autocomplete.fields.lowercase.type = 'text'
+        project.properties.project_autocomplete.fields.prefix.analyzer = 'autocomplete_prefix'
+        project.properties.project_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
+        project.properties.project_autocomplete.fields.prefix.type = 'text'
+        project.properties.project_autocomplete.type = 'keyword'
+        project.properties.project_id.copy_to = 'project_autocomplete'
+        project.properties.disease_type.copy_to = 'project_autocomplete'
+        project.properties.name.copy_to = 'project_autocomplete'
+
+        return project
+
+    @staticmethod
+    def add_annotation_autocomplete(annotation):
+        """
+        Adds annotation autocomplete fields
+        """
+        annotation.properties.annotation_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
+        annotation.properties.annotation_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
+        annotation.properties.annotation_autocomplete.fields.analyzed.type = 'text'
+        annotation.properties.annotation_autocomplete.fields.lowercase.analyzer = 'lowercase_keyword'
+        annotation.properties.annotation_autocomplete.fields.lowercase.type = 'text'
+        annotation.properties.annotation_autocomplete.fields.prefix.analyzer = 'autocomplete_prefix'
+        annotation.properties.annotation_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
+        annotation.properties.annotation_autocomplete.fields.prefix.type = 'text'
+        annotation.properties.annotation_autocomplete.type = 'keyword'
+        annotation.properties.annotation_id.copy_to = 'annotation_autocomplete'
+
+        return annotation

@@ -516,6 +516,24 @@ NODES = [
         primary_site="-",
         disease_type="-",
     ),
+    Case(
+        # fake case in fake active project
+        node_id='fake_active_case_1',
+        project_id='TCGA-FAKE_ACTIVE',
+        state='submitted',
+        submitter_id='fake_submitter_1',
+        primary_site='Fake Site',
+        disease_type='Fake and Scary Carcinoma'
+    ),
+    Case(
+        # second fake case in fake active project
+        node_id='fake_active_case_2',
+        project_id='TCGA-FAKE_ACTIVE',
+        state='submitted',
+        submitter_id='fake_submitter_2',
+        primary_site='Another Fake Site',
+        disease_type='Yet Another Fake Carcinoma'
+    ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
         project_id='TCGA-BRCA',
@@ -707,6 +725,16 @@ NODES = [
     Annotation(
         node_id='rescinded-annotation',
         state='submitted',
+        status="Rescinded",
+    ),
+    Annotation(
+        node_id='rescinded-redaction-annotation',
+        category='Administrative Compliance',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Case temporarily redacted',
+        state='submitted',
+        submitter_id='18675',
         status="Rescinded",
     ),
     Annotation(
@@ -922,6 +950,14 @@ NODES = [
         name="Breast Invasive Carcinoma",
     ),
     Project(
+        node_id='fake_active_project',
+        released=True,
+        state="open",
+        code="FAKE_ACTIVE",
+        dbgap_accession_number=None,
+        name="Made up active project",
+    ),
+    Project(
         node_id='unreleased-project',
         released=False,
         state="open",
@@ -998,6 +1034,10 @@ EDGES = [
     ),
     BiospecimenSupplementDerivedFromCase(
         src_id='biospecimen_supplement_1',
+        dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
+    ),
+    AnnotationAnnotatesCase(
+        src_id='rescinded-redaction-annotation',
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     ClinicalSupplementDerivedFromCase(
@@ -1488,6 +1528,20 @@ EDGES = [
     ProjectMemberOfProgram(
         src_id='unreleased-project',
         dst_id='internal-project',
+    ),
+
+    #  Ticket API-188
+    ProjectMemberOfProgram(
+        src_id='fake_active_project',
+        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+    ),
+    CaseMemberOfProject(
+        src_id='fake_active_case_1',
+        dst_id='fake_active_project',
+    ),
+    CaseMemberOfProject(
+        src_id='fake_active_case_2',
+        dst_id='fake_active_project',
     ),
 ]
 
