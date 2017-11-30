@@ -26,8 +26,8 @@ def parse_args():
     depot_args.add_argument('--port',
                             type=int,
                             help='Depot server port')
-    depot_args.add_argument('--queue-id', type=int,
-                            help='Depot queue id')
+    depot_args.add_argument('--queue-id', type=str,
+                            help='Depot queue id. Has to be a UUID string')
     depot_args.add_argument('--queue-status',
                             help='Checks esbuild queue status',
                             action='store_true',

@@ -21,8 +21,8 @@ def parse_args():
                         type=int,
                         help='Depot server port',
                         required=True)
-    parser.add_argument('--queue-id', type=int,
-                        help='Depot queue id to listen to',
+    parser.add_argument('--queue-id', type=str,
+                        help='Depot queue id to listen to. Has to be UUID string',
                         required=True)
 
     return parser.parse_args()
