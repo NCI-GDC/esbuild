@@ -114,7 +114,6 @@ def get_index_settings():
 
 
 def get_mapping(doc_type):
-    if doc_type == 'test':
-        return {'_all': {'enabled': False}}
-    else:
-        return getattr(ESMapper, 'get_{}_es_mapping'.format(doc_type))()
+    mapping = getattr(ESMapper, 'get_{}_es_mapping'.format(doc_type))()
+    mapping.pop('_all', None)
+    return mapping

@@ -104,15 +104,29 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
             visited_file_ids = set()
 
         for archive in archives:
-            file_docs.append(self.get_archive_as_file_doc(archive))
 
-            for file_ in self.neighbors_labeled(archive, self.file_labels):
-                # skip any files visited in or before this function
-                if file_.node_id in visited_file_ids:
-                    continue
+            # Add only archives related to self.build_projects in case of split build
+            project_id = None
+            for project in self.neighbors_labeled(archive, 'project'):
+                project_id = '-'.join([self.neighbors_labeled(project, 'program').next().name,
+                                       project.code])
 
-                # Denormalize the file
-                file_docs.append(self.denormalize_file(file_, {}))
-                visited_file_ids.add(file_.node_id)
+            n_projects = len(list(self.neighbors_labeled(archive, 'project')))
+            if n_projects != 1:
+                self.warning('Number of archive projects is not 1',
+                             '{} has {} projects, this is unexpected.'
+                             .format(archive, n_projects),
+                             tags=['archive_id:{}'.format(archive.node_id)])
+
+            if not self.build_projects or n_projects == 0 or project_id in self.build_projects:
+                file_docs.append(self.get_archive_as_file_doc(archive))
+                for file_ in self.neighbors_labeled(archive, self.file_labels):
+                    # skip any files visited in or before this function
+                    if file_.node_id in visited_file_ids:
+                        continue
+
+                    # Denormalize the file
+                    file_docs.append(self.denormalize_file(file_, {}))
+                    visited_file_ids.add(file_.node_id)
 
         return file_docs
