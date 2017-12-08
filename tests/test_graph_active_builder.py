@@ -102,9 +102,9 @@ def get_dict_paths(d, path_list=None, path='root'):
 
 
 @pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
-@pytest.mark.skipif(doc_type='file'
+@pytest.mark.skipif(doc_type=='file',
                     reason="gdc-models and multiple sample path don't play nicely together")
-@pytest.mark.skipif(doc_type='case'
+@pytest.mark.skipif(doc_type=='case',
                     reason="gdc-models and multiple sample path don't play nicely together")
 def test_mapping_full(mappings, doc_type):
     es_mapping = mappings[doc_type]['properties']
