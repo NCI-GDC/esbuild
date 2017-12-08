@@ -101,11 +101,10 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
-@pytest.mark.skipif(doc_type=='file',
-                    reason="gdc-models and multiple sample path don't play nicely together")
-@pytest.mark.skipif(doc_type=='case',
-                    reason="gdc-models and multiple sample path don't play nicely together")
+@pytest.mark.parametrize('doc_type', ['annotation', 'project'])
+# skipping 'file' and 'case' here because they don't play nicely with the multiple
+# sample path
+#@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
     es_mapping = mappings[doc_type]['properties']
     true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
@@ -256,8 +255,6 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].samples.[*].project_id', 0),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
     ('cases', '[*].samples.[*].sample_id', 2),
-    #('cases', '[*].samples.[*].portions.[*].portion_id', 2),
-    #('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
     ('files', '[*].(file_size | file_name | file_id)', N_FILES * 3),
     ('files', '[*].uploaded_datetime', 0),
@@ -268,6 +265,10 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('annotations', '[*].annotation_id', 1),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
 ])
+#@pytest.mark.parametrize('doc_type,path,count', [
+#    ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
+#    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
+#])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
