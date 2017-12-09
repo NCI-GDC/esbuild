@@ -463,6 +463,10 @@ class ESMapper(object):
         # Remove case.samples.aliquots from mapping
         case.properties.samples.properties.pop('aliquots')
 
+        # Remove case.samples.slides from mapping (this is handled in
+        # reconstruct_biospecimen_paths in common.builder.py)
+        case.properties.samples.properties.pop('slides')
+
         # Patch project
         cls.patch_project(case.properties.project.properties)
 

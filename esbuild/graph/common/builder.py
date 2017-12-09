@@ -647,8 +647,10 @@ class GraphIndexBuilder(object):
         }
 
     def reconstruct_biospecimen_paths(self, case):
-        """For each sample.aliquot, reconstruct entire path
-
+        """For each sample.aliquot or sample.slide, reconstruct
+           entire path. Note: the path is culled in common/mappings.py
+           in get_case_es_mapping. The new path(s) need to be popped
+           there or tests will fail.
         """
 
         # Get all the "correct" aliquots and slides, save them

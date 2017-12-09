@@ -101,10 +101,7 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.mark.parametrize('doc_type', ['annotation', 'project'])
-# skipping 'file' and 'case' here because they don't play nicely with the multiple
-# sample path
-#@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
+@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
 def test_mapping_full(mappings, doc_type):
     es_mapping = mappings[doc_type]['properties']
     true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
