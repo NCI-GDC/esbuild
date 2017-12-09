@@ -36,6 +36,10 @@ INTEGER = {
     'type': 'integer',
 }
 
+FLOAT = {
+    'type': 'float',
+}
+
 
 def get_es_type(_type):
     if long in _type or int in _type:
@@ -503,6 +507,9 @@ class ESMapper(object):
         summary.data_categories.type = 'nested'
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
+
+        # cigarettes_per_day to float
+        case.properties.exposures.properties.cigarettes_per_day = FLOAT
 
         return deepcopy(case.to_dict())
 

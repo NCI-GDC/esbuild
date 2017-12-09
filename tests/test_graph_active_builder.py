@@ -161,6 +161,18 @@ def test_mapping_does_not_contain(mappings, mapping, path):
     assert len(parse(path).find(mappings[mapping])) == 0
 
 
+@pytest.mark.parametrize('mapping,path,field_type', [
+    ('file', 'properties.cases.properties.exposures.properties.cigarettes_per_day', 'float'),
+    ('case', 'properties.exposures.properties.cigarettes_per_day', 'float'),
+])
+def test_field_type(mappings, mapping, path, field_type):
+    submapping = mappings[mapping]
+    for step in path.split('.'):
+        submapping = submapping[step]
+
+    assert submapping['type'] == field_type
+
+
 @pytest.mark.parametrize('mapping,path,expected', [
     ('file', 'properties.downstream_analyses.type', ['nested']),
 ])
@@ -295,7 +307,7 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy',
      1, {'unknown'}),
     ('cases', '[*].exposures.[*].cigarettes_per_day',
-     1, {10}),
+     1, {10.3}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Married'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',

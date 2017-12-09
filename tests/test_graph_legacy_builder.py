@@ -94,7 +94,7 @@ def test_path_is_absent(index, doc_type, path):
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis', [47], 1),
     ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', ['unknown'], 1),
-    ('cases', '[*].exposures.[*].cigarettes_per_day', [10], 1),
+    ('cases', '[*].exposures.[*].cigarettes_per_day', [10.3], 1),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis', ['Married'], 1),
     ('files', '[*].index_files.[*].file_name', ['test_file.bam.bai'], 1),
     ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement', 'archive'], 8),
