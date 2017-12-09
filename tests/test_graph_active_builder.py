@@ -253,6 +253,8 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
+    ('cases', '[*].samples.[*].portions.[*].portion_id', 3),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 6),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
     ('cases', '[*].samples.[*].sample_id', 2),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
@@ -265,10 +267,6 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('annotations', '[*].annotation_id', 1),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
 ])
-#@pytest.mark.parametrize('doc_type,path,count', [
-#    ('cases', '[*].samples.[*].portions.[*].portion_id', 2),
-#    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 5),
-#])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
