@@ -124,6 +124,8 @@ class ESMapper(object):
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
+        case_tree.sample.slide.corr = (ONE_TO_MANY, 'slides')
+        case_tree.sample.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
@@ -460,6 +462,10 @@ class ESMapper(object):
 
         # Remove case.samples.aliquots from mapping
         case.properties.samples.properties.pop('aliquots')
+
+        # Remove case.samples.slides from mapping (this is handled in
+        # reconstruct_biospecimen_paths in common.builder.py)
+        case.properties.samples.properties.pop('slides')
 
         # Patch project
         cls.patch_project(case.properties.project.properties)

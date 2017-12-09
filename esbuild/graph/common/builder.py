@@ -21,6 +21,7 @@ import logging
 import networkx as nx
 import random
 import re
+from uuid import uuid4
 
 from .mappings import (
     ONE_TO_MANY,
@@ -542,7 +543,6 @@ class GraphIndexBuilder(object):
         that were aggregated to those files.
 
         """
-
         # Walk from case to leaves (not files) and create a case doc,
         # a participant tree, and a list of visited ids
         case, ptree, visited_ids = self.get_case_tree(node)
@@ -647,8 +647,10 @@ class GraphIndexBuilder(object):
         }
 
     def reconstruct_biospecimen_paths(self, case):
-        """For each sample.aliquot, reconstruct entire path
-
+        """For each sample.aliquot or sample.slide, reconstruct
+           entire path. Note: the path is culled in common/mappings.py
+           in get_case_es_mapping. The new path(s) need to be popped
+           there or tests will fail.
         """
 
         # Get all the "correct" aliquots and slides, save them
@@ -673,7 +675,9 @@ class GraphIndexBuilder(object):
             for slide in sample_slides:
                 # Put slide under portion
                 if slide['slide_id'] not in correct_slides:
+                    log.info('Moving {} to correct location'.format(slide['slide_id']))
                     sample['portions'].append({
+                        'portion_id': str(uuid4()),
                         'slides': [slide]
                         })
 
@@ -682,10 +686,16 @@ class GraphIndexBuilder(object):
             for aliquot in sample_aliquots:
                 # Put aliquot under analyte
                 if aliquot['aliquot_id'] not in correct_aliquots:
-                    sample['portions'].append({
+                    new_dict = {
                         'analytes': [{
+                            'analyte_id': str(uuid4()),
                             'aliquots': [aliquot]
-                        }]})
+                        }]
+                    }
+                    # check if another entry already added the fake id
+                    if 'portion_id' not in sample['portions']:
+                        new_dict['portion_id'] = str(uuid4())
+                    sample['portions'].append(new_dict)
 
             for portion in sample['portions']:
                 portion['analytes'] = portion.get('analytes', [])
@@ -696,6 +706,7 @@ class GraphIndexBuilder(object):
                     # Put aliquot under analyte
                     if aliquot['aliquot_id'] not in correct_aliquots:
                         portion['analytes'].append([{
+                            'analyte_id': str(uuid4()),
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
@@ -1013,7 +1024,6 @@ class GraphIndexBuilder(object):
         direct ancestors of the file.
 
         """
-
         if not ptree:
             log.warn('No ptree (case tree) for %s', node)
             return []
@@ -1249,7 +1259,6 @@ class GraphIndexBuilder(object):
             Tuple containing (case docs, file docs, annotation docs)
 
         """
-
         self._cache_all()
         case_docs, ann_docs, file_docs = [], {}, {}
         if not cases:

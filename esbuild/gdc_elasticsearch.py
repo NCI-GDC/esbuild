@@ -60,8 +60,8 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, build_projects=None, es=None,
-                 index_base="gdc_from_graph", index_name=None):
+    def __init__(self, converter_class=None, build_projects=None, es=None,
+                 index_base="gdc_from_graph", index_name=None, skip_es=False):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
@@ -82,15 +82,19 @@ class GDCElasticsearch(object):
         self.converter = converter_class(self.graph, build_projects=build_projects)
         self.converter_class_name = converter_class.__class__.__name__
 
-        if es:
-            self.es = es
+        self.skip_es = skip_es
+        if not self.skip_es:
+            if es:
+                self.es = es
+            else:
+                # TODO sniff_on_start here?
+                self.es = Elasticsearch(
+                    hosts=[os.environ["ELASTICSEARCH_HOST"]],
+                    http_auth=(os.environ.get("ES_USER", ""),
+                               os.environ.get("ES_PASSWORD", "")),
+                    timeout=9999)
         else:
-            # TODO sniff_on_start here?
-            self.es = Elasticsearch(
-                hosts=[os.environ["ELASTICSEARCH_HOST"]],
-                http_auth=(os.environ.get("ES_USER", ""),
-                           os.environ.get("ES_PASSWORD", "")),
-                timeout=9999)
+            self.es = None
 
         if index_name:
             self.index_name = index_name
@@ -149,37 +153,40 @@ class GDCElasticsearch(object):
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
 
             # Prepare index (if it exists) to be augmented by new data
-            if self.index_name in self.es.indices.get_alias():
-                if self.build_projects:
-                    projects_to_build = ','.join(self.build_projects)
-                else:
-                    projects_to_build = 'all'
-                self.log.info("Preparing ES index to be updated with {} projects"
-                              .format(projects_to_build))
+            if self.es:
+                if self.index_name in self.es.indices.get_alias():
+                    if self.build_projects:
+                        projects_to_build = ','.join(self.build_projects)
+                    else:
+                        projects_to_build = 'all'
+                    self.log.info("Preparing ES index to be updated with {} projects"
+                                  .format(projects_to_build))
+                    statsd.event(
+                            "Index preparation started",
+                            "starting index {} preparation".format(self.index_name),
+                            source_type_name="esbuild",
+                            alert_type="info",
+                            tags=['es_index:{}'.format(self.index_name),
+                                  'projects:{}'.format(projects_to_build),
+                                  'stage:preparation'],
+                    )
+                    self.release_helper.prepare_index_to_build(self.index_name,
+                                                               self.build_projects)
+
+                self.log.info("Deploying new ES index with new docs and bumping alias")
                 statsd.event(
-                        "Index preparation started",
-                        "starting index {} preparation".format(self.index_name),
+                        "es uploading started",
+                        "starting uploading index {}".format(self.index_name),
                         source_type_name="esbuild",
                         alert_type="info",
-                        tags=['es_index:{}'.format(self.index_name),
-                              'projects:{}'.format(projects_to_build),
-                              'stage:preparation'],
+                        tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
                 )
-                self.release_helper.prepare_index_to_build(self.index_name,
-                                                           self.build_projects)
-
-            self.log.info("Deploying new ES index with new docs and bumping alias")
-            statsd.event(
-                    "es uploading started",
-                    "starting uploading index {}".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
-            )
-            new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                    index_name=self.index_name,
-                                    roll_alias=roll_alias,
-                                    cleanup_indices=cleanup_indices)
+                new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
+                                        index_name=self.index_name,
+                                        roll_alias=roll_alias,
+                                        cleanup_indices=cleanup_indices)
+            else:
+                new_index = 'not built'
         self.delete_nodes(to_delete=to_delete,
                           delete_nodes=delete_nodes)
         if not skip_build:
@@ -373,22 +380,28 @@ class GDCElasticsearch(object):
     def get_indices(self):
         """Returns a list of open and closed index names"""
 
-        return (
-            # Closed indices
-            self.es.cluster.state()['blocks'].get('indices', {}).keys()
-            # Open indices
-            + self.es.indices.stats()['indices'].keys()
-        )
+        indices = None
+        if self.es:
+            indices = (
+                # Closed indices
+                self.es.cluster.state()['blocks'].get('indices', {}).keys()
+                # Open indices
+                + self.es.indices.stats()['indices'].keys()
+            )
+        return indices
 
     def get_index_numbers(self):
         """Return the numbers of the current set of indices. So concretely if we
         have gdc_from_graph_23, gdc_from_graph_24, and
         gdc_from_graph_25, this will return [23, 24, 25].
         """
-        indices = set(self.get_indices())
-        p = re.compile(INDEX_PATTERN.format(base=self.index_base, n='(\d+)')+'$')
-        matches = [p.match(index) for index in indices if p.match(index)]
-        numbers = sorted([int(m.group(1)) for m in matches])
+        numbers = []
+        indices = self.get_indices()
+        if indices:
+            indices = set(indices)
+            p = re.compile(INDEX_PATTERN.format(base=self.index_base, n='(\d+)')+'$')
+            matches = [p.match(index) for index in indices if p.match(index)]
+            numbers = sorted([int(m.group(1)) for m in matches])
         return numbers
 
     def lookup_index_by_alias(self):

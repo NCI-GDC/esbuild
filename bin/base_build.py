@@ -14,6 +14,9 @@ def main(converter, index_base):
         '--delete', action="store_true",
         help='if passed, delete the nodes in the json file passed with --json_delete')
     parser.add_argument(
+        '--skip_es', action="store_true",
+        help='if passed, skip any actual action on es, just build json')
+    parser.add_argument(
         '--json_delete',
         help='file to use to delete nodes')
     parser.add_argument(
@@ -27,15 +30,17 @@ def main(converter, index_base):
     args = parser.parse_args()
 
     if args.projects:
-        if not args.upsert_to:
-            raise Exception('Provide --upsert-to <index_name> when using '
-                            'partial build mode')
+        if not args.skip_es:
+            if not args.upsert_to:
+                raise Exception('Provide --upsert-to <index_name> when using '
+                                'partial build mode')
 
     gdc_es = GDCElasticsearch(
         converter_class=converter,
         build_projects=args.projects,
         index_name=args.upsert_to,
-        index_base=index_base
+        index_base=index_base,
+        skip_es=args.skip_es
     )
     if args.delete:
         if not args.json_delete:
