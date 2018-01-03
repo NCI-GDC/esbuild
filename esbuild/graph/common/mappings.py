@@ -471,6 +471,9 @@ class ESMapper(object):
         # reconstruct_biospecimen_paths in common.builder.py)
         case.properties.samples.properties.pop('slides')
 
+        # Remove case.sample.analyte from mapping (see above)
+        case.properties.samples.properties.pop('analytes')
+
         # Patch project
         cls.patch_project(case.properties.project.properties)
 
