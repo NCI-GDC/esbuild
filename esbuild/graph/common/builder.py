@@ -673,18 +673,31 @@ class GraphIndexBuilder(object):
         samples = case.get('samples', [])
         correct_aliquots = set()
         correct_slides = set()
+        correct_analytes = set()
         for sample in samples:
             for portion in sample.get('portions', []):
                 for slide in portion.get('slides', []):
                     correct_slides.add(slide['slide_id'])
                 for analyte in portion.get('analytes', []):
+                    correct_analytes.add(analyte['analyte_id'])
                     for aliquot in analyte.get('aliquots', []):
                         correct_aliquots.add(aliquot['aliquot_id'])
 
         for sample in samples:
             sample['portions'] = sample.get('portions', [])
 
-            # Get all slides connected to samples
+            # Get all analytes connected to samples (TT-260)
+            sample_analytes = sample.pop('analytes', [])
+            for analyte in sample_analytes:
+                # put analyte under portion
+                if analyte['analyte_id'] not in correct_analytes:
+                    log.info('Moving {} to correct location'.format(analyte['analyte_id']))
+                    sample['portions'].append({
+                        'portion_id': str(uuid4()),
+                        'analytes': [analyte]
+                        })
+
+            # Get all slides connected to samples (SVT-249)
             sample_slides = sample.pop('slides', [])
             for slide in sample_slides:
                 # Put slide under portion
