@@ -66,4 +66,4 @@ before_script:
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
 
-script: "PYTHONPATH=. py.test -vvv -k tests/test_graph_active_builder.py::test_mappings_full"
+script: "PYTHONPATH=. py.test -l  tests/test_graph_active_builder.py"
