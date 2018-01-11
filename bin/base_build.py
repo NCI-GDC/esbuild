@@ -22,10 +22,17 @@ def main(converter, index_base):
     parser.add_argument(
         '--test_delete', action='store_true',
         help='Test the deletion (skip load & build of index)')
-    parser.add_argument('--projects', nargs='*',
-                        help='Partial build. Takes list of projects',
-                        required=False)
-    parser.add_argument('--upsert-to', help='Index name to upsert projects to')
+    parser.add_argument(
+        '--projects', nargs='*',
+        help='Partial build. Takes list of projects',
+        required=False)
+    parser.add_argument(
+        '--upsert-to', help='Index name to upsert projects to')
+    parser.add_argument(
+        '--selective-caching', action='store_true',
+        help='If set, only caches nodes for projects needed. '
+        'WARNING: Will skip nodes that do not have project_id',
+        default=False)
 
     args = parser.parse_args()
 
@@ -40,7 +47,8 @@ def main(converter, index_base):
         build_projects=args.projects,
         index_name=args.upsert_to,
         index_base=index_base,
-        skip_es=args.skip_es
+        skip_es=args.skip_es,
+        selective_caching=args.selective_caching,
     )
     if args.delete:
         if not args.json_delete:

@@ -6,7 +6,8 @@ import os
 from elasticsearch import Elasticsearch
 
 from esbuild.export.s3_repository import BackupHelper
-
+from cdisutils.log import get_logger
+logger = get_logger('esbuild_master')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
@@ -52,6 +53,10 @@ def parse_args():
                          help='Set of projects to add to existing index.')
     es_args.add_argument('--skip-projects', nargs='*',
                          help='Set of projects to skip')
+    es_args.add_argument('--selective-caching', action='store_true',
+                         help='If set, only caches nodes for projects needed. '
+                         'WARNING: Will skip nodes that do not have project_id',
+                         default=False)
 
     backup_args = parser.add_argument_group(title='Backup arguments',
                                             description='ES index backup using repository-s3')
@@ -140,19 +145,19 @@ def backup_wrapper(snapshot_name, index_name, mode):
     )
 
     if mode == 'backup':
-        print "Saving {} to snapshot {}".format(index_name, snapshot_name)
+        logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
         backup_helper.store_snapshot('esbuild-snapshots',
                                      snapshot_name, indices=[index_name],
                                      wait_for_completion=True)
-        print "Index {} saved".format(index_name)
+        logger.info("Index {} saved".format(index_name))
     elif mode == 'restore':
         if index_name in es_client.indices.get_alias():
             raise Exception('Index {} already exists.'.format(index_name))
-        print "Restoring {} from snapshot {}".format(index_name, snapshot_name)
+        logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
         backup_helper.restore_from_snapshot('esbuild-snapshots',
                                             snapshot_name, indices=[index_name],
                                             wait_for_completion=True)
-        print "Index {} restored".format(index_name)
+        logger.info("Index {} restored".format(index_name))
     else:
         raise Exception('Unknown mode: {}'.format(mode))
 
@@ -172,9 +177,9 @@ if __name__ == "__main__":
             # Get queue status:
             status = depot_call('status', args.host, args.port, args.queue_id)
             if args.queue_clear:
-                print depot_call('clear', args.host, args.port, args.queue_id).text
+                logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
             elif args.queue_status:
-                print status.text
+                logger.info(status.text)
             else:
                 if not args.n_workers:
                     raise Exception('--n-workers not provided')
@@ -192,21 +197,23 @@ if __name__ == "__main__":
                 if args.skip_projects:
                     projects = [p for p in projects if p not in args.skip_projects]
 
-                print ("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
+                logger.info("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
                        .format(args.build_type.upper(), args.n_workers, args.index))
 
                 if 'not found' in status.text:
-                    print "Creating new queue:"
-                    print depot_call('new', args.host, args.port, args.queue_id).text
+                    logger.info("Creating new queue:")
+                    logger.info(depot_call('new', args.host, args.port, args.queue_id).text)
 
                 # Delegate a job for each project group:
                 for group in split_projects(projects, args.n_workers,
                                             split_by_program=args.split_by_program):
-                    cmd = ('sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'
-                           ' --upsert-to {} --no-roll'.format(args.build_type,
-                                                              args.index))
+                    arguments = ['--upsert-to {}'.format(args.index), '--no-roll']
                     if args.n_workers > 1:
-                        cmd = cmd + ' --projects {}'.format(' '.join(group))
+                        arguments.append('--projects {}'.format(' '.join(group)))
 
+                    if args.selective_caching:
+                        arguments.append('--selective-caching')
+
+                    job_json = {'arguments': arguments, 'build_type': args.build_type}
                     depot_call('delegate', args.host, args.port, args.queue_id,
-                               json={'command': cmd})
+                               json=job_json)
