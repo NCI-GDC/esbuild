@@ -162,10 +162,14 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, build_projects=None):
+    def __init__(self, psqlgraph_driver, build_projects=None, selective_caching=False):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+        # NOTE: Selective caching only works when all the non-project nodes
+        # that are expected to be picked up are populated with project_id
+        # As of Jan 2018, this is true only for newest active projects
+        self.selective_caching = selective_caching
         self.build_projects = build_projects
 
         # Populate self.build_projects
@@ -1814,16 +1818,42 @@ class GraphIndexBuilder(object):
         """Returns an iterable of edges to load from the database.
 
         Eagerly (with join) loads the source and destination of the edge.
-
+        NOTE: All nodes that are not Project and expected to be picked up
+        must have project_id field corresponding to project they are part of
+        As of Jan 2018, this is not true for Legacy and old Active nodes
         """
 
-        return itertools.chain(*[
-            self.g.edges(subclass)
-            .options(joinedload(subclass.src))
-            .options(joinedload(subclass.dst))
-            .yield_per(int(1e5))
-            for subclass in Edge.__subclasses__()
-        ])
+        if self.selective_caching and self.build_projects:
+            # Load only node ids with relevant project_id's
+            project_ids = ['-'.join(p) for p in self.build_projects]
+            relevant_node_ids = {
+                nd.node_id for nd in
+                self.g.nodes().prop_in('project_id', project_ids)
+            }
+
+            # Add relevant Project nodes to relevant nodes set:
+            projects = list({p[1] for p in self.build_projects})
+            relevant_projects = self.g.nodes(md.Project).prop_in('code', projects)
+
+            relevant_node_ids.update([p.node_id for p in relevant_projects])
+
+            # Use relevant node ids to get relevant edges
+            return itertools.chain(*[
+                self.g.edges(subclass).src(relevant_node_ids)
+                .options(joinedload(subclass.src))
+                .options(joinedload(subclass.dst))
+                .yield_per(int(1e5))
+                for subclass in Edge.__subclasses__()
+            ])
+
+        else:
+            return itertools.chain(*[
+                self.g.edges(subclass)
+                .options(joinedload(subclass.src))
+                .options(joinedload(subclass.dst))
+                .yield_per(int(1e5))
+                for subclass in Edge.__subclasses__()
+            ])
 
     def cache_database(self):
         """Load the database into memory and remember only edge labels that we

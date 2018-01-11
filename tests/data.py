@@ -161,6 +161,7 @@ NODES = [
         File,
         node_id='index-file',
         acl=['phs000178'],
+        project_id='TCGA-BRCA',
         state='live',
         file_name='test_file.bam.bai',
     ),
@@ -189,6 +190,7 @@ NODES = [
         File,
         node_id='related-file',
         acl=['phs000178'],
+        project_id='TCGA-BRCA',
         state="live",
         file_state='submitted',
         file_name="a_related_file.txt"

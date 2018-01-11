@@ -4,6 +4,9 @@ import time
 import yaml
 import os
 
+from cdisutils.log import get_logger
+logger = get_logger('esbuild_minion')
+
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
@@ -39,10 +42,13 @@ if __name__ == "__main__":
         except:
             work = {'error': work.text}
 
-        if 'command' in work:
-            print '-> Running {}'.format(work['command'])
-            os.system(work['command'])
-        else:
-            print work
+        try:
+            command = 'sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'.format(work['build_type'])
+            arguments = work['arguments']
+            command = '{} {}'.format(command, ' '.join(arguments))
+            logger.info('-> Running {}'.format(command))
+            os.system(command)
+        except Exception as err:
+            logger.error("Attempted to run job: {}\nError: {}".format(work, err))
 
         time.sleep(TIMEDELTA)

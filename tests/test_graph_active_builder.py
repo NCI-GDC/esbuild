@@ -122,6 +122,20 @@ def test_mapping_full(mappings, doc_type):
     assert extra_paths == set([])
 
 
+def test_selective_caching():
+    """
+    Tests that partial graph data caching is working in subset build scenario
+    """
+    projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
+    builder = ActiveGraphIndexBuilder(_graph, build_projects=projects_subset,
+                                      selective_caching=True)
+    builder.cache_database()
+
+    built_projects = {n.project_id for n in builder.G.nodes()
+                      if 'project_id' in n.props}
+    assert built_projects == projects_subset
+
+
 def test_include_switch():
     mapper = ActiveGraphIndexBuilder.mapper
 
