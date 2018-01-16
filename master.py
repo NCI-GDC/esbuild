@@ -50,6 +50,8 @@ def parse_args():
                          default=False)
     es_args.add_argument('--projects', default='ALL', nargs='*',
                          help='Set of projects to add to existing index.')
+    es_args.add_argument('--skip-projects', nargs='*',
+                         help='Set of projects to skip')
 
     backup_args = parser.add_argument_group(title='Backup arguments',
                                             description='ES index backup using repository-s3')
@@ -81,31 +83,31 @@ def depot_call(action, host, port, queue_id, json=None):
     return getattr(requests, method)(url, json=json)
 
 
-def split_projects(mylist, n, split_by_program=False):
+def split_projects(project_list, n, split_by_program=False):
     """Splits list of projects into n parts"""
 
     # Check input
     if not isinstance(n, int) or n < 1:
         raise ValueError('Number of parts should be positive integer. Got: {}'.format(n))
-    if n > len(mylist):
+    if n > len(project_list):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
 
     # Split-by-program mode
     if split_by_program:
-        programs = set([p.split('-', 1)[0] for p in mylist])
+        programs = set([p.split('-', 1)[0] for p in project_list])
         if n != len(programs):
             raise Exception("Number of workers should equal number of programs ({})"
                             .format(len(programs)))
         result = []
         for program in programs:
-            result.append([x for x in mylist if x.split('-', 1)[0] == program])
+            result.append([x for x in project_list if x.split('-', 1)[0] == program])
         return result
 
     # Regular mode
     else:
         group_lengths = [1 for _ in range(n)]
         i = 0
-        while sum(group_lengths) != len(mylist):
+        while sum(group_lengths) != len(project_list):
             group_lengths[i] += 1
             i += 1
             if i == len(group_lengths):
@@ -114,7 +116,7 @@ def split_projects(mylist, n, split_by_program=False):
         result = []
         i = 0
         for length in group_lengths:
-            result.append(mylist[i:i+length])
+            result.append(project_list[i:i+length])
             i = i + length
         return result
 
@@ -185,6 +187,10 @@ if __name__ == "__main__":
                     projects = config['{}_projects'.format(args.build_type)]
                 else:
                     projects = args.projects
+
+                # Skip some projects, if skip-projects argument is set
+                if args.skip_projects:
+                    projects = [p for p in projects if p not in args.skip_projects]
 
                 print ("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
                        .format(args.build_type.upper(), args.n_workers, args.index))
