@@ -136,6 +136,28 @@ def test_selective_caching():
     assert built_projects == projects_subset
 
 
+def test_awg_build():
+    """
+    Tests AWG build mode
+    """
+    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
+    builder = ActiveGraphIndexBuilder(_graph, build_awg=True,
+                                      build_projects=build_projects)
+    builder.cache_database()
+
+    # Check that only AWG nodes were built
+    built_nodes = {}
+    for node in builder.G.nodes():
+        built_nodes.setdefault(node.label, set())
+        built_nodes[node.label].update([node.node_id])
+
+    assert built_nodes == {
+        'case': {u'submitted-awg-case', u'processed-awg-case'},
+        'project': {u'awg-one-project'},
+        'program': {u'internal-program', u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
+    }
+
+
 def test_include_switch():
     mapper = ActiveGraphIndexBuilder.mapper
 
@@ -294,6 +316,7 @@ def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
 
+
 @pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
                                              ('cases', 3), ('files', 10)])
 def test_basic_counts(index, doc_type, count):
@@ -323,14 +346,14 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].exposures.[*].cigarettes_per_day',
      1, {10.3}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
-     1, {'Married'}),
+     1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
     ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
-                                      'Fake and Scary Carcinoma',
-                                      'Yet Another Fake Carcinoma'}),
-    ('cases', '[*].primary_site', 3, {'Breast', 'Fake Site', 'Another Fake Site'}),
+                                      'Prostate Adenocarcinoma',
+                                      'Rectum Adenocarcinoma'}),
+    ('cases', '[*].primary_site', 3, {'Breast', 'Prostate', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -364,9 +387,9 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
-                                         'Fake and Scary Carcinoma',
-                                         'Yet Another Fake Carcinoma'}),
-    ('projects', '[*].primary_site', 2, {'Breast', 'Fake Site', 'Another Fake Site'}),
+                                         'Prostate Adenocarcinoma',
+                                         'Rectum Adenocarcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Prostate', 'Rectum'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

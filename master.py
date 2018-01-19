@@ -215,6 +215,8 @@ if __name__ == "__main__":
 
                     if args.selective_caching:
                         arguments.append('--selective-caching')
+                    if args.build_awg:
+                        arguments.append('--build-awg')
 
                     job_json = {'arguments': arguments, 'build_type': args.build_type}
                     depot_call('delegate', args.host, args.port, args.queue_id,
