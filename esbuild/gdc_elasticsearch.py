@@ -79,9 +79,11 @@ class GDCElasticsearch(object):
         )
 
         self.index_base = index_base
+        self.build_awg = kwargs.get('build_awg', False)
         self.build_projects = kwargs.get('build_projects', None)
         self.selective_caching = kwargs.get('selective_caching', False)
         self.converter = converter_class(self.graph,
+                                         build_awg=self.build_awg,
                                          build_projects=self.build_projects,
                                          selective_caching=self.selective_caching)
         self.converter_class_name = converter_class.__class__.__name__
