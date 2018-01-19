@@ -37,6 +37,12 @@ def esbuild_argparser():
         help='If set, only caches nodes for projects needed. '
         'WARNING: Will skip nodes that do not have project_id',
         default=False)
+    parser.add_argument(
+        '--build-awg', action='store_true',
+        help='If set, will build in AWG mode. '
+        'Will pick up only projects flagged as awg_review = true and '
+        'nodes that are part of these projects and are in any of allowed states',
+        default=False)
 
     return parser
 
@@ -53,6 +59,7 @@ def main(converter, index_base):
     gdc_es = GDCElasticsearch(
         converter_class=converter,
         build_projects=args.projects,
+        build_awg=args.build_awg,
         index_name=args.index,
         index_base=index_base,
         skip_es=args.skip_es,
