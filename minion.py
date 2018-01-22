@@ -4,6 +4,7 @@ import time
 import yaml
 import os
 
+from master import esbuild_argparser
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_minion')
 
@@ -13,10 +14,10 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 TIMEDELTA = config['timedelta']
 
 
-def parse_args():
-    """Parses arguments"""
+def wrapper_parser():
+    """Parses esbuild arguments"""
 
-    parser = argparse.ArgumentParser(description='Queries depot for esbuild jobs')
+    parser = argparse.ArgumentParser(description='Parses esbuild job parameters')
     parser.add_argument('--host',
                         help='Depot server host',
                         required=True)
@@ -28,13 +29,14 @@ def parse_args():
                         help='Depot queue id to listen to. Has to be UUID string',
                         required=True)
 
-    return parser.parse_args()
+    return parser
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args = wrapper_parser().parse_args()
 
     while True:
+        # Get work from depot api:
         work = requests.get('http://{}:{}/v0/work/{}'
                             .format(args.host, args.port, args.queue_id))
         try:
@@ -43,9 +45,11 @@ if __name__ == "__main__":
             work = {'error': work.text}
 
         try:
-            command = 'sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'.format(work['build_type'])
-            arguments = work['arguments']
-            command = '{} {}'.format(command, ' '.join(arguments))
+            # Make sure that arguments are valid:
+            esbuild_argparser().parse_args(work['arguments'])
+            # Compose and execute the command:
+            command = ('sudo /var/tungsten/services/esbuild/es_build_{}_wrapper {}'
+                       .format(work['build_type'], ' '.join(work['arguments'])))
             logger.info('-> Running {}'.format(command))
             os.system(command)
         except Exception as err:

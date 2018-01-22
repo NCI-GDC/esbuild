@@ -13,9 +13,10 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 
-def parse_args():
-    """Parses arguments"""
-
+def esbuild_argparser():
+    """
+    Esbuild argument parser
+    """
     parser = argparse.ArgumentParser(description='Delegate Esbuild jobs '
                                      'to workers using depot server')
 
@@ -64,8 +65,13 @@ def parse_args():
                              help='Name of a snapshot to restore index from')
     backup_args.add_argument('--store-to-snapshot',
                              help='Name of a snapshot to store index to')
+    return parser
 
-    args = parser.parse_args()
+
+def parse_args():
+    """ Parses arguments, checks for sanity """
+
+    args = esbuild_argparser().parse_args()
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.n_workers, args.build_type]) and 
