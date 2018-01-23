@@ -14,8 +14,8 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 TIMEDELTA = config['timedelta']
 
 
-def wrapper_parser():
-    """Parses esbuild arguments"""
+def minion_argparser():
+    """Parses depot arguments for esbuild minion"""
 
     parser = argparse.ArgumentParser(description='Parses esbuild job parameters')
     parser.add_argument('--host',
@@ -33,7 +33,7 @@ def wrapper_parser():
 
 
 if __name__ == "__main__":
-    args = wrapper_parser().parse_args()
+    args = minion_argparser().parse_args()
 
     while True:
         # Get work from depot api:
@@ -41,8 +41,11 @@ if __name__ == "__main__":
                             .format(args.host, args.port, args.queue_id))
         try:
             work = work.json()
-        except:
-            work = {'error': work.text}
+        except Exception as err:
+            logger.error("Invalid job: {}\nError: {}".format(work, err))
+
+        if work.get('status') == 'No work found':
+            continue
 
         try:
             # Make sure that arguments are valid:

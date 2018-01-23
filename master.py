@@ -5,6 +5,7 @@ import os
 
 from elasticsearch import Elasticsearch
 
+from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
@@ -13,12 +14,12 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 
-def esbuild_argparser():
+def esbuild_argparser(parser=None):
     """
     Esbuild argument parser
     """
-    parser = argparse.ArgumentParser(description='Delegate Esbuild jobs '
-                                     'to workers using depot server')
+    if not parser:
+        parser = base_parser()
 
     depot_args = parser.add_argument_group(title='Depot server arguments',
                                            description='Depot server address '
@@ -40,24 +41,17 @@ def esbuild_argparser():
 
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
-    es_args.add_argument('--index',
-                         help='Name of elasticsearch index to upsert data into')
     es_args.add_argument('--n-workers',
                          help='Number of workers to split esbuild between',
                          type=int)
     es_args.add_argument('--build-type', choices=['active', 'legacy'],
                          help='Choose "active" or "legacy"')
+
     es_args.add_argument('--split-by-program', action='store_true',
                          help='If set, splits all projects into groups by program',
                          default=False)
-    es_args.add_argument('--projects', default='ALL', nargs='*',
-                         help='Set of projects to add to existing index.')
     es_args.add_argument('--skip-projects', nargs='*',
                          help='Set of projects to skip')
-    es_args.add_argument('--selective-caching', action='store_true',
-                         help='If set, only caches nodes for projects needed. '
-                         'WARNING: Will skip nodes that do not have project_id',
-                         default=False)
 
     backup_args = parser.add_argument_group(title='Backup arguments',
                                             description='ES index backup using repository-s3')
@@ -71,7 +65,7 @@ def esbuild_argparser():
 def parse_args():
     """ Parses arguments, checks for sanity """
 
-    args = esbuild_argparser().parse_args()
+    args = esbuild_argparser(base_parser()).parse_args()
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.n_workers, args.build_type]) and 
@@ -96,6 +90,9 @@ def depot_call(action, host, port, queue_id, json=None):
 
 def split_projects(project_list, n, split_by_program=False):
     """Splits list of projects into n parts"""
+
+    if n == 1:
+        return [project_list]
 
     # Check input
     if not isinstance(n, int) or n < 1:
@@ -204,7 +201,7 @@ if __name__ == "__main__":
                     projects = [p for p in projects if p not in args.skip_projects]
 
                 logger.info("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
-                       .format(args.build_type.upper(), args.n_workers, args.index))
+                            .format(args.build_type.upper(), args.n_workers, args.index))
 
                 if 'not found' in status.text:
                     logger.info("Creating new queue:")
@@ -213,9 +210,8 @@ if __name__ == "__main__":
                 # Delegate a job for each project group:
                 for group in split_projects(projects, args.n_workers,
                                             split_by_program=args.split_by_program):
-                    arguments = ['--upsert-to {}'.format(args.index), '--no-roll']
-                    if args.n_workers > 1:
-                        arguments.append('--projects {}'.format(' '.join(group)))
+                    arguments = ['--index', '{}'.format(args.index), '--no-roll',
+                                 '--projects', '{}'.format(' '.join(group))]
 
                     if args.selective_caching:
                         arguments.append('--selective-caching')
