@@ -722,6 +722,14 @@ class GraphIndexBuilder(object):
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
+        # Delete some keys from project document
+        keys_to_delete = [
+           'release_requested', 'awg_review', 'is_legacy',
+        ]
+        for key in keys_to_delete:
+            project_doc.pop(key, None)
+
+        # Populate project_id
         code = project_doc.pop('code')
         program = project_doc['program']['name']
         project_id = '{}-{}'.format(program, code)

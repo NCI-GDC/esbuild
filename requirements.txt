@@ -8,6 +8,6 @@ xlrd==0.9.3
 consulate==0.4
 datadog==0.9.0
 -e git+ssh://git@github.com/NCI-GDC/cdisutils.git@4a75cc05c7ba2174e70cca9c9ea7e93947f7a868#egg=cdisutils
--e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@1119595d78e4b53c7d958beef9669735876fefd9#egg=gdcdictionary
+-e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@55f0c237aa1f409919cb947a28e6cb074e33021c#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@7b5de7d56aa3159a9526940eb273579ddbf084ca#egg=psqlgraph
--e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@4ab44538c6d9efe31adc6935d4bda9b35596d225#egg=gdcdatamodel
+-e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@090ddb9fa955c65ca9f223157cb760201e28cbff#egg=gdcdatamodel

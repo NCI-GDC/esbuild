@@ -302,6 +302,14 @@ class ESMapper(object):
             # assign the type
             doc[field] = {'type': _type}
 
+        if source == 'project':
+            # Remove some fields from project document
+            keys_to_delete = [
+                'release_requested', 'awg_review', 'is_legacy',
+            ]
+            for key in keys_to_delete:
+                doc.pop(key)
+
         if source != 'project':
             doc.pop('project_id', None)
 
