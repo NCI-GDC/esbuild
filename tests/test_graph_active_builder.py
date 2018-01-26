@@ -12,8 +12,10 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
+from test_utils import get_dict_paths
 
 import pytest
+
 
 from conftest import (
     raise_test_error,
@@ -81,28 +83,22 @@ def mappings():
 # ======================================================================
 # Tests
 
-def get_dict_paths(d, path_list=None, path='root'):
-    """
-    Returns list of all paths in a dict and a last path found
-    """
-    if path_list is None:
-        path_list = []
-
-    for k, v in d.iteritems():
-        subpath = path + '.' + k
-        if isinstance(v, dict):
-            sublist, subpath = get_dict_paths(v, path_list, subpath)
-        else:
-            if isinstance(v, list):
-                sublist = [path + '.' + k + '.' + str(e) for e in v]
-            else:
-                sublist = [path + '.' + k + '.' + str(v)]
-        path_list.extend(sublist)
-    return list(set(path_list)), path
+@pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
+def test_mapping_full(doc_type):
+    """ Compare mappings defined in mappings.py to gdc-models """
+    mapper = ActiveGraphIndexBuilder.mapper
+    mappings = {
+        'file': mapper.get_file_es_mapping(),
+        'annotation': mapper.get_annotation_es_mapping(),
+        'case': mapper.get_case_es_mapping(),
+        'project': mapper.get_project_es_mapping(),
+    }
+    validate_mappings(mappings, doc_type)
 
 
-@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
-def test_mapping_full(mappings, doc_type):
+def validate_mappings(mappings, doc_type):
+    """ Asserts that set of expected by gdc-models paths is equal
+    to the mappings' paths set """
     es_mapping = mappings[doc_type]['properties']
     true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
 
@@ -112,8 +108,11 @@ def test_mapping_full(mappings, doc_type):
     missing_paths = set(true_paths) - set(es_paths)
     extra_paths = set(es_paths) - set(true_paths)
 
-    print '\n {}'.format(doc_type)
-    pprint ({'Missing paths': missing_paths, 'Extra paths': extra_paths})
+    if missing_paths:
+        pprint({'doc_type': doc_type, 'missing_paths': missing_paths})
+
+    if extra_paths:
+        pprint({'doc_type': doc_type, 'extra_paths': extra_paths})
 
     # Set of missing paths must be empty:
     assert missing_paths == set([])
@@ -233,7 +232,6 @@ def test_list_product(a, b, expected):
 
 
 @pytest.mark.parametrize('node,expected', [
-    (md.RnaExpressionWorkflow, ['exon_expression']),
     (md.RnaExpressionWorkflow, ['gene_expression']),
     (md.ReadGroup, [
         "submitted_aligned_reads",
