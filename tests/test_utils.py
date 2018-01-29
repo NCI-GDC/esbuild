@@ -1,7 +1,5 @@
-import os
 import time
 import pytest
-from elasticsearch import Elasticsearch
 
 import es_data
 from esbuild.utils import ReleaseHelper
@@ -15,6 +13,26 @@ def test_get_projects_list(test_index_data):
 
     assert projects == helper.get_project_ids(index_name)
     assert projects == helper.get_project_ids_from_metadata(index_name)
+
+
+def get_dict_paths(d, path_list=None, path='root'):
+    """
+    Returns list of all paths in a dict and a last path found
+    """
+    if path_list is None:
+        path_list = []
+
+    for k, v in d.iteritems():
+        subpath = path + '.' + k
+        if isinstance(v, dict):
+            sublist, subpath = get_dict_paths(v, path_list, subpath)
+        else:
+            if isinstance(v, list):
+                sublist = [path + '.' + k + '.' + str(e) for e in v]
+            else:
+                sublist = [path + '.' + k + '.' + str(v)]
+        path_list.extend(sublist)
+    return list(set(path_list)), path
 
 
 @pytest.fixture(scope='module')

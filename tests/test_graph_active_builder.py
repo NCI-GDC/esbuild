@@ -12,8 +12,10 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
+from test_utils import get_dict_paths
 
 import pytest
+
 
 from conftest import (
     raise_test_error,
@@ -81,28 +83,22 @@ def mappings():
 # ======================================================================
 # Tests
 
-def get_dict_paths(d, path_list=None, path='root'):
-    """
-    Returns list of all paths in a dict and a last path found
-    """
-    if path_list is None:
-        path_list = []
-
-    for k, v in d.iteritems():
-        subpath = path + '.' + k
-        if isinstance(v, dict):
-            sublist, subpath = get_dict_paths(v, path_list, subpath)
-        else:
-            if isinstance(v, list):
-                sublist = [path + '.' + k + '.' + str(e) for e in v]
-            else:
-                sublist = [path + '.' + k + '.' + str(v)]
-        path_list.extend(sublist)
-    return list(set(path_list)), path
+@pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
+def test_mapping_full(doc_type):
+    """ Compare mappings defined in mappings.py to gdc-models """
+    mapper = ActiveGraphIndexBuilder.mapper
+    mappings = {
+        'file': mapper.get_file_es_mapping(),
+        'annotation': mapper.get_annotation_es_mapping(),
+        'case': mapper.get_case_es_mapping(),
+        'project': mapper.get_project_es_mapping(),
+    }
+    validate_mappings(mappings, doc_type)
 
 
-@pytest.mark.parametrize('doc_type', ['annotation', 'project', 'file', 'case'])
-def test_mapping_full(mappings, doc_type):
+def validate_mappings(mappings, doc_type):
+    """ Asserts that set of expected by gdc-models paths is equal
+    to the mappings' paths set """
     es_mapping = mappings[doc_type]['properties']
     true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
 
@@ -112,14 +108,53 @@ def test_mapping_full(mappings, doc_type):
     missing_paths = set(true_paths) - set(es_paths)
     extra_paths = set(es_paths) - set(true_paths)
 
-    print '\n {}'.format(doc_type)
-    pprint ({'Missing paths': missing_paths, 'Extra paths': extra_paths})
+    if missing_paths:
+        pprint({'doc_type': doc_type, 'missing_paths': missing_paths})
+
+    if extra_paths:
+        pprint({'doc_type': doc_type, 'extra_paths': extra_paths})
 
     # Set of missing paths must be empty:
     assert missing_paths == set([])
 
     # Set of extra paths must be emty:
     assert extra_paths == set([])
+
+
+def test_selective_caching():
+    """
+    Tests that partial graph data caching is working in subset build scenario
+    """
+    projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
+    builder = ActiveGraphIndexBuilder(_graph, build_projects=projects_subset,
+                                      selective_caching=True)
+    builder.cache_database()
+
+    built_projects = {n.project_id for n in builder.G.nodes()
+                      if 'project_id' in n.props}
+    assert built_projects == projects_subset
+
+
+def test_awg_build():
+    """
+    Tests AWG build mode
+    """
+    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
+    builder = ActiveGraphIndexBuilder(_graph, build_awg=True,
+                                      build_projects=build_projects)
+    builder.cache_database()
+
+    # Check that only AWG nodes were built
+    built_nodes = {}
+    for node in builder.G.nodes():
+        built_nodes.setdefault(node.label, set())
+        built_nodes[node.label].update([node.node_id])
+
+    assert built_nodes == {
+        'case': {u'submitted-awg-case', u'processed-awg-case'},
+        'project': {u'awg-one-project'},
+        'program': {u'internal-program', u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
+    }
 
 
 def test_include_switch():
@@ -197,7 +232,6 @@ def test_list_product(a, b, expected):
 
 
 @pytest.mark.parametrize('node,expected', [
-    (md.RnaExpressionWorkflow, ['exon_expression']),
     (md.RnaExpressionWorkflow, ['gene_expression']),
     (md.ReadGroup, [
         "submitted_aligned_reads",
@@ -280,6 +314,7 @@ def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
     assert len(results) == count
 
+
 @pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
                                              ('cases', 3), ('files', 10)])
 def test_basic_counts(index, doc_type, count):
@@ -309,14 +344,14 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].exposures.[*].cigarettes_per_day',
      1, {10.3}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
-     1, {'Married'}),
+     1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
          'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
     ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
-                                      'Fake and Scary Carcinoma',
-                                      'Yet Another Fake Carcinoma'}),
-    ('cases', '[*].primary_site', 3, {'Breast', 'Fake Site', 'Another Fake Site'}),
+                                      'Prostate Adenocarcinoma',
+                                      'Rectum Adenocarcinoma'}),
+    ('cases', '[*].primary_site', 3, {'Breast', 'Prostate', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {'read-group-qc-1'}),
     ('files', '[*].index_files.[*].file_name',
@@ -350,9 +385,9 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
-                                         'Fake and Scary Carcinoma',
-                                         'Yet Another Fake Carcinoma'}),
-    ('projects', '[*].primary_site', 2, {'Breast', 'Fake Site', 'Another Fake Site'}),
+                                         'Prostate Adenocarcinoma',
+                                         'Rectum Adenocarcinoma'}),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Prostate', 'Rectum'}),
     ])
 def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

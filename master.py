@@ -5,18 +5,21 @@ import os
 
 from elasticsearch import Elasticsearch
 
+from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
-
+from cdisutils.log import get_logger
+logger = get_logger('esbuild_master')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 
-def parse_args():
-    """Parses arguments"""
-
-    parser = argparse.ArgumentParser(description='Delegate Esbuild jobs '
-                                     'to workers using depot server')
+def esbuild_argparser(parser=None):
+    """
+    Esbuild argument parser
+    """
+    if not parser:
+        parser = base_parser()
 
     depot_args = parser.add_argument_group(title='Depot server arguments',
                                            description='Depot server address '
@@ -38,18 +41,17 @@ def parse_args():
 
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
-    es_args.add_argument('--index',
-                         help='Name of elasticsearch index to upsert data into')
     es_args.add_argument('--n-workers',
                          help='Number of workers to split esbuild between',
                          type=int)
     es_args.add_argument('--build-type', choices=['active', 'legacy'],
                          help='Choose "active" or "legacy"')
+
     es_args.add_argument('--split-by-program', action='store_true',
                          help='If set, splits all projects into groups by program',
                          default=False)
-    es_args.add_argument('--projects', default='ALL', nargs='*',
-                         help='Set of projects to add to existing index.')
+    es_args.add_argument('--skip-projects', nargs='*',
+                         help='Set of projects to skip')
 
     backup_args = parser.add_argument_group(title='Backup arguments',
                                             description='ES index backup using repository-s3')
@@ -57,8 +59,13 @@ def parse_args():
                              help='Name of a snapshot to restore index from')
     backup_args.add_argument('--store-to-snapshot',
                              help='Name of a snapshot to store index to')
+    return parser
 
-    args = parser.parse_args()
+
+def parse_args():
+    """ Parses arguments, checks for sanity """
+
+    args = esbuild_argparser(base_parser()).parse_args()
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.n_workers, args.build_type]) and 
@@ -81,31 +88,34 @@ def depot_call(action, host, port, queue_id, json=None):
     return getattr(requests, method)(url, json=json)
 
 
-def split_projects(mylist, n, split_by_program=False):
+def split_projects(project_list, n, split_by_program=False):
     """Splits list of projects into n parts"""
+
+    if n == 1:
+        return [project_list]
 
     # Check input
     if not isinstance(n, int) or n < 1:
         raise ValueError('Number of parts should be positive integer. Got: {}'.format(n))
-    if n > len(mylist):
+    if n > len(project_list):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
 
     # Split-by-program mode
     if split_by_program:
-        programs = set([p.split('-', 1)[0] for p in mylist])
+        programs = set([p.split('-', 1)[0] for p in project_list])
         if n != len(programs):
             raise Exception("Number of workers should equal number of programs ({})"
                             .format(len(programs)))
         result = []
         for program in programs:
-            result.append([x for x in mylist if x.split('-', 1)[0] == program])
+            result.append([x for x in project_list if x.split('-', 1)[0] == program])
         return result
 
     # Regular mode
     else:
         group_lengths = [1 for _ in range(n)]
         i = 0
-        while sum(group_lengths) != len(mylist):
+        while sum(group_lengths) != len(project_list):
             group_lengths[i] += 1
             i += 1
             if i == len(group_lengths):
@@ -114,7 +124,7 @@ def split_projects(mylist, n, split_by_program=False):
         result = []
         i = 0
         for length in group_lengths:
-            result.append(mylist[i:i+length])
+            result.append(project_list[i:i+length])
             i = i + length
         return result
 
@@ -138,19 +148,19 @@ def backup_wrapper(snapshot_name, index_name, mode):
     )
 
     if mode == 'backup':
-        print "Saving {} to snapshot {}".format(index_name, snapshot_name)
+        logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
         backup_helper.store_snapshot('esbuild-snapshots',
                                      snapshot_name, indices=[index_name],
                                      wait_for_completion=True)
-        print "Index {} saved".format(index_name)
+        logger.info("Index {} saved".format(index_name))
     elif mode == 'restore':
         if index_name in es_client.indices.get_alias():
             raise Exception('Index {} already exists.'.format(index_name))
-        print "Restoring {} from snapshot {}".format(index_name, snapshot_name)
+        logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
         backup_helper.restore_from_snapshot('esbuild-snapshots',
                                             snapshot_name, indices=[index_name],
                                             wait_for_completion=True)
-        print "Index {} restored".format(index_name)
+        logger.info("Index {} restored".format(index_name))
     else:
         raise Exception('Unknown mode: {}'.format(mode))
 
@@ -170,9 +180,9 @@ if __name__ == "__main__":
             # Get queue status:
             status = depot_call('status', args.host, args.port, args.queue_id)
             if args.queue_clear:
-                print depot_call('clear', args.host, args.port, args.queue_id).text
+                logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
             elif args.queue_status:
-                print status.text
+                logger.info(status.text)
             else:
                 if not args.n_workers:
                     raise Exception('--n-workers not provided')
@@ -186,21 +196,28 @@ if __name__ == "__main__":
                 else:
                     projects = args.projects
 
-                print ("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
-                       .format(args.build_type.upper(), args.n_workers, args.index))
+                # Skip some projects, if skip-projects argument is set
+                if args.skip_projects:
+                    projects = [p for p in projects if p not in args.skip_projects]
+
+                logger.info("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
+                            .format(args.build_type.upper(), args.n_workers, args.index))
 
                 if 'not found' in status.text:
-                    print "Creating new queue:"
-                    print depot_call('new', args.host, args.port, args.queue_id).text
+                    logger.info("Creating new queue:")
+                    logger.info(depot_call('new', args.host, args.port, args.queue_id).text)
 
                 # Delegate a job for each project group:
                 for group in split_projects(projects, args.n_workers,
                                             split_by_program=args.split_by_program):
-                    cmd = ('sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'
-                           ' --upsert-to {} --no-roll'.format(args.build_type,
-                                                              args.index))
-                    if args.n_workers > 1:
-                        cmd = cmd + ' --projects {}'.format(' '.join(group))
+                    arguments = ['--index', '{}'.format(args.index), '--no-roll',
+                                 '--projects', '{}'.format(' '.join(group))]
 
+                    if args.selective_caching:
+                        arguments.append('--selective-caching')
+                    if args.build_awg:
+                        arguments.append('--build-awg')
+
+                    job_json = {'arguments': arguments, 'build_type': args.build_type}
                     depot_call('delegate', args.host, args.port, args.queue_id,
-                               json={'command': cmd})
+                               json=job_json)

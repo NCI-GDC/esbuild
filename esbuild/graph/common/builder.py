@@ -162,18 +162,30 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, build_projects=None):
+    def __init__(self, psqlgraph_driver, **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
         """
-        self.build_projects = build_projects
+        # Set all optional arguments as attributes:
+        # NOTE: Selective caching only works when all the non-project nodes
+        # that are expected to be picked up are populated with project_id
+        # As of Jan 2018, this is true only for newest active projects
+        optional_arguments = [
+            'build_projects',
+            'build_awg',
+            'selective_caching',
+        ]
+        for argname in optional_arguments:
+            setattr(self, argname, kwargs.get(argname))
 
         # Populate self.build_projects
-        if build_projects is not None:
-            if len(build_projects) == 0:
+        if self.build_projects is not None:
+            if len(self.build_projects) == 0:
                 self.build_projects = [('TARGET', 'RT'), ('TCGA', 'MESO')]
             else:
-                self.build_projects = [tuple(p.split('-', 1)) for p in build_projects]
+                self.build_projects = [
+                    tuple(p.split('-', 1)) for p in self.build_projects
+                ]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -723,6 +735,14 @@ class GraphIndexBuilder(object):
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
+        # Delete some keys from project document
+        keys_to_delete = [
+           'release_requested', 'awg_review', 'is_legacy',
+        ]
+        for key in keys_to_delete:
+            project_doc.pop(key, None)
+
+        # Populate project_id
         code = project_doc.pop('code')
         program = project_doc['program']['name']
         project_id = '{}-{}'.format(program, code)
@@ -1615,11 +1635,12 @@ class GraphIndexBuilder(object):
             for program in self.neighbors_labeled(project, 'program', 1)
         ]
 
-        # Check if project is not released
-        for project in projects:
-            if project.released is not True:
-                log.info('Omitting %s, project %s not released', node, project)
-                return True
+        # Check if project is not released (for non-AWG build only)
+        if not self.build_awg:
+            for project in projects:
+                if project.released is not True:
+                    log.info('Omitting %s, project %s not released', node, project)
+                    return True
 
         # Check project and program against omitted_projects
         for program_name in program_names:
@@ -1665,18 +1686,37 @@ class GraphIndexBuilder(object):
         2. it's a node with a 'state' that is a submitted state
         3. it's not a project or it doesn't have a state defined on it
 
+        When self.build_awg is set, the rules are different:
+        1. it's a project and it is 'awg_review' == True
+        2. it's a node with a 'state' that is a AWG state
         """
 
-        submitted_states = {'live', 'submitted'}
+        # AWG mode
+        if self.build_awg:
+            awg_states = {'submitted', 'processed'}
 
-        if node.label == 'project':
-            return node.released is True
+            if node.label == 'project':
+                return node.awg_review is True
 
-        elif 'state' not in node.__pg_properties__:
-            return True
+            # NOTE: this one is questionable
+            elif 'state' not in node.__pg_properties__:
+                return True  # True or False?
 
-        elif node.state in submitted_states:
-            return True
+            elif node.state in awg_states:
+                return True
+
+        # Regular esbuild
+        else:
+            submitted_states = {'live', 'submitted'}
+
+            if node.label == 'project':
+                return node.released is True
+
+            elif 'state' not in node.__pg_properties__:
+                return True
+
+            elif node.state in submitted_states:
+                return True
 
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed"""
@@ -1827,11 +1867,46 @@ class GraphIndexBuilder(object):
         """Returns an iterable of edges to load from the database.
 
         Eagerly (with join) loads the source and destination of the edge.
+        NOTE: All nodes that are not Project and expected to be picked up
+        must have project_id field corresponding to project they are part of
+        As of Jan 2018, this is not true for Legacy and old Active nodes
 
+        NOTE: [AWG build mode] If self.build_awg is set, will return only edges
+        that are connected to nodes that are part of awg_review == True projects
         """
 
+        if (self.build_awg or self.selective_caching) and self.build_projects:
+            # Load only node ids with relevant project_id's
+            project_ids = ['-'.join(p) for p in self.build_projects]
+
+            # For AWG build, keep only awg_review == True project subset
+            if self.build_awg:
+                awg_projects = {
+                    '-'.join([p.programs[0].name, p.code]) for p in
+                    self.g.nodes(md.Project).props(awg_review=True)
+                }
+                project_ids = [p for p in project_ids if p in awg_projects]
+
+            relevant_node_ids = {
+                nd.node_id for nd in
+                self.g.nodes().prop_in('project_id', project_ids)
+            }
+
+            # Add relevant Project nodes to relevant nodes set:
+            projects = list({p[1] for p in self.build_projects})
+            relevant_projects = self.g.nodes(md.Project).prop_in('code', projects)
+
+            relevant_node_ids.update([p.node_id for p in relevant_projects])
+
+            # Query only relevant edges 
+            query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
+
+        else:
+            # Query all edges
+            query = lambda node_type: self.g.edges(node_type)
+
         return itertools.chain(*[
-            self.g.edges(subclass)
+            query(subclass)
             .options(joinedload(subclass.src))
             .options(joinedload(subclass.dst))
             .yield_per(int(1e5))

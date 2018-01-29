@@ -161,6 +161,7 @@ NODES = [
         File,
         node_id='index-file',
         acl=['phs000178'],
+        project_id='TCGA-BRCA',
         state='live',
         file_name='test_file.bam.bai',
     ),
@@ -189,6 +190,7 @@ NODES = [
         File,
         node_id='related-file',
         acl=['phs000178'],
+        project_id='TCGA-BRCA',
         state="live",
         file_state='submitted',
         file_name="a_related_file.txt"
@@ -352,8 +354,8 @@ NODES = [
     Exposure(
         node_id='12af079f-da2c-4b48-86d4-c98fc0bf2a4f',
         state='submitted',
-        alcohol_history='',
-        alcohol_intensity='',
+        alcohol_history='Unknown',
+        alcohol_intensity='Unknown',
         bmi=-1,
         cigarettes_per_day=10.3,
         height=-1,
@@ -368,8 +370,8 @@ NODES = [
         project_id=u'TCGA-DEV1',
         relationship_age_at_diagnosis=10,
         relationship_gender=u'male',
-        relationship_primary_diagnosis=u'Married',
-        relationship_type=u'Legal',
+        relationship_primary_diagnosis=u'Colorectal Cancer',
+        relationship_type=u'Nephew',
         submitter_id=u'TCGA-DEV-1-CASE-0011-FAMILY-HISTORY',
     ),
     Diagnosis(
@@ -383,14 +385,14 @@ NODES = [
         days_to_recurrence=-1,
         last_known_disease_status=u'Unknown tumor status',
         morphology=u'8255/3',
-        primary_diagnosis=u'c34.3',
+        primary_diagnosis=u'C34.30',
         prior_malignancy=u'no',
         progression_or_recurrence=u'unknown',
         project_id=u'TCGA-LUAD',
-        site_of_resection_or_biopsy=u'c34.3',
+        site_of_resection_or_biopsy=u'C34.3',
         submitter_id=u'TCGA-49-AARO_diagnosis',
-        tissue_or_organ_of_origin=u'c34.3',
-        tumor_grade=u'',
+        tissue_or_organ_of_origin=u'C34.3',
+        tumor_grade=u'GB',
         tumor_stage=u'stage iiia',
         vital_status=u'dead',
     ),
@@ -513,8 +515,26 @@ NODES = [
         project_id='INTERNAL-DEV1',
         state='submitted',
         submitter_id='INTERNAL-DEV-CASE-0001',
-        primary_site="-",
-        disease_type="-",
+        primary_site="Bone",
+        disease_type="Miscellaneous Bone Tumors",
+    ),
+    Case(
+        # submitted case in AWG project
+        node_id='submitted-awg-case',
+        project_id='INTERNAL-AWG-ONE',
+        state='submitted',
+        submitter_id='INTERNAL-AWG-ONE-CASE-0001',
+        primary_site="Bone",
+        disease_type="Miscellaneous Bone Tumors",
+    ),
+    Case(
+        # processed case in AWG project
+        node_id='processed-awg-case',
+        project_id='INTERNAL-AWG-ONE',
+        state='processed',
+        submitter_id='INTERNAL-AWG-ONE-CASE-0002',
+        primary_site="Bone",
+        disease_type="Miscellaneous Bone Tumors",
     ),
     Case(
         # fake case in fake active project
@@ -522,8 +542,8 @@ NODES = [
         project_id='TCGA-FAKE_ACTIVE',
         state='submitted',
         submitter_id='fake_submitter_1',
-        primary_site='Fake Site',
-        disease_type='Fake and Scary Carcinoma'
+        primary_site='Prostate',
+        disease_type='Prostate Adenocarcinoma'
     ),
     Case(
         # second fake case in fake active project
@@ -531,8 +551,8 @@ NODES = [
         project_id='TCGA-FAKE_ACTIVE',
         state='submitted',
         submitter_id='fake_submitter_2',
-        primary_site='Another Fake Site',
-        disease_type='Yet Another Fake Carcinoma'
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
     ),
     Portion(
         node_id='5b2a99b7-e1a8-4739-acaf-d5f75cc47021',
@@ -898,7 +918,7 @@ NODES = [
         name="TCGA",
     ),
     Program(
-        node_id='internal-project',
+        node_id='internal-program',
         dbgap_accession_number="gdc000000",
         name="INTERNAL",
     ),
@@ -945,6 +965,7 @@ NODES = [
         node_id='1334612b-3d2e-5941-a476-d455d71b458f',
         released=True,
         state="legacy",
+        awg_review=False,
         code="BRCA",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
@@ -953,6 +974,7 @@ NODES = [
         node_id='fake_active_project',
         released=True,
         state="open",
+        awg_review=False,
         code="FAKE_ACTIVE",
         dbgap_accession_number=None,
         name="Made up active project",
@@ -961,9 +983,19 @@ NODES = [
         node_id='unreleased-project',
         released=False,
         state="open",
+        awg_review=False,
         code="DEV1",
         dbgap_accession_number='gdc000001',
         name="Dev project",
+    ),
+    Project(
+        node_id='awg-one-project',
+        released=False,
+        state="open",
+        awg_review=True,
+        code="AWG-ONE",
+        dbgap_accession_number=None,
+        name="AWG project",
     ),
     Center(
         node_id='6eba705a-0f00-5aa2-b1d0-04dbf62100cc',
@@ -1293,6 +1325,15 @@ EDGES = [
         src_id='unreleased-case',
         dst_id='unreleased-project',
         properties={}),
+    CaseMemberOfProject(
+        src_id='submitted-awg-case',
+        dst_id='awg-one-project',
+        properties={}),
+    CaseMemberOfProject(
+        src_id='processed-awg-case',
+        dst_id='awg-one-project',
+        properties={}),
+
     AliquotDerivedFromSample(
         src_id='0395a62f-3f37-4068-bab6-4c1d29cef2d5',
         dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
@@ -1527,9 +1568,12 @@ EDGES = [
     ),
     ProjectMemberOfProgram(
         src_id='unreleased-project',
-        dst_id='internal-project',
+        dst_id='internal-program',
     ),
-
+    ProjectMemberOfProgram(
+        src_id='awg-one-project',
+        dst_id='internal-program',
+    ),
     #  Ticket API-188
     ProjectMemberOfProgram(
         src_id='fake_active_project',

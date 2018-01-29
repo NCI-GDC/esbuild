@@ -2,8 +2,11 @@ import argparse
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 
 
-def main(converter, index_base):
-    parser = argparse.ArgumentParser()
+def esbuild_argparser():
+    """
+    Returns argument parser for esbuild
+    """
+    parser = argparse.ArgumentParser(description='Parameters to control esbuild runs')
     parser.add_argument(
         '--no-roll', action="store_true",
         help='if passed, do not roll the alias and delete old indices')
@@ -22,25 +25,45 @@ def main(converter, index_base):
     parser.add_argument(
         '--test_delete', action='store_true',
         help='Test the deletion (skip load & build of index)')
-    parser.add_argument('--projects', nargs='*',
-                        help='Partial build. Takes list of projects',
-                        required=False)
-    parser.add_argument('--upsert-to', help='Index name to upsert projects to')
+    parser.add_argument(
+        '--projects', default='ALL', nargs='*',
+        help='Partial build. Takes list of projects',
+        required=False)
+    parser.add_argument(
+        '--index', help='Index name to upsert projects to. '
+        'Must set when building subset of projects')
+    parser.add_argument(
+        '--selective-caching', action='store_true',
+        help='If set, only caches nodes for projects needed. '
+        'WARNING: Will skip nodes that do not have project_id',
+        default=False)
+    parser.add_argument(
+        '--build-awg', action='store_true',
+        help='If set, will build in AWG mode. '
+        'Will pick up only projects flagged as awg_review = true and '
+        'nodes that are part of these projects and are in any of allowed states',
+        default=False)
 
-    args = parser.parse_args()
+    return parser
 
-    if args.projects:
-        if not args.skip_es:
-            if not args.upsert_to:
-                raise Exception('Provide --upsert-to <index_name> when using '
-                                'partial build mode')
+
+def main(converter, index_base):
+
+    args = esbuild_argparser().parse_args()
+
+    if args.projects != 'ALL':
+        if not args.index and not args.skip_es:
+            raise Exception('Provide --index <index_name> when using '
+                            'partial build mode')
 
     gdc_es = GDCElasticsearch(
         converter_class=converter,
         build_projects=args.projects,
-        index_name=args.upsert_to,
+        build_awg=args.build_awg,
+        index_name=args.index,
         index_base=index_base,
-        skip_es=args.skip_es
+        skip_es=args.skip_es,
+        selective_caching=args.selective_caching,
     )
     if args.delete:
         if not args.json_delete:
