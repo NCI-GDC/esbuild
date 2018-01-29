@@ -7,7 +7,7 @@ elasticsearch>=5.0.0,<6.0.0
 xlrd==0.9.3
 consulate==0.4
 datadog==0.9.0
--e git+ssh://git@github.com/NCI-GDC/cdisutils.git@4a75cc05c7ba2174e70cca9c9ea7e93947f7a868#egg=cdisutils
+-e git+ssh://git@github.com/NCI-GDC/cdisutils.git@a79409a0ce5071a81c6997d4ed1549c3544fbdcd#egg=cdisutils
 -e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@55f0c237aa1f409919cb947a28e6cb074e33021c#egg=gdcdictionary
 <<<<<<< HEAD
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@7b5de7d56aa3159a9526940eb273579ddbf084ca#egg=psqlgraph
