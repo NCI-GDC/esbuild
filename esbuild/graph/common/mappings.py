@@ -274,6 +274,7 @@ class ESMapper(object):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
+        header._size.enabled = True
         header._source.excludes = ["__comment__"]
         header._meta.descriptions = cls.get_descriptions()
         return header
