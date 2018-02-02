@@ -52,6 +52,7 @@ install:
   # Install and start elasticsearch
   - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
   - sudo dpkg -i --force-confnew elasticsearch-${ES_VERSION}.deb
+  - sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install mapper-size
   - sudo service elasticsearch start
   
   # Install elasticdump and other requirements
