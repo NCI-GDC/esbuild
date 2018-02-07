@@ -9,25 +9,25 @@ def esbuild_argparser():
     parser = argparse.ArgumentParser(description='Parameters to control esbuild runs')
     parser.add_argument(
         '--no-roll', action="store_true",
-        help='if passed, do not roll the alias and delete old indices')
+        help='If passed, do not roll the alias and delete old indices')
     parser.add_argument(
         '--no-cleanup', action="store_true",
-        help='if passed, do not delete old indices')
+        help='If passed, do not delete old indices')
     parser.add_argument(
         '--delete', action="store_true",
-        help='if passed, delete the nodes in the json file passed with --json_delete')
+        help='If passed, delete the nodes in the json file passed with --json_delete')
     parser.add_argument(
         '--skip_es', action="store_true",
-        help='if passed, skip any actual action on es, just build json')
+        help='If passed, skip any actual action on es, just build json')
     parser.add_argument(
         '--json_delete',
-        help='file to use to delete nodes')
+        help='File to use to delete nodes')
     parser.add_argument(
         '--test_delete', action='store_true',
         help='Test the deletion (skip load & build of index)')
     parser.add_argument(
-        '--projects', default='ALL', nargs='*',
-        help='Partial build. Takes list of projects',
+        '--projects', nargs='*',
+        help='If set, builds only set of projects specified (space-separated)',
         required=False)
     parser.add_argument(
         '--index', help='Index name to upsert projects to. '
@@ -51,7 +51,7 @@ def main(converter, index_base):
 
     args = esbuild_argparser().parse_args()
 
-    if args.projects != 'ALL':
+    if args.projects:
         if not args.index and not args.skip_es:
             raise Exception('Provide --index <index_name> when using '
                             'partial build mode')
