@@ -196,8 +196,10 @@ class GraphIndexBuilder(object):
                 )
 
         if self.build_projects:
-            log.warn('\nRunning partial build.\nProjects: {}\n'
-                     .format(self.build_projects))
+            log.info('Running partial build')
+            log.info('Projects: {}'.format(self.build_projects))
+        else:
+            log.info('Running full build')
 
         # Load mapper tree representations
         self.ptree_mapping = {

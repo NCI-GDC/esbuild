@@ -61,7 +61,7 @@ class GDCElasticsearch(object):
     """
 
     def __init__(self, converter_class=None, es=None,
-                 index_base="gdc_from_graph", index_name=None, skip_es=False,
+                 index_base="gdc_from_graph", skip_es=False,
                  **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
@@ -70,7 +70,7 @@ class GDCElasticsearch(object):
 
         """
         self.log = get_logger("gdc_elasticsearch")
-
+        self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = PsqlGraphDriver(
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
@@ -79,6 +79,7 @@ class GDCElasticsearch(object):
         )
 
         self.index_base = index_base
+        self.index_name = kwargs.get('index_name', None)
         self.build_awg = kwargs.get('build_awg', False)
         self.build_projects = kwargs.get('build_projects', None)
         self.selective_caching = kwargs.get('selective_caching', False)
@@ -102,9 +103,7 @@ class GDCElasticsearch(object):
         else:
             self.es = None
 
-        if index_name:
-            self.index_name = index_name
-        else:
+        if self.index_name is None:
             self.index_name = self.get_index_name()
 
         # Used to clean up data in existing index

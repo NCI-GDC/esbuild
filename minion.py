@@ -54,9 +54,9 @@ if __name__ == "__main__":
             # Make sure that arguments are valid:
             esbuild_argparser().parse_args(work['arguments'])
             # Compose and execute the command:
-            command = ['sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'
-                       .format(work['build_type'])] + work['arguments']
-            logger.info('-> Running {}'.format(' '.join(command)))
+            command = ('sudo /var/tungsten/services/esbuild/es_build_{}_wrapper {}'
+                       .format(work['build_type'], ' '.join(work['arguments'])))
+            logger.info('-> Running {}'.format(command))
             if args.do_not_wait_for_completion:
                 # NOTE: Will result in all jobs of the queue running on a single machine
                 subprocess.Popen(command, shell=True)
