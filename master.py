@@ -191,7 +191,7 @@ if __name__ == "__main__":
                 if not args.build_type:
                     raise Exception('--build-type not provided')
 
-                if args.projects == 'ALL':
+                if args.projects is None:
                     projects = config['{}_projects'.format(args.build_type)]
                 else:
                     projects = args.projects
