@@ -135,28 +135,6 @@ def test_selective_caching():
     assert built_projects == projects_subset
 
 
-def test_awg_build():
-    """
-    Tests AWG build mode
-    """
-    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, build_awg=True,
-                                      build_projects=build_projects)
-    builder.cache_database()
-
-    # Check that only AWG nodes were built
-    built_nodes = {}
-    for node in builder.G.nodes():
-        built_nodes.setdefault(node.label, set())
-        built_nodes[node.label].update([node.node_id])
-
-    assert built_nodes == {
-        'case': {u'submitted-awg-case', u'processed-awg-case'},
-        'project': {u'awg-one-project'},
-        'program': {u'internal-program', u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
-    }
-
-
 def test_include_switch():
     mapper = ActiveGraphIndexBuilder.mapper
 

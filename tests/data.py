@@ -537,6 +537,15 @@ NODES = [
         disease_type="Miscellaneous Bone Tumors",
     ),
     Case(
+        # LEGACY case in AWG project
+        node_id='legacy-awg-case',
+        project_id='AWG-LEGACY',
+        state='submitted',
+        submitter_id='TCGA-AWG-LEGACY-CASE-0001',
+        primary_site="Breast",
+        disease_type="Breast Invasive Carcinoma",
+    ),
+    Case(
         # fake case in fake active project
         node_id='fake_active_case_1',
         project_id='TCGA-FAKE_ACTIVE',
@@ -913,7 +922,7 @@ NODES = [
         name='snv',
     ),
     Program(
-        node_id='b80aa962-9650-5110-b3eb-bd087da808db',
+        node_id='brca-program',
         dbgap_accession_number="phs000178",
         name="TCGA",
     ),
@@ -969,6 +978,15 @@ NODES = [
         code="BRCA",
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
+    ),
+    Project(
+        node_id='legacy-awg-project',
+        released=True,
+        state="legacy",
+        awg_review=True,
+        code="AWG-LEGACY",
+        dbgap_accession_number=None,
+        name="Legacy AWG project",
     ),
     Project(
         node_id='fake_active_project',
@@ -1318,6 +1336,10 @@ EDGES = [
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
     CaseMemberOfProject(
+        src_id='legacy-awg-case',
+        dst_id='legacy-awg-project',
+        properties={}),
+    CaseMemberOfProject(
         src_id='unsubmitted-case',
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
@@ -1564,7 +1586,11 @@ EDGES = [
     ),
     ProjectMemberOfProgram(
         src_id='1334612b-3d2e-5941-a476-d455d71b458f',
-        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+        dst_id='brca-program',
+    ),
+    ProjectMemberOfProgram(
+        src_id='legacy-awg-project',
+        dst_id='brca-program',
     ),
     ProjectMemberOfProgram(
         src_id='unreleased-project',
@@ -1574,10 +1600,9 @@ EDGES = [
         src_id='awg-one-project',
         dst_id='internal-program',
     ),
-    #  Ticket API-188
     ProjectMemberOfProgram(
         src_id='fake_active_project',
-        dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
+        dst_id='brca-program',
     ),
     CaseMemberOfProject(
         src_id='fake_active_case_1',
