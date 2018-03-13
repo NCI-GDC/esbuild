@@ -6,12 +6,18 @@ from the same database in the real world.
 
 """
 
+from esbuild.graph.common.builder import GraphIndexBuilder
 from gdcdatamodel.models import *  # noqa
 from gdcdictionary import gdcdictionary
 
 import random
 import string
 import uuid
+import md5
+import re
+
+DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
+DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 
 
 def random_string(length=6):
@@ -57,10 +63,72 @@ def fuzzed(node_class, node_id=None, **kwargs):
     return node_class(node_id, **kwargs)
 
 
+# Populated each time get_node_id is called, Used for debugging missing ids
+NODE_ID_TO_STRING = {}
+
+
+def get_node_id(string_id):
+    node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, string_id))
+    NODE_ID_TO_STRING[node_id] = string_id  # need this side-effect for debugging =\
+    return node_id
+
+
+def patch_test_data_get_indexd(nodes):
+    """
+    Takes effect only for file nodetypes:
+
+    1. Will generate indexd data off of nodes
+    2. Will patch nodes with error values for keys that are moved to indexd
+       (for all file nodetypes and for all file metadata fields)
+    3. Will patch illegal md5sum fields with random legal ones for all file nodes
+
+    """
+
+    indexd_data = []
+    for i_node, node in enumerate(nodes):
+        node_is_file = node.__class__._dictionary['category'] in DATA_FILE_CATEGORIES
+
+        # If the node is file category and the key is supposed to be in indexd:
+        if node_is_file:
+            # Replace illegal md5sum with legal one:
+            md5sum = str(getattr(node, 'md5sum', None))
+            if not re.findall(r"([a-fA-F\d]{32})", md5sum):
+                node.md5sum = md5.md5(md5sum).hexdigest()
+
+            # Patch file_size if none provided:
+            if not getattr(node, 'file_size', None):
+                node.file_size = random.randint(1e6, 1e7)
+
+            indexd_did = node.node_id
+            indexd_record = {'did': indexd_did,
+                             'node_id': node.node_id}
+
+            for key in DATA_FILE_INDEXD_FIELDS:
+                key_value = getattr(node, key, None)
+                if key_value is None:
+                    continue
+                # populate indexd record with the value from the node
+                indexd_record[key] = key_value
+
+                # Patch node.key with error value:
+                if isinstance(key_value, str):
+                    setattr(node, key, 'error')
+                elif isinstance(key_value, list):
+                    setattr(node, key, ['error' for _ in getattr(node, key)])
+                elif isinstance(key_value, int):
+                    setattr(node, key, -1)
+                else:
+                    raise ValueError('Can not process the value:', getattr(node, key))
+
+            indexd_data.append(indexd_record)
+
+    return nodes, indexd_data
+
+
 NODES = [
     fuzzed(
         File,
-        node_id='file-only-attached-to-archive-1',
+        node_id=get_node_id('file-only-attached-to-archive-1'),
         acl=['phs0000178'],
         state='submitted',
     ),
@@ -68,71 +136,71 @@ NODES = [
         Archive,
         acl=['phs000178'],
         state='submitted',
-        node_id='archive_1',
+        node_id=get_node_id('archive_1'),
     ),
     fuzzed(
         AnnotatedSomaticMutation,
-        node_id='annotated_somatic_mutation_1',
+        node_id=get_node_id('annotated_somatic_mutation_1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         SomaticAnnotationWorkflow,
-        node_id='somatic_annotation_workflow_1',
+        node_id=get_node_id('somatic_annotation_workflow_1'),
         state='submitted',
     ),
     fuzzed(
         SimpleSomaticMutation,
-        node_id='simple_somatic_mutation_1',
+        node_id=get_node_id('simple_somatic_mutation_1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         SomaticMutationCallingWorkflow,
-        node_id='somatic_mutation_calling_workflow_1',
+        node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='submitted',
     ),
     fuzzed(
         SubmittedTangentCopyNumber,
-        node_id='cnv-file-1',
+        node_id=get_node_id('cnv-file-1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         CopyNumberLiftoverWorkflow,
-        node_id='cnv-workflow-1',
+        node_id=get_node_id('cnv-workflow-1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         CopyNumberSegment,
-        node_id='cnv-segment-file-1',
+        node_id=get_node_id('cnv-segment-file-1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         AnalysisMetadata,
-        node_id='analysis-metadata-1',
+        node_id=get_node_id('analysis-metadata-1'),
         acl=['phs000178'],
         file_name='analysis-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
         RunMetadata,
-        node_id='run-metadata-1',
+        node_id=get_node_id('run-metadata-1'),
         acl=['phs000178'],
         file_name='run-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
         ExperimentMetadata,
-        node_id='experiment-metadata-1',
+        node_id=get_node_id('experiment-metadata-1'),
         acl=['phs000178'],
         file_name='experiment-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     File(
-        node_id='live-file',
+        node_id=get_node_id('live-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='TCGA-WR-A838-01A-12R-A406-31_rnaseq_fastq.tar',
@@ -145,7 +213,7 @@ NODES = [
         error_type=None,
     ),
     File(
-        node_id='harmonized-file',
+        node_id=get_node_id('harmonized-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='TCGA-WR-A838-01A-12R-A406-31_aligned.bam',
@@ -159,7 +227,7 @@ NODES = [
     ),
     fuzzed(
         File,
-        node_id='index-file',
+        node_id=get_node_id('index-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
         state='live',
@@ -167,28 +235,28 @@ NODES = [
     ),
     fuzzed(
         AlignedReadsIndex,
-        node_id='index-file-2',
+        node_id=get_node_id('index-file-2'),
         acl=['phs000178'],
         state='live',
         file_name='index-file-2.bam.bai',
     ),
     fuzzed(
         File,
-        node_id='legacy-file-with-empty-acl',
+        node_id=get_node_id('legacy-file-with-empty-acl'),
         acl=[],
         state='live',
         file_name='test-file-3.bam',
     ),
     fuzzed(
         AlignedReads,
-        node_id='active-file-with-empty-acl',
+        node_id=get_node_id('active-file-with-empty-acl'),
         state='submitted',
         acl=[],
         file_name='test-file-4.bam',
     ),
     fuzzed(
         File,
-        node_id='related-file',
+        node_id=get_node_id('related-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
         state="live",
@@ -197,12 +265,12 @@ NODES = [
     ),
     fuzzed(
         File,
-        node_id='non-live-file',
+        node_id=get_node_id('non-live-file'),
         acl=['phs000178'],
         state='uploaded'
     ),
     File(
-        node_id='to-delete-file',
+        node_id=get_node_id('to-delete-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
         file_name='a_file_to_be_deleted.txt',
@@ -216,7 +284,7 @@ NODES = [
     ),
     fuzzed(
         AlignedReads,
-        node_id='aligned-reads-2',
+        node_id=get_node_id('aligned-reads-2'),
         state='submitted',
         data_format='BAM',
         file_name='aligned-reads-2.bam',
@@ -279,17 +347,17 @@ NODES = [
         submitter_id='submitted_aligned_reads2',
     ),
     SubmittedAlignedReads(
-        node_id='submitted-aligned-reads-without-downstream',
+        node_id=get_node_id('submitted-aligned-reads-without-downstream'),
         state='submitted',
         acl=['phs000178'],
     ),
     fuzzed(
         ReadGroupQc,
-        node_id='read-group-qc-1',
+        node_id=get_node_id('read-group-qc-1'),
     ),
     fuzzed(
         ReadGroup,
-        node_id='read-group-without-downstream',
+        node_id=get_node_id('read-group-without-downstream'),
     ),
     ReadGroup(
         node_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
@@ -439,7 +507,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01D-A133-02',
     ),
     Aliquot(
-        node_id='aliquot-attached-to-sample',
+        node_id=get_node_id('aliquot-attached-to-sample'),
         project_id='TCGA-BRCA',
         state='submitted',
         amount=12.0,
@@ -495,7 +563,7 @@ NODES = [
         disease_type='Breast Invasive Carcinoma'
     ),
     Case(
-        node_id='unsubmitted-case',
+        node_id=get_node_id('unsubmitted-case'),
         project_id='TCGA-BRCA',
         state='validated',
         submitter_id='unsubmitted-case',
@@ -511,7 +579,7 @@ NODES = [
     ),
     Case(
         # case in unreleased project
-        node_id='unreleased-case',
+        node_id=get_node_id('unreleased-case'),
         project_id='INTERNAL-DEV1',
         state='submitted',
         submitter_id='INTERNAL-DEV-CASE-0001',
@@ -520,7 +588,7 @@ NODES = [
     ),
     Case(
         # submitted case in AWG project
-        node_id='submitted-awg-case',
+        node_id=get_node_id('submitted-awg-case'),
         project_id='INTERNAL-AWG-ONE',
         state='submitted',
         submitter_id='INTERNAL-AWG-ONE-CASE-0001',
@@ -529,7 +597,7 @@ NODES = [
     ),
     Case(
         # processed case in AWG project
-        node_id='processed-awg-case',
+        node_id=get_node_id('processed-awg-case'),
         project_id='INTERNAL-AWG-ONE',
         state='processed',
         submitter_id='INTERNAL-AWG-ONE-CASE-0002',
@@ -538,7 +606,7 @@ NODES = [
     ),
     Case(
         # fake case in fake active project
-        node_id='fake_active_case_1',
+        node_id=get_node_id('fake_active_case_1'),
         project_id='TCGA-FAKE_ACTIVE',
         state='submitted',
         submitter_id='fake_submitter_1',
@@ -547,7 +615,7 @@ NODES = [
     ),
     Case(
         # second fake case in fake active project
-        node_id='fake_active_case_2',
+        node_id=get_node_id('fake_active_case_2'),
         project_id='TCGA-FAKE_ACTIVE',
         state='submitted',
         submitter_id='fake_submitter_2',
@@ -574,7 +642,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01D-A134-01',
     ),
     Aliquot(
-        node_id='aliquot-without-downstream',
+        node_id=get_node_id('aliquot-without-downstream'),
         project_id='TCGA-BRCA',
         state='submitted',
         amount=6.67,
@@ -743,12 +811,12 @@ NODES = [
         submitter_id="0000",
     ),
     Annotation(
-        node_id='rescinded-annotation',
+        node_id=get_node_id('rescinded-annotation'),
         state='submitted',
         status="Rescinded",
     ),
     Annotation(
-        node_id='rescinded-redaction-annotation',
+        node_id=get_node_id('rescinded-redaction-annotation'),
         category='Administrative Compliance',
         classification='Redaction',
         creator='annotator1',
@@ -758,29 +826,29 @@ NODES = [
         status="Rescinded",
     ),
     Annotation(
-        node_id='annotation-without-downstream',
+        node_id=get_node_id('annotation-without-downstream'),
         state='submitted',
     ),
     fuzzed(
         SomaticMutationCallingWorkflow,
-        node_id='somatic_mutation_calling_workflow_1',
+        node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='submitted',
     ),
     fuzzed(
         SimpleSomaticMutation,
-        node_id='somatic_mutation_1',
+        node_id=get_node_id('somatic_mutation_1'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         SimpleSomaticMutation,
-        node_id='somatic_mutation_1',
+        node_id=get_node_id('somatic_mutation_2'),
         acl=['phs000178'],
         state='submitted',
     ),
     fuzzed(
         BiospecimenSupplement,
-        node_id='biospecimen_supplement_1',
+        node_id=get_node_id('biospecimen_supplement_1'),
         acl=['phs000178'],
         data_category='Biospecimen',
         data_format='BCR XML',
@@ -790,7 +858,7 @@ NODES = [
     ),
     fuzzed(
         ClinicalSupplement,
-        node_id='clinical_supplement_1',
+        node_id=get_node_id('clinical_supplement_1'),
         acl=['phs000178'],
         data_category='Clinical',
         data_format='BCR XML',
@@ -800,7 +868,7 @@ NODES = [
     ),
     fuzzed(
         File,
-        node_id='old-biospecimen-supplement-xml',
+        node_id=get_node_id('old-biospecimen-supplement-xml'),
         acl=['phs000178'],
         file_name='nationwidechildrens.org_biospecimen.TCGA-72-4234.xml',
         file_size=129165,
@@ -810,26 +878,26 @@ NODES = [
     ),
     fuzzed(
         SomaticAggregationWorkflow,
-        node_id='somatic-aggregation-workflow-1',
+        node_id=get_node_id('somatic-aggregation-workflow-1'),
     ),
     fuzzed(
         AnnotatedSomaticMutation,
-        node_id='annotated-somatic-mutation-2',
+        node_id=get_node_id('annotated-somatic-mutation-2'),
     ),
     fuzzed(
         AnnotatedSomaticMutation,
-        node_id='annotated-somatic-mutation-3',
+        node_id=get_node_id('annotated-somatic-mutation-3'),
     ),
     fuzzed(
         AnnotatedSomaticMutation,
-        node_id='annotated-somatic-mutation-4',
+        node_id=get_node_id('annotated-somatic-mutation-4'),
     ),
     fuzzed(
         AggregatedSomaticMutation,
-        node_id='aggregated-somatic-mutation-1',
+        node_id=get_node_id('aggregated-somatic-mutation-1'),
     ),
     File(
-        node_id='slide-image-file',
+        node_id=get_node_id('slide-image-file'),
         file_name='TCGA-slide-file-1.svs',
         file_size=1245610777,
         md5sum='f03a67148479bccd32ac79c6181e5703',
@@ -841,7 +909,7 @@ NODES = [
     File(
         # SNV File: added for regression of removing case.files from the active
         # index
-        node_id='snv-file',
+        node_id=get_node_id('snv-file'),
         acl=['phs000178'],
         created_datetime=u'2016-03-23T08:41:05.433262-05:00',
         file_name=u'genome.wustl.edu.TCGA-04-1332.snv.1aa2d1d8b9f44d7f9e15300c519bd419.vcf.gz',
@@ -854,7 +922,7 @@ NODES = [
 
     # Methylation values
     SubmittedMethylationBetaValue(
-        node_id='sub-methyl-beta-value',
+        node_id=get_node_id('sub-methyl-beta-value'),
         acl=['open'],
         created_datetime=u'2016-09-29T22:03:22.817635+00:00',
         file_name=u'jhu-usc.edu_KIRC.HumanMethylation27.3.lvl-3.TCGA-BP-4761-11A-01D-1284-05.txt',
@@ -870,13 +938,13 @@ NODES = [
         updated_datetime=u'2016-09-29T22:03:22.817635+00:00',
     ),
     MethylationLiftoverWorkflow(
-        node_id='methyl-lift-wf',
+        node_id=get_node_id('methyl-lift-wf'),
         workflow_type='Liftover',
         state='submitted',
         acl=['open'],
     ),
     MethylationBetaValue(
-        node_id='methyl-beta-value',
+        node_id=get_node_id('methyl-beta-value'),
         acl=['open'],
         state='submitted',
         created_datetime=u'2016-09-29T22:03:22.817635+00:00',
@@ -893,11 +961,11 @@ NODES = [
 
     # Prelude nodes
     DataSubtype(
-        node_id='data_subtype_aligned_reads',
+        node_id=get_node_id('data_subtype_aligned_reads'),
         name='Aligned reads',
     ),
     DataType(
-        node_id='data_type_raw_sequencing',
+        node_id=get_node_id('data_type_raw_sequencing'),
         name='Raw sequencing data',
     ),
     Platform(
@@ -918,7 +986,7 @@ NODES = [
         name="TCGA",
     ),
     Program(
-        node_id='internal-program',
+        node_id=get_node_id('internal-program'),
         dbgap_accession_number="gdc000000",
         name="INTERNAL",
     ),
@@ -971,7 +1039,7 @@ NODES = [
         name="Breast Invasive Carcinoma",
     ),
     Project(
-        node_id='fake_active_project',
+        node_id=get_node_id('fake_active_project'),
         released=True,
         state="open",
         awg_review=False,
@@ -980,7 +1048,7 @@ NODES = [
         name="Made up active project",
     ),
     Project(
-        node_id='unreleased-project',
+        node_id=get_node_id('unreleased-project'),
         released=False,
         state="open",
         awg_review=False,
@@ -989,7 +1057,7 @@ NODES = [
         name="Dev project",
     ),
     Project(
-        node_id='awg-one-project',
+        node_id=get_node_id('awg-one-project'),
         released=False,
         state="open",
         awg_review=True,
@@ -1019,67 +1087,67 @@ NODES = [
 EDGES = [
     # Somatic mutation workflows
     SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
-        src_id='somatic-aggregation-workflow-1',
-        dst_id='annotated_somatic_mutation_1',
+        src_id=get_node_id('somatic-aggregation-workflow-1'),
+        dst_id=get_node_id('annotated_somatic_mutation_1'),
     ),
     SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
-        src_id='somatic-aggregation-workflow-1',
-        dst_id='annotated-somatic-mutation-2',
+        src_id=get_node_id('somatic-aggregation-workflow-1'),
+        dst_id=get_node_id('annotated-somatic-mutation-2'),
     ),
     SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
-        src_id='somatic-aggregation-workflow-1',
-        dst_id='annotated-somatic-mutation-3',
+        src_id=get_node_id('somatic-aggregation-workflow-1'),
+        dst_id=get_node_id('annotated-somatic-mutation-3'),
     ),
     SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
-        src_id='somatic-aggregation-workflow-1',
-        dst_id='annotated-somatic-mutation-4',
+        src_id=get_node_id('somatic-aggregation-workflow-1'),
+        dst_id=get_node_id('annotated-somatic-mutation-4'),
     ),
     AggregatedSomaticMutationDataFromSomaticAggregationWorkflow(
-        src_id='aggregated-somatic-mutation-1',
-        dst_id='somatic-aggregation-workflow-1',
+        src_id=get_node_id('aggregated-somatic-mutation-1'),
+        dst_id=get_node_id('somatic-aggregation-workflow-1'),
     ),
     AnnotatedSomaticMutationDataFromSomaticAnnotationWorkflow(
-        src_id='annotated_somatic_mutation_1',
-        dst_id='somatic_annotation_workflow_1',
+        src_id=get_node_id('annotated_somatic_mutation_1'),
+        dst_id=get_node_id('somatic_annotation_workflow_1'),
     ),
     SomaticAnnotationWorkflowPerformedOnSimpleSomaticMutation(
-        src_id='somatic_annotation_workflow_1',
-        dst_id='simple_somatic_mutation_1',
+        src_id=get_node_id('somatic_annotation_workflow_1'),
+        dst_id=get_node_id('simple_somatic_mutation_1'),
     ),
     SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
-        src_id='simple_somatic_mutation_1',
-        dst_id='somatic_mutation_calling_workflow_1',
+        src_id=get_node_id('simple_somatic_mutation_1'),
+        dst_id=get_node_id('somatic_mutation_calling_workflow_1'),
     ),
     SomaticMutationCallingWorkflowPerformedOnAlignedReads(
-        src_id='somatic_mutation_calling_workflow_1',
+        src_id=get_node_id('somatic_mutation_calling_workflow_1'),
         dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
     SomaticMutationCallingWorkflowPerformedOnAlignedReads(
-        src_id='somatic_mutation_calling_workflow_1',
-        dst_id='aligned-reads-2',
+        src_id=get_node_id('somatic_mutation_calling_workflow_1'),
+        dst_id=get_node_id('aligned-reads-2'),
     ),
 
     # Supplement nodes
     FileDescribesCase(
-        src_id='old-biospecimen-supplement-xml',
+        src_id=get_node_id('old-biospecimen-supplement-xml'),
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     BiospecimenSupplementDerivedFromCase(
-        src_id='biospecimen_supplement_1',
+        src_id=get_node_id('biospecimen_supplement_1'),
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     AnnotationAnnotatesCase(
-        src_id='rescinded-redaction-annotation',
+        src_id=get_node_id('rescinded-redaction-annotation'),
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
     ClinicalSupplementDerivedFromCase(
-        src_id='clinical_supplement_1',
+        src_id=get_node_id('clinical_supplement_1'),
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
     ),
 
     # Read Groups
     ReadGroupQcGeneratedFromReadGroup(
-        src_id='read-group-qc-1',
+        src_id=get_node_id('read-group-qc-1'),
         dst_id='64f66bc3-1cee-41d7-ae86-cb443e84f30e',
     ),
     ReadGroupDerivedFromAliquot(
@@ -1087,12 +1155,12 @@ EDGES = [
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     ReadGroupDerivedFromAliquot(
-        src_id='read-group-without-downstream',
-        dst_id='aliquot-without-downstream',
+        src_id=get_node_id('read-group-without-downstream'),
+        dst_id=get_node_id('aliquot-without-downstream'),
     ),
     SubmittedAlignedReadsDataFromReadGroup(
-        src_id='submitted-aligned-reads-without-downstream',
-        dst_id='read-group-without-downstream',
+        src_id=get_node_id('submitted-aligned-reads-without-downstream'),
+        dst_id=get_node_id('read-group-without-downstream'),
     ),
     ReadGroupDerivedFromAliquot(
         src_id='bd4d1c78-c448-4bbf-8348-a77f3786c648',
@@ -1121,11 +1189,11 @@ EDGES = [
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     AlignedReadsDataFromAlignmentCocleaningWorkflow(
-        src_id='aligned-reads-2',
+        src_id=get_node_id('aligned-reads-2'),
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     AlignedReadsDataFromAlignmentCocleaningWorkflow(
-        src_id='active-file-with-empty-acl',
+        src_id=get_node_id('active-file-with-empty-acl'),
         dst_id='973bd442-04a0-4189-8f02-c8c7e041afe9',
     ),
     AlignedReadsMatchedToSubmittedAlignedReads(
@@ -1133,7 +1201,7 @@ EDGES = [
         dst_id='b3601406-3676-4f76-9aa0-ed68ed6c3a05',
     ),
     AlignedReadsMatchedToSubmittedAlignedReads(
-        src_id='aligned-reads-2',
+        src_id=get_node_id('aligned-reads-2'),
         dst_id='c7ca17cd-a4be-47da-a446-8efaf0f73272',
     ),
 
@@ -1165,79 +1233,79 @@ EDGES = [
 
     # Legacy edges
     FileMemberOfArchive(
-        src_id='file-only-attached-to-archive-1',
-        dst_id='archive_1',
+        src_id=get_node_id('file-only-attached-to-archive-1'),
+        dst_id=get_node_id('archive_1'),
     ),
     BiospecimenSupplementMemberOfArchive(
-        src_id='biospecimen_supplement_1',
-        dst_id='archive_1',
+        src_id=get_node_id('biospecimen_supplement_1'),
+        dst_id=get_node_id('archive_1'),
     ),
     ClinicalSupplementMemberOfArchive(
-        src_id='clinical_supplement_1',
-        dst_id='archive_1',
+        src_id=get_node_id('clinical_supplement_1'),
+        dst_id=get_node_id('archive_1'),
     ),
     AnnotationAnnotatesAliquot(
         src_id='d7cb38ff-0ca2-5496-896b-92c5a76b6109',
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     AnnotationAnnotatesAliquot(
-        src_id='annotation-without-downstream',
-        dst_id='aliquot-without-downstream',
+        src_id=get_node_id('annotation-without-downstream'),
+        dst_id=get_node_id('aliquot-without-downstream'),
     ),
     AnnotationAnnotatesAliquot(
-        src_id='annotation-without-downstream',
-        dst_id='aliquot-without-downstream',
+        src_id=get_node_id('annotation-without-downstream'),
+        dst_id=get_node_id('aliquot-without-downstream'),
     ),
     AnnotationAnnotatesAliquot(
-        src_id='rescinded-annotation',
+        src_id=get_node_id('rescinded-annotation'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileMemberOfDataSubtype(
-        src_id='live-file',
-        dst_id='data_subtype_aligned_reads'
+        src_id=get_node_id('live-file'),
+        dst_id=get_node_id('data_subtype_aligned_reads'),
     ),
     FileRelatedToFile(
-        src_id='live-file',
-        dst_id='index-file',
+        src_id=get_node_id('live-file'),
+        dst_id=get_node_id('index-file'),
     ),
     AlignedReadsIndexDerivedFromAlignedReads(
-        src_id='index-file-2',
+        src_id=get_node_id('index-file-2'),
         dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
     FileRelatedToFile(
-        src_id='live-file',
-        dst_id='related-file',
+        src_id=get_node_id('live-file'),
+        dst_id=get_node_id('related-file'),
     ),
     FileDataFromSlide(
-        src_id='slide-image-file',
+        src_id=get_node_id('slide-image-file'),
         dst_id='3013e9be-aa3e-4986-990c-559982f00e36',
     ),
     FileDataFromAliquot(
-        src_id='live-file',
+        src_id=get_node_id('live-file'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromAliquot(
-        src_id='legacy-file-with-empty-acl',
+        src_id=get_node_id('legacy-file-with-empty-acl'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromAliquot(
-        src_id='harmonized-file',
+        src_id=get_node_id('harmonized-file'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromFile(
-        src_id='harmonized-file',
-        dst_id='live-file',
+        src_id=get_node_id('harmonized-file'),
+        dst_id=get_node_id('live-file'),
     ),
     FileDataFromAliquot(
-        src_id='non-live-file',
+        src_id=get_node_id('non-live-file'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromAliquot(
-        src_id='to-delete-file',
+        src_id=get_node_id('to-delete-file'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     FileDataFromAliquot(
-        src_id='related-file',
+        src_id=get_node_id('related-file'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     AliquotDerivedFromAnalyte(
@@ -1246,7 +1314,7 @@ EDGES = [
         properties={}
     ),
     AliquotDerivedFromSample(
-        src_id='aliquot-attached-to-sample',
+        src_id=get_node_id('aliquot-attached-to-sample'),
         dst_id='c1e5beaa-6103-409d-bdd4-a86c0f210014',
     ),
     AliquotShippedToCenter(
@@ -1292,7 +1360,7 @@ EDGES = [
     FileDataFromCase(
         # Added for regression of removing case.files from the active
         # index
-        src_id='snv-file',
+        src_id=get_node_id('snv-file'),
         dst_id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c',
         properties={}),
 
@@ -1318,20 +1386,20 @@ EDGES = [
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
     CaseMemberOfProject(
-        src_id='unsubmitted-case',
+        src_id=get_node_id('unsubmitted-case'),
         dst_id='1334612b-3d2e-5941-a476-d455d71b458f',
         properties={}),
     CaseMemberOfProject(
-        src_id='unreleased-case',
-        dst_id='unreleased-project',
+        src_id=get_node_id('unreleased-case'),
+        dst_id=get_node_id('unreleased-project'),
         properties={}),
     CaseMemberOfProject(
-        src_id='submitted-awg-case',
-        dst_id='awg-one-project',
+        src_id=get_node_id('submitted-awg-case'),
+        dst_id=get_node_id('awg-one-project'),
         properties={}),
     CaseMemberOfProject(
-        src_id='processed-awg-case',
-        dst_id='awg-one-project',
+        src_id=get_node_id('processed-awg-case'),
+        dst_id=get_node_id('awg-one-project'),
         properties={}),
 
     AliquotDerivedFromSample(
@@ -1393,7 +1461,7 @@ EDGES = [
         dst_id='5e793cf6-1554-55db-b2ee-9c772717cea0',
         properties={}),
     AliquotDerivedFromSample(
-        src_id='aliquot-without-downstream',
+        src_id=get_node_id('aliquot-without-downstream'),
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AliquotDerivedFromSample(
@@ -1401,7 +1469,7 @@ EDGES = [
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AliquotDerivedFromAnalyte(
-        src_id='aliquot-without-downstream',
+        src_id=get_node_id('aliquot-without-downstream'),
         dst_id='3febc6c8-85ae-4d38-ba55-c959959846db',
         properties={}),
     AliquotDerivedFromSample(
@@ -1437,7 +1505,7 @@ EDGES = [
         dst_id='40407260-e805-4c2e-b2a7-13862bc5e494',
         properties={}),
     AliquotShippedToCenter(
-        src_id='aliquot-without-downstream',
+        src_id=get_node_id('aliquot-without-downstream'),
         dst_id='5069ce55-a23f-57c4-a28c-70a3c3cb0e4c',
         properties={'plate_column': '5',
                     'plate_id': 'A134',
@@ -1506,88 +1574,92 @@ EDGES = [
         dst_id='5fa9998b-deff-493e-8a8e-dc2422192a48',
         properties={}),
     AnalysisMetadataDerivedFromFile(
-        src_id='analysis-metadata-1',
-        dst_id='live-file',
+        src_id=get_node_id('analysis-metadata-1'),
+        dst_id=get_node_id('live-file'),
     ),
 
     # Somatic Mutation Calling
     SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
-        src_id='somatic_mutation_1',
-        dst_id='somatic_mutation_calling_workflow_1',
+        src_id=get_node_id('somatic_mutation_1'),
+        dst_id=get_node_id('somatic_mutation_calling_workflow_1'),
     ),
     SomaticMutationCallingWorkflowPerformedOnAlignedReads(
-        src_id='somatic_mutation_calling_workflow_1',
+        src_id=get_node_id('somatic_mutation_calling_workflow_1'),
         dst_id='a819133c-65c4-438c-93ae-a04e24e82626',
     ),
 
     # SRA metadata
     RunMetadataDerivedFromFile(
-        src_id='run-metadata-1',
-        dst_id='live-file',
+        src_id=get_node_id('run-metadata-1'),
+        dst_id=get_node_id('live-file'),
     ),
     ExperimentMetadataDerivedFromFile(
-        src_id='experiment-metadata-1',
-        dst_id='live-file',
+        src_id=get_node_id('experiment-metadata-1'),
+        dst_id=get_node_id('live-file'),
     ),
 
     # Copy Number
     SubmittedTangentCopyNumberDerivedFromAliquot(
-        src_id='cnv-file-1',
+        src_id=get_node_id('cnv-file-1'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
-        src_id='cnv-workflow-1',
-        dst_id='cnv-file-1',
+        src_id=get_node_id('cnv-workflow-1'),
+        dst_id=get_node_id('cnv-file-1'),
     ),
     CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
-        src_id='cnv-segment-file-1',
-        dst_id='cnv-workflow-1'
+        src_id=get_node_id('cnv-segment-file-1'),
+        dst_id=get_node_id('cnv-workflow-1'),
     ),
 
     SubmittedMethylationBetaValueDerivedFromAliquot(
-        src_id='sub-methyl-beta-value',
+        src_id=get_node_id('sub-methyl-beta-value'),
         dst_id='84df0f82-69c4-4cd3-a4bd-f40d2d6ef916',
     ),
     MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
-        src_id='methyl-lift-wf',
-        dst_id='sub-methyl-beta-value',
+        src_id=get_node_id('methyl-lift-wf'),
+        dst_id=get_node_id('sub-methyl-beta-value'),
     ),
     MethylationBetaValueDataFromMethylationLiftoverWorkflow(
-        src_id='methyl-beta-value',
-        dst_id='methyl-lift-wf',
+        src_id=get_node_id('methyl-beta-value'),
+        dst_id=get_node_id('methyl-lift-wf'),
     ),
 
     # Prelude
     DataSubtypeMemberOfDataType(
-        src_id='data_subtype_aligned_reads',
-        dst_id='data_type_raw_sequencing',
+        src_id=get_node_id('data_subtype_aligned_reads'),
+        dst_id=get_node_id('data_type_raw_sequencing'),
     ),
     ProjectMemberOfProgram(
         src_id='1334612b-3d2e-5941-a476-d455d71b458f',
         dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
     ),
     ProjectMemberOfProgram(
-        src_id='unreleased-project',
-        dst_id='internal-program',
+        src_id=get_node_id('unreleased-project'),
+        dst_id=get_node_id('internal-program'),
     ),
     ProjectMemberOfProgram(
-        src_id='awg-one-project',
-        dst_id='internal-program',
+        src_id=get_node_id('awg-one-project'),
+        dst_id=get_node_id('internal-program'),
     ),
     #  Ticket API-188
     ProjectMemberOfProgram(
-        src_id='fake_active_project',
+        src_id=get_node_id('fake_active_project'),
         dst_id='b80aa962-9650-5110-b3eb-bd087da808db',
     ),
     CaseMemberOfProject(
-        src_id='fake_active_case_1',
-        dst_id='fake_active_project',
+        src_id=get_node_id('fake_active_case_1'),
+        dst_id=get_node_id('fake_active_project'),
     ),
     CaseMemberOfProject(
-        src_id='fake_active_case_2',
-        dst_id='fake_active_project',
+        src_id=get_node_id('fake_active_case_2'),
+        dst_id=get_node_id('fake_active_project'),
     ),
 ]
+
+
+# Patch nodes, separate file metadata to indexd
+NODES, INDEXD = patch_test_data_get_indexd(NODES)
 
 
 def insert(g):
@@ -1597,6 +1669,6 @@ def insert(g):
         for edge in EDGES:
             session.merge(edge)
 
-        to_delete = g.nodes(File).ids('to-delete-file').one()
+        to_delete = g.nodes(File).ids(get_node_id('to-delete-file')).one()
         to_delete.sysan['to_delete'] = True
         session.merge(to_delete)

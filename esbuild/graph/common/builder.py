@@ -151,6 +151,9 @@ class GraphIndexBuilder(object):
         'file_labels',
     ]
 
+    data_file_categories = ['data_file', 'metadata_file']
+    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
+
     supplement_regexes = [
         re.compile(regex) for regex in [
             'nationwidechildrens.org_biospecimen.([a-zA-Z0-9-]+).xml',

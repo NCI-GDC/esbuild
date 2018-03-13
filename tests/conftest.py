@@ -12,8 +12,12 @@ import data
 import es_data
 import logging
 import os
+import json
 import pytest
 import time
+
+from cdisutilstest.code.indexd_fixture import indexd_server
+from indexclient.client import IndexClient
 
 # ======================================================================
 # Test Settings
@@ -54,6 +58,28 @@ def clear_database():
 
     with _graph.engine.begin() as conn:
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+
+
+@pytest.fixture
+def indexd_client(indexd_server):
+    indexd = IndexClient(baseurl=indexd_server.baseurl, auth=indexd_server.auth)
+    # Insert indexd data:
+    for record in data.INDEXD:
+        did = record.pop('did')
+        md5 = record.pop('md5sum')
+        size = record.pop('file_size')
+        file_name = record.pop('file_name', None)
+        if 'acl' in record:
+            record['acl'] = json.dumps(record['acl'])
+        indexd.create(
+            did=did,
+            hashes={'md5': md5},
+            size=size,
+            file_name=file_name,
+            urls=[],
+            metadata=record,
+        )
+    return indexd
 
 
 class TestError(Exception):

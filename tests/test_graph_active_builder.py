@@ -8,6 +8,7 @@ Test the builder for graph ES index
 """
 
 
+from esbuild.graph.common.builder import GraphIndexBuilder
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
@@ -29,6 +30,11 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 
+
+DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
+DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
+
+
 # Define the number of files that should be loaded as documents
 N_FILES = 10
 N_OUTPUT_FILES = 6
@@ -38,9 +44,9 @@ N_INPUT_FILES = 9
 # Fixtures
 
 
-@pytest.fixture(scope='module')
-def index():
-    builder = ActiveGraphIndexBuilder(_graph)
+@pytest.fixture
+def index(indexd_client):
+    builder = ActiveGraphIndexBuilder(_graph, indexd_client)
     with _graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -48,8 +54,8 @@ def index():
 
 
 @pytest.fixture
-def cached_builder(scope='module'):
-    builder = ActiveGraphIndexBuilder(_graph)
+def cached_builder(indexd_client):
+    builder = ActiveGraphIndexBuilder(_graph, indexd_client)
     builder.cache_database()
     return builder
 
@@ -119,6 +125,26 @@ def validate_mappings(mappings, doc_type):
 
     # Set of extra paths must be emty:
     assert extra_paths == set([])
+
+
+def test_get_file_metadata_from_indexd(index):
+    """
+    Test that file metadata fields are taken from indexd
+    (by checking that their value is not 'error' or -1 which are values in the graph)
+    """
+    for f in index.files:
+        for key, value in f.iteritems():
+            if key in DATA_FILE_INDEXD_FIELDS:
+                error_msg = '"{}" is loaded from graph instead of indexd'.format(key)
+                if isinstance(value, basestring):
+                    assert value != 'error', error_msg
+                elif isinstance(value, list):
+                    assert 'error' not in value
+                elif isinstance(value, int):
+                    assert value != -1, error_msg
+                else:
+                    raise Exception('Can not process file metadata key of type {}: {}={}'
+                                    .format(type(value), key, value))
 
 
 def test_selective_caching():
