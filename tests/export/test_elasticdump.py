@@ -9,6 +9,8 @@ import json
 import pytest
 
 
+@pytest.mark.skip(reason='This feature is never used. '
+                  'We use native elasticsearch plugin repository-s3 for this')
 def test_export_data_to_gzip(test_index, tmpdir):
     es, index, _, _ = test_index
 
@@ -28,6 +30,8 @@ def test_export_data_to_gzip(test_index, tmpdir):
             assert doc == expected_dump[doc['_id']]
 
 
+@pytest.mark.skip(reason='This feature is never used. '
+                  'We use native elasticsearch plugin repository-s3 for this')
 def test_export_mapping_to_gzip(test_index, tmpdir):
     es, index, doc_type, docs = test_index
 
@@ -38,6 +42,8 @@ def test_export_mapping_to_gzip(test_index, tmpdir):
         assert f.read()
 
 
+@pytest.mark.skip(reason='This feature is never used. '
+                  'We use native elasticsearch plugin repository-s3 for this')
 def test_raises_on_failure(test_index, tmpdir):
     es, index, doc_type, docs = test_index
 
