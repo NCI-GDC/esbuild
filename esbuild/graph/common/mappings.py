@@ -131,7 +131,6 @@ class ESMapper(object):
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
         case_tree.sample.slide.corr = (ONE_TO_MANY, 'slides')
         case_tree.sample.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
-        case_tree.sample.slide.slide_image.corr = (ONE_TO_ONE, 'slide_image')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
@@ -141,7 +140,6 @@ class ESMapper(object):
         case_tree.sample.portion.center.corr = (ONE_TO_ONE, 'center')
         case_tree.sample.portion.slide.corr = (ONE_TO_MANY, 'slides')
         case_tree.sample.portion.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
-        case_tree.sample.portion.slide.slide_image.corr = (ONE_TO_ONE, 'slide_image')
 
         # Clinical subtree
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
