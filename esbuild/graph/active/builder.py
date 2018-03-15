@@ -155,6 +155,15 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
 
+    # BREADCRUMB
+    # Holy hell. Ok, the following lists are paths to where
+    # the builder *will* walk (and ONLY will walk) to find
+    # file nodes. If your path is not here, you will not
+    # get picked up. Be sure to add any paths here to
+    # get data_file nodes to show up. You'll need to create
+    # a list below, then add it to the case_to_file_paths
+    # - a very tired joe sislow (3/15/2018)
+
     readgroup_subtree = list_product(
         [[ReadGroup.label]],
         subtree_paths_to_file(
@@ -175,10 +184,15 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
          'methylation_beta_value'],
     ]
 
+    # added for slide_image by joe, 3/18
+    aliquot_to_slide_image_path = [
+        ['slide',
+         'slide_image'],
+    ]
+
     case_to_file_paths = [
         ['biospecimen_supplement'],
         ['clinical_supplement'],
-        ['slide_image']
     ]
 
     case_to_copy_number_paths = list_product(
@@ -190,6 +204,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
     case_to_file_paths += case_to_copy_number_paths
     case_to_file_paths += case_to_methylation_value_paths
+    case_to_file_paths += aliquot_to_slide_image_path
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',
