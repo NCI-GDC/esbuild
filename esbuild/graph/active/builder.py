@@ -185,8 +185,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     ]
 
     # added for slide_image by joe, 3/18
-    aliquot_to_slide_image_path = [
-        ['slide',
+    case_to_slide_image_path = [
+        ['sample',
+         'portion',
+         'slide',
+         'slide_image'],
+        ['portion',
+         'slide',
          'slide_image'],
     ]
 
@@ -204,7 +209,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
     case_to_file_paths += case_to_copy_number_paths
     case_to_file_paths += case_to_methylation_value_paths
-    case_to_file_paths += aliquot_to_slide_image_path
+    case_to_file_paths += case_to_slide_image_path
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',
