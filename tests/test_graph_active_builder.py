@@ -13,7 +13,8 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
-from test_utils import get_dict_paths
+from test_utils import get_dict_paths, validate_file_metadata
+from data import get_node_id
 
 import pytest
 
@@ -45,8 +46,8 @@ N_INPUT_FILES = 9
 
 
 @pytest.fixture
-def index(indexd_client):
-    builder = ActiveGraphIndexBuilder(_graph, indexd_client)
+def index(init_indexd):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
     with _graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -54,15 +55,15 @@ def index(indexd_client):
 
 
 @pytest.fixture
-def cached_builder(indexd_client):
-    builder = ActiveGraphIndexBuilder(_graph, indexd_client)
+def cached_builder(init_indexd):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
     builder.cache_database()
     return builder
 
 
 @pytest.fixture()
-def builder():
-    return ActiveGraphIndexBuilder(_graph)
+def builder(init_indexd):
+    return ActiveGraphIndexBuilder(_graph, init_indexd)
 
 
 @pytest.fixture
@@ -134,25 +135,16 @@ def test_get_file_metadata_from_indexd(index):
     """
     for f in index.files:
         for key, value in f.iteritems():
-            if key in DATA_FILE_INDEXD_FIELDS:
-                error_msg = '"{}" is loaded from graph instead of indexd'.format(key)
-                if isinstance(value, basestring):
-                    assert value != 'error', error_msg
-                elif isinstance(value, list):
-                    assert 'error' not in value
-                elif isinstance(value, int):
-                    assert value != -1, error_msg
-                else:
-                    raise Exception('Can not process file metadata key of type {}: {}={}'
-                                    .format(type(value), key, value))
+            validate_file_metadata(key, value)
 
 
-def test_selective_caching():
+def test_selective_caching(init_indexd):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, build_projects=projects_subset,
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
+                                      build_projects=projects_subset,
                                       selective_caching=True)
     builder.cache_database()
 
@@ -161,12 +153,12 @@ def test_selective_caching():
     assert built_projects == projects_subset
 
 
-def test_awg_build():
+def test_awg_build(init_indexd):
     """
     Tests AWG build mode
     """
     build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, build_awg=True,
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
                                       build_projects=build_projects)
     builder.cache_database()
 
@@ -177,9 +169,9 @@ def test_awg_build():
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {u'submitted-awg-case', u'processed-awg-case'},
-        'project': {u'awg-one-project'},
-        'program': {u'internal-program', u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
+        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
+        'project': {get_node_id('awg-one-project')},
+        'program': {get_node_id('internal-program'), u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
     }
 
 
@@ -379,7 +371,7 @@ def test_basic_counts(index, doc_type, count):
                                       'Rectum Adenocarcinoma'}),
     ('cases', '[*].primary_site', 3, {'Breast', 'Prostate', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
-     1, {'read-group-qc-1'}),
+     1, {get_node_id('read-group-qc-1')}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',

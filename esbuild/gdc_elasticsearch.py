@@ -22,6 +22,7 @@ from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
+from indexclient.client import IndexClient
 
 from utils import ReleaseHelper
 
@@ -60,7 +61,7 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class=None, es=None,
+    def __init__(self, indexd_client=None, converter_class=None, es=None,
                  index_base="gdc_from_graph", skip_es=False,
                  **kwargs):
         """Walks the graph to produce elasticsearch json documents.
@@ -78,12 +79,15 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
+        self.indexd = indexd_client
+
         self.index_base = index_base
         self.index_name = kwargs.get('index_name', None)
         self.build_awg = kwargs.get('build_awg', False)
         self.build_projects = kwargs.get('build_projects', None)
         self.selective_caching = kwargs.get('selective_caching', False)
         self.converter = converter_class(self.graph,
+                                         self.indexd,
                                          build_awg=self.build_awg,
                                          build_projects=self.build_projects,
                                          selective_caching=self.selective_caching)

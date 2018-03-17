@@ -2,6 +2,7 @@ import time
 import pytest
 
 import es_data
+from data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
 
 
@@ -13,6 +14,44 @@ def test_get_projects_list(test_index_data):
 
     assert projects == helper.get_project_ids(index_name)
     assert projects == helper.get_project_ids_from_metadata(index_name)
+
+
+def validate_file_metadata(key, value):
+    """
+    Errors if file metadata key is taken from graph instead of indexd (has erroneous value)
+    """
+    if key == 'analysis':
+        # Look deeper into .input_files
+        input_files = value.get('input_files', [])
+        for subkey in input_files:
+            validate_file_metadata(subkey, input_files)
+        return
+
+    if key in ['index_files', 'metadata_files']:
+        # Check inside special files arrays
+        for subkey in value:
+            validate_file_metadata(subkey, value)
+        return
+
+    if key == 'downstream_analyses':
+        # Look deeper into .output_files
+        for analysis in value:
+            output_files = analysis.get('output_files', [])
+            for subkey in output_files:
+                validate_file_metadata(subkey, output_files)
+        return
+
+    if key in DATA_FILE_INDEXD_FIELDS:
+        error_msg = '"{}" is loaded from graph instead of indexd'.format(key)
+        if isinstance(value, basestring):
+            assert value != 'error', error_msg
+        elif isinstance(value, list):
+            assert 'error' not in value
+        elif isinstance(value, int):
+            assert value != -1, error_msg
+        else:
+            raise Exception('Can not process file metadata key of type {}: {}={}'
+                            .format(type(value), key, value))
 
 
 def get_dict_paths(d, path_list=None, path='root'):

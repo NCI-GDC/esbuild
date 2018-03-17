@@ -21,6 +21,7 @@ import logging
 import networkx as nx
 import random
 import re
+import json
 from uuid import uuid4
 
 from .mappings import (
@@ -165,10 +166,12 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, **kwargs):
+    def __init__(self, psqlgraph_driver, indexd_client, **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
         """
+        self.indexd = indexd_client
+        self.file_metadata = {}  # Cache of file metadata from indexd
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
@@ -484,7 +487,6 @@ class GraphIndexBuilder(object):
         :returns: subset set of :param:`nodes`
 
         """
-
         return {
             node for node in nodes
             if not self.is_node_hidden(node)
@@ -494,6 +496,9 @@ class GraphIndexBuilder(object):
         """Return a list of file nodes by walking out from case"""
 
         files = self.walk_paths(node, self.case_to_file_paths)
+        # Set file metadata fields from indexd as node properties
+        files = (self.add_file_metadata_from_indexd(f) for f in files)
+
         files = self.remove_bam_index_files(files)
         files = self.remove_hidden_nodes(files)
 
@@ -764,6 +769,8 @@ class GraphIndexBuilder(object):
         document.
 
         """
+        # Add file metadata fields from indexd
+        node = self.add_file_metadata_from_indexd(node)
 
         # Create a copy to avoid mutation of passed argument
         ptree = self.copy_tree(ptree, {})
@@ -787,6 +794,43 @@ class GraphIndexBuilder(object):
         self.add_file_data_format(node, doc)
 
         return doc
+
+    def add_file_metadata_from_indexd(self, node):
+        """
+        Reads file metadata from indexd and sets it to node
+        """
+        # Try to get cached metadata value
+        record = self.file_metadata.get(node.node_id)
+
+        # If not found, get it from indexd
+        if not record:
+            record = self.indexd.get(node.node_id)
+            if not record:
+                self.error("No indexd data found for {}, ignoring".format(node),
+                           "node_type: {} node_id: {}".format(node.label, node.node_id),
+                           tags=["indexd", node.label])
+                return node
+            record = record.to_json()
+            # Cache indexd record
+            self.file_metadata[node.node_id] = record
+
+        # Set node file metadata attributes according to indexd record
+        for key in self.data_file_indexd_fields:
+            # Try to pick basic value
+            value = record.get(key)
+            if value is None:
+                value = record['metadata'].get(key)
+            # Special values
+            if key == 'acl':
+                value = json.loads(value)
+            elif key == 'file_size':
+                value = record.get('size')
+            elif key == 'md5sum':
+                value = record['hashes'].get('md5')
+            # Set node attribute from indexd record
+            setattr(node, key, value)
+
+        return node
 
     def add_node_type(self, node, doc):
         doc['type'] = node.label
@@ -890,15 +934,17 @@ class GraphIndexBuilder(object):
         :returns: bool
 
         """
-
         # Active index files
         if node._dictionary['category'] == 'index_file':
             return True
 
         # Legacy index files
         elif node.label == 'file':
+            # Set file metadata fields
+            node = self.add_file_metadata_from_indexd(node)
+
             for extension in self.index_file_extensions:
-                if node._props.get('file_name', '').endswith(extension):
+                if getattr(node, 'file_name', '').endswith(extension):
                     return True
 
         else:
@@ -958,6 +1004,9 @@ class GraphIndexBuilder(object):
         related_files += list(self.neighbors_labeled(node, metadata_labels))
 
         for related_file in related_files:
+            # Add file metadata fields from indexd
+            related_file = self.add_file_metadata_from_indexd(related_file)
+
             rf_doc = self._get_base_doc(related_file, include_id=False)
             rf_doc['file_id'] = related_file.node_id
 
@@ -1123,7 +1172,6 @@ class GraphIndexBuilder(object):
 
     def get_file_associated_entities(self, node):
         """Returns a list of entities that are 'associated' with a file"""
-
         return list(self.neighbors_labeled(
             node, self.possible_associated_entites))
 
@@ -1582,13 +1630,11 @@ class GraphIndexBuilder(object):
         )
 
     def is_old_supplement_file(self, node):
-        return (
-            node.label == 'file' and
-            any(
-                p.match(node._props.get('file_name', ''))
-                for p in self.supplement_regexes
-            )
-        )
+        if node.label == 'file':
+            node = self.add_file_metadata_from_indexd(node)
+            return any(p.match(node._props.get('file_name', ''))
+                       for p in self.supplement_regexes)
+        return False
 
     def is_file_indexed(self, node):
         """Returns false if node is a file that is not supposed to be indexed.
@@ -1598,6 +1644,9 @@ class GraphIndexBuilder(object):
         # This function should only be for files
         if node.label not in self.file_labels:
             return True
+
+        # Add file metadata to the node
+        node = self.add_file_metadata_from_indexd(node)
 
         # Remove files with no acl entries
         if len(node.acl) == 0:

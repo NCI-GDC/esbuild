@@ -6,6 +6,7 @@ from psqlgraph import PsqlGraphDriver
 from gdcdatamodel.models import Project, Program
 from argparse import ArgumentParser
 
+
 def parse_cmd_args():
     default_state_filename = 'project-program-release.yaml'
     parser = ArgumentParser()
@@ -25,6 +26,7 @@ def parse_cmd_args():
     args = parser.parse_args()
     
     return args
+
 
 if __name__ == '__main__':
 

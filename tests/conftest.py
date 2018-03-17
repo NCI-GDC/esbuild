@@ -4,6 +4,7 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
+from multiprocessing import Process
 from elasticsearch import Elasticsearch
 from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
@@ -16,7 +17,13 @@ import json
 import pytest
 import time
 
-from cdisutilstest.code.indexd_fixture import indexd_server
+from cdisutilstest.code.indexd_fixture import (
+    remove_sqlite_files,
+    run_indexd,
+    create_user,
+    wait_for_indexd_alive,
+    wait_for_indexd_not_alive,
+)
 from indexclient.client import IndexClient
 
 # ======================================================================
@@ -60,18 +67,26 @@ def clear_database():
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
 
 
-@pytest.fixture
-def indexd_client(indexd_server):
-    indexd = IndexClient(baseurl=indexd_server.baseurl, auth=indexd_server.auth)
+@pytest.fixture(scope='session')
+def init_indexd():
+    port = 8001
+    indexd = Process(target=run_indexd, args=[port])
+    indexd.start()
+    wait_for_indexd_alive(port)
+    auth = create_user('admin', 'admin')
+    indexd_client = IndexClient(baseurl='http://localhost:{}'.format(port),
+                                auth=auth)
+
     # Insert indexd data:
     for record in data.INDEXD:
+        record = dict(record)  # prevent data.INDEXD object mutation
         did = record.pop('did')
         md5 = record.pop('md5sum')
         size = record.pop('file_size')
         file_name = record.pop('file_name', None)
         if 'acl' in record:
             record['acl'] = json.dumps(record['acl'])
-        indexd.create(
+        indexd_client.create(
             did=did,
             hashes={'md5': md5},
             size=size,
@@ -79,7 +94,10 @@ def indexd_client(indexd_server):
             urls=[],
             metadata=record,
         )
-    return indexd
+    yield indexd_client
+    remove_sqlite_files()
+    indexd.terminate()
+    wait_for_indexd_not_alive(port)
 
 
 class TestError(Exception):

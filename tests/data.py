@@ -841,12 +841,6 @@ NODES = [
         state='submitted',
     ),
     fuzzed(
-        SimpleSomaticMutation,
-        node_id=get_node_id('somatic_mutation_2'),
-        acl=['phs000178'],
-        state='submitted',
-    ),
-    fuzzed(
         BiospecimenSupplement,
         node_id=get_node_id('biospecimen_supplement_1'),
         acl=['phs000178'],
@@ -954,6 +948,7 @@ NODES = [
         experimental_strategy='Methylation Array',
         file_name=u'jhu-usc.edu_KIRC.HumanMethylation27.3.lvl-3.TCGA-BP-4761-11A-01D-1284-05.gdc_hg38.txt',
         file_size=9952417,
+        file_state='processed',
         platform='Illumina Human Methylation 27',
         md5sum=u'd7f89b0eeb11f7b1b119b8c301b50f86',
         updated_datetime=u'2016-09-29T22:03:22.817635+00:00',
