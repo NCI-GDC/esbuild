@@ -8,20 +8,21 @@ Test the builder for graph ES index
 """
 
 from conftest import Index, _graph
-from data import fuzzed
+from data import fuzzed, get_node_id
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
 import pytest
 
+from test_utils import validate_file_metadata
 from conftest import (
     raise_test_error,
 )
 
 
-def build_index(graph):
-    builder = LegacyGraphIndexBuilder(graph)
+def build_index(graph, indexd_client):
+    builder = LegacyGraphIndexBuilder(graph, indexd_client)
     with graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -33,31 +34,41 @@ def build_index(graph):
 
 
 @pytest.fixture()
-def builder():
-    return LegacyGraphIndexBuilder(_graph)
+def builder(init_indexd):
+    return LegacyGraphIndexBuilder(_graph, init_indexd)
 
 
 @pytest.fixture(scope="module")
-def index():
-    return build_index(_graph)
+def index(init_indexd):
+    return build_index(_graph, init_indexd)
 
 
 # ======================================================================
 # Tests
 
 
-def test_annotation_case_submitter_id(graph):
+def test_get_file_metadata_from_indexd(index):
+    """
+    Test that file metadata fields are taken from indexd
+    (by checking that their value is not 'error' or -1 which are values in the graph)
+    """
+    for f in index.files:
+        for key, value in f.iteritems():
+            validate_file_metadata(key, value)
+
+
+def test_annotation_case_submitter_id(graph, init_indexd):
     case = fuzzed(md.Case)
     annotation = fuzzed(md.Annotation, category='Item flagged DNU')
     with graph.session_scope() as s:
-        f = graph.nodes(md.File).ids('live-file').first()
+        f = graph.nodes(md.File).ids(get_node_id('live-file')).first()
         case.projects = [graph.nodes(md.Project).first()]
         case.files = [f]
         case.annotations = [annotation]
         s.merge(case)
 
     annotation = [
-        ann for ann in build_index(graph).annotations
+        ann for ann in build_index(graph, init_indexd).annotations
         if ann['annotation_id'] == annotation.node_id
     ][0]
 
@@ -100,22 +111,22 @@ def test_path_is_absent(index, doc_type, path):
     ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement', 'archive'], 8),
     ('files', '[*].metadata_files.[*].data_format', ['SRA XML', None], 5)
 ])
-def test_path_value_in(index, doc_type, path, expected, count):
+def test_path_value_in(index, doc_type, path, expected, count, init_indexd):
     results = parse(path).find(getattr(index, doc_type))
     assert len([r.value for r in results]) == count
     for actual in results:
         assert actual.value in expected
 
 
-def test_omitted_projects(graph):
-    builder = LegacyGraphIndexBuilder(graph)
+def test_omitted_projects(graph, init_indexd):
+    builder = LegacyGraphIndexBuilder(graph, init_indexd)
     builder.omitted_projects.add(('TCGA', 'BRCA'))
     builder.cache_database()
     index = Index._make(builder.denormalize_all())
     assert index.cases == []
 
 
-def test_basic_suppression(graph):
+def test_basic_suppression(graph, init_indexd):
     case = fuzzed(md.Case)
     with graph.session_scope() as s:
         case.projects = [graph.nodes(md.Project).first()]
@@ -128,13 +139,13 @@ def test_basic_suppression(graph):
         )]
         s.merge(case)
 
-    index = build_index(graph)
+    index = build_index(graph, init_indexd)
 
     assert case.node_id not in [c["case_id"] for c in index.cases]
     assert 'redacted-file' not in [f["file_id"] for f in index.files]
 
 
-def test_non_case_suppression(graph):
+def test_non_case_suppression(graph, init_indexd):
     annotation = fuzzed(md.Annotation, classification='Redaction')
     with graph.session_scope() as s:
         portion_id = '5b2a99b7-e1a8-4739-acaf-d5f75cc47021'
@@ -150,7 +161,7 @@ def test_non_case_suppression(graph):
         redacted2.aliquots = [aliquot]
         s.add(redacted1)
         s.add(redacted2)
-    index = build_index(graph)
+    index = build_index(graph, init_indexd)
     case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
     sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
     assert portion.node_id not in [
@@ -160,7 +171,7 @@ def test_non_case_suppression(graph):
     assert "redact2" not in [f["file_id"] for f in index.files]
 
 
-def test_subject_withdrew_consent_is_not_suppressed(graph):
+def test_subject_withdrew_consent_is_not_suppressed(graph, init_indexd):
     with graph.session_scope() as s:
         case = graph.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
         case.annotations = [fuzzed(
@@ -169,27 +180,27 @@ def test_subject_withdrew_consent_is_not_suppressed(graph):
             category='Subject withdrew consent',
         )]
 
-        index = build_index(graph)
+        index = build_index(graph, init_indexd)
         # the case should be there
         assert case.node_id in [c["case_id"] for c in index.cases]
         # the file should be there
-        assert "live-file" in [f["file_id"] for f in index.files]
+        assert get_node_id("live-file") in [f["file_id"] for f in index.files]
 
 
-def test_duplicate_classification_only_results_in_warning(graph):
+def test_duplicate_classification_only_results_in_warning(graph, init_indexd):
     with graph.session_scope():
-        live_file = graph.nodes(md.File).ids('live-file').one()
+        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
         exp = (graph.nodes(md.ExperimentalStrategy)
                .prop_in('name', ["WXS", "VALIDATION"]).all())
         live_file.experimental_strategies = exp
-    index = build_index(graph)
+    index = build_index(graph, init_indexd)
     # the file should be there
     assert live_file.node_id in [f["file_id"] for f in index.files]
 
 
-def test_derived_files(graph):
+def test_derived_files(graph, init_indexd):
     with graph.session_scope():
-        live_file = graph.nodes(md.File).ids('live-file').one()
+        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
         fake_center = fuzzed(md.Center)
         live_file.centers = [fake_center]
         derived_file = fuzzed(
@@ -207,7 +218,7 @@ def test_derived_files(graph):
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
 
-    index = build_index(graph)
+    index = build_index(graph, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
     # have the single correct related file
@@ -219,9 +230,9 @@ def test_derived_files(graph):
     assert len(derived_file_docs) == 0
 
 
-def test_non_live_related_files_dont_cause_source_files_in_related(graph):
+def test_non_live_related_files_dont_cause_source_files_in_related(graph, init_indexd):
     with graph.session_scope():
-        live_file = graph.nodes(md.File).ids('live-file').one()
+        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
         derived_file = fuzzed(
             md.File,
             state="live",
@@ -237,7 +248,7 @@ def test_non_live_related_files_dont_cause_source_files_in_related(graph):
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
 
-    index = build_index(graph)
+    index = build_index(graph, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
     # have the single correct related file

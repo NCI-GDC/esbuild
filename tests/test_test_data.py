@@ -34,7 +34,7 @@ def test_file_nodes_patched(file_nodes):
                 raise Exception('Unknown file field:', key, key_value)
 
 
-def test_indexd_data(indexd_client, file_nodes):
+def test_indexd_data(init_indexd, file_nodes):
     """
     Test that indexd data corresponds to graph data
     """
@@ -46,7 +46,7 @@ def test_indexd_data(indexd_client, file_nodes):
 
     # Check that all DATA_FILE_INDEXD_FIELDS are in all indexd records
     for node in file_nodes:
-        record = indexd_client.get(node.node_id).to_json()
+        record = init_indexd.get(node.node_id).to_json()
         for key in DATA_FILE_INDEXD_FIELDS:
             if key not in record and key in node.to_json():
                 assert key in record['metadata']

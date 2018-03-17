@@ -1,4 +1,5 @@
 import argparse
+from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 
 
@@ -47,7 +48,9 @@ def esbuild_argparser():
     return parser
 
 
-def main(converter, index_base):
+def main(converter, indexd_args, index_base):
+
+    indexd_client = IndexClient(**indexd_args)
 
     args = esbuild_argparser().parse_args()
 
@@ -57,6 +60,7 @@ def main(converter, index_base):
                             'partial build mode')
 
     gdc_es = GDCElasticsearch(
+        indexd_client=indexd_client,
         converter_class=converter,
         build_projects=args.projects,
         build_awg=args.build_awg,
