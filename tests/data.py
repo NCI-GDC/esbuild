@@ -13,7 +13,7 @@ from gdcdictionary import gdcdictionary
 import random
 import string
 import uuid
-import md5
+import hashlib
 import re
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
@@ -93,7 +93,7 @@ def patch_test_data_get_indexd(nodes):
             # Replace illegal md5sum with legal one:
             md5sum = str(getattr(node, 'md5sum', None))
             if not re.findall(r"([a-fA-F\d]{32})", md5sum):
-                node.md5sum = md5.md5(md5sum).hexdigest()
+                node.md5sum = hashlib.md5(md5sum).hexdigest()
 
             # Patch file_size if none provided:
             if not getattr(node, 'file_size', None):
