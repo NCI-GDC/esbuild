@@ -18,12 +18,12 @@ import pytest
 import time
 
 from cdisutilstest.code.indexd_fixture import (
-    remove_sqlite_files,
-    run_indexd,
     create_user,
-    wait_for_indexd_alive,
-    wait_for_indexd_not_alive,
+    setup_database,
+    clear_database,
+    remove_sqlite_files,
 )
+from cdisutilstest.code.conftest import indexd_server
 from indexclient.client import IndexClient
 
 # ======================================================================
@@ -68,15 +68,12 @@ def clear_database():
 
 
 @pytest.fixture(scope='session')
-def init_indexd():
-    port = 8001
-    indexd = Process(target=run_indexd, args=[port])
-    indexd.start()
-    wait_for_indexd_alive(port)
-    auth = create_user('admin', 'admin')
-    indexd_client = IndexClient(baseurl='http://localhost:{}'.format(port),
-                                auth=auth)
+def init_indexd(indexd_server):
+    remove_sqlite_files()
+    setup_database()
 
+    indexd_client = IndexClient(baseurl=indexd_server.baseurl,
+                                auth=create_user('admin', 'admin'))
     # Insert indexd data:
     for record in data.INDEXD:
         record = dict(record)  # prevent data.INDEXD object mutation
@@ -95,9 +92,7 @@ def init_indexd():
             metadata=record,
         )
     yield indexd_client
-    remove_sqlite_files()
-    indexd.terminate()
-    wait_for_indexd_not_alive(port)
+    clear_database()
 
 
 class TestError(Exception):

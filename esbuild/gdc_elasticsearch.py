@@ -9,7 +9,6 @@ Elasticsearch
 """
 
 import os
-import sys
 import re
 import json
 import datetime
@@ -22,7 +21,6 @@ from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
-from indexclient.client import IndexClient
 
 from utils import ReleaseHelper
 
@@ -30,7 +28,7 @@ from utils import ReleaseHelper
 # minimizes the loading time without crashing the ES cluster
 THREAD_COUNT = 16
 CHUNK_SIZE = 500
-MAX_CHUNK_BYTES = 104857600 #100MB
+MAX_CHUNK_BYTES = 104857600  # 100MB
 
 INDEX_PATTERN = '{base}_{n}'
 
@@ -61,15 +59,37 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, indexd_client=None, converter_class=None, es=None,
-                 index_base="gdc_from_graph", skip_es=False,
-                 **kwargs):
+    def __init__(self, converter_class, indexd_client, **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
         :param converter_class: Class to use as a converter
+        :param indexd_client: indexclient.client.IndexClient() object
+        :param index_base: base name template for resulting es index
+        :param index_name: if provided, will build index with this name ignoring index_base
+        :param build_projects: list of projects to build
+        :param selective_caching: cache only data relevant to build_projects to save time
+            WARNING: Will skip all nodes that do not have project_id populated
+            WARNING: Does heavy query before caching resulting in memory spike. Risk of
+                     running out of memory if build_projects is a large enough list (number of
+                     nodes in all buld_projects is large enough)
+        :param build_awg: whether to skip es index deployment
+        :param skip_es: whether to skip es index deployment
 
         """
+        valid_kwargs = [
+            ('es', None),
+            ('index_base', "gdc_from_graph"),
+            ('index_name', None),
+            ('build_projects', None),
+            ('selective_caching', False),
+            ('build_awg', False),
+            ('skip_es', False),
+        ]
+
+        for arg, default in valid_kwargs:
+            setattr(self, arg, kwargs.get(arg, default))
+
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = PsqlGraphDriver(
@@ -79,25 +99,15 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        self.indexd = indexd_client
-
-        self.index_base = index_base
-        self.index_name = kwargs.get('index_name', None)
-        self.build_awg = kwargs.get('build_awg', False)
-        self.build_projects = kwargs.get('build_projects', None)
-        self.selective_caching = kwargs.get('selective_caching', False)
         self.converter = converter_class(self.graph,
-                                         self.indexd,
+                                         indexd_client,
                                          build_awg=self.build_awg,
                                          build_projects=self.build_projects,
                                          selective_caching=self.selective_caching)
         self.converter_class_name = converter_class.__class__.__name__
 
-        self.skip_es = skip_es
         if not self.skip_es:
-            if es:
-                self.es = es
-            else:
+            if not self.es:
                 # TODO sniff_on_start here?
                 self.es = Elasticsearch(
                     hosts=[os.environ["ELASTICSEARCH_HOST"]],
@@ -207,7 +217,10 @@ class GDCElasticsearch(object):
                 tags=["es_index:{}".format(new_index), 'stage:finished'],
             )
 
-    def delete_nodes(self, to_delete=[], delete_nodes=True):
+    def delete_nodes(self, to_delete=None, delete_nodes=True):
+        if to_delete is None:
+            to_delete = []
+
         if delete_nodes == True:
             with self.graph.session_scope() as session:
                 for expired_node in to_delete:
