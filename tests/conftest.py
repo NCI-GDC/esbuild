@@ -13,14 +13,12 @@ import data
 import es_data
 import logging
 import os
-import json
 import pytest
 import time
 
 from cdisutilstest.code.indexd_fixture import (
     create_user,
     setup_database,
-    clear_database,
     remove_sqlite_files,
 )
 from cdisutilstest.code.conftest import indexd_server
@@ -53,7 +51,7 @@ _graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
 
 
 @pytest.fixture
-def clear_database():
+def clear_graph_database():
     """Clear graph from database"""
 
     edge_tables = Edge.get_subclass_table_names()
@@ -81,18 +79,19 @@ def init_indexd(indexd_server):
         md5 = record.pop('md5sum')
         size = record.pop('file_size')
         file_name = record.pop('file_name', None)
-        if 'acl' in record:
-            record['acl'] = json.dumps(record['acl'])
+        acl = record.pop('acl')
         indexd_client.create(
             did=did,
+            acl=acl,
             hashes={'md5': md5},
             size=size,
             file_name=file_name,
             urls=[],
             metadata=record,
         )
+
     yield indexd_client
-    clear_database()
+    clear_graph_database()
 
 
 class TestError(Exception):
@@ -138,7 +137,7 @@ def sample_database():
 
     """
 
-    clear_database()
+    clear_graph_database()
     data.insert(_graph)
 
     try:

@@ -46,7 +46,7 @@ def validate_file_metadata(key, value):
         if isinstance(value, basestring):
             assert value != 'error', error_msg
         elif isinstance(value, list):
-            assert 'error' not in value
+            assert 'error' not in value, key
         elif isinstance(value, int):
             assert value != -1, error_msg
         else:
