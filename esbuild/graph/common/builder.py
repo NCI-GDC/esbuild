@@ -821,9 +821,7 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             # Special values
-            if key == 'acl':
-                value = json.loads(value)
-            elif key == 'file_size':
+            if key == 'file_size':
                 value = record.get('size')
             elif key == 'md5sum':
                 value = record['hashes'].get('md5')
