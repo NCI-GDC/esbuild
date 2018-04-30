@@ -125,6 +125,9 @@ class GraphIndexBuilder(object):
 
     """
 
+    data_file_categories = ['data_file', 'metadata_file']
+    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
+
     mapper = None
 
     # This defines the possible ways to get from case to indexed
@@ -139,6 +142,11 @@ class GraphIndexBuilder(object):
             'creator',
         }
     }
+    # add file_state to hidden_properties for all nodes of file categories:
+    for node_type in md.Node.get_subclasses():
+        category = node_type._dictionary['category']
+        if category in data_file_categories:
+            hidden_properties[node_type.label] = {'file_state'}
 
     # Filter nodes out if their properties are a superset of any of
     # the dictionaries listed here by label
@@ -151,9 +159,6 @@ class GraphIndexBuilder(object):
         'case_to_file_paths',
         'file_labels',
     ]
-
-    data_file_categories = ['data_file', 'metadata_file']
-    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
 
     supplement_regexes = [
         re.compile(regex) for regex in [
@@ -820,6 +825,9 @@ class GraphIndexBuilder(object):
             value = record.get(key)
             if value is None:
                 value = record['metadata'].get(key)
+            if key == 'file_state':
+                value = record['urls_metadata'].get(key)
+
             # Special values
             if key == 'file_size':
                 value = record.get('size')

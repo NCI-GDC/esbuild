@@ -276,6 +276,8 @@ def test_case_to_file_paths_is_absent(path):
 
 @pytest.mark.parametrize('doc_type,path', [
     ('cases', '[*].clinical'),
+    ('cases', '[*].files.[*].file_state'),
+    ('files', '[*].file_state'),
     ('annotations', '[*].creator'),
 ])
 def test_path_is_absent(index, doc_type, path):
