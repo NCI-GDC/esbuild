@@ -314,6 +314,7 @@ class ESMapper(object):
 
         if source != 'project':
             doc.pop('project_id', None)
+            doc.pop('file_state', None)
 
         return doc
 
@@ -411,7 +412,7 @@ class ESMapper(object):
 
         if not include_case:
             del files.properties.cases
-        
+
         cls.flatten_data_type(files.properties)
 
         # Specify the type of file

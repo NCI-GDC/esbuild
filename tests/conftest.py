@@ -79,15 +79,21 @@ def init_indexd(indexd_server):
         md5 = record.pop('md5sum')
         size = record.pop('file_size')
         file_name = record.pop('file_name', None)
+        file_state = record.pop('file_state', None)
         acl = record.pop('acl')
+        urls = record.pop('urls')
+        urls_metadata = {
+            urls[0]: {'file_state': file_state}
+        }
         indexd_client.create(
             did=did,
             acl=acl,
             hashes={'md5': md5},
             size=size,
             file_name=file_name,
-            urls=[],
+            urls=urls,
             metadata=record,
+            urls_metadata=urls_metadata,
         )
 
     yield indexd_client

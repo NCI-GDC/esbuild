@@ -11,4 +11,4 @@ datadog==0.9.0
 -e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@1.11.0#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@5cddf49dd03a25bd4e553161d7ad7b9a6fe0ac0d#egg=psqlgraph
 -e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@dict_v1.11.0#egg=gdcdatamodel
--e git+https://git@github.com/uc-cdis/indexclient.git@1.5.0#egg=indexclient
+-e git+https://git@github.com/uc-cdis/indexclient.git@1.5.1#egg=indexclient

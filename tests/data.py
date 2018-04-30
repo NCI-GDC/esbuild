@@ -90,6 +90,9 @@ def patch_test_data_get_indexd(nodes):
 
         # If the node is file category and the key is supposed to be in indexd:
         if node_is_file:
+            # Make up urls for the file:
+            urls = ['s3://bucket/{}/{}'.format(node.md5sum, node.file_name)]
+
             # Replace illegal md5sum with legal one:
             md5sum = str(getattr(node, 'md5sum', None))
             if not re.findall(r"([a-fA-F\d]{32})", md5sum):
@@ -100,8 +103,11 @@ def patch_test_data_get_indexd(nodes):
                 node.file_size = random.randint(1e6, 1e7)
 
             indexd_did = node.node_id
-            indexd_record = {'did': indexd_did,
-                             'node_id': node.node_id}
+            indexd_record = {
+                'urls': urls,
+                'did': indexd_did,
+                'node_id': node.node_id,
+            }
 
             for key in DATA_FILE_INDEXD_FIELDS:
                 key_value = getattr(node, key, None)
