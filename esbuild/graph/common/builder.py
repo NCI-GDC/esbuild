@@ -138,6 +138,12 @@ class GraphIndexBuilder(object):
             'creator',
         }
     }
+    # Set of properties to add to hidded_properties for all nodes
+    hidden_properties_for_all = {'batch_id', 'file_state'}
+
+    for node_type in md.Node.get_subclasses():
+        hidden_properties.setdefault(node_type.label, set())
+        hidden_properties[node_type.label].update(hidden_properties_for_all)
 
     # Filter nodes out if their properties are a superset of any of
     # the dictionaries listed here by label

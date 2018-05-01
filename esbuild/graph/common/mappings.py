@@ -58,6 +58,12 @@ class ESMapper(object):
     # These are the types of data_file that will be treated as a file
     file_labels = ['file']
 
+    # Project keys not useful for the users. Will be omitted from esbuild output.
+    project_keys_to_hide = [
+        'release_requested', 'awg_review', 'is_legacy',
+        'in_review', 'submission_enabled', 'request_submission',
+    ]
+
     top_level_ids = [
         'sample',
         'portion',
@@ -306,14 +312,12 @@ class ESMapper(object):
 
         if source == 'project':
             # Remove some fields from project document
-            keys_to_delete = [
-                'release_requested', 'awg_review', 'is_legacy',
-            ]
-            for key in keys_to_delete:
+            for key in cls.project_keys_to_hide:
                 doc.pop(key)
 
         if source != 'project':
             doc.pop('project_id', None)
+            doc.pop('batch_id', None)
 
         return doc
 
@@ -354,6 +358,7 @@ class ESMapper(object):
     @staticmethod
     def patch_project(doc):
         doc.pop('code')
+
 
     @classmethod
     def _walk_tree(cls, tree, mapping):
