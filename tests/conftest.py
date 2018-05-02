@@ -82,8 +82,11 @@ def init_indexd(indexd_server):
         file_state = record.pop('file_state', None)
         acl = record.pop('acl')
         urls = record.pop('urls')
+        # NOTE: 'file_state' is stored as 'state' in indexd.
+        # However, this is not important as esbuild does not pay attention to 'file_state'
+        # and it is removed from resulting elasticsearch documents. See PRTL-2109
         urls_metadata = {
-            urls[0]: {'file_state': file_state}
+            urls[0]: {'state': file_state}
         }
         indexd_client.create(
             did=did,
