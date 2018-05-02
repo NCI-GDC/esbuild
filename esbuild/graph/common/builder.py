@@ -826,7 +826,7 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             if key == 'file_state':
-                value = record['urls_metadata'].get(key)
+                value = record['urls_metadata'].get('state')
 
             # Special values
             if key == 'file_size':
