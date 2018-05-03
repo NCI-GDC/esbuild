@@ -17,9 +17,8 @@ cache:
 
 env:
   ES_HOST='localhost'
-  NODE_VERSION=4
   ES_VERSION=5.1.1
-  NODE_VERSION=4
+  NODE_VERSION=9.8
   BOTO_CONFIG=/dev/null
 
 addons:
@@ -30,7 +29,7 @@ addons:
 
 before_install:
   # Upgrade npm
-  - npm install -g npm@'>=4'
+  - npm install -g npm@'>=6'
 
   # bust only the the part of the cache that we are frequently
   # changing
