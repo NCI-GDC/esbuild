@@ -176,7 +176,6 @@ And optionally any dev requirements via
 ```
 > pip install -r dev-requirements.txt
 ```
-*Note dev-requirements will isnt
 
 ### Project Dependencies
 
