@@ -36,11 +36,3 @@ def test_export_mapping_to_gzip(test_index, tmpdir):
 
     with gzip.open(f.strpath, 'rb') as f:
         assert f.read()
-
-
-def test_raises_on_failure(test_index, tmpdir):
-    es, index, doc_type, docs = test_index
-
-    with pytest.raises(RuntimeError):
-        f = tmpdir.join('test_index.mapping.gz')
-        export_to_gzip(f.strpath, 'marping', index, ES_HOST)
