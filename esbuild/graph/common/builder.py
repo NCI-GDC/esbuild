@@ -1749,7 +1749,7 @@ class GraphIndexBuilder(object):
 
         A node is public if:
         1. it's a project and it's released
-        2. it's a node with a 'state' that is a submitted state
+        2. it's a node with a 'state' that is a 'released' state
         3. it's not a project or it doesn't have a state defined on it
 
         When self.build_awg is set, the rules are different:
@@ -1773,7 +1773,7 @@ class GraphIndexBuilder(object):
 
         # Regular esbuild
         else:
-            submitted_states = {'live', 'submitted'}
+            released_states = {'live', 'released'}
 
             if node.label == 'project':
                 return node.released is True
@@ -1781,7 +1781,7 @@ class GraphIndexBuilder(object):
             elif 'state' not in node.__pg_properties__:
                 return True
 
-            elif node.state in submitted_states:
+            elif node.state in released_states:
                 return True
 
     def is_node_indexed(self, node):
@@ -1789,7 +1789,7 @@ class GraphIndexBuilder(object):
 
         # Is the node allowed to be displayed publicly
         if not self.is_node_public(node):
-            log.info('not indexed (unsubmitted state: %s): %s',
+            log.info('not indexed (unreleased state: %s): %s',
                      node, node._props.get('state'))
             return False
 
