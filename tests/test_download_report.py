@@ -67,7 +67,7 @@ class DownloadStatsIndexBuilderTest(TestCase):
     def test_basic_index_build(self):
         with _graph.session_scope():
             aliquot = _graph.nodes(Aliquot)\
-                                .ids("84df0f82-69c4-4cd3-a4bd-f40d2d6ef916").one()
+                                .ids("aliquot-1").one()
             tag = _graph.nodes(Tag).props(name="snv").one()
             strat = _graph.nodes(ExperimentalStrategy).props(name="RNA-Seq").one()
             platform = _graph.nodes(Platform).props(name="Illumina HiSeq").one()

@@ -169,9 +169,9 @@ def test_awg_build(init_indexd):
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
-        'project': {get_node_id('awg-one-project')},
-        'program': {get_node_id('internal-program'), u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
+        'case': {u'submitted-awg-case', u'processed-awg-case'},
+        'project': {u'awg-one-project'},
+        'program': {u'internal-program', u'program-tcga'}  # Why esbuild picks up all programs?
     }
 
 
@@ -367,8 +367,7 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-         'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
+     2, {'read-group-1', 'read-group-2'}),
     ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
                                       'Prostate Adenocarcinoma',
                                       'Rectum Adenocarcinoma'}),
@@ -389,7 +388,7 @@ def test_basic_counts(index, doc_type, count):
      N_OUTPUT_FILES , {'Simple Nucleotide Variation',
                        'Combined Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
-     N_OUTPUT_FILES , {'submitted'}),
+     N_OUTPUT_FILES , {'released'}),
     ('files', '[*].type.[*]',
      N_FILES, {'simple_somatic_mutation',
                'aligned_reads',
