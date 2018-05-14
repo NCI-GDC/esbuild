@@ -441,11 +441,6 @@ def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
-@pytest.mark.skip(reason='FIXME: what is this test for?')
-def test_no_submitted_aligned_reads(graph, index):
-    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
-
-
 @pytest.mark.parametrize('T', [
     (md.SubmittedAlignedReads),
     (md.SubmittedMethylationBetaValue)
