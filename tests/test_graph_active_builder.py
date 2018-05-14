@@ -406,6 +406,26 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
+@pytest.mark.parametrize('doc_type,path,cls,node_ids', [
+    ('files', '[*].file_id', md.Aliquot,
+     ['aliquot-derived-from-unreleased-sample']),
+    ('cases', '[*].case_id', md.Case, ['unreleased-case']),
+    ('cases', '[*].samples.[*].sample_id', md.Sample, ['sample-unreleased']),
+    ('cases', '[*].annotations.[*].annotation_id', md.Annotation,
+     ['unreleased-annotation'])
+])
+def test_unreleased_nodes_not_indexed(
+        graph, index, doc_type, path, cls, node_ids):
+    for node_id in node_ids:
+        node = graph.nodes(cls).ids(node_id).one()
+        assert node.state in ['submitted', 'released']
+
+    results = parse(path).find(getattr(index, doc_type))
+    result_set = {r.value for r in results}
+
+    assert len(result_set.intersection(set(node_ids))) == 0
+
+
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
                                          'Prostate Adenocarcinoma',
@@ -421,6 +441,7 @@ def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
+@pytest.mark.skip(reason='FIXME: what is this test for?')
 def test_no_submitted_aligned_reads(graph, index):
     f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
 
