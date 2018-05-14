@@ -628,6 +628,15 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+    Case(
+        # unreleased case in a released project
+        node_id='unreleased-case-in-released-project',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='unreleased_case_submitter_1',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
     Portion(
         node_id=get_node_id('portion-01'),
         project_id='TCGA-BRCA',
@@ -760,6 +769,15 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31W-A14P-09',
     ),
+    Aliquot(
+        node_id='aliquot-derived-from-unreleased-sample',
+        project_id='TCGA-BRCA',
+        state='released',
+        amount=80.0,
+        concentration=0.5,
+        source_center='23',
+        submitter_id='TCGA-AR-A1AR-01A-31W-A14P-10',
+    ),
     Portion(
         node_id=get_node_id('portion-31'),
         project_id='TCGA-BRCA',
@@ -806,6 +824,28 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
+    Sample(
+        node_id='sample-unreleased',
+        project_id='TCGA-BRCA',
+        state='submitted',
+        current_weight=None,
+        days_to_collection=1234,
+        days_to_sample_procurement=None,
+        freezing_method=None,
+        intermediate_dimension=None,
+        is_ffpe=False,
+        longest_dimension=None,
+        oct_embedded='false',
+        pathology_report_uuid='ae0a5d09-2b5d-4ec5-9ff8-c591e0f77c83',
+        sample_type='Additional Metastatic',
+        sample_type_id='01',
+        shortest_dimension=None,
+        submitter_id='TCGA-AR-A1AR-10A-02',
+        time_between_clamping_and_freezing=None,
+        time_between_excision_and_freezing=None,
+        tumor_code=None,
+        tumor_code_id=None,
+    ),
     Annotation(
         node_id=get_node_id('annotation-approved-center-qc-failed'),
         category="Center QC failed",
@@ -820,6 +860,11 @@ NODES = [
         node_id=get_node_id('rescinded-annotation'),
         state='released',
         status="Rescinded",
+    ),
+    Annotation(
+        node_id=get_node_id('unreleased-annotation'),
+        state='submitted',
+        status='Submitted'
     ),
     Annotation(
         node_id=get_node_id('rescinded-redaction-annotation'),
@@ -1141,6 +1186,10 @@ EDGES = [
         src_id=get_node_id('rescinded-redaction-annotation'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
+    AnnotationAnnotatesCase(
+        src_id='unreleased-annotation',
+        dst_id='unreleased-case-in-released-project',
+    ),
     ClinicalSupplementDerivedFromCase(
         src_id=get_node_id('clinical_supplement_1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
@@ -1318,6 +1367,10 @@ EDGES = [
         src_id=get_node_id('aliquot-attached-to-sample'),
         dst_id=get_node_id('sample-blood-derived-normal'),
     ),
+    AliquotDerivedFromSample(
+        src_id='aliquot-derived-from-unreleased-sample',
+        dst_id='sample-unreleased'
+    ),
     AliquotShippedToCenter(
         src_id=get_node_id('aliquot-6'),
         dst_id=get_node_id('center-genome-wustl-ed'),
@@ -1368,6 +1421,10 @@ EDGES = [
     SampleDerivedFromCase(
         src_id=get_node_id('sample-blood-derived-normal'),
         dst_id=get_node_id('case-tcga-brca-breast'),
+        properties={}),
+    SampleDerivedFromCase(
+        src_id='sample-unreleased',
+        dst_id='unreleased-case-in-released-project',
         properties={}),
     AliquotShippedToCenter(
         src_id=get_node_id('aliquot-8'),
@@ -1655,6 +1712,10 @@ EDGES = [
     CaseMemberOfProject(
         src_id=get_node_id('fake_active_case_2'),
         dst_id=get_node_id('fake_active_project'),
+    ),
+    CaseMemberOfProject(
+        src_id='unreleased-case-in-released-project',
+        dst_id='fake_active_project'
     ),
 ]
 
