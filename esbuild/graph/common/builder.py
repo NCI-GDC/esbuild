@@ -812,9 +812,14 @@ class GraphIndexBuilder(object):
         if not record:
             record = self.indexd.get(node.node_id)
             if not record:
-                self.error("No indexd data found for {}, ignoring".format(node),
-                           "node_type: {} node_id: {}".format(node.label, node.node_id),
-                           tags=["indexd", node.label])
+                if node.sysan.get('to_delete'):
+                    self.file_metadata[node.node_id] = {'error': 'to_delete file'}
+                else:
+                    self.error(
+                        "No indexd data found for {}, ignoring".format(node),
+                        "node_type: {} node_id: {}".format(node.label, node.node_id),
+                        tags=["indexd", node.label]
+                    )
                 return node
             record = record.to_json()
             # Cache indexd record
