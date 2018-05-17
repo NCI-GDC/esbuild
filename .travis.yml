@@ -22,7 +22,7 @@ env:
   BOTO_CONFIG=/dev/null
 
 addons:
-  postgresql: '9.4'
+  postgresql: '10'
   apt:
     packages:
       - oracle-java8-installer
