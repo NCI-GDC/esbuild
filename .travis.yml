@@ -18,7 +18,7 @@ cache:
 env:
   ES_HOST='localhost'
   ES_VERSION=5.1.1
-  NODE_VERSION=9.8
+  NODE_VERSION=10
   BOTO_CONFIG=/dev/null
 
 addons:
@@ -34,7 +34,6 @@ before_install:
   # bust only the the part of the cache that we are frequently
   # changing
   - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
-
 
 install:
   # Update nodejs
