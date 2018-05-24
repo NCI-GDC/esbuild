@@ -40,13 +40,3 @@ def test_export_mapping_to_gzip(test_index, tmpdir):
 
     with gzip.open(f.strpath, 'rb') as f:
         assert f.read()
-
-
-@pytest.mark.skip(reason='This feature is never used. '
-                  'We use native elasticsearch plugin repository-s3 for this')
-def test_raises_on_failure(test_index, tmpdir):
-    es, index, doc_type, docs = test_index
-
-    with pytest.raises(RuntimeError):
-        f = tmpdir.join('test_index.mapping.gz')
-        export_to_gzip(f.strpath, 'marping', index, ES_HOST)

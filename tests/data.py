@@ -382,7 +382,7 @@ NODES = [
         library_preparation_kit_name='a51svh',
         library_preparation_kit_vendor='07yeqz',
         library_preparation_kit_version='e30pa1',
-        library_selection='Hybrid_Selection',
+        library_selection='Hybrid Selection',
         library_strand='Unstranded',
         library_strategy='WGS',
         platform='Illumina',
@@ -473,7 +473,7 @@ NODES = [
     Treatment(
         node_id='4768cc70-ca97-4af8-9e66-6947c75a9376',
         state='submitted',
-        days_to_treatment=None,
+        days_to_treatment_end=None,
         project_id=u'TCGA-DEV3',
         submitter_id=u'TCGA-DEV-3-CASE-014-DIAG1-TR1',
         therapeutic_agents=None,
