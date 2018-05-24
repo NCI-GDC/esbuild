@@ -19,5 +19,7 @@ import os
     'build_active_graph_index.py',
     'build_download_stats_index.py',
 ])
-def test_script_runs(environment, path):
+def test_script_runs(environment, path, init_indexd):
+    os.environ['INDEXD_HOST'] = init_indexd.url
+    os.environ['INDEXD_USER'], os.environ['INDEXD_PASS'] = init_indexd.auth
     check_call(['python', os.path.join(BIN_DIR, path)])

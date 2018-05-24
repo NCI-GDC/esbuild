@@ -1,3 +1,4 @@
+import pytest
 from conftest import ES_HOST, ES_PORT
 from moto import mock_s3
 
@@ -14,6 +15,8 @@ from esbuild.export.s3_upload import (
 )
 
 
+@pytest.mark.skip(reason='This feature is never used. '
+                  'We use native elasticsearch plugin repository-s3 for this')
 @mock_s3
 def test_upload_to_s3(test_index, tmpdir):
     es, index, doc_type, docs = test_index
@@ -28,6 +31,8 @@ def test_upload_to_s3(test_index, tmpdir):
     assert conn.get_bucket(bucket).get_key(name).get_contents_as_string()
 
 
+@pytest.mark.skip(reason='This feature is never used. '
+                  'We use native elasticsearch plugin repository-s3 for this')
 @mock_s3
 def test_upload_to_s3_script(test_index, tmpdir):
     es, index, doc_type, docs = test_index
