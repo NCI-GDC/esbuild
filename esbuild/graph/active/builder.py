@@ -187,10 +187,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     # added for slide_image by joe, 3/18
     case_to_slide_image_path = [
         ['sample',
-         'portion',
          'slide',
          'slide_image'],
-        ['portion',
+        ['sample',
+         'portion',
          'slide',
          'slide_image'],
     ]
