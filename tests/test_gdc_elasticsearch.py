@@ -76,13 +76,13 @@ def test_basic_es_generate(setup_test, init_indexd, converter):
     with _graph.session_scope():
         assert not es.exists(index="gdc_es_test",
                              doc_type="file",
-                             id="to-delete-file")
+                             id=get_node_id("to-delete-file"))
 
     # Test Case exists by id
     with _graph.session_scope():
         assert es.exists(index="gdc_es_test",
                          doc_type="case",
-                         id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c')
+                         id=get_node_id('case-tcga-brca-breast'))
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])

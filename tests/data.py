@@ -141,7 +141,7 @@ NODES = [
     fuzzed(
         Archive,
         acl=['phs000178'],
-        state=get_node_id('submitted'),
+        state='released',
         node_id=get_node_id('archive_1'),
     ),
     fuzzed(
@@ -584,8 +584,8 @@ NODES = [
         disease_type='Breast Invasive Carcinoma'
     ),
     Case(
-        # case in unreleased project
-        node_id=get_node_id('unreleased-case'),
+        # released case in unreleased project
+        node_id=get_node_id('released-case-in-unreleased-project'),
         project_id='INTERNAL-DEV1',
         state='released',
         submitter_id='INTERNAL-DEV-CASE-0001',
@@ -630,7 +630,7 @@ NODES = [
     ),
     Case(
         # unreleased case in a released project
-        node_id='unreleased-case-in-released-project',
+        node_id=get_node_id('unreleased-case-in-released-project'),
         project_id='TCGA-BRCA',
         state='submitted',
         submitter_id='unreleased_case_submitter_1',
@@ -770,7 +770,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-01A-31W-A14P-09',
     ),
     Aliquot(
-        node_id='aliquot-derived-from-unreleased-sample',
+        node_id=get_node_id('aliquot-derived-from-unreleased-sample'),
         project_id='TCGA-BRCA',
         state='released',
         amount=80.0,
@@ -825,7 +825,7 @@ NODES = [
         tumor_code_id=None,
     ),
     Sample(
-        node_id='sample-unreleased',
+        node_id=get_node_id('sample-unreleased'),
         project_id='TCGA-BRCA',
         state='submitted',
         current_weight=None,
@@ -1187,8 +1187,8 @@ EDGES = [
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
     AnnotationAnnotatesCase(
-        src_id='unreleased-annotation',
-        dst_id='unreleased-case-in-released-project',
+        src_id=get_node_id('unreleased-annotation'),
+        dst_id=get_node_id('unreleased-case-in-released-project'),
     ),
     ClinicalSupplementDerivedFromCase(
         src_id=get_node_id('clinical_supplement_1'),
@@ -1368,8 +1368,8 @@ EDGES = [
         dst_id=get_node_id('sample-blood-derived-normal'),
     ),
     AliquotDerivedFromSample(
-        src_id='aliquot-derived-from-unreleased-sample',
-        dst_id='sample-unreleased'
+        src_id=get_node_id('aliquot-derived-from-unreleased-sample'),
+        dst_id=get_node_id('sample-unreleased')
     ),
     AliquotShippedToCenter(
         src_id=get_node_id('aliquot-6'),
@@ -1423,8 +1423,8 @@ EDGES = [
         dst_id=get_node_id('case-tcga-brca-breast'),
         properties={}),
     SampleDerivedFromCase(
-        src_id='sample-unreleased',
-        dst_id='unreleased-case-in-released-project',
+        src_id=get_node_id('sample-unreleased'),
+        dst_id=get_node_id('unreleased-case-in-released-project'),
         properties={}),
     AliquotShippedToCenter(
         src_id=get_node_id('aliquot-8'),
@@ -1448,7 +1448,7 @@ EDGES = [
         dst_id=get_node_id('project-legacy-brca'),
         properties={}),
     CaseMemberOfProject(
-        src_id=get_node_id('unreleased-case'),
+        src_id=get_node_id('released-case-in-unreleased-project'),
         dst_id=get_node_id('unreleased-project'),
         properties={}),
     CaseMemberOfProject(
@@ -1658,8 +1658,8 @@ EDGES = [
 
     # Copy Number
     SubmittedTangentCopyNumberDerivedFromAliquot(
-        src_id='cnv-file-1',
-        dst_id='aliquot-1',
+        src_id=get_node_id('cnv-file-1'),
+        dst_id=get_node_id('aliquot-1'),
     ),
     CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
         src_id=get_node_id('cnv-workflow-1'),
@@ -1671,8 +1671,8 @@ EDGES = [
     ),
 
     SubmittedMethylationBetaValueDerivedFromAliquot(
-        src_id='sub-methyl-beta-value',
-        dst_id='aliquot-1',
+        src_id=get_node_id('sub-methyl-beta-value'),
+        dst_id=get_node_id('aliquot-1'),
     ),
     MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
         src_id=get_node_id('methyl-lift-wf'),
@@ -1714,8 +1714,8 @@ EDGES = [
         dst_id=get_node_id('fake_active_project'),
     ),
     CaseMemberOfProject(
-        src_id='unreleased-case-in-released-project',
-        dst_id='fake_active_project'
+        src_id=get_node_id('unreleased-case-in-released-project'),
+        dst_id=get_node_id('fake_active_project')
     ),
 ]
 
