@@ -148,7 +148,7 @@ def test_basic_suppression(graph, init_indexd):
 def test_non_case_suppression(graph, init_indexd):
     annotation = fuzzed(md.Annotation, classification='Redaction')
     with graph.session_scope() as s:
-        portion_id = 'portion-01'
+        portion_id = get_node_id('portion-01')
         portion = graph.nodes(md.Portion).ids(portion_id).one()
         portion.annotations = [annotation]
         sample = portion.samples[0]

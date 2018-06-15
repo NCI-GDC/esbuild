@@ -169,9 +169,9 @@ def test_awg_build(init_indexd):
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {u'submitted-awg-case', u'processed-awg-case'},
-        'project': {u'awg-one-project'},
-        'program': {u'internal-program', u'program-tcga'}  # Why esbuild picks up all programs?
+        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
+        'project': {get_node_id('awg-one-project')},
+        'program': {get_node_id('internal-program'), get_node_id('program-tcga')}  # Why esbuild picks up all programs?
     }
 
 
@@ -367,7 +367,7 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     2, {'read-group-1', 'read-group-2'}),
+     2, {get_node_id('read-group-1'), get_node_id('read-group-2')}),
     ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
                                       'Prostate Adenocarcinoma',
                                       'Rectum Adenocarcinoma'}),
@@ -408,11 +408,11 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 
 @pytest.mark.parametrize('doc_type,path,cls,node_ids', [
     ('files', '[*].file_id', md.Aliquot,
-     ['aliquot-derived-from-unreleased-sample']),
-    ('cases', '[*].case_id', md.Case, ['unreleased-case']),
-    ('cases', '[*].samples.[*].sample_id', md.Sample, ['sample-unreleased']),
+     [get_node_id('aliquot-derived-from-unreleased-sample')]),
+    ('cases', '[*].case_id', md.Case, [get_node_id('released-case-in-unreleased-project')]),
+    ('cases', '[*].samples.[*].sample_id', md.Sample, [get_node_id('sample-unreleased')]),
     ('cases', '[*].annotations.[*].annotation_id', md.Annotation,
-     ['unreleased-annotation'])
+     [get_node_id('unreleased-annotation')])
 ])
 def test_unreleased_nodes_not_indexed(
         graph, index, doc_type, path, cls, node_ids):
