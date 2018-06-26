@@ -126,7 +126,7 @@ class GraphIndexBuilder(object):
     """
 
     data_file_categories = ['data_file', 'metadata_file']
-    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
+    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum', 'version', 'data_release']
 
     mapper = None
 
@@ -302,6 +302,9 @@ class GraphIndexBuilder(object):
             '.bai',
             '.tbi',
         }
+
+        # get latest data release number, used in setting the release range for file nodes
+        self.latest_data_release = self.get_latest_data_release()
 
     def warning(self, title, text, tags=[], *args, **kwargs):
         log.warning("{}: {}".format(title, text))
@@ -832,17 +835,38 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             if key == 'file_state':
-                value = record['urls_metadata'].get('state')
+                value = self.get_document_main_storage_file_state(record)
 
             # Special values
             if key == 'file_size':
                 value = record.get('size')
             elif key == 'md5sum':
                 value = record['hashes'].get('md5')
+            elif key == 'data_release':
+                value = record['metadata'].get("release_number")
+                if value and value != self.latest_data_release:
+                    value = '{} - {}'.format(value, self.latest_data_release)
+
             # Set node attribute from indexd record
             setattr(node, key, value)
 
         return node
+
+    @staticmethod
+    def get_document_main_storage_file_state(record):
+        """
+        Args:
+            record (dict): IndexD document in json form
+        Returns:
+             str: the file state on the main storage url
+        """
+        file_state = None
+        urls_metadata = record.get('urls_metadata', {})
+        for url, url_meta in urls_metadata.items():
+            if url_meta.get("type") in ["cleversafe", "ceph"]:
+                file_state = url_meta.get('state')
+                break
+        return file_state
 
     def add_node_type(self, node, doc):
         doc['type'] = node.label
@@ -2216,3 +2240,23 @@ class GraphIndexBuilder(object):
                     for subtype in data_type.data_subtypes
                 ] for data_type in self.g.nodes(md.DataType).all()
             }
+
+    def get_latest_data_release(self):
+        """ Gets the maximum available data release entry from the graph
+        Returns:
+            str: latest release number
+        """
+
+        release_class = getattr(md, "DataRelease")
+        with self.g.session_scope():
+            # list all releases without any guaranteed ordering
+            data_releases = self.g.nodes(release_class).props(released=True).all()
+
+            # sort releases from smallest to highest
+            data_releases = sorted(data_releases, key=lambda release: (release.major_version, release.minor_version))
+
+            # pick the max, which is the last one on the list
+            max_release = data_releases[-1]
+
+            release = "{}.{}".format(max_release.major_version, max_release.minor_version)
+        return release

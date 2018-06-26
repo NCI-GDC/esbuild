@@ -125,7 +125,7 @@ class GDCElasticsearch(object):
 
     def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
            skip_build=False):
-        # having a transation out here is important, since it ensures
+        # having a transaction out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
