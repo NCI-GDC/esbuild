@@ -844,7 +844,7 @@ class GraphIndexBuilder(object):
                 value = record['hashes'].get('md5')
             elif key == 'data_release':
                 value = record['metadata'].get("release_number")
-                if value and value != self.latest_data_release:
+                if value and self.latest_data_release and value != self.latest_data_release:
                     value = '{} - {}'.format(value, self.latest_data_release)
 
             # Set node attribute from indexd record
@@ -2247,16 +2247,18 @@ class GraphIndexBuilder(object):
             str: latest release number
         """
 
+        latest_release_number = None
         release_class = getattr(md, "DataRelease")
         with self.g.session_scope():
             # list all releases without any guaranteed ordering
             data_releases = self.g.nodes(release_class).props(released=True).all()
 
-            # sort releases from smallest to highest
-            data_releases = sorted(data_releases, key=lambda release: (release.major_version, release.minor_version))
+            if data_releases:
+                # sort releases from smallest to highest
+                data_releases = sorted(data_releases, key=lambda release: (release.major_version, release.minor_version))
 
-            # pick the max, which is the last one on the list
-            max_release = data_releases[-1]
+                # pick the max, which is the last one on the list
+                max_release = data_releases[-1]
 
-            release = "{}.{}".format(max_release.major_version, max_release.minor_version)
-        return release
+                latest_release_number = "{}.{}".format(max_release.major_version, max_release.minor_version)
+        return latest_release_number
