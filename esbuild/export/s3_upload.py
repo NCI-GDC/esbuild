@@ -12,8 +12,11 @@ from boto.s3 import connection
 import argparse
 import boto
 import os
+import ssl
+import sys
 import time
 import math
+import httplib
 
 from esbuild.export.elasticdump import (
     ExportTypes,
@@ -51,10 +54,27 @@ def upload_to_s3(conn, bucket_name, source_path, chunk_size=52428800):
 
 
 def connect_to_s3(args):
+    def create_factory(host,port=443,timeout=10):
+        return (
+            httplib.HTTPSConnection(
+                host = host,
+                port = port,
+                timeout = timeout,
+                context = ssl._create_unverified_context()
+            )
+        )
+
+    py_ver = sys.version_info
+    if py_ver[0] > 2 or py_ver[1] > 7 or py_ver[2] >= 9:
+        factory = (create_factory, ())
+    else:
+        factory = None
     return boto.connect_s3(
         host=args.s3_host,
         aws_access_key_id=args.s3_access_key,
         aws_secret_access_key=args.s3_secret_key,
+        validate_certs=False,
+        https_connection_factory = factory,
         calling_format=connection.OrdinaryCallingFormat(),
     )
 
