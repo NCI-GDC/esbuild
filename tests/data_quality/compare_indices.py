@@ -1,10 +1,14 @@
 import argparse
+import logging
 import json
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
-from pprint import pprint, pformat
 from deepdiff import DeepDiff
 
+from cdisutils.log import get_logger
+
+log = get_logger('compare_indices')
+log.setLevel(level=logging.INFO)
 
 IGNORE_KEYS = [
     'updated_datetime',  # This might change when node is touched
@@ -59,7 +63,7 @@ class DataTester:
 
     def run(self):
         test_type = self.args.test_type
-        print '\n\nRunning {} test'.format(test_type.upper())
+        log.info('\n\nRunning {} test'.format(test_type.upper()))
         getattr(self, test_type)()
 
     def compare_counts(self):
@@ -99,16 +103,18 @@ class DataTester:
         true_counts = self.get_counts(self.es_worker, self.args.true_index)
         sizes = {k: v['counts']['total'] for k, v in true_counts.items()}
 
-        print '\n\tRunning full comparison of {} and {} indices:'.format(
-            self.args.true_index, self.args.test_index
+        log.info(
+            'Running full comparison of {} and {} indices:'.format(
+                self.args.true_index, self.args.test_index
+            )
         )
         if IGNORE_KEYS:
-            print '[WARNING]: Ignoring {} fields'.format(', '.join(IGNORE_KEYS))
+            log.warn('Ignoring {} fields'.format(', '.join(IGNORE_KEYS)))
 
         # For each doctype, iterate over entire index and compare
         result = {d: {} for d in self.doc_types}
         for doc_type in self.doc_types:
-            print doc_type
+            log.info('Comparing {}s:'.format(doc_type))
             true_docs = self.es_worker.get_es_iterator(self.es_worker.es,
                                                        self.args.true_index,
                                                        doc_type)
@@ -124,7 +130,7 @@ class DataTester:
 
                 result[doc_type][doc['_id']] = is_correct
                 if doc_count % 100 == 0:
-                    print '{}/{}'.format(doc_count, sizes[doc_type])
+                    log.info('progress: {}/{}'.format(doc_count, sizes[doc_type]))
 
         report_file = 'compared_{}_vs_{}.json'.format(self.args.true_index,
                                                       self.args.test_index)
