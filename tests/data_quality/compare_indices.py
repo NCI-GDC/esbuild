@@ -4,7 +4,7 @@ import json
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 from deepdiff import DeepDiff
-
+from cdisutils.dictionary import sort_dict
 from cdisutils.log import get_logger
 
 log = get_logger('compare_indices')
@@ -14,26 +14,6 @@ IGNORE_KEYS = [
     'updated_datetime',  # This might change when node is touched
     'portion_id', 'analyte_id'  # These are randomly generated each esbuild run
 ]
-
-
-def smart_sort(tree, remove_keys=None):
-    """
-    Recursively sorts dictionary tree and remove some keys
-    """
-    if remove_keys is None:
-        remove_keys = []
-
-    if isinstance(tree, dict):
-        return {
-            key: smart_sort(tree[key], remove_keys=remove_keys)
-            for key in tree.keys() if key not in remove_keys
-        }
-    elif isinstance(tree, list):
-        return sorted(
-            [smart_sort(element, remove_keys=remove_keys) for element in tree]
-        )
-    else:
-        return tree
 
 
 class DataTester:
@@ -124,8 +104,8 @@ class DataTester:
                 test_doc = self.es_worker.es.get(index=self.args.test_index,
                                                  doc_type=doc_type, id=doc['_id'])
                 # Check if true document fully matches test document
-                true_doc = smart_sort(doc['_source'], remove_keys=IGNORE_KEYS)
-                test_doc = smart_sort(test_doc['_source'], remove_keys=IGNORE_KEYS)
+                true_doc = sort_dict(doc['_source'], remove_keys=IGNORE_KEYS)
+                test_doc = sort_dict(test_doc['_source'], remove_keys=IGNORE_KEYS)
                 is_correct = true_doc == test_doc
 
                 result[doc_type][doc['_id']] = is_correct
