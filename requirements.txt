@@ -14,4 +14,4 @@ SQLAlchemy==0.9.9
 -e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@1.13.0-pre#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@1.2.0#egg=psqlgraph
 -e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@release/versioning#egg=gdcdatamodel
--e git+https://git@github.com/uc-cdis/indexclient.git@1.5.1#egg=indexclient
+-e git+https://git@github.com/uc-cdis/indexclient.git@1.5.3#egg=indexclient

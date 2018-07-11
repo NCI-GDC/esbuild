@@ -788,6 +788,11 @@ class GraphIndexBuilder(object):
         case_id = ptree.keys()[0].node_id if ptree.keys() else None
         doc = self._get_base_doc(node)
 
+        # add version and release info
+        doc.update({
+            key: getattr(node, key) if hasattr(node, key) else None for key in ["version", "data_release"]
+        })
+
         # Add file fields
         self.add_node_type(node, doc)
         self.add_file_neighbors(node, doc)
@@ -863,7 +868,7 @@ class GraphIndexBuilder(object):
         file_state = None
         urls_metadata = record.get('urls_metadata', {})
         for url, url_meta in urls_metadata.items():
-            if url_meta.get("type") in ["cleversafe", "ceph"]:
+            if url_meta.get("type") in "cleversafe":
                 file_state = url_meta.get('state')
                 break
         return file_state
