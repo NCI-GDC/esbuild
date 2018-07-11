@@ -107,9 +107,17 @@ def patch_test_data_get_indexd(nodes):
                 'urls': urls,
                 'did': indexd_did,
                 'node_id': node.node_id,
+                'metadata': {}
             }
 
             for key in DATA_FILE_INDEXD_FIELDS:
+
+                # fields not on the node
+                if key == "version":
+                    indexd_record[key] = "1"
+                if key == "data_release":
+                    indexd_record['metadata']['release_number'] = "13.0"
+
                 key_value = getattr(node, key, None)
                 if key_value is None:
                     continue
