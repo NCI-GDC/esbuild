@@ -3,6 +3,7 @@ import logging
 import json
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
+from pprint import pformat
 from deepdiff import DeepDiff
 from cdisutils.dictionary import sort_dict
 from cdisutils.log import get_logger
@@ -101,8 +102,14 @@ class DataTester:
             doc_count = 0
             for doc in true_docs:
                 doc_count += 1
-                test_doc = self.es_worker.es.get(index=self.args.test_index,
-                                                 doc_type=doc_type, id=doc['_id'])
+                try:
+                    test_doc = self.es_worker.es.get(index=self.args.test_index,
+                                                     doc_type=doc_type, id=doc['_id'])
+                except:
+                    log.warn('{} {} was not found in {}, skipping'
+                             .format(doc_type, doc['_id'], self.args.test_index))
+                    continue
+
                 # Check if true document fully matches test document
                 true_doc = sort_dict(doc['_source'], remove_keys=IGNORE_KEYS)
                 test_doc = sort_dict(test_doc['_source'], remove_keys=IGNORE_KEYS)
