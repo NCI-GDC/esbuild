@@ -374,6 +374,10 @@ class GDCElasticsearch(object):
             ann_docs = []
         if file_docs is None:
             file_docs = []
+        if case_docs is None:
+            case_docs = []
+        if project_docs is None:
+            project_docs = []
 
         # Create index if it does not exist (otherwise, just add the data)
         if index not in self.es.indices.get_alias():
