@@ -8,6 +8,7 @@ Functions for uploading Elasticsearch indices to an s3 interface.
 
 from filechunkio import FileChunkIO
 from boto.s3 import connection
+from distutils.version import StrictVersion
 
 import argparse
 import boto
@@ -64,8 +65,8 @@ def connect_to_s3(args):
             )
         )
 
-    py_ver = sys.version_info
-    if py_ver[0] > 2 or py_ver[1] > 7 or py_ver[2] >= 9:
+    py_ver = ".".join(str(sys.version_info[i]) for i in xrange(3))
+    if StrictVersion(py_ver) >= StrictVersion('2.7.9'):
         factory = (create_factory, ())
     else:
         factory = None
