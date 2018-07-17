@@ -23,9 +23,6 @@ env:
 
 addons:
   postgresql: '9.4'
-  apt:
-    packages:
-      - oracle-java8-installer
 
 before_install:
   # Upgrade npm
@@ -41,11 +38,6 @@ install:
   - git clone https://github.com/creationix/nvm.git ~/.nvm 
   - (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`)
   - source ~/.nvm/nvm.sh && nvm install $NODE_VERSION
-
-  # Update to java8
-  - sudo update-java-alternatives -s java-8-oracle
-  - export JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
-  - java -version
 
   # Install and start elasticsearch
   - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
