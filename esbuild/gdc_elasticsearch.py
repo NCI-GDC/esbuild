@@ -144,7 +144,6 @@ class GDCElasticsearch(object):
             to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
             self.log.info("Found %s to_delete nodes, saving for later",
                           len(to_delete))
-            self.log.info(to_delete)
 
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
@@ -206,8 +205,13 @@ class GDCElasticsearch(object):
                                         cleanup_indices=cleanup_indices)
             else:
                 new_index = 'not built'
-        self.delete_nodes(to_delete=to_delete,
-                          delete_nodes=delete_nodes)
+
+        # Delete nodes that are marked "to_delete" if --delete flag is passed.
+        # Dump to log otherwise (default behavior)
+        self.delete_nodes(to_delete=to_delete, delete_nodes=delete_nodes)
+
+        # Dump skipped nodes info into a file
+        self.log_skipped_nodes()
         if not skip_build:
             statsd.event(
                 "esbuild finished",
@@ -217,16 +221,48 @@ class GDCElasticsearch(object):
                 tags=["es_index:{}".format(new_index), 'stage:finished'],
             )
 
+    def log_skipped_nodes(self):
+        self.log.info("Logging skipped nodes to log file in ~")
+        self.log_into_file(self.converter.skipped_nodes, 'esbuild-skipped_nodes')
+
+    @staticmethod
+    def log_into_file(entries, file_nametag):
+        """
+        Dump entries into file `~/{file_nametag}_{datetime_now}.{list,json}`
+
+        Extension depends on whether `entries` is list or dict
+        """
+        if isinstance(entries, list):
+            extension = 'list'
+        elif isinstance(entries, dict):
+            extension = 'json'
+        else:
+            raise ValueError("Can only dump list or dict objects")
+
+        file_name = '{}/{}-{}.{}'.format(os.path.expanduser('~'),
+                                         file_nametag,
+                                         datetime.datetime.now().isoformat(),
+                                         extension)
+        with open(file_name, 'w') as f:
+            if isinstance(entries, list):
+                for entry in entries:
+                    f.write(entry + '\n')
+            elif isinstance(entries, dict):
+                f.write(json.dumps(entries))
+
     def delete_nodes(self, to_delete=None, delete_nodes=True):
+        """
+        If delete_nodes is True, will remove nodes marked "sysan['to_delete']" from
+        the graph
+        Otherwise will dump these nodes into log file (default behavior)
+
+        """
         if to_delete is None:
             to_delete = []
 
         if delete_nodes == True:
             with self.graph.session_scope() as session:
                 for expired_node in to_delete:
-                    #node = self.graph.nodes(expired_node.__class__)\
-                    #                 .ids(expired_node)\
-                    #                 .scalar()
                     node = self.graph.nodes().get(expired_node)
                     if node:
                         if 'to_delete' in node.sysan:
@@ -234,14 +270,8 @@ class GDCElasticsearch(object):
                                 self.log.info("Deleting %s", node)
                                 session.delete(node)
         else:
-            deleted_file_name = '{}/{}-{}.json'.format(os.path.expanduser('~'),
-                                                       'esbuild',
-                                                       datetime.datetime.now().isoformat())
-            self.log.info("Skipping deletion of nodes, saving them to log file {}"
-                          .format(deleted_file_name))
-            with open(deleted_file_name, 'w') as json_file:
-                for entry in to_delete:
-                    json_file.write(entry + '\n')
+            self.log.info("Skipping deletion of nodes, saving them to log file in ~")
+            self.log_into_file(to_delete, 'esbuild-to_delete')
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
