@@ -180,6 +180,7 @@ class GraphIndexBuilder(object):
         """
         self.indexd = indexd_client
         self.file_metadata = {}  # Cache of file metadata from indexd
+        self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
@@ -1786,32 +1787,38 @@ class GraphIndexBuilder(object):
             elif node.state in released_states:
                 return True
 
+    def cache_skipped_node(self, node, reason):
+        """
+        Caches skipped node in self.skipped_nodes['{reason-for-skipping}']
+        """
+        self.skipped_nodes.setdefault(reason, [])
+        self.skipped_nodes[reason].append(str(node))
+
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed"""
 
         # Is the node allowed to be displayed publicly
         if not self.is_node_public(node):
-            log.info('not indexed (unreleased state: %s): %s',
-                     node, node._props.get('state'))
+            self.cache_skipped_node([node, node._props.get('state')], 'not-public')
             return False
 
         if self.is_unindexed_case(node):
-            log.info('not indexed (case not indexed): %s', node)
+            self.cache_skipped_node(node, 'unindexed-case')
             return False
 
         # Check for non-indexed files
         if not self.is_file_indexed(node):
-            log.info('not indexed (file not indexed): %s', node)
+            self.cache_skipped_node(node, 'unindexed-file')
             return False
 
         # Check for non-indexed files
         if self.is_node_unindexed_by_property(node):
-            log.info('not indexed (by property): %s', node)
+            self.cache_skipped_node(node, 'unindexed-by-property')
             return False
 
         # Check for omitted_projects
         if self.is_omitted_project_or_neighbor_case(node):
-            log.info('not indexed (omitted project): %s', node)
+            self.cache_skipped_node(node, 'omitted-project')
             return False
 
         return True
