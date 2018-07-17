@@ -143,7 +143,9 @@ class GraphIndexBuilder(object):
         }
     }
     # Set of properties to add to hidded_properties for all nodes
-    hidden_properties_for_all = {'batch_id', 'file_state'}
+    hidden_properties_for_all = {
+        'batch_id', 'file_state', 'in_review', 'submisison_enabled',
+    }
 
     for node_type in md.Node.get_subclasses():
         hidden_properties.setdefault(node_type.label, set())
