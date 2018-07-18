@@ -24,7 +24,8 @@ import re
 import json
 from uuid import uuid4
 
-from .mappings import (
+from esbuild.graph.common.mappings import (
+    ESMapper,
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
@@ -142,9 +143,9 @@ class GraphIndexBuilder(object):
             'creator',
         }
     }
-    # Set of properties to add to hidded_properties for all nodes
+    # Set of properties to add to hidden_properties for all nodes
     hidden_properties_for_all = {
-        'batch_id', 'file_state', 'in_review', 'submisison_enabled',
+        'batch_id', 'file_state',
     }
 
     for node_type in md.Node.get_subclasses():
@@ -755,9 +756,7 @@ class GraphIndexBuilder(object):
 
     def patch_project(self, project_doc):
         # Delete some keys from project document
-        keys_to_delete = [
-           'release_requested', 'awg_review', 'is_legacy',
-        ]
+        keys_to_delete = ESMapper.project_keys_to_hide
         for key in keys_to_delete:
             project_doc.pop(key, None)
 
@@ -1656,7 +1655,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        # This function should only be for files
+        # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
 
@@ -1928,6 +1927,11 @@ class GraphIndexBuilder(object):
         return to_suppress
 
     def remove_unindexed_nodes_from_graph(self):
+        """
+        Removes nodes from cached graph in self.G according to:
+        - is_node_indexed(node)
+        - suppressed_nodes()
+        """
         log.info('Selecting entities to be removed from cache...')
         removed_nodes = [node for node in self.G.nodes()
                          if not self.is_node_indexed(node)]
@@ -1996,6 +2000,8 @@ class GraphIndexBuilder(object):
 
         with self.g.session_scope():
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
+            # Cache graph to self.G
+            # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
             for e in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
                 triple = (e.src.label, e.label, e.dst.label)
