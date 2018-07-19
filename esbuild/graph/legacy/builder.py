@@ -104,6 +104,8 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
             visited_file_ids = set()
 
         for archive in archives:
+            # Add file metadata properties to archive:
+            archive = self.add_file_metadata_from_indexd(archive)
 
             # Add only archives related to self.build_projects in case of split build
             project_id = None
@@ -124,6 +126,9 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
                     # skip any files visited in or before this function
                     if file_.node_id in visited_file_ids:
                         continue
+
+                    # Add file metadata properties to neighbor file:
+                    file_ = self.add_file_metadata_from_indexd(file_)
 
                     # Denormalize the file
                     file_docs.append(self.denormalize_file(file_, {}))

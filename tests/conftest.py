@@ -4,6 +4,7 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
+from multiprocessing import Process
 from elasticsearch import Elasticsearch
 from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
@@ -14,6 +15,14 @@ import logging
 import os
 import pytest
 import time
+
+from cdisutilstest.code.indexd_fixture import (
+    create_user,
+    setup_database,
+    remove_sqlite_files,
+)
+from cdisutilstest.code.conftest import indexd_server
+from indexclient.client import IndexClient
 
 # ======================================================================
 # Test Settings
@@ -42,7 +51,7 @@ _graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
 
 
 @pytest.fixture
-def clear_database():
+def clear_graph_database():
     """Clear graph from database"""
 
     edge_tables = Edge.get_subclass_table_names()
@@ -54,6 +63,44 @@ def clear_database():
 
     with _graph.engine.begin() as conn:
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+
+
+@pytest.fixture(scope='session')
+def init_indexd(indexd_server):
+    remove_sqlite_files()
+    setup_database()
+
+    indexd_client = IndexClient(baseurl=indexd_server.baseurl,
+                                auth=create_user('admin', 'admin'))
+    # Insert indexd data:
+    for record in data.INDEXD:
+        record = dict(record)  # prevent data.INDEXD object mutation
+        did = record.pop('did')
+        md5 = record.pop('md5sum')
+        size = record.pop('file_size')
+        file_name = record.pop('file_name', None)
+        file_state = record.pop('file_state', None)
+        acl = record.pop('acl')
+        urls = record.pop('urls')
+        # NOTE: 'file_state' is stored as 'state' in indexd.
+        # However, this is not important as esbuild does not pay attention to 'file_state'
+        # and it is removed from resulting elasticsearch documents. See PRTL-2109
+        urls_metadata = {
+            urls[0]: {'state': file_state}
+        }
+        indexd_client.create(
+            did=did,
+            acl=acl,
+            hashes={'md5': md5},
+            size=size,
+            file_name=file_name,
+            urls=urls,
+            metadata=record,
+            urls_metadata=urls_metadata,
+        )
+
+    yield indexd_client
+    clear_graph_database()
 
 
 class TestError(Exception):
@@ -99,7 +146,7 @@ def sample_database():
 
     """
 
-    clear_database()
+    clear_graph_database()
     data.insert(_graph)
 
     try:

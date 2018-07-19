@@ -8,11 +8,13 @@ Test the builder for graph ES index
 """
 
 
+from esbuild.graph.common.builder import GraphIndexBuilder
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
-from test_utils import get_dict_paths
+from test_utils import get_dict_paths, validate_file_metadata
+from data import get_node_id
 
 import pytest
 
@@ -29,6 +31,11 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 
+
+DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
+DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
+
+
 # Define the number of files that should be loaded as documents
 N_FILES = 10
 N_OUTPUT_FILES = 6
@@ -38,9 +45,9 @@ N_INPUT_FILES = 9
 # Fixtures
 
 
-@pytest.fixture(scope='module')
-def index():
-    builder = ActiveGraphIndexBuilder(_graph)
+@pytest.fixture
+def index(init_indexd):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
     with _graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -48,15 +55,15 @@ def index():
 
 
 @pytest.fixture
-def cached_builder(scope='module'):
-    builder = ActiveGraphIndexBuilder(_graph)
+def cached_builder(init_indexd):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
     builder.cache_database()
     return builder
 
 
 @pytest.fixture()
-def builder():
-    return ActiveGraphIndexBuilder(_graph)
+def builder(init_indexd):
+    return ActiveGraphIndexBuilder(_graph, init_indexd)
 
 
 @pytest.fixture
@@ -121,12 +128,23 @@ def validate_mappings(mappings, doc_type):
     assert extra_paths == set([])
 
 
-def test_selective_caching():
+def test_get_file_metadata_from_indexd(index):
+    """
+    Test that file metadata fields are taken from indexd
+    (by checking that their value is not 'error' or -1 which are values in the graph)
+    """
+    for f in index.files:
+        for key, value in f.iteritems():
+            validate_file_metadata(key, value)
+
+
+def test_selective_caching(init_indexd):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, build_projects=projects_subset,
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
+                                      build_projects=projects_subset,
                                       selective_caching=True)
     builder.cache_database()
 
@@ -135,12 +153,12 @@ def test_selective_caching():
     assert built_projects == projects_subset
 
 
-def test_awg_build():
+def test_awg_build(init_indexd):
     """
     Tests AWG build mode
     """
     build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, build_awg=True,
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
                                       build_projects=build_projects)
     builder.cache_database()
 
@@ -151,9 +169,9 @@ def test_awg_build():
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {u'submitted-awg-case', u'processed-awg-case'},
-        'project': {u'awg-one-project'},
-        'program': {u'internal-program', u'b80aa962-9650-5110-b3eb-bd087da808db'}  # Why esbuild picks up all programs?
+        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
+        'project': {get_node_id('awg-one-project')},
+        'program': {get_node_id('internal-program'), get_node_id('program-tcga')}  # Why esbuild picks up all programs?
     }
 
 
@@ -258,6 +276,8 @@ def test_case_to_file_paths_is_absent(path):
 
 @pytest.mark.parametrize('doc_type,path', [
     ('cases', '[*].clinical'),
+    ('cases', '[*].files.[*].file_state'),
+    ('files', '[*].file_state'),
     ('annotations', '[*].creator'),
 ])
 def test_path_is_absent(index, doc_type, path):
@@ -347,14 +367,13 @@ def test_basic_counts(index, doc_type, count):
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
      1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
-     2, {'64f66bc3-1cee-41d7-ae86-cb443e84f30e',
-         'bd4d1c78-c448-4bbf-8348-a77f3786c648'}),
+     2, {get_node_id('read-group-1'), get_node_id('read-group-2')}),
     ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
                                       'Prostate Adenocarcinoma',
                                       'Rectum Adenocarcinoma'}),
     ('cases', '[*].primary_site', 3, {'Breast', 'Prostate', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
-     1, {'read-group-qc-1'}),
+     1, {get_node_id('read-group-qc-1')}),
     ('files', '[*].index_files.[*].file_name',
      1, {'index-file-2.bam.bai'}),
     ('files', '[*].analysis.[*].input_files.[*].data_category',
@@ -369,7 +388,7 @@ def test_basic_counts(index, doc_type, count):
      N_OUTPUT_FILES , {'Simple Nucleotide Variation',
                        'Combined Nucleotide Variation'}),
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
-     N_OUTPUT_FILES , {'submitted'}),
+     N_OUTPUT_FILES , {'released'}),
     ('files', '[*].type.[*]',
      N_FILES, {'simple_somatic_mutation',
                'aligned_reads',
@@ -387,6 +406,26 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
+@pytest.mark.parametrize('doc_type,path,cls,node_ids', [
+    ('files', '[*].file_id', md.Aliquot,
+     [get_node_id('aliquot-derived-from-unreleased-sample')]),
+    ('cases', '[*].case_id', md.Case, [get_node_id('released-case-in-unreleased-project')]),
+    ('cases', '[*].samples.[*].sample_id', md.Sample, [get_node_id('sample-unreleased')]),
+    ('cases', '[*].annotations.[*].annotation_id', md.Annotation,
+     [get_node_id('unreleased-annotation')])
+])
+def test_unreleased_nodes_not_indexed(
+        graph, index, doc_type, path, cls, node_ids):
+    for node_id in node_ids:
+        node = graph.nodes(cls).ids(node_id).one()
+        assert node.state in ['submitted', 'released']
+
+    results = parse(path).find(getattr(index, doc_type))
+    result_set = {r.value for r in results}
+
+    assert len(result_set.intersection(set(node_ids))) == 0
+
+
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
                                          'Prostate Adenocarcinoma',
@@ -400,10 +439,6 @@ def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     actual = reduce(set.union, map(lambda x: set(x.value), results))
     assert actual == expected
     assert len(results) == count
-
-
-def test_no_submitted_aligned_reads(graph, index):
-    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
 
 
 @pytest.mark.parametrize('T', [
