@@ -8,6 +8,8 @@ graph index.
 
 """
 
+import collections
+
 from cdisutils.log import get_logger
 from collections import defaultdict
 from copy import copy, deepcopy
@@ -39,6 +41,9 @@ from progressbar import (
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
+
+# convenient way to store extra fields not in the graph but to be added to the es index
+ExtraFieldRef = collections.namedtuple("ExtraFieldRef", ["version", "data_release"])
 
 
 class GraphIndexBuilder(object):
@@ -307,6 +312,9 @@ class GraphIndexBuilder(object):
             '.tbi',
         }
 
+        # get latest data release number, used in setting the release range for file nodes
+        self.latest_data_release = self.get_latest_data_release()
+
     def warning(self, title, text, tags=[], *args, **kwargs):
         log.warning("{}: {}".format(title, text))
         statsd.event(
@@ -507,7 +515,12 @@ class GraphIndexBuilder(object):
 
         files = self.walk_paths(node, self.case_to_file_paths)
         # Set file metadata fields from indexd as node properties
-        files = (self.add_file_metadata_from_indexd(f) for f in files)
+
+        files_with_metadata = set()
+        for f in files:
+            file_node, _ = self.add_file_metadata_from_indexd(f)
+            files_with_metadata.add(file_node)
+        files = files_with_metadata
 
         files = self.remove_bam_index_files(files)
         files = self.remove_hidden_nodes(files)
@@ -778,7 +791,7 @@ class GraphIndexBuilder(object):
 
         """
         # Add file metadata fields from indexd
-        node = self.add_file_metadata_from_indexd(node)
+        node, extra_fields = self.add_file_metadata_from_indexd(node)
 
         # Create a copy to avoid mutation of passed argument
         ptree = self.copy_tree(ptree, {})
@@ -786,6 +799,9 @@ class GraphIndexBuilder(object):
         # Create base file doc
         case_id = ptree.keys()[0].node_id if ptree.keys() else None
         doc = self._get_base_doc(node)
+
+        # add all extra info
+        doc.update(extra_fields._asdict())
 
         # Add file fields
         self.add_node_type(node, doc)
@@ -804,8 +820,11 @@ class GraphIndexBuilder(object):
         return doc
 
     def add_file_metadata_from_indexd(self, node):
+        # type: (Node) -> tuple(dict, ExtraFieldRef)
         """
         Reads file metadata from indexd and sets it to node
+        Returns:
+            tuple(Node, ExtraFieldRef): graph node and an extra field tuple
         """
         # Try to get cached metadata value
         record = self.file_metadata.get(node.node_id)
@@ -822,7 +841,7 @@ class GraphIndexBuilder(object):
                         "node_type: {} node_id: {}".format(node.label, node.node_id),
                         tags=["indexd", node.label]
                     )
-                return node
+                return node, ExtraFieldRef(version=None, data_release=None)
             record = record.to_json()
             # Cache indexd record
             self.file_metadata[node.node_id] = record
@@ -834,17 +853,52 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             if key == 'file_state':
-                value = record['urls_metadata'].get('state')
+                value = self.get_document_main_storage_file_state(record)
 
             # Special values
             if key == 'file_size':
                 value = record.get('size')
             elif key == 'md5sum':
                 value = record['hashes'].get('md5')
+
             # Set node attribute from indexd record
             setattr(node, key, value)
 
-        return node
+        extra_field = self.add_extra_file_metadata_fields(record)
+
+        return node, extra_field
+
+    def add_extra_file_metadata_fields(self, record):
+        """
+        Args:
+            record (dict): index record dict
+        Returns:
+            ExtraFieldRef: named tuple with extra keys and values
+        """
+        release_number = record['metadata'].get("release_number")
+
+        # make it a range if release number is different from the latest
+        if release_number and self.latest_data_release and release_number != self.latest_data_release:
+            release_number = '{} - {}'.format(release_number, self.latest_data_release)
+        # add extra fields not from graph
+        extra_field = ExtraFieldRef(version=record.get("version"), data_release=release_number)
+        return extra_field
+
+    @staticmethod
+    def get_document_main_storage_file_state(record):
+        """
+        Args:
+            record (dict): IndexD document in json form
+        Returns:
+             str: the file state on the main storage url
+        """
+        file_state = None
+        urls_metadata = record.get('urls_metadata', {})
+        for url, url_meta in urls_metadata.items():
+            if url_meta.get("type") in ["cleversafe"]:
+                file_state = url_meta.get('state')
+                break
+        return file_state
 
     def add_node_type(self, node, doc):
         doc['type'] = node.label
@@ -955,7 +1009,7 @@ class GraphIndexBuilder(object):
         # Legacy index files
         elif node.label == 'file':
             # Set file metadata fields
-            node = self.add_file_metadata_from_indexd(node)
+            node, _ = self.add_file_metadata_from_indexd(node)
 
             for extension in self.index_file_extensions:
                 if getattr(node, 'file_name', '').endswith(extension):
@@ -1019,10 +1073,13 @@ class GraphIndexBuilder(object):
 
         for related_file in related_files:
             # Add file metadata fields from indexd
-            related_file = self.add_file_metadata_from_indexd(related_file)
+            related_file, extra_fields = self.add_file_metadata_from_indexd(related_file)
 
             rf_doc = self._get_base_doc(related_file, include_id=False)
             rf_doc['file_id'] = related_file.node_id
+
+            # add extra info
+            rf_doc.update(extra_fields._asdict())
 
             # Data types
             data_subtypes = self.neighbors_labeled(
@@ -1645,7 +1702,7 @@ class GraphIndexBuilder(object):
 
     def is_old_supplement_file(self, node):
         if node.label == 'file':
-            node = self.add_file_metadata_from_indexd(node)
+            node, _ = self.add_file_metadata_from_indexd(node)
             return any(p.match(node._props.get('file_name', ''))
                        for p in self.supplement_regexes)
         return False
@@ -1660,7 +1717,7 @@ class GraphIndexBuilder(object):
             return True
 
         # Add file metadata to the node
-        node = self.add_file_metadata_from_indexd(node)
+        node, _ = self.add_file_metadata_from_indexd(node)
 
         # Remove files with no acl entries
         if len(node.acl) == 0:
@@ -2231,3 +2288,25 @@ class GraphIndexBuilder(object):
                     for subtype in data_type.data_subtypes
                 ] for data_type in self.g.nodes(md.DataType).all()
             }
+
+    def get_latest_data_release(self):
+        """ Gets the maximum available data release entry from the graph
+        Returns:
+            str: latest release number
+        """
+
+        latest_release_number = None
+        release_class = getattr(md, "DataRelease")
+        with self.g.session_scope():
+            # list all releases without any guaranteed ordering
+            data_releases = self.g.nodes(release_class).props(released=True).all()
+
+            if data_releases:
+                # sort releases from smallest to highest
+                data_releases = sorted(data_releases, key=lambda release: (release.major_version, release.minor_version))
+
+                # pick the max, which is the last one on the list
+                max_release = data_releases[-1]
+
+                latest_release_number = "{}.{}".format(max_release.major_version, max_release.minor_version)
+        return latest_release_number

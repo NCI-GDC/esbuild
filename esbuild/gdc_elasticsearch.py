@@ -125,7 +125,7 @@ class GDCElasticsearch(object):
 
     def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
            skip_build=False):
-        # having a transation out here is important, since it ensures
+        # having a transaction out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
@@ -378,8 +378,8 @@ class GDCElasticsearch(object):
                          chunk_size=chunk_size,
                          max_chunk_bytes=max_chunk_bytes)
 
-    def index_create_and_populate(self, index, case_docs=[],
-                                  file_docs=[], ann_docs=[], project_docs=[],
+    def index_create_and_populate(self, index, case_docs=None,
+                                  file_docs=None, ann_docs=None, project_docs=None,
                                   thread_count=THREAD_COUNT,
                                   chunk_size=CHUNK_SIZE,
                                   max_chunk_bytes=MAX_CHUNK_BYTES):
@@ -399,6 +399,15 @@ class GDCElasticsearch(object):
         :param list project_docs: The project docs to upload.
 
         """
+
+        if ann_docs is None:
+            ann_docs = []
+        if file_docs is None:
+            file_docs = []
+        if case_docs is None:
+            case_docs = []
+        if project_docs is None:
+            project_docs = []
 
         # Create index if it does not exist (otherwise, just add the data)
         if index not in self.es.indices.get_alias():
@@ -572,7 +581,7 @@ class GDCElasticsearch(object):
             self.es.indices.refresh(index=new_index)
 
             # sanity checks that there are the correct number of docs in the new index
-            msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
+            msg = "There appears to be the wrong number of {0} files. {1} != {2}"
 
             file_count = self.es.count(index=new_index, doc_type="file")["count"]
             case_count = self.es.count(index=new_index, doc_type="case")["count"]

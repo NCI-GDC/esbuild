@@ -82,11 +82,13 @@ def init_indexd(indexd_server):
         file_state = record.pop('file_state', None)
         acl = record.pop('acl')
         urls = record.pop('urls')
+        version = record.pop('version')
+        metadata = record.pop('metadata')
         # NOTE: 'file_state' is stored as 'state' in indexd.
         # However, this is not important as esbuild does not pay attention to 'file_state'
         # and it is removed from resulting elasticsearch documents. See PRTL-2109
         urls_metadata = {
-            urls[0]: {'state': file_state}
+            urls[0]: {'state': file_state, 'type': "cleversafe"}
         }
         indexd_client.create(
             did=did,
@@ -95,7 +97,8 @@ def init_indexd(indexd_server):
             size=size,
             file_name=file_name,
             urls=urls,
-            metadata=record,
+            version=version,
+            metadata=metadata,
             urls_metadata=urls_metadata,
         )
 

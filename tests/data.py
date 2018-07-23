@@ -107,9 +107,12 @@ def patch_test_data_get_indexd(nodes):
                 'urls': urls,
                 'did': indexd_did,
                 'node_id': node.node_id,
+                'metadata': {}
             }
 
             for key in DATA_FILE_INDEXD_FIELDS:
+
+                # fields not on the node
                 key_value = getattr(node, key, None)
                 if key_value is None:
                     continue
@@ -126,6 +129,8 @@ def patch_test_data_get_indexd(nodes):
                 else:
                     raise ValueError('Can not process the value:', getattr(node, key))
 
+            indexd_record["version"] = "1"
+            indexd_record['metadata']['release_number'] = "13.0"
             indexd_data.append(indexd_record)
 
     return nodes, indexd_data

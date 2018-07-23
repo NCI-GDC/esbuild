@@ -445,12 +445,30 @@ class ESMapper(object):
         metadata_files.properties.data_type = STRING
         metadata_files.properties.data_format = STRING
         metadata_files.properties.access = STRING
+
+        # metadata version and release keys
+        metadata_files.properties.version = STRING
+        metadata_files.properties.data_release = STRING
+
         files.properties.metadata_files = metadata_files
 
         # Index files
         index_files = cls.nested('file')
         index_files.properties.data_format = STRING
+
+        # index files version and release keys
+        index_files.properties.version = STRING
+        index_files.properties.data_release = STRING
+
         files.properties.index_files = index_files
+
+        # files version and release keys
+        files.properties.version = STRING
+        files.properties.data_release = STRING
+
+        # archives version and release keys
+        files.properties.archive.properties.version = STRING
+        files.properties.archive.properties.data_release = STRING
 
         # File access
         files.properties.access = STRING
