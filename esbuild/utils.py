@@ -1,8 +1,37 @@
 import time
 import os
 import subprocess
+from math import ceil
+from itertools import islice
+from multiprocessing import Pool, cpu_count
 
 from elasticsearch import Elasticsearch
+
+
+def parallelize_function(function, input_array, n_processes):
+    """
+    Run :n_processes executing :function with arguments in :input_array
+
+    :input_array - array of arguments (will be split into :n_processes chunks)
+
+    """
+
+    def generate_groups(array, n_groups):
+        N = len(array)
+        group_size = int(ceil(float(N)/n_groups))
+        groups = []
+        for i in xrange(0, N, group_size):
+            groups.append(list(islice(array, i, i + group_size)))
+        return groups
+
+    arg_groups = generate_groups(input_array, n_processes)
+
+    pool = Pool(processes=cpu_count())
+    results = pool.map(function, arg_groups)
+    pool.close()
+    pool.join()
+
+    return results
 
 
 class ReleaseHelper:

@@ -24,6 +24,7 @@ import re
 import json
 from uuid import uuid4
 
+from esbuild.utils import parallelize_function
 from esbuild.graph.common.mappings import (
     ESMapper,
     ONE_TO_MANY,
@@ -1977,7 +1978,7 @@ class GraphIndexBuilder(object):
 
             relevant_node_ids.update([p.node_id for p in relevant_projects])
 
-            # Query only relevant edges 
+            # Query only relevant edges
             query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
 
         else:
@@ -1992,18 +1993,18 @@ class GraphIndexBuilder(object):
             for subclass in Edge.__subclasses__()
         ])
 
-    def cache_database(self):
-        """Load the database into memory and remember only edge labels that we
-        will need to distinguish later.
-
+    def cache_subgraph(self, edges):
         """
-
+        Cache subset of graph database related to :edges
+        """
+        sub_graph = nx.Graph()
         with self.g.session_scope():
-            pbar = self.pbar('Caching Database: ', self.g.edges().count())
-            # Cache graph to self.G
+            # Cache subgraph for edges
             # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
-            for e in self.iter_database_edges():
-                pbar.update(pbar.currval+1)
+            for src_id, dst_id in edges:
+                e = (self.g.edges(Edge).filter(Edge.src_id == src_id)
+                                        .filter(Edge.dst_id == dst_id)
+                                        .first())
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = (triple in self.differentiated_edges)
                 if triple == ("file", "data_from", "file"):
@@ -2011,21 +2012,34 @@ class GraphIndexBuilder(object):
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
                     for center in e.src.centers:
-                        self.G.add_edge(e.dst, center)
+                        sub_graph.add_edge(e.dst, center)
                     for aliquot in e.src.aliquots:
-                        self.G.add_edge(e.dst, aliquot)
+                        sub_graph.add_edge(e.dst, aliquot)
                 if e.label == 'relates_to' and e.__dst_class__ == 'Case':
                     pass
                 elif needs_differentiation and e._props:
-                    self.G.add_edge(
+                    sub_graph.add_edge(
                         e.src, e.dst, label=e.label, props=e._props)
                 elif needs_differentiation and not e._props:
-                    self.G.add_edge(e.src, e.dst, label=e.label)
+                    sub_graph.add_edge(e.src, e.dst, label=e.label)
                 elif e._props:
-                    self.G.add_edge(e.src, e.dst, props=e._props)
+                    sub_graph.add_edge(e.src, e.dst, props=e._props)
                 else:
-                    self.G.add_edge(e.src, e.dst)
-            pbar.finish()
+                    sub_graph.add_edge(e.src, e.dst)
+        return sub_graph
+
+    def cache_database(self):
+        """Load the database into memory and remember only edge labels that we
+        will need to distinguish later.
+
+        """
+
+        # Cache subgraphs in parallel
+        edges = [[e.src_id, e.dst_id] for e in self.iter_database_edges()]
+        subgraphs = parallelize_function(self.cache_subgraph, edges, 10)
+
+        # Combine subgraphs together and save to self.G
+        self.G = nx.compose_all(subgraphs)
 
         # Prune graph
         log.info('Cached {} nodes'.format(self.G.number_of_nodes()))

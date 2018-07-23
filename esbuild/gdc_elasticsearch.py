@@ -139,6 +139,7 @@ class GDCElasticsearch(object):
                         tags=["es_index:{}".format(self.index_name), 'stage:caching'],
                 )
                 self.converter.cache_database()
+
             self.log.info("Querying for old nodes to delete")
             to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
             to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
