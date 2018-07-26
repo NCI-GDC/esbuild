@@ -3,33 +3,57 @@ import os
 import subprocess
 from math import ceil
 from itertools import islice
-from multiprocessing import Pool, cpu_count
-
-from elasticsearch import Elasticsearch
+from multiprocessing import Process, Queue, cpu_count
 
 
-def parallelize_function(function, input_array, n_processes):
+def generate_groups(list_arg, n_groups):
     """
-    Run :n_processes executing :function with arguments in :input_array
+    Split list into n_groups
+    """
+    N = len(list_arg)
+    group_size = int(ceil(float(N)/n_groups))
+    groups = []
+    for i in xrange(0, N, group_size):
+        groups.append(list(islice(list_arg, i, i + group_size)))
+    return groups
 
-    :input_array - array of arguments (will be split into :n_processes chunks)
 
+def spawn_job(map_function, queue_in, queue_out):
+    while not queue_in.empty():
+        num, obj = queue_in.get()
+        queue_out.put((num, map_function(obj)))
+
+
+def parallel_map(map_function, input_args, n_proc=None):
+    """
+    Spawns :n_proc processes to execute :map_function with each one of :input_args
+    in parallel and collects results
     """
 
-    def generate_groups(array, n_groups):
-        N = len(array)
-        group_size = int(ceil(float(N)/n_groups))
-        groups = []
-        for i in xrange(0, N, group_size):
-            groups.append(list(islice(array, i, i + group_size)))
-        return groups
+    if n_proc is None:
+        n_proc = min(cpu_count(), 42)
 
-    arg_groups = generate_groups(input_array, n_processes)
+    q_in = Queue()
+    q_out = Queue()
 
-    pool = Pool(processes=cpu_count())
-    results = pool.map(function, arg_groups)
-    pool.close()
-    pool.join()
+    # Send inputs into input queue
+    [q_in.put((i, x)) for i, x in enumerate(input_args)]
+
+    # Start processes
+    processes = [
+        Process(target=spawn_job, args=(map_function, q_in, q_out))
+        for x in xrange(n_proc)
+    ]
+    for proc in processes:
+        proc.daemon = True
+        proc.start()
+
+    # Collect results
+    results = [q_out.get()[1] for x in xrange(len(input_args))]
+
+    # Wait for all processes to finish
+    for proc in processes:
+        proc.join()
 
     return results
 

@@ -13,7 +13,7 @@ from collections import defaultdict
 from copy import copy, deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
-from psqlgraph import Node, Edge
+from psqlgraph import Node, Edge, PsqlGraphDriver
 from sqlalchemy.orm import joinedload
 
 import itertools
@@ -21,10 +21,11 @@ import logging
 import networkx as nx
 import random
 import re
+import os
 import json
 from uuid import uuid4
 
-from esbuild.utils import parallelize_function
+from esbuild.utils import parallel_map, generate_groups
 from esbuild.graph.common.mappings import (
     ESMapper,
     ONE_TO_MANY,
@@ -37,6 +38,7 @@ from progressbar import (
     Bar,
     ETA,
 )
+
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
@@ -1934,8 +1936,10 @@ class GraphIndexBuilder(object):
         - suppressed_nodes()
         """
         log.info('Selecting entities to be removed from cache...')
-        removed_nodes = [node for node in self.G.nodes()
-                         if not self.is_node_indexed(node)]
+        removed_nodes = [
+            node for node in self.G.nodes()
+            if not self.is_node_indexed(node)
+        ]
         log.info("Removing {} nodes from cache".format(len(removed_nodes)))
         self.G.remove_nodes_from(removed_nodes)
         log.info("Finding and removing suppressed nodes")
@@ -1997,24 +2001,29 @@ class GraphIndexBuilder(object):
         """
         Cache subset of graph database related to :edges
         """
+        pg_driver = PsqlGraphDriver(
+            os.environ["PG_HOST"],
+            os.environ["PG_USER"],
+            os.environ["PG_PASS"],
+            os.environ["PG_NAME"],
+        )
         sub_graph = nx.Graph()
-        with self.g.session_scope():
+        with pg_driver.session_scope():
             # Cache subgraph for edges
             # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
             for src_id, dst_id in edges:
-                e = (self.g.edges(Edge).filter(Edge.src_id == src_id)
-                                        .filter(Edge.dst_id == dst_id)
-                                        .first())
+                e = (pg_driver.edges(Edge).filter(Edge.src_id == src_id)
+                                          .filter(Edge.dst_id == dst_id)
+                                          .first())
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = (triple in self.differentiated_edges)
                 if triple == ("file", "data_from", "file"):
                     # for files that are "data_from" other files, the
                     # centers and aliquots of the source files count
                     # as neighbors of the dst files
-                    for center in e.src.centers:
-                        sub_graph.add_edge(e.dst, center)
-                    for aliquot in e.src.aliquots:
-                        sub_graph.add_edge(e.dst, aliquot)
+                    for edge in e.src.edges_out:
+                        if edge.dst.label in ['center', 'aliquot']:
+                            sub_graph.add_edge(e.dst, edge.dst)
                 if e.label == 'relates_to' and e.__dst_class__ == 'Case':
                     pass
                 elif needs_differentiation and e._props:
@@ -2028,18 +2037,61 @@ class GraphIndexBuilder(object):
                     sub_graph.add_edge(e.src, e.dst)
         return sub_graph
 
-    def cache_database(self):
+    def cache_database_parallel(self):
         """Load the database into memory and remember only edge labels that we
         will need to distinguish later.
 
         """
-
+        # self.G = self.cache_subgraph(self.iter_database_edges())
         # Cache subgraphs in parallel
         edges = [[e.src_id, e.dst_id] for e in self.iter_database_edges()]
-        subgraphs = parallelize_function(self.cache_subgraph, edges, 10)
+
+        groups = generate_groups(edges, 10)
+        subgraphs = parallel_map(self.cache_subgraph, groups)
 
         # Combine subgraphs together and save to self.G
         self.G = nx.compose_all(subgraphs)
+
+        # Prune graph
+        log.info('Cached {} nodes'.format(self.G.number_of_nodes()))
+        self.remove_unindexed_nodes_from_graph()
+
+        # Aggressively cache relationships, nodes by type, traversals, etc.
+        self._cache_all()
+
+    def cache_database(self):
+        """Load the database into memory and remember only edge labels that we
+        will need to distinguish later.
+        """
+
+        with self.g.session_scope():
+            pbar = self.pbar('Caching Database: ', self.g.edges().count())
+            # Cache graph to self.G
+            # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
+            for e in self.iter_database_edges():
+                pbar.update(pbar.currval+1)
+                triple = (e.src.label, e.label, e.dst.label)
+                needs_differentiation = (triple in self.differentiated_edges)
+                if triple == ("file", "data_from", "file"):
+                    # for files that are "data_from" other files, the
+                    # centers and aliquots of the source files count
+                    # as neighbors of the dst files
+                    for center in e.src.centers:
+                        self.G.add_edge(e.dst, center)
+                    for aliquot in e.src.aliquots:
+                        self.G.add_edge(e.dst, aliquot)
+                if e.label == 'relates_to' and e.__dst_class__ == 'Case':
+                    pass
+                elif needs_differentiation and e._props:
+                    self.G.add_edge(
+                        e.src, e.dst, label=e.label, props=e._props)
+                elif needs_differentiation and not e._props:
+                    self.G.add_edge(e.src, e.dst, label=e.label)
+                elif e._props:
+                    self.G.add_edge(e.src, e.dst, props=e._props)
+                else:
+                    self.G.add_edge(e.src, e.dst)
+            pbar.finish()
 
         # Prune graph
         log.info('Cached {} nodes'.format(self.G.number_of_nodes()))
