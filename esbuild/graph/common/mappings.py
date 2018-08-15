@@ -12,6 +12,7 @@ from gdcdictionary import gdcdictionary
 from copy import deepcopy
 from psqlgraph import Node
 
+
 # These values specify the multiplicity of the relationship from
 # parent to child.
 ONE_TO_ONE = '__one_to_one__'

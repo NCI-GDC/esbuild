@@ -24,7 +24,8 @@ import re
 import json
 from uuid import uuid4
 
-from .mappings import (
+from esbuild.graph.common.mappings import (
+    ESMapper,
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
@@ -142,8 +143,10 @@ class GraphIndexBuilder(object):
             'creator',
         }
     }
-    # Set of properties to add to hidded_properties for all nodes
-    hidden_properties_for_all = {'batch_id', 'file_state'}
+    # Set of properties to add to hidden_properties for all nodes
+    hidden_properties_for_all = {
+        'batch_id', 'file_state',
+    }
 
     for node_type in md.Node.get_subclasses():
         hidden_properties.setdefault(node_type.label, set())
@@ -178,6 +181,7 @@ class GraphIndexBuilder(object):
         """
         self.indexd = indexd_client
         self.file_metadata = {}  # Cache of file metadata from indexd
+        self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
@@ -752,9 +756,7 @@ class GraphIndexBuilder(object):
 
     def patch_project(self, project_doc):
         # Delete some keys from project document
-        keys_to_delete = [
-           'release_requested', 'awg_review', 'is_legacy',
-        ]
+        keys_to_delete = ESMapper.project_keys_to_hide
         for key in keys_to_delete:
             project_doc.pop(key, None)
 
@@ -1653,7 +1655,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        # This function should only be for files
+        # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
 
@@ -1784,32 +1786,38 @@ class GraphIndexBuilder(object):
             elif node.state in released_states:
                 return True
 
+    def cache_skipped_node(self, node, reason):
+        """
+        Caches skipped node in self.skipped_nodes['{reason-for-skipping}']
+        """
+        self.skipped_nodes.setdefault(reason, [])
+        self.skipped_nodes[reason].append(str(node))
+
     def is_node_indexed(self, node):
         """Returns false if the node is not supposed to be indexed"""
 
         # Is the node allowed to be displayed publicly
         if not self.is_node_public(node):
-            log.info('not indexed (unreleased state: %s): %s',
-                     node, node._props.get('state'))
+            self.cache_skipped_node([node, node._props.get('state')], 'not-public')
             return False
 
         if self.is_unindexed_case(node):
-            log.info('not indexed (case not indexed): %s', node)
+            self.cache_skipped_node(node, 'unindexed-case')
             return False
 
         # Check for non-indexed files
         if not self.is_file_indexed(node):
-            log.info('not indexed (file not indexed): %s', node)
+            self.cache_skipped_node(node, 'unindexed-file')
             return False
 
         # Check for non-indexed files
         if self.is_node_unindexed_by_property(node):
-            log.info('not indexed (by property): %s', node)
+            self.cache_skipped_node(node, 'unindexed-by-property')
             return False
 
         # Check for omitted_projects
         if self.is_omitted_project_or_neighbor_case(node):
-            log.info('not indexed (omitted project): %s', node)
+            self.cache_skipped_node(node, 'omitted-project')
             return False
 
         return True
@@ -1919,6 +1927,11 @@ class GraphIndexBuilder(object):
         return to_suppress
 
     def remove_unindexed_nodes_from_graph(self):
+        """
+        Removes nodes from cached graph in self.G according to:
+        - is_node_indexed(node)
+        - suppressed_nodes()
+        """
         log.info('Selecting entities to be removed from cache...')
         removed_nodes = [node for node in self.G.nodes()
                          if not self.is_node_indexed(node)]
@@ -1987,6 +2000,8 @@ class GraphIndexBuilder(object):
 
         with self.g.session_scope():
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
+            # Cache graph to self.G
+            # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
             for e in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
                 triple = (e.src.label, e.label, e.dst.label)
