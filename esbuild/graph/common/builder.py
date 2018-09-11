@@ -158,6 +158,8 @@ class GraphIndexBuilder(object):
         # "label": [{"key1": "value1", "key2": "value2"}]
     }
 
+    INDEXD_URL_TYPE = u'cleversafe'
+
     required_attrs = [
         'mapper',
         'case_to_file_paths',
@@ -834,7 +836,9 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             if key == 'file_state':
-                value = record['urls_metadata'].get('state')
+                for s3_url in record['urls_metadata'].keys():
+                    if record['urls_metadata'][s3_url].get('type', None) == INDEXD_URL_TYPE:
+                        value = record['urls_metadata'][s3_url].get('state', None)
 
             # Special values
             if key == 'file_size':
