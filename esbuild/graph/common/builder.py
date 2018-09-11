@@ -837,7 +837,7 @@ class GraphIndexBuilder(object):
                 value = record['metadata'].get(key)
             if key == 'file_state':
                 for s3_url in record['urls_metadata'].keys():
-                    if record['urls_metadata'][s3_url].get('type', None) == INDEXD_URL_TYPE:
+                    if record['urls_metadata'][s3_url].get('type', None) == self.INDEXD_URL_TYPE:
                         value = record['urls_metadata'][s3_url].get('state', None)
 
             # Special values
