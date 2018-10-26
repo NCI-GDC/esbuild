@@ -1,11 +1,18 @@
 import requests
 import yaml
-import argparse
 import os
 
 from elasticsearch import Elasticsearch
+from psqlgraph import PsqlGraphDriver
+from gdcdatamodel import models as md
 
-from bin.base_build import esbuild_argparser as base_parser
+from parsers import (
+    Parser,
+    DepotArgs,
+    EsbuildMasterArgs,
+    EsbuildArgs,
+    BackupArgs,
+)
 from esbuild.export.s3_repository import BackupHelper
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
@@ -14,66 +21,13 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 
-def esbuild_argparser(parser=None):
-    """
-    Esbuild argument parser
-    """
-    if not parser:
-        parser = base_parser()
-
-    depot_args = parser.add_argument_group(title='Depot server arguments',
-                                           description='Depot server address '
-                                           'and queue_id to listen to')
-    depot_args.add_argument('--host',
-                            help='Depot server host')
-    depot_args.add_argument('--port',
-                            type=int,
-                            help='Depot server port')
-    depot_args.add_argument('--queue-id', type=str,
-                            help='Depot queue id. Has to be a UUID string')
-    depot_args.add_argument('--queue-status',
-                            help='Checks esbuild queue status',
-                            action='store_true',
-                            default=False)
-    depot_args.add_argument('--queue-clear',
-                            help='Clears esbuild queue', action='store_true',
-                            default=False)
-
-    es_args = parser.add_argument_group(title='Esbuild arguments',
-                                        description='Esbuild related settings')
-    es_args.add_argument('--n-workers',
-                         help='Number of workers to split esbuild between',
-                         type=int)
-    es_args.add_argument('--build-type', choices=['active', 'legacy'],
-                         help='Choose "active" or "legacy"')
-
-    es_args.add_argument('--split-by-program', action='store_true',
-                         help='If set, splits all projects into groups by program',
-                         default=False)
-    es_args.add_argument('--skip-projects', nargs='*',
-                         help='Set of projects to skip')
-
-    backup_args = parser.add_argument_group(title='Backup arguments',
-                                            description='ES index backup using repository-s3')
-    backup_args.add_argument('--restore-from-snapshot',
-                             help='Name of a snapshot to restore index from')
-    backup_args.add_argument('--store-to-snapshot',
-                             help='Name of a snapshot to store index to')
-    return parser
-
-
-def parse_args():
-    """ Parses arguments, checks for sanity """
-
-    args = esbuild_argparser(base_parser()).parse_args()
-    if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
-                args.restore_from_snapshot]):
-        if (any([args.index, args.n_workers, args.build_type]) and 
-            not all([args.index, args.n_workers, args.build_type])):
-            raise Exception('Provide esbuild arguments to delegate jobs.\n'
-                            'Run `python master.py -h` for more info')
-
-    return args
+def master_argparser():
+    return Parser.build_parser([
+        DepotArgs,
+        EsbuildMasterArgs,
+        EsbuildArgs,
+        BackupArgs,
+    ], description='Esbuild master arguments parser')
 
 
 def depot_call(action, host, port, queue_id, json=None):
@@ -89,7 +43,9 @@ def depot_call(action, host, port, queue_id, json=None):
 
 
 def split_projects(project_list, n, split_by_program=False):
-    """Splits list of projects into n parts"""
+    """
+    Splits list into n parts
+    """
 
     if n == 1:
         return [project_list]
@@ -100,15 +56,18 @@ def split_projects(project_list, n, split_by_program=False):
     if n > len(project_list):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
 
+    def get_program(project_id):
+        return project_id.split('-', 1)[0]
+
     # Split-by-program mode
     if split_by_program:
-        programs = set([p.split('-', 1)[0] for p in project_list])
+        programs = set([get_program(p) for p in project_list])
         if n != len(programs):
             raise Exception("Number of workers should equal number of programs ({})"
                             .format(len(programs)))
         result = []
         for program in programs:
-            result.append([x for x in project_list if x.split('-', 1)[0] == program])
+            result.append([x for x in project_list if get_program(x) == program])
         return result
 
     # Regular mode
@@ -129,95 +88,162 @@ def split_projects(project_list, n, split_by_program=False):
         return result
 
 
-def backup_wrapper(snapshot_name, index_name, mode):
+class BackupWrapper:
     """
-    Executes backup or restore procedure with BackupHelper
+    Wrapper around BackupHelper
+    Helps to store and restore snapshots reading creds from env variables
     """
-    es_client = Elasticsearch(
-        hosts=[os.environ["ES_HOST"]],
-        http_auth=(os.environ.get("ES_USER", ""),
-                   os.environ.get("ES_PASSWORD", "")),
-        timeout=9999,
-    )
-    backup_helper = BackupHelper(
-        es_client,
-        os.environ["S3_HOST"],
-        os.environ["S3_ACCESS_KEY"],
-        os.environ["S3_SECRET_KEY"],
-        'esbuild-backup',
-    )
 
-    if mode == 'backup':
+    def __init__(self, es_client=None):
+        self.es_client = Elasticsearch(
+            hosts=[os.environ["ES_HOST"]],
+            http_auth=(os.environ.get("ES_USER", ""),
+                       os.environ.get("ES_PASSWORD", "")),
+            timeout=9999,
+        )
+        self.backup_helper = BackupHelper(
+            self.es_client,
+            os.environ["S3_HOST"],
+            os.environ["S3_ACCESS_KEY"],
+            os.environ["S3_SECRET_KEY"],
+            'esbuild-backup',
+        )
+
+    def backup(self, snapshot_name, index_name):
         logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
-        backup_helper.store_snapshot('esbuild-snapshots',
-                                     snapshot_name, indices=[index_name],
-                                     wait_for_completion=True)
+        self.backup_helper.store_snapshot('esbuild-snapshots',
+                                          snapshot_name, indices=[index_name],
+                                          wait_for_completion=True)
         logger.info("Index {} saved".format(index_name))
-    elif mode == 'restore':
-        if index_name in es_client.indices.get_alias():
+
+    def restore(self, snapshot_name, index_name):
+        if index_name in self.es_client.indices.get_alias():
             raise Exception('Index {} already exists.'.format(index_name))
         logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
-        backup_helper.restore_from_snapshot('esbuild-snapshots',
-                                            snapshot_name, indices=[index_name],
-                                            wait_for_completion=True)
+        self.backup_helper.restore_from_snapshot(
+            'esbuild-snapshots',
+            snapshot_name, indices=[index_name],
+            wait_for_completion=True
+        )
         logger.info("Index {} restored".format(index_name))
+
+
+def get_projects(args):
+    """
+    Return list of projects to build based on arguments passed
+    """
+    if args.projects is None:
+        projects = config['{}_projects'.format(args.index_type)]
     else:
-        raise Exception('Unknown mode: {}'.format(mode))
+        projects = args.projects
+
+    # Skip some projects, if skip-projects argument is set
+    if args.skip_projects:
+        projects = [p for p in projects if p not in args.skip_projects]
+
+    return projects
+
+
+def get_index_name(args):
+    """
+    Return output index name based on arguments provided
+    Naming pattern depending on build_type == 'release' or 'test':
+    {release/NONE}-{label}-{version}-{index_type}
+
+    If build_type == 'release':
+        - :label and :release_version_number must match release node in postgres
+        - name prefix 'release-' is added
+    """
+    index_name = "{label}-{version}-{index_type}".format(
+        label=args.label.replace('-', '_'),
+        version='_'.join(map(str, args.version)),
+        index_type=args.index_type,
+    )
+    if args.build_type == 'release':
+        index_name = 'release-' + index_name
+        release, version = get_release_candidate_info()
+        if args.label != release:
+            raise Exception(
+                '--label should match release node: {}'.format(release)
+            )
+        if args.version != version:
+            raise Exception(
+                '--version should match release node: {}'.format(version)
+            )
+
+    return index_name.lower()
+
+
+def get_release_candidate_info():
+    """
+    Lookup release candidate name and version in postgres
+    """
+    postgres_driver = PsqlGraphDriver(
+        os.environ["PG_HOST"],
+        os.environ["PG_USER"],
+        os.environ["PG_PASS"],
+        os.environ["PG_NAME"],
+    )
+
+    with postgres_driver.session_scope():
+        release_node = (postgres_driver.nodes(md.DataRelease)
+                                       .props(released=False).first())
+
+    release_name = 'marvin'  # FIXME: DataRelease node should have "name" parameter
+    release_version = [release_node.major_version, release_node.minor_version]
+    return release_name, release_version
+
+
+def delegate_jobs(args):
+    """
+    Submit jobs to depot queue based on arguments provided
+    """
+    index_name = get_index_name(args)
+    logger.info("\n\n\tBuilding index {}".format(index_name))
+    args_to_print = [
+        arg for arg in args._get_kwargs() if arg[0] in EsbuildMasterArgs.args
+    ]
+    logger.info("Delegating esbuild jobs according to args:")
+    for name, value in args_to_print:
+        logger.info('{}={}'.format(name, value))
+
+    status = depot_call('status', args.host, args.port, args.queue_id)
+    if 'not found' in status.text:
+        logger.info("Creating new queue:")
+        response = depot_call('new', args.host, args.port, args.queue_id)
+        logger.info(response.text)
+
+    projects = get_projects(args)
+    project_groups = split_projects(projects, args.n_workers,
+                                    split_by_program=args.split_by_program)
+    # Delegate a job for each project group:
+    for group in project_groups:
+        esbuild_args = [
+            '--projects', '{}'.format(' '.join(group)),
+            '--index-name', index_name
+        ]
+        if args.selective_caching:
+            esbuild_args.append('--selective-caching')
+
+        job_json = {
+            'esbuild_args': esbuild_args,
+            'index_type': args.index_type,
+        }
+        depot_call('delegate', args.host, args.port, args.queue_id,
+                   json=job_json)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-
-    if args.store_to_snapshot:
-        # Backup args.index to S3 snapshot repository
-        backup_wrapper(args.store_to_snapshot, args.index, 'backup')
-    else:
+    args = master_argparser().parse_args()
+    if args.restore_from_snapshot:
         # Restore index from S3 snapshot repository
-        if args.restore_from_snapshot:
-            backup_wrapper(args.restore_from_snapshot, args.index, 'restore')
+        BackupWrapper().restore(args.restore_from_snapshot, args.index_name)
+
+    if args.queue_status:
+        status = depot_call('status', args.host, args.port, args.queue_id)
+        logger.info(status.text)
+    elif args.queue_clear:
+        logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
+    else:
         # Delegate esbuild jobs to depot queue
-        if args.host and args.port and args.queue_id:
-            # Get queue status:
-            status = depot_call('status', args.host, args.port, args.queue_id)
-            if args.queue_clear:
-                logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
-            elif args.queue_status:
-                logger.info(status.text)
-            else:
-                if not args.n_workers:
-                    raise Exception('--n-workers not provided')
-                if not args.index:
-                    raise Exception('--index not provided')
-                if not args.build_type:
-                    raise Exception('--build-type not provided')
-
-                if args.projects is None:
-                    projects = config['{}_projects'.format(args.build_type)]
-                else:
-                    projects = args.projects
-
-                # Skip some projects, if skip-projects argument is set
-                if args.skip_projects:
-                    projects = [p for p in projects if p not in args.skip_projects]
-
-                logger.info("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
-                            .format(args.build_type.upper(), args.n_workers, args.index))
-
-                if 'not found' in status.text:
-                    logger.info("Creating new queue:")
-                    logger.info(depot_call('new', args.host, args.port, args.queue_id).text)
-
-                # Delegate a job for each project group:
-                for group in split_projects(projects, args.n_workers,
-                                            split_by_program=args.split_by_program):
-                    arguments = ['--index', '{}'.format(args.index), '--no-roll',
-                                 '--projects', '{}'.format(' '.join(group))]
-
-                    if args.selective_caching:
-                        arguments.append('--selective-caching')
-                    if args.build_awg:
-                        arguments.append('--build-awg')
-
-                    job_json = {'arguments': arguments, 'build_type': args.build_type}
-                    depot_call('delegate', args.host, args.port, args.queue_id,
-                               json=job_json)
+        delegate_jobs(args)

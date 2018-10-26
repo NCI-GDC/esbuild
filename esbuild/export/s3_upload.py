@@ -55,13 +55,13 @@ def upload_to_s3(conn, bucket_name, source_path, chunk_size=52428800):
 
 
 def connect_to_s3(args):
-    def create_factory(host,port=443,timeout=10):
+    def create_factory(host, port=443, timeout=10):
         return (
             httplib.HTTPSConnection(
-                host = host,
-                port = port,
-                timeout = timeout,
-                context = ssl._create_unverified_context()
+                host=host,
+                port=port,
+                timeout=timeout,
+                context=ssl._create_unverified_context()
             )
         )
 
@@ -75,7 +75,7 @@ def connect_to_s3(args):
         aws_access_key_id=args.s3_access_key,
         aws_secret_access_key=args.s3_secret_key,
         validate_certs=False,
-        https_connection_factory = factory,
+        https_connection_factory=factory,
         calling_format=connection.OrdinaryCallingFormat(),
     )
 

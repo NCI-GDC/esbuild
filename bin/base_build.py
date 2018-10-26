@@ -1,61 +1,16 @@
-import argparse
 from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-
-
-def esbuild_argparser():
-    """
-    Returns argument parser for esbuild
-    """
-    parser = argparse.ArgumentParser(description='Parameters to control esbuild runs')
-    parser.add_argument(
-        '--no-roll', action="store_true",
-        help='If passed, do not roll the alias and delete old indices')
-    parser.add_argument(
-        '--no-cleanup', action="store_true",
-        help='If passed, do not delete old indices')
-    parser.add_argument(
-        '--delete', action="store_true",
-        help='If passed, delete the nodes in the json file passed with --json_delete')
-    parser.add_argument(
-        '--skip_es', action="store_true",
-        help='If passed, skip any actual action on es, just build json')
-    parser.add_argument(
-        '--json_delete',
-        help='File to use to delete nodes')
-    parser.add_argument(
-        '--test_delete', action='store_true',
-        help='Test the deletion (skip load & build of index)')
-    parser.add_argument(
-        '--projects', nargs='*',
-        help='If set, builds only set of projects specified (space-separated)',
-        required=False)
-    parser.add_argument(
-        '--index', help='Index name to upsert projects to. '
-        'Must set when building subset of projects')
-    parser.add_argument(
-        '--selective-caching', action='store_true',
-        help='If set, only caches nodes for projects needed. '
-        'WARNING: Will skip nodes that do not have project_id',
-        default=False)
-    parser.add_argument(
-        '--build-awg', action='store_true',
-        help='If set, will build in AWG mode. '
-        'Will pick up only projects flagged as awg_review = true and '
-        'nodes that are part of these projects and are in any of allowed states',
-        default=False)
-
-    return parser
+from parsers import Parser, EsbuildArgs
 
 
 def main(converter, indexd_args, index_base):
 
     indexd_client = IndexClient(**indexd_args)
-
-    args = esbuild_argparser().parse_args()
+    parser = Parser.build_parser([EsbuildArgs])
+    args = parser.parse_args()
 
     if args.projects:
-        if not args.index and not args.skip_es:
+        if not args.index_name and not args.skip_es:
             raise Exception('Provide --index <index_name> when using '
                             'partial build mode')
 
@@ -63,8 +18,8 @@ def main(converter, indexd_args, index_base):
         indexd_client=indexd_client,
         converter_class=converter,
         build_projects=args.projects,
-        build_awg=args.build_awg,
-        index_name=args.index,
+        build_awg=args.index_type == 'aws',
+        index_name=args.index_name,
         index_base=index_base,
         skip_es=args.skip_es,
         selective_caching=args.selective_caching,
