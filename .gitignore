@@ -72,3 +72,6 @@ package.json
 
 # vim
 *.swp
+
+# DB
+*.sq3
