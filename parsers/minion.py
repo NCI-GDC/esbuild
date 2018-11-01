@@ -1,7 +1,7 @@
 from base import BaseArgs
 
 
-class EsbuildMinionArgs(BaseArgs):
+class MinionArgs(BaseArgs):
     args = {
         'do_not_wait_for_completion',
     }
