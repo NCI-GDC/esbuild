@@ -1,10 +1,10 @@
 from base import BaseArgs
 
 
-class EsbuildMasterArgs(BaseArgs):
+class MasterArgs(BaseArgs):
     args = {
         'build_type',
-        'index_type', #master, esbuild
+        'index_type',
         'label',
         'version',
         'n_workers',
@@ -24,7 +24,7 @@ class EsbuildMasterArgs(BaseArgs):
         )
         es_args.add_argument(
             '--index-type', help='Type of index to build',
-            choices=['active', 'legacy', 'aws'],  # TODO: implement 'aws' to read from here instead of --build-aws
+            choices=['active', 'legacy', 'awg'],
             required=True,
         )
         es_args.add_argument(

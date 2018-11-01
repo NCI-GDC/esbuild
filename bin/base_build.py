@@ -1,12 +1,16 @@
 from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from parsers import Parser, EsbuildArgs
+from parsers import (
+    Parser,
+    EsbuildUserArgs,
+    EsbuildPrivateArgs,
+)
 
 
 def main(converter, indexd_args, index_base):
 
     indexd_client = IndexClient(**indexd_args)
-    parser = Parser.build_parser([EsbuildArgs])
+    parser = Parser.build_parser([EsbuildUserArgs, EsbuildPrivateArgs])
     args = parser.parse_args()
 
     if args.projects:
@@ -18,7 +22,7 @@ def main(converter, indexd_args, index_base):
         indexd_client=indexd_client,
         converter_class=converter,
         build_projects=args.projects,
-        build_awg=args.index_type == 'aws',
+        build_awg=args.build_awg,
         index_name=args.index_name,
         index_base=index_base,
         skip_es=args.skip_es,
