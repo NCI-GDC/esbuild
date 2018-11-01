@@ -1,5 +1,6 @@
 import yaml
 import os
+from datadog import statsd
 
 from parsers import (
     Parser,
@@ -97,7 +98,6 @@ def delegate_jobs(args):
 
     index_name = get_index_name(args)
     project_groups = get_project_groups(args)
-
     logger.info("\n\n\tDelegating {} jobs to build {}:"
                 .format(args.n_workers, index_name))
     for i, group in enumerate(project_groups):
@@ -117,6 +117,13 @@ def delegate_jobs(args):
         }
         depot_call('delegate', args.host, args.port, args.queue_id,
                    json=job_json)
+        statsd.event(
+            "Job delegated",
+            "queue: {}\n job: {}".format(args.queue_id, job_json),
+            source_type_name="esbuild-master",
+            alert_type="info",
+            tags=["es_index:{}".format(index_name), 'master'],
+        )
 
 
 if __name__ == "__main__":
