@@ -2,6 +2,9 @@ from base import BaseArgs
 
 
 class BackupArgs(BaseArgs):
+    """
+    Backup arguments
+    """
     args = {
         'restore_from_snapshot',
         'store_to_snapshot',

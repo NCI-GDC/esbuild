@@ -2,9 +2,12 @@ from base import BaseArgs
 
 
 class DepotArgs(BaseArgs):
+    """
+    Arguments to interact with Depot queue service
+    """
     args = {
-        'host',
-        'port',
+        'depot_host',
+        'depot_port',
         'queue_id',
         'queue_status',
         'queue_clear',
@@ -16,11 +19,11 @@ class DepotArgs(BaseArgs):
             description='Arguments related to Depot job queue service'
         )
         depot_args.add_argument(
-            '--host', help='Depot server host',
+            '--depot-host', help='Depot server host',
             required=True,
         )
         depot_args.add_argument(
-            '--port', type=int, help='Depot server port',
+            '--depot-port', type=int, help='Depot server port',
             required=True,
         )
         depot_args.add_argument(

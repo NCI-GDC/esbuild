@@ -10,7 +10,7 @@ from parsers import (
 def main(converter, indexd_args, index_base):
 
     indexd_client = IndexClient(**indexd_args)
-    parser = Parser.build_parser([EsbuildUserArgs, EsbuildPrivateArgs])
+    parser = Parser.build([EsbuildUserArgs, EsbuildPrivateArgs])
     args = parser.parse_args()
 
     if args.projects:

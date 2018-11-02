@@ -3,7 +3,7 @@ from base import BaseArgs
 
 class EsbuildPrivateArgs(BaseArgs):
     """
-    Esbuild arguments that are forbidden to provide by the master.py user
+    Esbuild arguments that are forbidden to provide by the master controller user
     """
     args = {
         'index_name',
@@ -30,6 +30,9 @@ class EsbuildPrivateArgs(BaseArgs):
 
 
 class EsbuildUserArgs(BaseArgs):
+    """
+    Esbuild arguments that are provided by the master controller user
+    """
     args = {
         'projects',
         'no_roll',

@@ -14,8 +14,8 @@ from wrapper_utils import (
     depot_call,
     split_projects,
     get_release_candidate_info,
-    BackupWrapper,
 )
+from esbuild.export.s3_repository import BackupWrapper
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
 
@@ -31,7 +31,7 @@ ALL_PARSERS = [
 
 
 def master_argparser():
-    return Parser.build_parser(
+    return Parser.build(
         ALL_PARSERS,
         description='Esbuild master arguments parser',
     )
@@ -90,10 +90,10 @@ def delegate_jobs(args):
     """
     Submit jobs to depot queue based on arguments provided
     """
-    status = depot_call('status', args.host, args.port, args.queue_id)
+    status = depot_call('status', args)
     if 'not found' in status.text:
         logger.info("Creating new queue:")
-        response = depot_call('new', args.host, args.port, args.queue_id)
+        response = depot_call('new', args)
         logger.info(response.text)
 
     index_name = get_index_name(args)
@@ -115,8 +115,7 @@ def delegate_jobs(args):
             'esbuild_args': esbuild_args,
             'index_type': args.index_type,
         }
-        depot_call('delegate', args.host, args.port, args.queue_id,
-                   json=job_json)
+        depot_call('delegate', args, json=job_json)
         statsd.event(
             "Job delegated",
             "queue: {}\n job: {}".format(args.queue_id, job_json),
@@ -127,8 +126,7 @@ def delegate_jobs(args):
 
 
 if __name__ == "__main__":
-    parser = master_argparser()
-    args = parser.parse_args()
+    args = master_argparser().parse_args()
     log_args(args, ALL_PARSERS, logger)
 
     if args.restore_from_snapshot:
@@ -136,10 +134,10 @@ if __name__ == "__main__":
         BackupWrapper(logger).restore(args.restore_from_snapshot, args.index_name)
 
     if args.queue_status:
-        status = depot_call('status', args.host, args.port, args.queue_id)
+        status = depot_call('status', args)
         logger.info(status.text)
     elif args.queue_clear:
-        logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
+        logger.info(depot_call('clear', args).text)
     else:
         # Delegate esbuild jobs to depot queue
         delegate_jobs(args)
