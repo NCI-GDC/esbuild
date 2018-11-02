@@ -2,6 +2,9 @@ from base import BaseArgs
 
 
 class MasterArgs(BaseArgs):
+    """
+    Arguments for esbuild build master controller
+    """
     args = {
         'build_type',
         'index_type',

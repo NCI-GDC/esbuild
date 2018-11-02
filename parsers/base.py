@@ -2,9 +2,15 @@ import argparse
 
 
 class Parser:
+    """
+    Used to build composite parsers from argument group classes
+    """
 
     @staticmethod
-    def build_parser(parsers, description=None):
+    def build(parsers, description=None):
+        """
+        Assembles a parser using list of {ArgGroup}Args classes
+        """
         parser = argparse.ArgumentParser(description=description)
         for p in parsers:
             parser = p().add_args(parser)
@@ -12,8 +18,15 @@ class Parser:
 
 
 class BaseArgs:
+    """
+    This class is used to enforce child classes to have their .add_args() method
+    consistent with .args property.
+    """
 
     def __init__(self):
+        """
+        If .add_args() and .args are inconsistent with each other throws an error
+        """
         self.parser = self.add_args(argparse.ArgumentParser())
         self.validate(self.parser)
 

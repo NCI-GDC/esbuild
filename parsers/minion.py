@@ -2,6 +2,9 @@ from base import BaseArgs
 
 
 class MinionArgs(BaseArgs):
+    """
+    Arguments for esbuild build minion controller
+    """
     args = {
         'do_not_wait_for_completion',
     }

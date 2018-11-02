@@ -5,15 +5,15 @@ from elasticsearch import Elasticsearch
 from psqlgraph import PsqlGraphDriver
 from gdcdatamodel import models as md
 
-from esbuild.export.s3_repository import BackupHelper
 
-
-def depot_call(action, host, port, queue_id, json=None):
+def depot_call(action, args, json=None):
     """
     Calls depot api
     """
 
-    url = 'http://{}:{}/v0/{}/{}'.format(host, port, action, queue_id)
+    url = 'http://{}:{}/v0/{}/{}'.format(
+        args.depot_host, args.depot_port, action, args.queue_id
+    )
 
     method = 'put'
     if action == 'status':
@@ -53,47 +53,6 @@ def get_release_candidate_info():
     release_name = 'marvin'  # FIXME: add "name" parameter to DataRelease PG node
     release_version = [release_node.major_version, release_node.minor_version]
     return release_name, release_version
-
-
-class BackupWrapper:
-    """
-    Wrapper around BackupHelper
-    Helps to store and restore snapshots reading creds from env variables
-    """
-
-    def __init__(self, logger, es_client=None):
-        self.logger = logger
-        self.es_client = Elasticsearch(
-            hosts=[os.environ["ES_HOST"]],
-            http_auth=(os.environ.get("ES_USER", ""),
-                       os.environ.get("ES_PASSWORD", "")),
-            timeout=9999,
-        )
-        self.backup_helper = BackupHelper(
-            self.es_client,
-            os.environ["S3_HOST"],
-            os.environ["S3_ACCESS_KEY"],
-            os.environ["S3_SECRET_KEY"],
-            'esbuild-backup',
-        )
-
-    def backup(self, snapshot_name, index_name):
-        self.logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
-        self.backup_helper.store_snapshot('esbuild-snapshots',
-                                          snapshot_name, indices=[index_name],
-                                          wait_for_completion=True)
-        self.logger.info("Index {} saved".format(index_name))
-
-    def restore(self, snapshot_name, index_name):
-        if index_name in self.es_client.indices.get_alias():
-            raise Exception('Index {} already exists.'.format(index_name))
-        self.logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
-        self.backup_helper.restore_from_snapshot(
-            'esbuild-snapshots',
-            snapshot_name, indices=[index_name],
-            wait_for_completion=True,
-        )
-        self.logger.info("Index {} restored".format(index_name))
 
 
 def split_projects(project_list, n, split_by_program=False):
