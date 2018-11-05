@@ -27,27 +27,27 @@ class MasterArgs(BaseArgs):
         )
         es_args.add_argument(
             '--index-type', help='Type of index to build',
-            choices=['active', 'legacy', 'awg'],
+            choices=['active', 'legacy', 'awg', 'test'],
             required=True,
         )
         es_args.add_argument(
             '--build-type', help='Indicates if the build meant for the release. '
             'If release, other arguments\' values are restricted',
-            choices=['release', 'test'],
+            choices=['release', 'develop'],
             required=True,
         )
         es_args.add_argument(
-            '--label', help='Label for the index. '
-            'Must match the name in the release node if build-type=="release"',
-            required=True,
+            '--label', help='Label for the index (will be automatically assigned to the value in '
+            'DataRelease node for release candidate if --build-type == "release")',
+            default='esbuild',
         )
         es_args.add_argument(
             '--version',
-            help='Version number (e.g. "13 4" for release or "2" for test). '
-            'Must match release version in the release node if build-type=="release"',
-            nargs='*',
+            help='Version number (will be automatically assigned to the value in '
+            'DataRelease node for release candidate if --build-type == "release")',
+            nargs=1,
             type=int,
-            required=True,
+            default=[0],
         )
         es_args.add_argument('--split-by-program', action='store_true',
                              help='If set, splits all projects into groups by program',

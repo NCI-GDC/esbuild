@@ -12,6 +12,7 @@ from parsers import (
 from wrapper_utils import (
     log_args,
     depot_call,
+    user_confirm,
     split_projects,
     get_release_candidate_info,
 )
@@ -63,25 +64,25 @@ def get_index_name(args):
     {release/NONE}-{label}-{version}-{index_type}
 
     If build_type == 'release':
-        - :label and :release_version_number must match release node in postgres
+        - :label and :release_version_number will be overwritten by values on release node in postgres
         - name prefix 'release-' is added
     """
-    index_name = "{label}-{version}-{index_type}".format(
-        label=args.label.replace('-', '_'),
-        version='_'.join(map(str, args.version)),
-        index_type=args.index_type,
-    )
+    prefix = ''
+    label = args.label.replace('-', '_')
+    version = args.version
+    index_type = args.index_type
+
+    # If release build, overwrite label and version to ones on DataRelease node
+    # and add release- prefix
     if args.build_type == 'release':
-        index_name = 'release-' + index_name
-        release, version = get_release_candidate_info()
-        if args.label != release:
-            raise Exception(
-                '--label should match release node: {}'.format(release)
-            )
-        if args.version != version:
-            raise Exception(
-                '--version should match release node: {}'.format(version)
-            )
+        prefix = 'release'
+        label, version = get_release_candidate_info()
+
+    version = '_'.join(map(str, version))
+
+    index_name = "-".join([label, version, index_type])
+    if prefix:
+        index_name = '-'.join([prefix, index_name])
 
     return index_name.lower()
 
@@ -100,6 +101,7 @@ def delegate_jobs(args):
     project_groups = get_project_groups(args)
     logger.info("\n\n\tDelegating {} jobs to build {}:"
                 .format(args.n_workers, index_name))
+    user_confirm('Building {}, are you sure? (y/n):'.format(index_name), logger)
     for i, group in enumerate(project_groups):
         logger.info("Project group #{}:\n{}".format(i + 1, group))
         esbuild_args = [

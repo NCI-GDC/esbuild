@@ -35,6 +35,21 @@ def log_args(args, parsers, logger):
             logger.info('{}={}'.format(name, value))
 
 
+def user_confirm(prompt_string, logger):
+    """
+    Prompt user confirmation to proceed
+    """
+    while True:
+        logger.info(prompt_string)
+        ans = raw_input().lower()
+        if ans in ['y', 'yes']:
+            return
+        elif ans in ['n', 'no']:
+            raise Exception('User refused to continue')
+        else:
+            logger.error('Invalid answer: {}'.format(ans))
+
+
 def get_release_candidate_info():
     """
     Lookup release candidate name and version in postgres
