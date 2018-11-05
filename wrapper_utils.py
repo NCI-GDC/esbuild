@@ -65,7 +65,7 @@ def get_release_candidate_info():
         release_node = (postgres_driver.nodes(md.DataRelease)
                                        .props(released=False).first())
 
-    release_name = 'marvin'  # FIXME: add "name" parameter to DataRelease PG node
+    release_name = release_node.name
     release_version = [release_node.major_version, release_node.minor_version]
     return release_name, release_version
 
