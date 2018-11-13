@@ -169,7 +169,7 @@ def test_awg_build(init_indexd):
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
+        'case': {get_node_id('submitted-awg-case')},
         'project': {get_node_id('awg-one-project')},
         'program': {get_node_id('internal-program'), get_node_id('program-tcga')}  # Why esbuild picks up all programs?
     }
