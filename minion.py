@@ -90,7 +90,6 @@ if __name__ == "__main__":
                                                args.queue_id,
                                                TIMEDELTA))
         thread_info['status'] = "running"
-        thread_count = thread_count + 1
         threads.append(thread_info)
         thread_info['process'].start()
 
