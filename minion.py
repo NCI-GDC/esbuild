@@ -33,7 +33,8 @@ def minion_argparser():
                         required=True)
     parser.add_argument('--num_threads',
                         help='How many threads minion will run to process depot entries',
-                        default=4)
+                        default=4,
+                        type=int)
     return parser
 
 
