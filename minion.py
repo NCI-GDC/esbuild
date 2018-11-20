@@ -88,7 +88,7 @@ if __name__ == "__main__":
                                                args.host,
                                                args.port,
                                                args.queue_id,
-                                               TIMEDELTA)
+                                               TIMEDELTA))
         thread_info['status'] = "running"
         thread_count = thread_count + 1
         threads.append(thread_info)
