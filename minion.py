@@ -78,7 +78,7 @@ if __name__ == "__main__":
     threads = []
 
     # create processes
-    for i in range(0, num_threads):
+    for i in range(0, args.num_threads):
         logger.info("Creating thread {}".format(i))
         thread_info = {}
 
