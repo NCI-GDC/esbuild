@@ -41,7 +41,8 @@ def process_work(worker_id,
                  depot_host,
                  depot_port,
                  depot_queue_id,
-                 sleep_time)
+                 sleep_time):
+
     running = True
     found_work = False
     logger = get_logger('esbuild_minion_{}'.format(worker_id))
