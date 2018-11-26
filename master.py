@@ -10,7 +10,6 @@ from parsers import (
     BackupArgs,
 )
 from wrapper_utils import (
-    log_args,
     depot_call,
     user_confirm,
     split_projects,
@@ -129,7 +128,7 @@ def delegate_jobs(args):
 
 if __name__ == "__main__":
     args = master_argparser().parse_args()
-    log_args(args, ALL_PARSERS, logger)
+    Parser.log_args(args, ALL_PARSERS, logger)
 
     if args.restore_from_snapshot:
         # Restore index from S3 snapshot repository

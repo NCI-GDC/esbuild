@@ -1,18 +1,19 @@
-from base import BaseArgs
+from base import Parser
 
 
-class MinionArgs(BaseArgs):
+class MinionArgs(Parser):
     """
     Arguments for esbuild build minion controller
     """
-    args = {
-        'do_not_wait_for_completion',
-    }
+    group = dict(
+        title='Esbuild minion arguments',
+        description='Settings related to esbuild minion',
+    )
 
-    def add_args(self, parser):
-        parser.add_argument(
-            '--do-not-wait-for-completion', action='store_true',
+    arguments = {
+        'do-not-wait-for-completion': dict(
             help='If set, will not wait for esbuild completion. '
-            'Will result in all jobs in the queue being run on the machine'
-        )
-        return parser
+            'Will result in all jobs in the queue being run on the machine',
+            action='store_true',
+        ),
+    }

@@ -1,59 +1,46 @@
 import argparse
 
 
-class Parser:
+class Parser(object):
     """
     Used to build composite parsers from argument group classes
     """
+
+    def __init__(self):
+        """
+        Builds parser for self only when initialized
+        """
+        return self.build([self])
 
     @staticmethod
     def build(parsers, description=None):
         """
         Assembles a parser using list of {ArgGroup}Args classes
+        All of the classes supposed to have 'arguments' and 'group' parameters
+        defined
         """
-        parser = argparse.ArgumentParser(description=description)
+        parser = argparse.ArgumentParser(
+            description=description,
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
         for p in parsers:
-            parser = p().add_args(parser)
+            group = parser.add_argument_group(**p.group)
+            for name, kwargs in p.arguments.items():
+                group.add_argument('--{}'.format(name), **kwargs)
         return parser
 
-
-class BaseArgs:
-    """
-    This class is used to enforce child classes to have their .add_args() method
-    consistent with .args property.
-    """
-
-    def __init__(self):
+    @staticmethod
+    def log_args(args, parsers, logger):
         """
-        If .add_args() and .args are inconsistent with each other throws an error
+        Logs arguments and values provided by user
         """
-        self.parser = self.add_args(argparse.ArgumentParser())
-        self.validate(self.parser)
-
-    def add_args(self, parser):
-        raise Exception("Not implemented")
-
-    def validate(self, parser):
-        """
-        Validates that all and only self.args are defined in self.add_args()
-        """
-        expected_args = {
-            arg.replace('--', '').replace('-', '_')
-            for arg in parser._option_string_actions
-            if arg not in ['-h', '--help']
-        }
-
-        if not self.args == expected_args:
-            extra_items = self.args - expected_args
-            missing_items = expected_args - self.args
-
-            info = '\n'
-            if missing_items:
-                info += 'Missing items: {}\n'.format(missing_items)
-            if extra_items:
-                info += 'Extra items: {}\n'.format(extra_items)
-
-            raise Exception(
-                '{}: self.args and self.add_args are inconsistent with each other: {}'
-                .format(self.__class__, info)
-            )
+        for parser in parsers:
+            args_to_print = [
+                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in parser.arguments
+            ]
+            logger.info("\t{}:".format(parser.__name__))
+            for name, value in args_to_print:
+                if any([k in name.lower() for k in ['pass', 'key', 'secret']]):
+                    logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
+                else:
+                    logger.info('{}={}'.format(name, value))
