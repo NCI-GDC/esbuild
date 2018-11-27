@@ -1265,6 +1265,9 @@ class GraphIndexBuilder(object):
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
 
+        log.info('Got {} total files from {} cases'.format(
+            len(files), len(case_files)))
+        
         # filter files
         files = {
             f for f in files
