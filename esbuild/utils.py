@@ -28,6 +28,10 @@ class ReleaseHelper:
         if index_name not in self.es.indices.get_alias():
             return
 
+        # If index does exist, but it's empty, do nothing
+        if len(self.get_project_ids(index_name)) == 0:
+            return
+
         # Remove data associated with projects that are to be build from index
         self.delete_docs_from_index(index_name, projects_to_build)
 
@@ -119,6 +123,7 @@ class ReleaseHelper:
                           'counts': counts}
         self.es.delete_by_query(index=index_name,
                                 doc_type='build_metadata', body={})
+
         self.es.create(index=index_name, id=','.join(projects_after),
                        doc_type='build_metadata', body=metadata_after)
         self.wait_for_es(index_name, 'build_metadata')
