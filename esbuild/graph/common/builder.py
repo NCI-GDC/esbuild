@@ -463,9 +463,11 @@ class GraphIndexBuilder(object):
         if path:
             for neighbor in self.neighbors_labeled(node, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
+                    log.info('neighbor: {}'.format(neighbor))
                     yield neighbor
 
                 for n in self.walk_path(neighbor, path[1:], whole):
+                    log.info('n: {}'.format(n))
                     yield n
 
     def walk_paths(self, node, paths, whole=False):
