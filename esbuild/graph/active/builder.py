@@ -175,9 +175,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     aliquot_to_copy_number_paths = [
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
-         'copy_number_segment',
-         'copy_number_variation_workflow',
-         'copy_number_estimate'],
+         'copy_number_segment'],
+         #'copy_number_variation_workflow',
+         #'copy_number_estimate'],
     ]
 
     aliquot_to_methylation_value_paths = [

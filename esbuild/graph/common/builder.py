@@ -482,6 +482,7 @@ class GraphIndexBuilder(object):
         }
 
     def remove_bam_index_files(self, files):
+        log.info('removing index files from list of {}'.format(len(files)))
         return {
             f for f in files
             if not self.is_index_file(f)
@@ -1264,8 +1265,6 @@ class GraphIndexBuilder(object):
             case_files[case] = self.remove_bam_index_files(
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
-            temp_case_files = self.get_case_files(case)
-            log.info('regular walk: {}, get_case_files: {}'.format(len(files), len(temp_case_files)))
 
         log.info('Got {} total files from {} cases'.format(
             len(files), len(case_files)))
@@ -1770,7 +1769,7 @@ class GraphIndexBuilder(object):
 
         # AWG mode
         if self.build_awg:
-            awg_states = {'live', 'submitted', 'processed'}
+            awg_states = {'live', 'submitted', 'processed', 'released'}
 
             if node.label == 'project':
                 return node.awg_review is True
