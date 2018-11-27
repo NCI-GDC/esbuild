@@ -461,13 +461,13 @@ class GraphIndexBuilder(object):
         """
 
         if path:
+            log.info('walk_path: node - {}, path - {}, whole - {}'.format(
+                node, path, whole))
             for neighbor in self.neighbors_labeled(node, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
-                    log.info('neighbor: {}'.format(neighbor))
                     yield neighbor
 
                 for n in self.walk_path(neighbor, path[1:], whole):
-                    log.info('n: {}'.format(n))
                     yield n
 
     def walk_paths(self, node, paths, whole=False):
@@ -1266,6 +1266,8 @@ class GraphIndexBuilder(object):
             case_files[case] = self.remove_bam_index_files(
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
+            temp_case_files = self.get_case_files(case)
+            log.info('regular walk: {}, get_case_files: {}'.format(len(files), len(temp_case_files)))
 
         log.info('Got {} total files from {} cases'.format(
             len(files), len(case_files)))
