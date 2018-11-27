@@ -461,8 +461,6 @@ class GraphIndexBuilder(object):
         """
 
         if path:
-            log.info('walk_path: node - {}, path - {}, whole - {}'.format(
-                node, path, whole))
             for neighbor in self.neighbors_labeled(node, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
                     yield neighbor
