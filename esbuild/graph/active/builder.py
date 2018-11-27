@@ -172,12 +172,30 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         )
     )
 
-    aliquot_to_copy_number_paths = [
+    # Even more fun
+    # It seems that the walk will walk differently
+    # somehow. In some cases, it will walk to the
+    # end of a path, but in others, it will stop or
+    # ignore parents. The reason the following two are
+    # overlapping is because it looks like extending
+    # the path caused it to skip copy_number_segment
+    # when walking to copy_number_estimate. We still
+    # need to get to the bottom of how this logic
+    # should be used.
+    # - joe sislow (11/27/2018)
+
+    aliquot_to_copy_number_segment_paths = [
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
          'copy_number_segment'],
-         #'copy_number_variation_workflow',
-         #'copy_number_estimate'],
+    ]
+    
+    aliquot_to_copy_number_estimate_paths = [
+        ['submitted_tangent_copy_number',
+         'copy_number_liftover_workflow',
+         'copy_number_segment',
+         'copy_number_variation_workflow',
+         'copy_number_estimate'],
     ]
 
     aliquot_to_methylation_value_paths = [
@@ -209,7 +227,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         case_to_aliquot, aliquot_to_methylation_value_paths)
 
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-    case_to_file_paths += case_to_copy_number_paths
+    case_to_file_paths += case_to_copy_number_segment_paths
+    case_to_file_paths += case_to_copy_number_estimate_paths
     case_to_file_paths += case_to_methylation_value_paths
     case_to_file_paths += case_to_slide_image_path
 
