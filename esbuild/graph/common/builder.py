@@ -482,7 +482,6 @@ class GraphIndexBuilder(object):
         }
 
     def remove_bam_index_files(self, files):
-        log.info('removing index files from list of {}'.format(len(files)))
         return {
             f for f in files
             if not self.is_index_file(f)
