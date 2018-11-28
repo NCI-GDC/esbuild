@@ -521,7 +521,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Copy number paths
         cnv_paths = [
             reverse_and_skip_first_entry(path) for path in
-            list_product([['aliquot']], self.aliquot_to_copy_number_paths)
+            list_product([['aliquot']], self.aliquot_to_copy_number_segment_paths)
+        ]
+        
+        # GISTIC paths
+        gistic_paths = [
+            reverse_and_skip_first_entry(path) for path in
+            list_product([['aliquot']], self.aliquot_to_copy_number_estimate_paths)
         ]
 
         # Methylation paths
@@ -533,6 +539,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Special case paths to be traversed to possible associated entities
         custom_paths = (
             cnv_paths
+            + gistic_paths
             + methylation_paths
         )
 
