@@ -6,7 +6,7 @@ import subprocess
 from datadog import statsd
 
 from parsers import (
-    Parser,
+    ParserBuilder,
     DepotArgs,
     EsbuildUserArgs,
     EsbuildPrivateArgs,
@@ -25,7 +25,7 @@ def minion_argparser():
     """
     Returns arguments parser for esbuild minion
     """
-    return Parser.build([
+    return ParserBuilder.build([
         DepotArgs,
         MinionArgs,
         EsbuildUserArgs,
@@ -62,7 +62,7 @@ def get_job(args):
     )
 
     # Make sure that arguments are valid:
-    esbuild_parser = Parser.build([EsbuildUserArgs, EsbuildPrivateArgs])
+    esbuild_parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
     esbuild_parser.parse_args(esbuild_args)
     return job
 

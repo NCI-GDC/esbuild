@@ -1,7 +1,7 @@
-from base import Parser
+from base import BaseParser
 
 
-class BackupArgs(Parser):
+class BackupArgs(BaseParser):
     """
     Backup arguments
     """

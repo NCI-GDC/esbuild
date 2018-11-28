@@ -1,7 +1,7 @@
-from base import Parser
+from base import BaseParser
 
 
-class DepotArgs(Parser):
+class DepotArgs(BaseParser):
     """
     Arguments to interact with Depot queue service
     """

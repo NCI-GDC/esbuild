@@ -3,7 +3,7 @@ import os
 from datadog import statsd
 
 from parsers import (
-    Parser,
+    ParserBuilder,
     DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
@@ -31,7 +31,7 @@ ALL_PARSERS = [
 
 
 def master_argparser():
-    return Parser.build(
+    return ParserBuilder.build(
         ALL_PARSERS,
         description='Esbuild master arguments parser',
     )
@@ -128,7 +128,7 @@ def delegate_jobs(args):
 
 if __name__ == "__main__":
     args = master_argparser().parse_args()
-    Parser.log_args(args, ALL_PARSERS, logger)
+    ParserBuilder.log_args(args, ALL_PARSERS, logger)
 
     if args.restore_from_snapshot:
         # Restore index from S3 snapshot repository

@@ -1,7 +1,7 @@
-from base import Parser
+from base import BaseParser
 
 
-class MinionArgs(Parser):
+class MinionArgs(BaseParser):
     """
     Arguments for esbuild build minion controller
     """

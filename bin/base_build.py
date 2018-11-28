@@ -1,7 +1,7 @@
 from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from parsers import (
-    Parser,
+    ParserBuilder,
     EsbuildUserArgs,
     EsbuildPrivateArgs,
 )
@@ -10,7 +10,7 @@ from parsers import (
 def main(converter, indexd_args, index_base):
 
     indexd_client = IndexClient(**indexd_args)
-    parser = Parser.build([EsbuildUserArgs, EsbuildPrivateArgs])
+    parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
     args = parser.parse_args()
 
     if args.projects:
