@@ -220,8 +220,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['clinical_supplement'],
     ]
 
-    case_to_copy_number_paths = list_product(
-        case_to_aliquot, aliquot_to_copy_number_paths)
+    case_to_copy_number_segment_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_segment_paths)
+    
+    case_to_copy_number_estimate_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_estimate_paths)
 
     case_to_methylation_value_paths = list_product(
         case_to_aliquot, aliquot_to_methylation_value_paths)
