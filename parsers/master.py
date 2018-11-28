@@ -1,7 +1,7 @@
-from base import Parser
+from base import BaseParser
 
 
-class MasterArgs(Parser):
+class MasterArgs(BaseParser):
     """
     Arguments for esbuild build master controller
     """

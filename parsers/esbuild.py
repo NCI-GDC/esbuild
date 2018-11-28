@@ -1,7 +1,7 @@
-from base import Parser
+from base import BaseParser
 
 
-class EsbuildPrivateArgs(Parser):
+class EsbuildPrivateArgs(BaseParser):
     """
     Esbuild arguments that are forbidden to provide by the master controller user
     """
@@ -25,7 +25,7 @@ class EsbuildPrivateArgs(Parser):
     }
 
 
-class EsbuildUserArgs(Parser):
+class EsbuildUserArgs(BaseParser):
     """
     Esbuild arguments that are provided by the master controller user
     """
