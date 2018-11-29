@@ -56,7 +56,7 @@ def process_work(worker_id,
         except Exception as err:
             logger.error("Invalid job: {}\nError: {}".format(work, err))
         else:
-            if work.get('status') == 'No work found':
+            if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
                 if found_work:
                     running = False
             else:
