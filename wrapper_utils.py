@@ -22,26 +22,13 @@ def depot_call(action, args, json=None):
     return getattr(requests, method)(url, json=json)
 
 
-def log_args(args, parsers, logger):
-    """
-    Logs arguments and values provided by user
-    """
-    for parser in parsers:
-        args_to_print = [
-            arg for arg in args._get_kwargs() if arg[0] in parser.args
-        ]
-        logger.info("\t{}:".format(parser.__name__))
-        for name, value in args_to_print:
-            logger.info('{}={}'.format(name, value))
-
-
 def user_confirm(prompt_string, logger):
     """
     Prompt user confirmation to proceed
     """
     while True:
         logger.info(prompt_string)
-        ans = raw_input().lower()
+        ans = input().lower()
         if ans in ['y', 'yes']:
             return
         elif ans in ['n', 'no']:
