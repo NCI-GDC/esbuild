@@ -76,7 +76,6 @@ The index is uploaded to elasticsearch in the following steps:
 0. Create a new index in naming scheme
 0. Upload each doc type to index
 0. On success, update the alias to point to new index
-0. Cleanup/close old indexes
 
 ## Builders and Mappers
 

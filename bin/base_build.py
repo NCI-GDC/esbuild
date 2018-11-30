@@ -7,7 +7,7 @@ from parsers import (
 )
 
 
-def main(converter, indexd_args, index_base):
+def main(converter, indexd_args, index_alias):
 
     indexd_client = IndexClient(**indexd_args)
     parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
@@ -24,7 +24,7 @@ def main(converter, indexd_args, index_base):
         build_projects=args.projects,
         build_awg=args.build_awg,
         index_name=args.index_name,
-        index_base=index_base,
+        index_alias=index_alias,
         skip_es=args.skip_es,
         selective_caching=args.selective_caching,
     )
@@ -45,5 +45,4 @@ def main(converter, indexd_args, index_base):
     else:
         gdc_es.go(roll_alias=not args.no_roll,
                   delete_nodes=args.delete,
-                  cleanup_indices=not args.no_cleanup,
                   skip_build=args.test_delete)

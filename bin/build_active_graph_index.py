@@ -10,4 +10,4 @@ if __name__ == "__main__":
     indexd_args = {'baseurl': os.environ.get('INDEXD_HOST'),
                    'auth': (os.environ.get('INDEXD_USER'),
                             os.environ.get('INDEXD_PASS'))}
-    main(ActiveGraphIndexBuilder, indexd_args, index_base='gdc_from_graph')
+    main(ActiveGraphIndexBuilder, indexd_args, index_alias='gdc_from_graph')

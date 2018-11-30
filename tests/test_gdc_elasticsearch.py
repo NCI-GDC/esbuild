@@ -61,7 +61,8 @@ def make_gdc_es(indexd_client, converter):
     return GDCElasticsearch(
         converter_class=converter,
         indexd_client=indexd_client,
-        index_base="gdc_es_test",
+        index_alias="gdc_es_test",
+        index_name="test_{}".format(converter.__name__.lower()),
     )
 
 

@@ -185,14 +185,20 @@ class ESMapper(object):
     # Denormalization configuration options
 
     @staticmethod
-    def index_settings():
-        return {
+    def index_settings(**kwargs):
+        settings =  {
             "settings": {
                 "mapping.nested_fields.limit": 150,
                 "index.mapping.total_fields.limit": 2000,
                 "index.max_result_window": 100000000,
             }
         }
+
+        # Add some settings passed from outside
+        for param, value in kwargs.items():
+            settings['settings'][param] = value
+
+        return settings
 
     # ======================================================================
     # Utility functions
