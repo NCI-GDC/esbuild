@@ -11,6 +11,7 @@ from parsers import (
     EsbuildUserArgs,
     EsbuildPrivateArgs,
     MinionArgs,
+    ESArgs,
 )
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_minion')
@@ -26,6 +27,7 @@ def minion_argparser():
     Returns arguments parser for esbuild minion
     """
     return ParserBuilder.build([
+        ESArgs,
         DepotArgs,
         MinionArgs,
         EsbuildUserArgs,

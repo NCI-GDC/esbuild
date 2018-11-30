@@ -77,3 +77,16 @@ class ParserBuilder(object):
                     logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
                 else:
                     logger.info('{}={}'.format(name, value))
+
+    @staticmethod
+    def get_arg_list(args, parsers):
+        """
+        Return argument/value list like ['--arg', 'val'] for all argument and value in args
+        that correspond to :parasers' arguments
+        """
+        arg_list = []
+        for parser in parsers:
+            for arg in parser().arguments:
+                value = getattr(args, arg)
+                arg_list.extend(['--{}'.format(arg), value])
+        return arg_list

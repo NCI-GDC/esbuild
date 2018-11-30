@@ -8,6 +8,7 @@ from parsers import (
     MasterArgs,
     EsbuildUserArgs,
     BackupArgs,
+    ESArgs,
 )
 from wrapper_utils import (
     depot_call,
@@ -23,9 +24,10 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 ALL_PARSERS = [
+    ESArgs,
+    DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
-    DepotArgs,
     BackupArgs,
 ]
 
@@ -111,6 +113,10 @@ def delegate_jobs(args):
             esbuild_args.append('--build-awg')
         if args.selective_caching:
             esbuild_args.append('--selective-caching')
+
+        # programmatically add all args and values from some parsers to a command
+        extra_args = ParserBuilder.get_str_args(args, [ESArgs, BackupArgs])
+        esbuild_args.extend(extra_args)
 
         job_json = {
             'esbuild_args': esbuild_args,
