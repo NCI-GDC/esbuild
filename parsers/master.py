@@ -21,11 +21,6 @@ class MasterArgs(BaseParser):
                 required=True,
                 type=int,
             ),
-            'index-type': dict(
-                help='Type of index to build',
-                choices=['active', 'legacy', 'awg', 'test'],
-                required=True,
-            ),
             'build-type': dict(
                 help='Indicates if the build meant for the release. '
                 'If release, other arguments\' values are restricted',

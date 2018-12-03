@@ -64,7 +64,6 @@ class GDCElasticsearch(object):
         :param converter_class: Class to use as a converter
         :param indexd_client: indexclient.client.IndexClient() object
         :param index_name: output index name
-        :param index_alias: alias for output index
         :param build_projects: list of projects to build
         :param selective_caching: cache only data relevant to build_projects to save time
             WARNING: Will skip all nodes that do not have project_id populated
@@ -77,7 +76,6 @@ class GDCElasticsearch(object):
         """
         valid_kwargs = [
             ('es', None),
-            ('index_alias', "gdc_from_graph"),
             ('index_name', None),
             ('build_projects', None),
             ('selective_caching', False),
@@ -105,6 +103,7 @@ class GDCElasticsearch(object):
                                          build_projects=self.build_projects,
                                          selective_caching=self.selective_caching)
         self.converter_class_name = converter_class.__class__.__name__
+        self.index_alias = self.converter.index_alias
 
         if not self.skip_es:
             if not self.es:

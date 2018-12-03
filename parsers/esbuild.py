@@ -18,6 +18,7 @@ class EsbuildPrivateArgs(BaseParser):
         return {
             'index-name': dict(
                 help='Index name to upsert projects to.',
+                required=True,
             ),
             'build-awg': dict(
                 help='If set, will build in AWG mode. '
@@ -44,16 +45,17 @@ class EsbuildUserArgs(BaseParser):
     @property
     def arguments(self):
         return {
+            'index-type': dict(
+                help='Type of index to build',
+                choices=['active', 'legacy', 'awg', 'test'],
+                required=True,
+            ),
             'projects': dict(
                 help='If set, builds only set of projects specified (space-separated)',
                 nargs='*',
             ),
             'no-roll': dict(
                 help='If passed, do not roll the alias and delete old indices',
-                action="store_true",
-            ),
-            'no-cleanup': dict(
-                help='If passed, do not delete old indices',
                 action="store_true",
             ),
             'delete': dict(

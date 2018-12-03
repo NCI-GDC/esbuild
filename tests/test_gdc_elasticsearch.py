@@ -61,13 +61,15 @@ def make_gdc_es(indexd_client, converter):
     return GDCElasticsearch(
         converter_class=converter,
         indexd_client=indexd_client,
-        index_alias="gdc_es_test",
         index_name="test_{}".format(converter.__name__.lower()),
     )
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_basic_es_generate(setup_test, init_indexd, converter):
+@pytest.mark.parametrize('converter,index_alias', [
+    (ActiveGraphIndexBuilder, 'gdc_from_graph'),
+    (LegacyGraphIndexBuilder, 'gdc_legacy_graph'),
+])
+def test_basic_es_generate(setup_test, init_indexd, converter, index_alias):
     es = setup_test
     gdces = make_gdc_es(init_indexd, converter)
     gdces.go()
@@ -75,13 +77,13 @@ def test_basic_es_generate(setup_test, init_indexd, converter):
     # also verify that the to_delete file is not in the index and
     # got deleted
     with _graph.session_scope():
-        assert not es.exists(index="gdc_es_test",
+        assert not es.exists(index=index_alias,
                              doc_type="file",
                              id=get_node_id("to-delete-file"))
 
     # Test Case exists by id
     with _graph.session_scope():
-        assert es.exists(index="gdc_es_test",
+        assert es.exists(index=index_alias,
                          doc_type="case",
                          id=get_node_id('case-tcga-brca-breast'))
 

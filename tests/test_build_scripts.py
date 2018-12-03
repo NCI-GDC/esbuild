@@ -14,12 +14,15 @@ import pytest
 import os
 
 
-@pytest.mark.parametrize('path', [
-    'build_legacy_graph_index.py',
-    'build_active_graph_index.py',
-    'build_download_stats_index.py',
+@pytest.mark.parametrize('path,args', [
+    ('es_build.py', ['--index-type', 'active', '--index-name', 'test_active']),
+    ('es_build.py', ['--index-type', 'legacy', '--index-name', 'test_legacy']),
+    ('build_download_stats_index.py', []),
 ])
-def test_script_runs(environment, path, init_indexd):
+def test_script_runs(environment, path, args, init_indexd):
     os.environ['INDEXD_HOST'] = init_indexd.url
     os.environ['INDEXD_USER'], os.environ['INDEXD_PASS'] = init_indexd.auth
-    check_call(['python', os.path.join(BIN_DIR, path)])
+
+    cmd_list = ['python', os.path.join(BIN_DIR, path)]
+    cmd_list.extend(args)
+    check_call(cmd_list)

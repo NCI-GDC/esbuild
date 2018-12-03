@@ -114,6 +114,7 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
 class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
     mapper = ActiveESMapper
+    index_alias = 'gdc_from_graph'
 
     """
     Since the Active index has more complicated paths from case to
