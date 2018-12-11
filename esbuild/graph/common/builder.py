@@ -127,7 +127,7 @@ class GraphIndexBuilder(object):
     """
 
     data_file_categories = ['data_file', 'metadata_file']
-    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
+    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum', 'release_number', 'version']
 
     mapper = None
 
@@ -799,6 +799,8 @@ class GraphIndexBuilder(object):
         self.add_file_associated_entities(node, doc, case_id)
         self.add_annotations(node, relevant, doc)
         self.add_acl(node, doc)
+        self.add_version(node, doc)
+        self.add_release_number(node, doc)
         self.add_file_data_format(node, doc)
 
         return doc
@@ -1172,6 +1174,18 @@ class GraphIndexBuilder(object):
 
         self.add_file_access(node, doc)
         doc['acl'] = node.acl
+
+    def add_version(self, node, doc):
+        """Add the version of a file to the file document.
+
+        """
+        doc['version'] = node.version
+
+    def add_release_number(self, node, doc):
+        """Add release_number of a file to the file document.
+
+        """
+        doc['release_number'] = node.release_number
 
     def add_file_access(self, node, doc):
         """Summarizes whether the ACL implies that the file is either ``open``

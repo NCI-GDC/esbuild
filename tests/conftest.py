@@ -88,14 +88,20 @@ def init_indexd(indexd_server):
         urls_metadata = {
             urls[0]: {'state': file_state}
         }
+        metadata = {
+            'release_number': '1.0',
+        }
+        version = '1'
+
         indexd_client.create(
             did=did,
             acl=acl,
             hashes={'md5': md5},
             size=size,
+            version=version,
             file_name=file_name,
             urls=urls,
-            metadata=record,
+            metadata=metadata,
             urls_metadata=urls_metadata,
         )
 
