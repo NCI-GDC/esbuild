@@ -120,21 +120,3 @@ def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, converte
         assert node
         # verify the filename is correct
         assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"
-
-
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_old_index_cleanup(setup_test, init_indexd, converter):
-    for i in range(7):
-        gdces = make_gdc_es(init_indexd, converter)
-        gdces.go()
-    # running the index build seven times should delete indicies 1 and 2
-    assert set(get_all_indices(setup_test)) == {
-        "gdc_es_test_3",
-        "gdc_es_test_4",
-        "gdc_es_test_5",
-        "gdc_es_test_6",
-        "gdc_es_test_7"
-    }
-    for i in xrange(3, 6):
-        with pytest.raises(AuthorizationException):
-            setup_test.indices.stats('gdc_es_test_'+str(i))
