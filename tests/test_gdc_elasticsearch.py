@@ -105,9 +105,8 @@ def test_unexpected_properties(setup_test, init_indexd, converter):
     assert len(get_all_indices(setup_test)) == 1
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, converter):
-    gdces = make_gdc_es(init_indexd, converter)
+def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd):
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     with _graph.session_scope():
         to_delete_file = _graph.nodes(File).ids(get_node_id("to-delete-file")).one()
         derived_file = data.fuzzed(File, state="live")
