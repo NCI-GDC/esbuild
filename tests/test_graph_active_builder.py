@@ -398,6 +398,8 @@ def test_basic_counts(index, doc_type, count):
                'annotated_somatic_mutation',
                'aggregated_somatic_mutation',
                'methylation_beta_value'}),
+    ('files', '[*].version', N_FILES, {'1'}),
+    ('files', '[*].release_number', N_FILES, {'1.0'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

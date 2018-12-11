@@ -458,6 +458,8 @@ class ESMapper(object):
 
         # Other file properties
         files.properties.origin = STRING
+        files.properties.version = STRING
+        files.properties.release_number = STRING
 
         # Case
         files.properties.pop('case', None)
