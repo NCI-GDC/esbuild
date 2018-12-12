@@ -27,12 +27,12 @@ class MasterArgs(BaseParser):
                 choices=['release', 'develop'],
                 required=True,
             ),
-            'label': dict(
+            'build-label': dict(
                 help='Label for the index (will be automatically assigned to the value in '
                 'DataRelease node for release candidate if --build-type == "release")',
                 default='esbuild',
             ),
-            'version': dict(
+            'build-version': dict(
                 help='Version number (will be automatically assigned to the value in '
                 'DataRelease node for release candidate if --build-type == "release")',
                 nargs=1,

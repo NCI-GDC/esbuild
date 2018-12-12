@@ -38,6 +38,13 @@ class BaseParser(object):
         """
         return ParserBuilder.build([self])
 
+    @property
+    def param_names(self):
+        """
+        Returns list of parameter names corresponding to self.arguments
+        """
+        return [arg.replace('-', '_') for arg in self.arguments]
+
 
 class ParserBuilder(object):
     """
@@ -67,26 +74,13 @@ class ParserBuilder(object):
         """
         Logs arguments and values provided by user
         """
-        for parser in parsers:
+        for p in parsers:
             args_to_print = [
-                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in parser.arguments
+                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in p().arguments
             ]
-            logger.info("\t{}:".format(parser.__name__))
+            logger.info("\t{}:".format(p.__name__))
             for name, value in args_to_print:
                 if any([k in name.lower() for k in ['pass', 'key', 'secret']]):
                     logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
                 else:
                     logger.info('{}={}'.format(name, value))
-
-    @staticmethod
-    def get_arg_list(args, parsers):
-        """
-        Return argument/value list like ['--arg', 'val'] for all argument and value in args
-        that correspond to :parasers' arguments
-        """
-        arg_list = []
-        for parser in parsers:
-            for arg in parser().arguments:
-                value = getattr(args, arg)
-                arg_list.extend(['--{}'.format(arg), value])
-        return arg_list

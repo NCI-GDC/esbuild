@@ -158,7 +158,7 @@ def test_awg_build(init_indexd):
     Tests AWG build mode
     """
     build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, awg_mode=True,
                                       build_projects=build_projects)
     builder.cache_database()
 

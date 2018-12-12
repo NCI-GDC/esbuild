@@ -239,7 +239,7 @@ class GraphIndexBuilder(object):
         self.data_categories = {}
         self.popular_nodes = {}
         self.cases = None
-        self.projects = None
+        self.build_projects = None
         self.relevant_nodes = None
         self.annotations = None
         self.annotation_entities = None
@@ -1393,7 +1393,7 @@ class GraphIndexBuilder(object):
 
         self._cache_all()
         if not projects:
-            projects = self.projects
+            projects = self.build_projects
         project_docs = []
         pbar = self.pbar('Denormalizing projects ', len(projects))
         for project in projects:
@@ -1472,7 +1472,7 @@ class GraphIndexBuilder(object):
 
         """
         cases, files, annotations = self.denormalize_sample_cases(k)
-        projs = random.sample(self.projects, 1)
+        projs = random.sample(self.build_projects, 1)
         projects = self.denormalize_projects(projs)
         return cases, files, annotations, projects
 
@@ -2059,9 +2059,9 @@ class GraphIndexBuilder(object):
     def _cache_projects(self):
         """Save a list of all Project nodes"""
 
-        if not self.projects:
+        if not self.build_projects:
             log.info('Caching projects...')
-            self.projects = list(self.nodes_labeled('project'))
+            self.build_projects = list(self.nodes_labeled('project'))
 
     def _cache_cases(self):
         """Save a list of all Case nodes"""

@@ -28,7 +28,7 @@ def user_confirm(prompt_string, logger):
     """
     while True:
         logger.info(prompt_string)
-        ans = input().lower()
+        ans = raw_input().lower()
         if ans in ['y', 'yes']:
             return
         elif ans in ['n', 'no']:

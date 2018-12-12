@@ -23,6 +23,12 @@ from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
 from utils import ReleaseHelper
+from parsers import (
+    ESArgs,
+    EsbuildPrivateArgs,
+    EsbuildUserArgs,
+)
+
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -70,23 +76,14 @@ class GDCElasticsearch(object):
             WARNING: Does heavy query before caching resulting in memory spike. Risk of
                      running out of memory if build_projects is a large enough list (number of
                      nodes in all buld_projects is large enough)
-        :param build_awg: whether to skip es index deployment
+        :param awg_mode: whether to skip es index deployment
         :param skip_es: whether to skip es index deployment
 
         """
-        valid_kwargs = [
-            ('es', None),
-            ('index_name', None),
-            ('build_projects', None),
-            ('selective_caching', False),
-            ('build_awg', False),
-            ('skip_es', False),
-            ('n_shards', None),
-            ('n_replicas', None),
-        ]
 
-        for arg, default in valid_kwargs:
-            setattr(self, arg, kwargs.get(arg, default))
+        for p in [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]:
+            for argname in p().param_names:
+                setattr(self, argname, kwargs.get(argname))
 
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
@@ -99,7 +96,7 @@ class GDCElasticsearch(object):
 
         self.converter = converter_class(self.graph,
                                          indexd_client,
-                                         build_awg=self.build_awg,
+                                         build_awg=self.awg_mode,
                                          build_projects=self.build_projects,
                                          selective_caching=self.selective_caching)
         self.converter_class_name = converter_class.__class__.__name__
@@ -119,7 +116,7 @@ class GDCElasticsearch(object):
         # Used to clean up data in existing index
         self.release_helper = ReleaseHelper(self.es)
 
-    def go(self, roll_alias=True, delete_nodes=True, skip_build=False):
+    def go(self, delete_nodes=True, skip_build=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
@@ -197,7 +194,6 @@ class GDCElasticsearch(object):
                 new_index = self.deploy(
                     self.index_name,
                     case_docs, file_docs, ann_docs, project_docs,
-                    roll_alias=roll_alias,
                 )
             else:
                 new_index = 'not built'
@@ -443,8 +439,7 @@ class GDCElasticsearch(object):
         except NotFoundError:
             return None
 
-    def deploy(self, index_name, case_docs, file_docs, ann_docs,
-               project_docs, roll_alias=True,
+    def deploy(self, index_name, case_docs, file_docs, ann_docs, project_docs,
                thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
                max_chunk_bytes=MAX_CHUNK_BYTES):
         """
@@ -486,37 +481,33 @@ class GDCElasticsearch(object):
                            'counts': doc_counts
                        })
 
-        if roll_alias:
-            # ensure all writes are visible
-            self.es.indices.refresh(index=index_name)
+        # ensure all writes are visible
+        self.es.indices.refresh(index=index_name)
 
-            # sanity checks that there are the correct number of docs in the new index
-            msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
+        self.validate_doc_counts(index_name)
 
-            file_count = self.es.count(index=index_name, doc_type="file")["count"]
-            case_count = self.es.count(index=index_name, doc_type="case")["count"]
-            ann_count = self.es.count(index=index_name, doc_type="annotation")["count"]
-            project_count = self.es.count(index=index_name, doc_type="project")["count"]
-
-            if file_count != len(file_docs):
-                self.log.warning(msg.format('file', file_count, len(file_docs)))
-
-            if case_count != len(case_docs):
-                self.log.warning(msg.format('case', case_count, len(case_docs)))
-
-            if ann_count != len(ann_docs):
-                self.log.warning(msg.format('annotation', ann_count, len(ann_docs)))
-
-            if project_count != len(project_docs):
-                self.log.warning(msg.format('project', project_count, len(project_docs)))
-
-            # Roll indices
-            self.log.info("Rolling alias and deleting old indices")
-            old_index = self.lookup_index_by_alias()
-            if old_index:
-                self.swap_index(old_index, index_name)
-            else:
-                self.es.indices.put_alias(index=index_name, name=self.index_alias)
-        else:
-            self.log.info("Skipping alias roll / old index deletion")
         return index_name
+
+    def validate_doc_counts(self, case_docs, file_docs, ann_docs, project_docs, index_name):
+        """
+        Validate that there are the correct number of docs in the new index
+        If not, log warnings
+        """
+        msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
+
+        file_count = self.es.count(index=index_name, doc_type="file")["count"]
+        case_count = self.es.count(index=index_name, doc_type="case")["count"]
+        ann_count = self.es.count(index=index_name, doc_type="annotation")["count"]
+        project_count = self.es.count(index=index_name, doc_type="project")["count"]
+
+        if file_count != len(file_docs):
+            self.log.warning(msg.format('file', file_count, len(file_docs)))
+
+        if case_count != len(case_docs):
+            self.log.warning(msg.format('case', case_count, len(case_docs)))
+
+        if ann_count != len(ann_docs):
+            self.log.warning(msg.format('annotation', ann_count, len(ann_docs)))
+
+        if project_count != len(project_docs):
+            self.log.warning(msg.format('project', project_count, len(project_docs)))

@@ -52,7 +52,7 @@ def main():
     args = get_args()
     converter = get_converter(args.index_type)
 
-    if args.projects:
+    if args.build_projects:
         if not args.index_name and not args.skip_es:
             raise Exception('Provide --index <index_name> when using '
                             'partial build mode')
@@ -60,16 +60,15 @@ def main():
     gdc_es = GDCElasticsearch(
         converter_class=converter,
         indexd_client=indexd_client,
-        build_projects=args.projects,
-        build_awg=args.build_awg,
+        build_projects=args.build_projects,
+        awg_mode=args.awg_mode,
         index_name=args.index_name,
         skip_es=args.skip_es,
         selective_caching=args.selective_caching,
     )
     if args.delete:
         if not args.json_delete:
-            gdc_es.go(roll_alias=not args.no_roll,
-                      delete_nodes=args.delete,
+            gdc_es.go(delete_nodes=args.delete,
                       skip_build=args.test_delete)
         else:
             nodes_to_delete = []
@@ -79,8 +78,7 @@ def main():
             gdc_es.delete_nodes(to_delete=nodes_to_delete,
                                 delete_nodes=args.delete)
     else:
-        gdc_es.go(roll_alias=not args.no_roll,
-                  delete_nodes=args.delete,
+        gdc_es.go(delete_nodes=args.delete,
                   skip_build=args.test_delete)
 
 

@@ -43,10 +43,10 @@ def get_project_groups(args):
     """
     Return list of project groups - one for each worker to build
     """
-    if args.projects is None:
+    if args.build_projects is None:
         projects = config['{}_projects'.format(args.index_type)]
     else:
-        projects = args.projects
+        projects = args.build_projects
 
     # Skip some projects, if skip-projects argument is set
     if args.skip_projects:
@@ -69,8 +69,8 @@ def get_index_name(args):
         - name prefix 'release-' is added
     """
     prefix = ''
-    label = args.label.replace('-', '_')
-    version = args.version
+    label = args.build_label.replace('-', '_')
+    version = args.build_version
     index_type = args.index_type
 
     # If release build, overwrite label and version to ones on DataRelease node
@@ -110,7 +110,7 @@ def delegate_jobs(args):
             '--index-name', index_name,
         ]
         if args.index_type == 'awg':
-            esbuild_args.append('--build-awg')
+            esbuild_args.append('--awg-mode')
         if args.selective_caching:
             esbuild_args.append('--selective-caching')
 

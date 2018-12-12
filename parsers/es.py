@@ -26,5 +26,4 @@ class ESArgs(BaseParser):
                 default=0,
                 type=int,
             ),
-
         }

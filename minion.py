@@ -74,8 +74,10 @@ def get_command(job_json):
     Prepares the command for minion to run given the job json
     """
     esbuild_args = job_json['esbuild_args']
-    command = ['sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'
-               .format(job_json['index_type'])] + esbuild_args
+    command = (
+        ['python /var/tungsten/services/esbuild/deploy/current/es_build.py', 
+         '--index-type', job_json['index_type']] + esbuild_args
+    )
     command = ' '.join(map(str, command))
     return command
 
