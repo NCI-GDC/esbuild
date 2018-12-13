@@ -1267,7 +1267,7 @@ class GraphIndexBuilder(object):
 
         log.info('Got {} total files from {} cases'.format(
             len(files), len(case_files)))
-        
+
         # filter files
         files = {
             f for f in files
