@@ -152,6 +152,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
     case_to_aliquot = [
         ['sample', 'aliquot'],
+        ['sample', 'analyte', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
 
