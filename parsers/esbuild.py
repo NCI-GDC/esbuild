@@ -18,14 +18,12 @@ class EsbuildPrivateArgs(BaseParser):
         return {
             'index-name': dict(
                 help='Index name to upsert projects to.',
-                required=True,
             ),
             'awg-mode': dict(
                 help='If set, will build in AWG mode. '
                 'Will pick up only projects flagged as awg_review = true and '
                 'nodes that are part of these projects and are in any of allowed states',
                 action='store_true',
-                default=False,
             )
         }
 

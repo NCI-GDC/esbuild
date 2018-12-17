@@ -13,6 +13,8 @@ from parsers import (
     MinionArgs,
     ESArgs,
 )
+from queueclient import DepotQueueClient
+
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_minion')
 
@@ -35,29 +37,16 @@ def minion_argparser():
     ], description='Esbuild minion arguments parser')
 
 
-def get_job(args):
+def execute_esbuild(job_json):
     """
-    Get job from depot queue
+    Executes one esbuild job
     """
-    # Get job from depot api:
-    job = requests.get('http://{}:{}/v0/work/{}'
-                       .format(args.depot_host, args.depot_port, args.queue_id))
-
-    # Validate the job
-    try:
-        job = job.json()
-        esbuild_args = job['esbuild_args']
-    except Exception as err:
-        logger.error("Invalid job: {}\nError: {}".format(job, err))
-        return
-
-    if job.get('status') == 'No job found':
-        return
+    esbuild_args = job_json['esbuild_args']
 
     # Send the event to datadog
     statsd.event(
         "Job received",
-        "job: {}".format(job),
+        "job: {}".format(job_json),
         source_type_name="esbuild-minion",
         alert_type="info",
         tags=["es_index:{}".format(args.index_name), 'minion'],
@@ -66,42 +55,18 @@ def get_job(args):
     # Make sure that arguments are valid:
     esbuild_parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
     esbuild_parser.parse_args(esbuild_args)
-    return job
 
-
-def get_command(job_json):
-    """
-    Prepares the command for minion to run given the job json
-    """
-    esbuild_args = job_json['esbuild_args']
     command = (
-        ['python /var/tungsten/services/esbuild/deploy/current/es_build.py', 
+        ['python /var/tungsten/services/esbuild/deploy/current/es_build.py',
          '--index-type', job_json['index_type']] + esbuild_args
     )
     command = ' '.join(map(str, command))
-    return command
 
-
-def execute(command, do_not_block=False):
-    """
-    Executes :command
-    if :do_not_block, will exit the function without waiting for command to exit
-    """
     logger.info('-> Running {}'.format(command))
-    if do_not_block:
-        logger.warn('\tWill not wait for command to exit')
-        subprocess.Popen(command, shell=True)
-    else:
-        subprocess.call(command, shell=True)
+    subprocess.call(command)
 
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
-    while True:
-        job_json = get_job(args)
-        if job_json:
-            # Compose and execute the command:
-            command = get_command(job_json)
-            execute(command, do_not_block=args.do_not_wait_for_completion)
-        else:
-            time.sleep(TIMEDELTA)
+    clt = DepotQueueClient(host="depot.service.consul", queue_id=args.queue_id)
+    clt.consume(execute_esbuild)

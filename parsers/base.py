@@ -45,6 +45,26 @@ class BaseParser(object):
         """
         return [arg.replace('-', '_') for arg in self.arguments]
 
+    def get_cmd_list(self, args):
+        """
+        Returns list of command line arguments and values
+        e.g. ["--arg", "v0", "--list-arg", ["v1", "v2"], "--flag-arg"]
+        """
+        cmd_list = []
+        for arg, info in self.arguments.items():
+            value = getattr(args, arg.replace('-', '_'))
+            if info.get('action'):
+                # handle "flag argument" case
+                1/0
+            elif info.get('nargs'):
+                # handle "list argument" case
+                value = ' '.join(value)
+
+            cmd_list.append("--{}".format(arg))
+            if not value is None:
+                cmd_list.append(value)
+        return cmd_list
+
 
 class ParserBuilder(object):
     """
@@ -84,3 +104,14 @@ class ParserBuilder(object):
                     logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
                 else:
                     logger.info('{}={}'.format(name, value))
+
+    @staticmethod
+    def get_cmd_list(args, parsers):
+        """
+        Returns list of command line arguments corresponding to :parsers
+        with values taken from :args
+        """
+        cmd_list = []
+        for p in parsers:
+            cmd_list.extend(p().get_cmd_list(args))
+        return cmd_list

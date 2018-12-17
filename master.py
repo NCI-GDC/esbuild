@@ -105,23 +105,21 @@ def delegate_jobs(args):
     user_confirm('Building {}, are you sure? (y/n):'.format(index_name), logger)
     for i, group in enumerate(project_groups):
         logger.info("Project group #{}:\n{}".format(i + 1, group))
-        esbuild_args = [
-            '--projects', '{}'.format(' '.join(group)),
-            '--index-name', index_name,
-        ]
+
+        # programmatically add all args and values to a command
+        esbuild_args = ParserBuilder.get_cmd_list(
+            args,
+            [EsbuildUserArgs, ESArgs, BackupArgs]
+        )
+        # Add private esbuild args manually
+        esbuild_args.extend(['--index-name', index_name])
         if args.index_type == 'awg':
             esbuild_args.append('--awg-mode')
-        if args.selective_caching:
-            esbuild_args.append('--selective-caching')
 
-        # programmatically add all args and values from some parsers to a command
-        extra_args = ParserBuilder.get_str_args(args, [ESArgs, BackupArgs])
-        esbuild_args.extend(extra_args)
+        # Validate args
+        ParserBuilder.build(ALL_PARSERS).parse_args(esbuild_args)
+        job_json = {'esbuild_args': esbuild_args}
 
-        job_json = {
-            'esbuild_args': esbuild_args,
-            'index_type': args.index_type,
-        }
         depot_call('delegate', args, json=job_json)
         statsd.event(
             "Job delegated",

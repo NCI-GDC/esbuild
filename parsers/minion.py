@@ -16,9 +16,8 @@ class MinionArgs(BaseParser):
     @property
     def arguments(self):
         return {
-            'do-not-wait-for-completion': dict(
-                help='If set, will not wait for esbuild completion. '
-                'Will result in all jobs in the queue being run on the machine',
-                action='store_true',
+            'n-threads': dict(
+                help='If set, will spawn multiple threads running minion.py',
+                default=1,
             ),
         }
