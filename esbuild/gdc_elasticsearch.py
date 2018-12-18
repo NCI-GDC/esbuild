@@ -77,7 +77,6 @@ class GDCElasticsearch(object):
                      running out of memory if build_projects is a large enough list (number of
                      nodes in all buld_projects is large enough)
         :param awg_mode: whether to skip es index deployment
-        :param skip_es: whether to skip es index deployment
 
         """
 
@@ -102,16 +101,12 @@ class GDCElasticsearch(object):
         self.converter_class_name = converter_class.__class__.__name__
         self.index_alias = self.converter.index_alias
 
-        if not self.skip_es:
-            if not self.es:
-                # TODO sniff_on_start here?
-                self.es = Elasticsearch(
-                    hosts=[os.environ["ELASTICSEARCH_HOST"]],
-                    http_auth=(os.environ.get("ES_USER", ""),
-                               os.environ.get("ES_PASSWORD", "")),
-                    timeout=9999)
-        else:
-            self.es = None
+        # TODO sniff_on_start here?
+        self.es = Elasticsearch(
+            hosts=[os.environ["ELASTICSEARCH_HOST"]],
+            http_auth=(os.environ.get("ES_USER", ""),
+                    os.environ.get("ES_PASSWORD", "")),
+            timeout=9999)
 
         # Used to clean up data in existing index
         self.release_helper = ReleaseHelper(self.es)

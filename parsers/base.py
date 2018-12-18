@@ -53,16 +53,26 @@ class BaseParser(object):
         cmd_list = []
         for arg, info in self.arguments.items():
             value = getattr(args, arg.replace('-', '_'))
-            if info.get('action'):
-                # handle "flag argument" case
-                1/0
-            elif info.get('nargs'):
-                # handle "list argument" case
-                value = ' '.join(value)
+            arg_action = info.get('action')
+            if arg_action:
+                # handle "flag argument" case:
+                # Don't pass flags when value equals to default one
+                if arg_action == 'store_true':
+                    if value == False:
+                        continue
+                elif arg_action == 'store_false':
+                    if value == True:
+                        continue
+                # otherwise pass only the flag
+                cmd_list.append("--{}".format(arg))
+                continue
 
-            cmd_list.append("--{}".format(arg))
-            if not value is None:
-                cmd_list.append(value)
+            # Populate cmd_list vith arg and value(s)
+            if value is not None:
+                cmd_list.append("--{}".format(arg))
+                if not isinstance(value, list):
+                    value = [value]
+                cmd_list.extend(map(str, value))
         return cmd_list
 
 

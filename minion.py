@@ -5,6 +5,7 @@ import os
 import subprocess
 from datadog import statsd
 
+from bin.es_build import main
 from parsers import (
     ParserBuilder,
     DepotArgs,
@@ -14,7 +15,6 @@ from parsers import (
     ESArgs,
 )
 from queueclient import DepotQueueClient
-
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_minion')
 
@@ -23,18 +23,17 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 TIMEDELTA = config['timedelta']
 
+ESBUILD_PARSERS = [ESArgs, EsbuildUserArgs, EsbuildPrivateArgs]
+ALL_PARSERS = ESBUILD_PARSERS + [DepotArgs, MinionArgs]
+
 
 def minion_argparser():
     """
     Returns arguments parser for esbuild minion
     """
-    return ParserBuilder.build([
-        ESArgs,
-        DepotArgs,
-        MinionArgs,
-        EsbuildUserArgs,
-        EsbuildPrivateArgs,
-    ], description='Esbuild minion arguments parser')
+    return ParserBuilder.build(
+        ALL_PARSERS, description='Esbuild minion arguments parser'
+    )
 
 
 def execute_esbuild(job_json):
@@ -53,17 +52,11 @@ def execute_esbuild(job_json):
     )
 
     # Make sure that arguments are valid:
-    esbuild_parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
-    esbuild_parser.parse_args(esbuild_args)
+    esbuild_parser = ParserBuilder.build(ESBUILD_PARSERS)
+    esbuild_args = esbuild_parser.parse_args(esbuild_args)
 
-    command = (
-        ['python /var/tungsten/services/esbuild/deploy/current/es_build.py',
-         '--index-type', job_json['index_type']] + esbuild_args
-    )
-    command = ' '.join(map(str, command))
-
-    logger.info('-> Running {}'.format(command))
-    subprocess.call(command)
+    logger.info('-> Running esbuild')
+    main(args=esbuild_args)
 
 
 if __name__ == "__main__":

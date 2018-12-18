@@ -42,18 +42,19 @@ def get_converter(index_type):
         raise ValueError('No builder for {}'.format(index_type))
 
 
-def main():
+def main(args=None):
     """
     Main entry point for esbuild
     The build settings are controlled with user-provided args
     """
 
     indexd_client = get_indexd()
-    args = get_args()
+    if args is None:
+        args = get_args()
     converter = get_converter(args.index_type)
 
     if args.build_projects:
-        if not args.index_name and not args.skip_es:
+        if not args.index_name:
             raise Exception('Provide --index <index_name> when using '
                             'partial build mode')
 
@@ -63,7 +64,6 @@ def main():
         build_projects=args.build_projects,
         awg_mode=args.awg_mode,
         index_name=args.index_name,
-        skip_es=args.skip_es,
         selective_caching=args.selective_caching,
     )
     if args.delete:

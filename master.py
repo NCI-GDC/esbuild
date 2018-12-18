@@ -7,6 +7,7 @@ from parsers import (
     DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
+    EsbuildPrivateArgs,
     BackupArgs,
     ESArgs,
 )
@@ -28,6 +29,13 @@ ALL_PARSERS = [
     DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
+    BackupArgs,
+]
+
+ESBUILD_PARSERS = [
+    ESArgs,
+    EsbuildUserArgs,
+    EsbuildPrivateArgs,
     BackupArgs,
 ]
 
@@ -106,18 +114,22 @@ def delegate_jobs(args):
     for i, group in enumerate(project_groups):
         logger.info("Project group #{}:\n{}".format(i + 1, group))
 
+        # Change projects set to a subset
+        args.build_projects = group
+
         # programmatically add all args and values to a command
         esbuild_args = ParserBuilder.get_cmd_list(
             args,
             [EsbuildUserArgs, ESArgs, BackupArgs]
         )
+
         # Add private esbuild args manually
         esbuild_args.extend(['--index-name', index_name])
         if args.index_type == 'awg':
             esbuild_args.append('--awg-mode')
 
         # Validate args
-        ParserBuilder.build(ALL_PARSERS).parse_args(esbuild_args)
+        ParserBuilder.build(ESBUILD_PARSERS).parse_args(esbuild_args)
         job_json = {'esbuild_args': esbuild_args}
 
         depot_call('delegate', args, json=job_json)
