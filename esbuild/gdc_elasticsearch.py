@@ -89,7 +89,8 @@ class GDCElasticsearch(object):
         # Assign all :args as class properties:
         for p in ESBUILD_PARSERS:
             p().set_object_params(self, args)
-        ParserBuilder.log_args(args, ESBUILD_PARSERS, self.log)
+
+        ParserBuilder.log_args(args, ESBUILD_PARSERS, self.log) # FIXME: remove this. Logs in converter already
 
         self.graph = PsqlGraphDriver(
             os.environ["PG_HOST"],
@@ -120,11 +121,11 @@ class GDCElasticsearch(object):
             if not skip_build:
                 self.log.info("Caching database")
                 statsd.event(
-                        "caching started",
-                        "starting postgres caching",
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=["es_index:{}".format(self.index_name), 'stage:caching'],
+                    "caching started",
+                    "starting postgres caching",
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name), 'stage:caching'],
                 )
                 self.converter.cache_database()
             self.log.info("Querying for old nodes to delete")
@@ -480,11 +481,11 @@ class GDCElasticsearch(object):
         # ensure all writes are visible
         self.es.indices.refresh(index=index_name)
 
-        self.validate_doc_counts(index_name)
+        self.validate_doc_counts(index_name, case_docs, file_docs, ann_docs, project_docs)
 
         return index_name
 
-    def validate_doc_counts(self, case_docs, file_docs, ann_docs, project_docs, index_name):
+    def validate_doc_counts(self, index_name, case_docs, file_docs, ann_docs, project_docs):
         """
         Validate that there are the correct number of docs in the new index
         If not, log warnings

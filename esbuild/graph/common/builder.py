@@ -212,6 +212,12 @@ class GraphIndexBuilder(object):
             log.info('Projects: {}'.format(self.build_projects))
         else:
             log.info('Running full build')
+            raise ValueError('Set all projects here') # FIXME
+
+        self.build_projects = [
+            tuple(p.split('-', 1)) for p in self.build_projects
+        ]
+
 
         # Load mapper tree representations
         self.ptree_mapping = {
@@ -235,7 +241,7 @@ class GraphIndexBuilder(object):
         self.data_categories = {}
         self.popular_nodes = {}
         self.cases = None
-        self.build_projects = None
+        self.projects = None
         self.relevant_nodes = None
         self.annotations = None
         self.annotation_entities = None
@@ -1389,7 +1395,7 @@ class GraphIndexBuilder(object):
 
         self._cache_all()
         if not projects:
-            projects = self.build_projects
+            projects = self.projects
         project_docs = []
         pbar = self.pbar('Denormalizing projects ', len(projects))
         for project in projects:
@@ -1468,7 +1474,7 @@ class GraphIndexBuilder(object):
 
         """
         cases, files, annotations = self.denormalize_sample_cases(k)
-        projs = random.sample(self.build_projects, 1)
+        projs = random.sample(self.projects, 1)
         projects = self.denormalize_projects(projs)
         return cases, files, annotations, projects
 
@@ -1959,7 +1965,7 @@ class GraphIndexBuilder(object):
         """
 
         if (self.awg_mode or self.selective_caching) and self.build_projects:
-            # Load only node ids with relevant project_id's
+            # Retrieve relevant_node_ids for self.build_projects
             project_ids = ['-'.join(p) for p in self.build_projects]
 
             # For AWG build, keep only awg_review == True project subset
@@ -1976,12 +1982,15 @@ class GraphIndexBuilder(object):
             }
 
             # Add relevant Project nodes to relevant nodes set:
-            projects = list({p[1] for p in self.build_projects})
-            relevant_projects = self.g.nodes(md.Project).prop_in('code', projects)
-
+            programs, codes = zip(*self.build_projects)
+            relevant_projects = (
+                self.g.nodes(md.Project).prop_in('code', list(codes))
+                                        .path('programs')
+                                        .prop_in('name', list(programs))
+            )
             relevant_node_ids.update([p.node_id for p in relevant_projects])
 
-            # Query only relevant edges 
+            # Query only relevant edges
             query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
 
         else:
@@ -2055,9 +2064,9 @@ class GraphIndexBuilder(object):
     def _cache_projects(self):
         """Save a list of all Project nodes"""
 
-        if not self.build_projects:
+        if not self.projects:
             log.info('Caching projects...')
-            self.build_projects = list(self.nodes_labeled('project'))
+            self.projects = list(self.nodes_labeled('project'))
 
     def _cache_cases(self):
         """Save a list of all Case nodes"""

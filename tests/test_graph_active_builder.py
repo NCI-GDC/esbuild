@@ -13,6 +13,12 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
+from parsers import (
+    ParserBuilder,
+    ESArgs,
+    EsbuildUserArgs,
+    EsbuildPrivateArgs,
+)
 from test_utils import get_dict_paths, validate_file_metadata
 from data import get_node_id
 
@@ -31,7 +37,7 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 
-
+argparser = ParserBuilder.build([ESArgs, EsbuildPrivateArgs, EsbuildUserArgs])
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
 DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 
@@ -143,9 +149,13 @@ def test_selective_caching(init_indexd):
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
-                                      build_projects=projects_subset,
-                                      selective_caching=True)
+
+    # Set build_projects and selective_caching
+    args = argparser.parse_args(['--index-type', 'active'])
+    args.build_projects = list(projects_subset)
+    args.selective_caching = True
+
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
 
     built_projects = {n.project_id for n in builder.G.nodes()
