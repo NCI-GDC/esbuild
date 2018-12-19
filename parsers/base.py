@@ -58,10 +58,10 @@ class BaseParser(object):
                 # handle "flag argument" case:
                 # Don't pass flags when value equals to default one
                 if arg_action == 'store_true':
-                    if value == False:
+                    if value is False:
                         continue
                 elif arg_action == 'store_false':
-                    if value == True:
+                    if value is True:
                         continue
                 # otherwise pass only the flag
                 cmd_list.append("--{}".format(arg))
@@ -74,6 +74,14 @@ class BaseParser(object):
                     value = [value]
                 cmd_list.extend(map(str, value))
         return cmd_list
+
+    def set_object_params(self, obj, args):
+        """
+        Given object :obj, set it's parameters corresponding to parser.arguments
+        taking values from :args
+        """
+        for param in self.param_names:
+            setattr(obj, param, getattr(args, param))
 
 
 class ParserBuilder(object):

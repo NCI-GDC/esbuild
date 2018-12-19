@@ -24,11 +24,13 @@ from psqlgraph import PsqlGraphDriver
 
 from utils import ReleaseHelper
 from parsers import (
+    ParserBuilder,
     ESArgs,
     EsbuildPrivateArgs,
     EsbuildUserArgs,
 )
 
+ESBUILD_PARSERS = [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -63,29 +65,32 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, indexd_client, **kwargs):
+    def __init__(self, converter_class, indexd_client, args):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
         :param converter_class: Class to use as a converter
         :param indexd_client: indexclient.client.IndexClient() object
-        :param index_name: output index name
-        :param build_projects: list of projects to build
-        :param selective_caching: cache only data relevant to build_projects to save time
-            WARNING: Will skip all nodes that do not have project_id populated
-            WARNING: Does heavy query before caching resulting in memory spike. Risk of
-                     running out of memory if build_projects is a large enough list (number of
-                     nodes in all buld_projects is large enough)
-        :param awg_mode: whether to skip es index deployment
+        :param args: arguments parsed with argparse.ArgumentParser().parse_args
+
+        Example args:
+            index_name: output index name
+            build_projects: list of projects to build
+            selective_caching: cache only data relevant to build_projects to save time
+                WARNING: Will skip all nodes that do not have project_id populated
+                WARNING: Does heavy query before caching resulting in memory spike. Risk of
+                        running out of memory if build_projects is a large enough list (number of
+                        nodes in all buld_projects is large enough)
+            awg_mode: whether to skip es index deployment
 
         """
-
-        for p in [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]:
-            for argname in p().param_names:
-                setattr(self, argname, kwargs.get(argname))
-
         self.log = get_logger("gdc_elasticsearch")
-        self.log.info('Build arguments: {}'.format(kwargs))
+
+        # Assign all :args as class properties:
+        for p in ESBUILD_PARSERS:
+            p().set_object_params(self, args)
+        ParserBuilder.log_args(args, ESBUILD_PARSERS, self.log)
+
         self.graph = PsqlGraphDriver(
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
@@ -93,11 +98,7 @@ class GDCElasticsearch(object):
             os.environ["PG_NAME"],
         )
 
-        self.converter = converter_class(self.graph,
-                                         indexd_client,
-                                         build_awg=self.awg_mode,
-                                         build_projects=self.build_projects,
-                                         selective_caching=self.selective_caching)
+        self.converter = converter_class(self.graph, indexd_client, args)
         self.converter_class_name = converter_class.__class__.__name__
         self.index_alias = self.converter.index_alias
 
@@ -105,7 +106,7 @@ class GDCElasticsearch(object):
         self.es = Elasticsearch(
             hosts=[os.environ["ELASTICSEARCH_HOST"]],
             http_auth=(os.environ.get("ES_USER", ""),
-                    os.environ.get("ES_PASSWORD", "")),
+                       os.environ.get("ES_PASSWORD", "")),
             timeout=9999)
 
         # Used to clean up data in existing index
