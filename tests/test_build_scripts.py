@@ -25,4 +25,5 @@ def test_script_runs(environment, path, args, init_indexd):
 
     cmd_list = ['python', os.path.join(BIN_DIR, path)]
     cmd_list.extend(args)
+    cmd_list.extend(['--build-projects', 'TCGA-BRCA', 'TCGA-LUAD'])
     check_call(cmd_list)

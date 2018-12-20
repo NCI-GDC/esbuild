@@ -7,9 +7,12 @@ from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from parsers import (
     ParserBuilder,
+    ESArgs,
     EsbuildUserArgs,
     EsbuildPrivateArgs,
 )
+
+ESBUILD_ARGS = [ESArgs, EsbuildPrivateArgs, EsbuildUserArgs]
 
 
 def get_indexd():
@@ -27,9 +30,9 @@ def get_args():
     """
     Parses and returns esbuild arguments
     """
-    parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
+    parser = ParserBuilder.build(ESBUILD_ARGS)
 
-    args = parser.parse_args()
+    args = parser.parse_args() 
     return args
 
 

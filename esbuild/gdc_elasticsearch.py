@@ -90,8 +90,6 @@ class GDCElasticsearch(object):
         for p in ESBUILD_PARSERS:
             p().set_object_params(self, args)
 
-        ParserBuilder.log_args(args, ESBUILD_PARSERS, self.log) # FIXME: remove this. Logs in converter already
-
         self.graph = PsqlGraphDriver(
             os.environ["PG_HOST"],
             os.environ["PG_USER"],

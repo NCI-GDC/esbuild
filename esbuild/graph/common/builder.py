@@ -207,17 +207,13 @@ class GraphIndexBuilder(object):
                     .format(self.__class__.__name__, required_attr)
                 )
 
-        if self.build_projects:
-            log.info('Running partial build')
-            log.info('Projects: {}'.format(self.build_projects))
-        else:
-            log.info('Running full build')
-            raise ValueError('Set all projects here') # FIXME
+        if not self.build_projects:
+            raise ValueError('Must set --build-projects to build')
+        log.info('Projects to build: {}'.format(self.build_projects))
 
         self.build_projects = [
             tuple(p.split('-', 1)) for p in self.build_projects
         ]
-
 
         # Load mapper tree representations
         self.ptree_mapping = {

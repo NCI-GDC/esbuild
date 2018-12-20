@@ -57,21 +57,20 @@ def delete_all_indices(es):
         es.indices.delete(index)
 
 
-def make_gdc_es(indexd_client, converter):
+def make_gdc_es(indexd_client, converter, args):
     return GDCElasticsearch(
         converter_class=converter,
         indexd_client=indexd_client,
-        index_name="test_{}".format(converter.__name__.lower()),
+        args=args,
     )
 
 
 @pytest.mark.parametrize('converter,index_alias', [
     (ActiveGraphIndexBuilder, 'gdc_from_graph'),
-    (LegacyGraphIndexBuilder, 'gdc_legacy_graph'),
 ])
-def test_basic_es_generate(setup_test, init_indexd, converter, index_alias):
+def test_basic_es_generate(setup_test, init_indexd, converter, index_alias, args):
     es = setup_test
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd, converter, args)
     gdces.go()
     assert len(es.indices.get_alias()) == 1
     # also verify that the to_delete file is not in the index and
@@ -89,7 +88,7 @@ def test_basic_es_generate(setup_test, init_indexd, converter, index_alias):
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_unexpected_properties(setup_test, init_indexd, converter):
+def test_unexpected_properties(setup_test, init_indexd, converter, args):
     with _graph.session_scope() as s:
         demographic = _graph.nodes(Demographic).one()
         s.execute("""
@@ -103,13 +102,13 @@ def test_unexpected_properties(setup_test, init_indexd, converter):
             }))
         })
 
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd, converter, args)
     gdces.go()
     assert len(get_all_indices(setup_test)) == 1
 
 
-def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd):
-    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, args):
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder, args)
     with _graph.session_scope():
         to_delete_file = _graph.nodes(File).ids(get_node_id("to-delete-file")).one()
         derived_file = data.fuzzed(File, state="live")
