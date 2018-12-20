@@ -16,7 +16,6 @@ import os
 
 @pytest.mark.parametrize('path,args', [
     ('es_build.py', ['--index-type', 'active', '--index-name', 'test_active']),
-    ('es_build.py', ['--index-type', 'legacy', '--index-name', 'test_legacy']),
     ('build_download_stats_index.py', []),
 ])
 def test_script_runs(environment, path, args, init_indexd):

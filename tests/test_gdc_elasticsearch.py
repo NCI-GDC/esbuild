@@ -7,10 +7,8 @@ indices.
 
 from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic
-from elasticsearch.exceptions import AuthorizationException
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from data import get_node_id
 
 import data
@@ -87,7 +85,7 @@ def test_basic_es_generate(setup_test, init_indexd, converter, index_alias, args
                          id=get_node_id('case-tcga-brca-breast'))
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
 def test_unexpected_properties(setup_test, init_indexd, converter, args):
     with _graph.session_scope() as s:
         demographic = _graph.nodes(Demographic).one()
