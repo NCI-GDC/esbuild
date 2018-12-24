@@ -19,5 +19,6 @@ class MinionArgs(BaseParser):
             'n-threads': dict(
                 help='If set, will spawn multiple threads running minion.py',
                 default=1,
+                type=int,
             ),
         }

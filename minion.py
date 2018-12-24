@@ -1,8 +1,8 @@
-import requests
 import time
 import yaml
 import os
 import subprocess
+import multiprocessing
 from datadog import statsd
 
 from bin.es_build import main
@@ -24,7 +24,8 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 TIMEDELTA = config['timedelta']
 
 ESBUILD_PARSERS = [ESArgs, EsbuildUserArgs, EsbuildPrivateArgs]
-ALL_PARSERS = ESBUILD_PARSERS + [DepotArgs, MinionArgs]
+MINION_ARGS = [DepotArgs, MinionArgs]
+ALL_PARSERS = ESBUILD_PARSERS + MINION_ARGS
 
 
 def minion_argparser():
@@ -32,7 +33,7 @@ def minion_argparser():
     Returns arguments parser for esbuild minion
     """
     return ParserBuilder.build(
-        ALL_PARSERS, description='Esbuild minion arguments parser'
+        MINION_ARGS, description='Esbuild minion arguments parser'
     )
 
 
@@ -59,7 +60,16 @@ def execute_esbuild(job_json):
     main(args=esbuild_args)
 
 
+def consume_queue(host, queue_id):
+    clt = DepotQueueClient(host=host, queue_id=queue_id)
+    clt.consume(execute_esbuild)
+
+
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
-    clt = DepotQueueClient(host="depot.service.consul", queue_id=args.queue_id)
-    clt.consume(execute_esbuild)
+    host = args.depot_host
+    qid = args.queue_id
+
+    for _ in range(args.n_threads):
+        p = multiprocessing.Process(target=consume_queue, args=(host, qid))
+        p.start()

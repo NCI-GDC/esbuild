@@ -30,7 +30,7 @@ class DepotArgs(BaseParser):
                 required=True,
                 type=str,
             ),
-            'queue-status': dict(
+           'queue-status': dict(
                 help='Checks esbuild queue status',
                 action='store_true',
                 default=False,
