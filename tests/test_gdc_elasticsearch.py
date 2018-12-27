@@ -7,10 +7,8 @@ indices.
 
 from elasticsearch import Elasticsearch
 from gdcdatamodel.models import File, Demographic
-from elasticsearch.exceptions import AuthorizationException
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from data import get_node_id
 
 import data
@@ -57,36 +55,38 @@ def delete_all_indices(es):
         es.indices.delete(index)
 
 
-def make_gdc_es(indexd_client, converter):
+def make_gdc_es(indexd_client, converter, args):
     return GDCElasticsearch(
         converter_class=converter,
         indexd_client=indexd_client,
-        index_base="gdc_es_test",
+        args=args,
     )
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_basic_es_generate(setup_test, init_indexd, converter):
+@pytest.mark.parametrize('converter,index_alias', [
+    (ActiveGraphIndexBuilder, 'gdc_from_graph'),
+])
+def test_basic_es_generate(setup_test, init_indexd, converter, index_alias, args):
     es = setup_test
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd, converter, args)
     gdces.go()
     assert len(es.indices.get_alias()) == 1
     # also verify that the to_delete file is not in the index and
     # got deleted
     with _graph.session_scope():
-        assert not es.exists(index="gdc_es_test",
+        assert not es.exists(index=index_alias,
                              doc_type="file",
                              id=get_node_id("to-delete-file"))
 
     # Test Case exists by id
     with _graph.session_scope():
-        assert es.exists(index="gdc_es_test",
+        assert es.exists(index=index_alias,
                          doc_type="case",
                          id=get_node_id('case-tcga-brca-breast'))
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_unexpected_properties(setup_test, init_indexd, converter):
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
+def test_unexpected_properties(setup_test, init_indexd, converter, args):
     with _graph.session_scope() as s:
         demographic = _graph.nodes(Demographic).one()
         s.execute("""
@@ -100,13 +100,13 @@ def test_unexpected_properties(setup_test, init_indexd, converter):
             }))
         })
 
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd, converter, args)
     gdces.go()
     assert len(get_all_indices(setup_test)) == 1
 
 
-def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd):
-    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, args):
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder, args)
     with _graph.session_scope():
         to_delete_file = _graph.nodes(File).ids(get_node_id("to-delete-file")).one()
         derived_file = data.fuzzed(File, state="live")

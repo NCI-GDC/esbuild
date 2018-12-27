@@ -22,9 +22,9 @@ from ..common.mappings import (
 class LegacyESMapper(ESMapper):
 
     @staticmethod
-    def index_settings():
+    def index_settings(**kwargs):
 
-        settings = super(LegacyESMapper, LegacyESMapper).index_settings()
+        settings = super(LegacyESMapper, LegacyESMapper).index_settings(**kwargs)
 
         settings['settings']['analysis'] = {
             'filter': {

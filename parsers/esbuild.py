@@ -19,12 +19,11 @@ class EsbuildPrivateArgs(BaseParser):
             'index-name': dict(
                 help='Index name to upsert projects to.',
             ),
-            'build-awg': dict(
+            'awg-mode': dict(
                 help='If set, will build in AWG mode. '
                 'Will pick up only projects flagged as awg_review = true and '
                 'nodes that are part of these projects and are in any of allowed states',
                 action='store_true',
-                default=False,
             )
         }
 
@@ -44,30 +43,27 @@ class EsbuildUserArgs(BaseParser):
     @property
     def arguments(self):
         return {
-            'projects': dict(
+            'index-type': dict(
+                help='Type of index to build',
+                choices=['active', 'legacy', 'awg', 'test'],
+                required=True,
+            ),
+            'build-projects': dict(
                 help='If set, builds only set of projects specified (space-separated)',
                 nargs='*',
-            ),
-            'no-roll': dict(
-                help='If passed, do not roll the alias and delete old indices',
-                action="store_true",
-            ),
-            'no-cleanup': dict(
-                help='If passed, do not delete old indices',
-                action="store_true",
             ),
             'delete': dict(
                 help='If passed, delete the nodes in the json file passed with --json_delete',
                 action="store_true",
             ),
-            'skip_es': dict(
+            'skip-es': dict(
                 help='If passed, skip any actual action on es, just build json',
                 action="store_true",
             ),
-            'json_delete': dict(
+            'json-delete': dict(
                 help='File to use to delete nodes',
             ),
-            'test_delete': dict(
+            'test-delete': dict(
                 help='Test the deletion (skip load & build of index)',
                 action='store_true',
             ),

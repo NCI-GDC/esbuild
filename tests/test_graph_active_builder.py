@@ -13,6 +13,7 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
+
 from test_utils import get_dict_paths, validate_file_metadata
 from data import get_node_id
 
@@ -46,8 +47,8 @@ N_INPUT_FILES = 9
 
 
 @pytest.fixture
-def index(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
+def index(init_indexd, args):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     with _graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -55,15 +56,15 @@ def index(init_indexd):
 
 
 @pytest.fixture
-def cached_builder(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
+def cached_builder(init_indexd, args):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
     return builder
 
 
 @pytest.fixture()
-def builder(init_indexd):
-    return ActiveGraphIndexBuilder(_graph, init_indexd)
+def builder(init_indexd, args):
+    return ActiveGraphIndexBuilder(_graph, init_indexd, args)
 
 
 @pytest.fixture
@@ -138,14 +139,17 @@ def test_get_file_metadata_from_indexd(index):
             validate_file_metadata(key, value)
 
 
-def test_selective_caching(init_indexd):
+def test_selective_caching(init_indexd, args):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
-                                      build_projects=projects_subset,
-                                      selective_caching=True)
+
+    # Set build_projects and selective_caching
+    args.build_projects = list(projects_subset)
+    args.selective_caching = True
+
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
 
     built_projects = {n.project_id for n in builder.G.nodes()
@@ -153,13 +157,13 @@ def test_selective_caching(init_indexd):
     assert built_projects == projects_subset
 
 
-def test_awg_build(init_indexd):
+def test_awg_build(init_indexd, args):
     """
     Tests AWG build mode
     """
-    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
-                                      build_projects=build_projects)
+    args.awg_mode = True
+    args.build_projects = ['TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE']
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
 
     # Check that only AWG nodes were built

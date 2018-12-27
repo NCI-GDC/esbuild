@@ -38,6 +38,51 @@ class BaseParser(object):
         """
         return ParserBuilder.build([self])
 
+    @property
+    def param_names(self):
+        """
+        Returns list of parameter names corresponding to self.arguments
+        """
+        return [arg.replace('-', '_') for arg in self.arguments]
+
+    def get_cmd_list(self, args):
+        """
+        Returns list of command line arguments and values
+        e.g. ["--arg", "v0", "--list-arg", ["v1", "v2"], "--flag-arg"]
+        """
+        cmd_list = []
+        for arg, info in self.arguments.items():
+            value = getattr(args, arg.replace('-', '_'))
+            arg_action = info.get('action')
+            if arg_action:
+                # handle "flag argument" case:
+                # Don't pass flags when value equals to default one
+                if arg_action == 'store_true':
+                    if value is False:
+                        continue
+                elif arg_action == 'store_false':
+                    if value is True:
+                        continue
+                # otherwise pass only the flag
+                cmd_list.append("--{}".format(arg))
+                continue
+
+            # Populate cmd_list vith arg and value(s)
+            if value is not None:
+                cmd_list.append("--{}".format(arg))
+                if not isinstance(value, list):
+                    value = [value]
+                cmd_list.extend(map(str, value))
+        return cmd_list
+
+    def set_object_params(self, obj, args):
+        """
+        Given object :obj, set it's parameters corresponding to parser.arguments
+        taking values from :args
+        """
+        for param in self.param_names:
+            setattr(obj, param, getattr(args, param))
+
 
 class ParserBuilder(object):
     """
@@ -67,13 +112,24 @@ class ParserBuilder(object):
         """
         Logs arguments and values provided by user
         """
-        for parser in parsers:
+        for p in parsers:
             args_to_print = [
-                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in parser.arguments
+                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in p().arguments
             ]
-            logger.info("\t{}:".format(parser.__name__))
+            logger.info("\t{}:".format(p.__name__))
             for name, value in args_to_print:
                 if any([k in name.lower() for k in ['pass', 'key', 'secret']]):
                     logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
                 else:
                     logger.info('{}={}'.format(name, value))
+
+    @staticmethod
+    def get_cmd_list(args, parsers):
+        """
+        Returns list of command line arguments corresponding to :parsers
+        with values taken from :args
+        """
+        cmd_list = []
+        for p in parsers:
+            cmd_list.extend(p().get_cmd_list(args))
+        return cmd_list

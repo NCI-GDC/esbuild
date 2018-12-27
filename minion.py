@@ -1,17 +1,20 @@
-import requests
 import time
 import yaml
 import os
 import subprocess
+import multiprocessing
 from datadog import statsd
 
+from bin.es_build import main
 from parsers import (
     ParserBuilder,
     DepotArgs,
     EsbuildUserArgs,
     EsbuildPrivateArgs,
     MinionArgs,
+    ESArgs,
 )
+from queueclient import DepotQueueClient
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_minion')
 
@@ -20,84 +23,53 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 TIMEDELTA = config['timedelta']
 
+ESBUILD_PARSERS = [ESArgs, EsbuildUserArgs, EsbuildPrivateArgs]
+MINION_ARGS = [DepotArgs, MinionArgs]
+ALL_PARSERS = ESBUILD_PARSERS + MINION_ARGS
+
 
 def minion_argparser():
     """
     Returns arguments parser for esbuild minion
     """
-    return ParserBuilder.build([
-        DepotArgs,
-        MinionArgs,
-        EsbuildUserArgs,
-        EsbuildPrivateArgs,
-    ], description='Esbuild minion arguments parser')
+    return ParserBuilder.build(
+        MINION_ARGS, description='Esbuild minion arguments parser'
+    )
 
 
-def get_job(args):
+def execute_esbuild(job_json):
     """
-    Get job from depot queue
+    Executes one esbuild job
     """
-    # Get job from depot api:
-    job = requests.get('http://{}:{}/v0/work/{}'
-                       .format(args.depot_host, args.depot_port, args.queue_id))
-
-    # Validate the job
-    try:
-        job = job.json()
-        esbuild_args = job['esbuild_args']
-    except Exception as err:
-        logger.error("Invalid job: {}\nError: {}".format(job, err))
-        return
-
-    if job.get('status') == 'No job found':
-        return
+    esbuild_args = job_json['esbuild_args']
 
     # Send the event to datadog
     statsd.event(
         "Job received",
-        "job: {}".format(job),
+        "job: {}".format(job_json),
         source_type_name="esbuild-minion",
         alert_type="info",
         tags=["es_index:{}".format(args.index_name), 'minion'],
     )
 
     # Make sure that arguments are valid:
-    esbuild_parser = ParserBuilder.build([EsbuildUserArgs, EsbuildPrivateArgs])
-    esbuild_parser.parse_args(esbuild_args)
-    return job
+    esbuild_parser = ParserBuilder.build(ESBUILD_PARSERS)
+    esbuild_args = esbuild_parser.parse_args(esbuild_args)
+
+    logger.info('-> Running esbuild')
+    main(args=esbuild_args)
 
 
-def get_command(job_json):
-    """
-    Prepares the command for minion to run given the job json
-    """
-    esbuild_args = job_json['esbuild_args']
-    command = ['sudo /var/tungsten/services/esbuild/es_build_{}_wrapper'
-               .format(job_json['index_type'])] + esbuild_args
-    command = ' '.join(map(str, command))
-    return command
-
-
-def execute(command, do_not_block=False):
-    """
-    Executes :command
-    if :do_not_block, will exit the function without waiting for command to exit
-    """
-    logger.info('-> Running {}'.format(command))
-    if do_not_block:
-        logger.warn('\tWill not wait for command to exit')
-        subprocess.Popen(command, shell=True)
-    else:
-        subprocess.call(command, shell=True)
+def consume_queue(host, queue_id):
+    clt = DepotQueueClient(host=host, queue_id=queue_id)
+    clt.consume(execute_esbuild)
 
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
-    while True:
-        job_json = get_job(args)
-        if job_json:
-            # Compose and execute the command:
-            command = get_command(job_json)
-            execute(command, do_not_block=args.do_not_wait_for_completion)
-        else:
-            time.sleep(TIMEDELTA)
+    host = args.depot_host
+    qid = args.queue_id
+
+    for _ in range(args.n_threads):
+        p = multiprocessing.Process(target=consume_queue, args=(host, qid))
+        p.start()

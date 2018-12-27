@@ -7,7 +7,9 @@ from parsers import (
     DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
+    EsbuildPrivateArgs,
     BackupArgs,
+    ESArgs,
 )
 from wrapper_utils import (
     depot_call,
@@ -23,9 +25,17 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 ALL_PARSERS = [
+    ESArgs,
+    DepotArgs,
     MasterArgs,
     EsbuildUserArgs,
-    DepotArgs,
+    BackupArgs,
+]
+
+ESBUILD_PARSERS = [
+    ESArgs,
+    EsbuildUserArgs,
+    EsbuildPrivateArgs,
     BackupArgs,
 ]
 
@@ -41,10 +51,10 @@ def get_project_groups(args):
     """
     Return list of project groups - one for each worker to build
     """
-    if args.projects is None:
+    if args.build_projects is None:
         projects = config['{}_projects'.format(args.index_type)]
     else:
-        projects = args.projects
+        projects = args.build_projects
 
     # Skip some projects, if skip-projects argument is set
     if args.skip_projects:
@@ -67,8 +77,8 @@ def get_index_name(args):
         - name prefix 'release-' is added
     """
     prefix = ''
-    label = args.label.replace('-', '_')
-    version = args.version
+    label = args.build_label.replace('-', '_')
+    version = args.build_version
     index_type = args.index_type
 
     # If release build, overwrite label and version to ones on DataRelease node
@@ -103,19 +113,25 @@ def delegate_jobs(args):
     user_confirm('Building {}, are you sure? (y/n):'.format(index_name), logger)
     for i, group in enumerate(project_groups):
         logger.info("Project group #{}:\n{}".format(i + 1, group))
-        esbuild_args = [
-            '--projects', '{}'.format(' '.join(group)),
-            '--index-name', index_name,
-        ]
-        if args.index_type == 'awg':
-            esbuild_args.append('--build-awg')
-        if args.selective_caching:
-            esbuild_args.append('--selective-caching')
 
-        job_json = {
-            'esbuild_args': esbuild_args,
-            'index_type': args.index_type,
-        }
+        # Change projects set to a subset
+        args.build_projects = group
+
+        # programmatically add all args and values to a command
+        esbuild_args = ParserBuilder.get_cmd_list(
+            args,
+            [EsbuildUserArgs, ESArgs, BackupArgs]
+        )
+
+        # Add private esbuild args manually
+        esbuild_args.extend(['--index-name', index_name])
+        if args.index_type == 'awg':
+            esbuild_args.append('--awg-mode')
+
+        # Validate args
+        ParserBuilder.build(ESBUILD_PARSERS).parse_args(esbuild_args)
+        job_json = {'esbuild_args': esbuild_args}
+
         depot_call('delegate', args, json=job_json)
         statsd.event(
             "Job delegated",

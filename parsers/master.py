@@ -21,23 +21,18 @@ class MasterArgs(BaseParser):
                 required=True,
                 type=int,
             ),
-            'index-type': dict(
-                help='Type of index to build',
-                choices=['active', 'legacy', 'awg', 'test'],
-                required=True,
-            ),
             'build-type': dict(
                 help='Indicates if the build meant for the release. '
                 'If release, other arguments\' values are restricted',
                 choices=['release', 'develop'],
                 required=True,
             ),
-            'label': dict(
+            'build-label': dict(
                 help='Label for the index (will be automatically assigned to the value in '
                 'DataRelease node for release candidate if --build-type == "release")',
                 default='esbuild',
             ),
-            'version': dict(
+            'build-version': dict(
                 help='Version number (will be automatically assigned to the value in '
                 'DataRelease node for release candidate if --build-type == "release")',
                 nargs=1,
