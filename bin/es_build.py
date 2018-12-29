@@ -1,4 +1,5 @@
 import os
+import datetime
 
 from indexclient.client import IndexClient
 
@@ -50,7 +51,7 @@ def main(args=None):
     Main entry point for esbuild
     The build settings are controlled with user-provided args
     """
-
+    start_time = datetime.datetime.now()
     indexd_client = get_indexd()
     if args is None:
         args = get_args()
@@ -77,6 +78,8 @@ def main(args=None):
     else:
         gdc_es.go(delete_nodes=args.delete,
                   skip_build=args.test_delete)
+
+    return start_time, datetime.datetime.now()
 
 
 if __name__ == "__main__":

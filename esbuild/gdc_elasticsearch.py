@@ -13,6 +13,7 @@ import re
 import json
 import datetime
 import subprocess
+import config as conf
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -30,7 +31,6 @@ from parsers import (
     EsbuildUserArgs,
 )
 
-ESBUILD_PARSERS = [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -87,7 +87,7 @@ class GDCElasticsearch(object):
         self.log = get_logger("gdc_elasticsearch")
 
         # Assign all :args as class properties:
-        for p in ESBUILD_PARSERS:
+        for p in conf.ESBUILD_PARSERS:
             p().set_object_params(self, args)
 
         self.graph = PsqlGraphDriver(

@@ -1,9 +1,12 @@
 import os
+import json
+import argparse
 import requests
 
 from elasticsearch import Elasticsearch
 from psqlgraph import PsqlGraphDriver
 from gdcdatamodel import models as md
+from esbuild.export.s3_upload import add_s3_args, connect_to_s3
 
 
 def depot_call(action, args, json=None):
@@ -55,6 +58,35 @@ def get_release_candidate_info():
     release_name = release_node.name
     release_version = [release_node.major_version, release_node.minor_version]
     return release_name, release_version
+
+
+def get_manifest_bucket():
+    s3_args = [
+        '--s3-host', os.environ["S3_HOST"],
+        '--s3-secret-key', os.environ["S3_SECRET_KEY"],
+        '--s3-access-key', os.environ["S3_ACCESS_KEY"],
+        '--s3-bucket', os.environ["S3_MANIFEST_BUCKET"],
+    ]
+    s3_args = add_s3_args(argparse.ArgumentParser()).parse_args(s3_args)
+    conn = connect_to_s3(s3_args)
+    bucket = conn.get_bucket(s3_args.s3_bucket)
+    return bucket
+
+
+def put_manifest(json_manifest, file_name):
+    """
+    Create or update release manifest json file on s3
+    """
+    # Connect to s3 bucket, create key if needed
+    bucket = get_manifest_bucket()
+    if bucket.get_key(file_name) is None:
+        bucket.new_key(file_name)
+    key = bucket.get_key(file_name)
+
+    # Update manifest file with new entry
+    manifest_list = json.loads(key.get_contents_as_string())
+    manifest_list.append(json_manifest)
+    key.set_contents_from_string(json.dumps(manifest_list))
 
 
 def split_projects(project_list, n, split_by_program=False):

@@ -1,7 +1,7 @@
 import yaml
 import os
+import config as conf
 from datadog import statsd
-
 from parsers import (
     ParserBuilder,
     DepotArgs,
@@ -22,27 +22,11 @@ from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
-
-ALL_PARSERS = [
-    ESArgs,
-    DepotArgs,
-    MasterArgs,
-    EsbuildUserArgs,
-    BackupArgs,
-]
-
-ESBUILD_PARSERS = [
-    ESArgs,
-    EsbuildUserArgs,
-    EsbuildPrivateArgs,
-    BackupArgs,
-]
 
 
 def master_argparser():
     return ParserBuilder.build(
-        ALL_PARSERS,
+        conf.MASTER_PARSERS,
         description='Esbuild master arguments parser',
     )
 
@@ -52,7 +36,7 @@ def get_project_groups(args):
     Return list of project groups - one for each worker to build
     """
     if args.build_projects is None:
-        projects = config['{}_projects'.format(args.index_type)]
+        projects = getattr(conf, '{}_PROJECTS'.format(args.index_type.upper()))
     else:
         projects = args.build_projects
 
@@ -73,25 +57,26 @@ def get_index_name(args):
     {release/NONE}-{label}-{version}-{index_type}
 
     If build_type == 'release':
-        - :label and :release_version_number will be overwritten by values on release node in postgres
+        - :label will be prefixed with DataRelease.name read from postgres
+        - :release_version_number will be overwritten by values on release node in postgres
         - name prefix 'release-' is added
     """
-    prefix = ''
     label = args.build_label.replace('-', '_')
     version = args.build_version
     index_type = args.index_type
+    is_release = args.build_type == 'release'
 
     # If release build, overwrite label and version to ones on DataRelease node
     # and add release- prefix
-    if args.build_type == 'release':
-        prefix = 'release'
-        label, version = get_release_candidate_info()
+    if is_release:
+        release_name, version = get_release_candidate_info()
+        label = '{}-{}'.format(release_name, label)
 
     version = '_'.join(map(str, version))
 
     index_name = "-".join([label, version, index_type])
-    if prefix:
-        index_name = '-'.join([prefix, index_name])
+    if is_release:
+        index_name = '-'.join(['release', index_name])
 
     return index_name.lower()
 
@@ -129,8 +114,11 @@ def delegate_jobs(args):
             esbuild_args.append('--awg-mode')
 
         # Validate args
-        ParserBuilder.build(ESBUILD_PARSERS).parse_args(esbuild_args)
-        job_json = {'esbuild_args': esbuild_args}
+        ParserBuilder.build(conf.ESBUILD_PARSERS).parse_args(esbuild_args)
+        job_json = {
+            'esbuild_args': esbuild_args,
+            'build_type': args.build_type,
+        }
 
         depot_call('delegate', args, json=job_json)
         statsd.event(
@@ -144,7 +132,7 @@ def delegate_jobs(args):
 
 if __name__ == "__main__":
     args = master_argparser().parse_args()
-    ParserBuilder.log_args(args, ALL_PARSERS, logger)
+    ParserBuilder.log_args(args, conf.MASTER_PARSERS, logger)
 
     if args.restore_from_snapshot:
         # Restore index from S3 snapshot repository
