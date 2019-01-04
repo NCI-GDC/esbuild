@@ -9,6 +9,22 @@ from gdcdatamodel import models as md
 from esbuild.export.s3_upload import add_s3_args, connect_to_s3
 
 
+class ElasticsearchUtil(object):
+
+    def __init__(self, **es_args):
+        self.es = Elasticsearch(
+            host=self.es_args.get('es_host', os.getenv('ES_HOST')),
+            port=self.es_args.get('es_port', os.getenv('ES_PORT')),
+            http_auth=(
+                self.es_args.get('es_user', os.getenv('ES_USER')),
+                self.es_args.get('es_pass', os.getenv('ES_PASS')),
+            ),
+        )
+
+    def alias(self, index, alias_name='gdc_from_graph'):
+        self.es.put_alias(index=index, name=alias_name)
+
+
 def depot_call(action, args, json=None):
     """
     Calls depot api

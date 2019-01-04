@@ -2,7 +2,10 @@ import json
 import pprint
 import argparse
 
-from wrapper_utils import get_manifest_bucket
+from wrapper_utils import (
+    ElasticsearchUtil,
+    get_manifest_bucket,
+)
 
 
 def argparser():
@@ -25,8 +28,7 @@ def argparser():
 
 class ReleaseManifestUtil(object):
     """
-    Helps with Release Manifest management
-
+    Helps with Release Manifest management:
         - Lists all release manifests
         - Reads contents of particular manifest
         - Fetches indices to alias corresonding to the manifest
@@ -68,10 +70,14 @@ class ReleaseManifestUtil(object):
         return indices
 
 
-if __name__ == "__main__":
-    args = argparser().parse_args()
+def manage_release(args):
+    """
+    Uses util classes to explore release manifests and alias corresponding indices
+    """
     action = args.action
+
     r = ReleaseManifestUtil()
+    e = ElasticsearchUtil()
 
     if action == 'list':
         manifests = ['\n\t- ' + k.name for k in r.list()]
@@ -86,3 +92,14 @@ if __name__ == "__main__":
         print "Indices to alias from {}:\n{}".format(
             args.manifest_name, pprint.pformat(indices)
         )
+        for pid, index in indices.items():
+            try:
+                e.alias(index, alias_name='gdc_from_graph')
+                print '{} aliased'.format(index)
+            except Exception as err:
+                print '{} failed to alias: {}'.format(index, err)
+
+
+if __name__ == "__main__":
+    args = argparser().parse_args()
+    manage_release(args)
