@@ -1,10 +1,88 @@
+import json
+import pprint
+import argparse
+
 from wrapper_utils import get_manifest_bucket
 
 
-def explore_manifests():
-    bucket = get_manifest_bucket()
-    import pdb; pdb.set_trace()
+def argparser():
+    parser = argparse.ArgumentParser("Release helper utility")
+    subparsers = parser.add_subparsers(help="Operation modes")
+
+    list_parser = subparsers.add_parser("list", help="List all release manifests")
+    list_parser.set_defaults(action='list')
+
+    read_parser = subparsers.add_parser("read", help="Read release manifest")
+    read_parser.set_defaults(action='read')
+    read_parser.add_argument("--manifest-name", required=True)
+
+    alias_parser = subparsers.add_parser("alias", help="Alias indices corresponding to release manifests")
+    alias_parser.set_defaults(action='alias')
+    alias_parser.add_argument("--manifest-name", required=True)
+
+    return parser
+
+
+class ReleaseManifestUtil(object):
+    """
+    Helps with Release Manifest management
+
+        - Lists all release manifests
+        - Reads contents of particular manifest
+        - Fetches indices to alias corresonding to the manifest
+    """
+
+    def __init__(self, quiet=False):
+        self.bucket = get_manifest_bucket()
+
+    def list(self):
+        """
+        Returns list of existing release manifests
+        """
+        keys = [_ for _ in self.bucket.list()]
+        return keys
+
+    def read(self, manifest_name):
+        """
+        Returns JSON contents of particular manifest
+        """
+        key = self.bucket.get_key(manifest_name)
+        return json.loads(key.get_contents_as_string())
+
+    def alias(self, manifest_name):
+        """
+        Returns list of indices to alias corresponding to release manifest
+        NOTE:
+            Order of manifest entries matters - if one project was built twice,
+            will only keep the latest one
+        """
+        manifest = self.read(manifest_name)
+        indices = {}  # {project_id: index_name}
+        for entry in manifest:
+            args = entry['arguments']
+            index_name = args['index_name']
+            projects = args['build_projects']
+            for pid in projects:
+                indices[pid] = index_name
+
+        return indices
 
 
 if __name__ == "__main__":
-    explore_manifests()
+    args = argparser().parse_args()
+    action = args.action
+    r = ReleaseManifestUtil()
+
+    if action == 'list':
+        manifests = ['\n\t- ' + k.name for k in r.list()]
+        print "Release Manifests:{}".format(''.join(manifests))
+    elif action == 'read':
+        manifest = r.read(args.manifest_name)
+        print "Manifest {}:\n{}".format(
+            args.manifest_name, pprint.pformat(manifest)
+        )
+    elif action == 'alias':
+        indices = r.alias(args.manifest_name)
+        print "Indices to alias from {}:\n{}".format(
+            args.manifest_name, pprint.pformat(indices)
+        )

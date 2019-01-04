@@ -97,24 +97,6 @@ def add_s3_args(parser):
     return parser
 
 
-def add_es_args(parser):
-    parser.add_argument('--es-host',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-index',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-port',
-                        default=9200,
-                        help='Elasticsearch source port')
-    parser.add_argument('--es-user',
-                        help='Basic Auth user for ES (if applicable)')
-    parser.add_argument('--es-pass',
-                        help='Basic Auth password for ES (if applicable)')
-
-    return parser
-
-
 def export_to_gzip_and_upload_to_s3(arg_list=None):
     """takes argument list or reads from command line. export and upload
     index to s3.

@@ -77,14 +77,16 @@ def put_manifest(json_manifest, file_name):
     """
     Create or update release manifest json file on s3
     """
-    # Connect to s3 bucket, create key if needed
+    # Get old manifest list from file in s3
     bucket = get_manifest_bucket()
-    if bucket.get_key(file_name) is None:
-        bucket.new_key(file_name)
     key = bucket.get_key(file_name)
+    if key is None:
+        key = bucket.new_key(file_name)
+        manifest_list = []
+    else:
+        manifest_list = json.loads(key.get_contents_as_string())
 
     # Update manifest file with new entry
-    manifest_list = json.loads(key.get_contents_as_string())
     manifest_list.append(json_manifest)
     key.set_contents_from_string(json.dumps(manifest_list))
 
