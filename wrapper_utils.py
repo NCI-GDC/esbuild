@@ -13,16 +13,16 @@ class ElasticsearchUtil(object):
 
     def __init__(self, **es_args):
         self.es = Elasticsearch(
-            host=self.es_args.get('es_host', os.getenv('ES_HOST')),
-            port=self.es_args.get('es_port', os.getenv('ES_PORT')),
+            host=es_args.get('es_host', os.getenv('ES_HOST')),
+            port=es_args.get('es_port', os.getenv('ES_PORT')),
             http_auth=(
-                self.es_args.get('es_user', os.getenv('ES_USER')),
-                self.es_args.get('es_pass', os.getenv('ES_PASS')),
+                es_args.get('es_user', os.getenv('ES_USER')),
+                es_args.get('es_pass', os.getenv('ES_PASS')),
             ),
         )
 
     def alias(self, index, alias_name='gdc_from_graph'):
-        self.es.put_alias(index=index, name=alias_name)
+        self.es.indices.put_alias(index=index, name=alias_name)
 
 
 def depot_call(action, args, json=None):
@@ -107,13 +107,16 @@ def put_manifest(json_manifest, file_name):
     key.set_contents_from_string(json.dumps(manifest_list))
 
 
-def split_projects(project_list, n, split_by_program=False):
+def split_projects(project_list, n, split_by_program=False, split_by_project=False):
     """
     Splits project list into n parts
     """
 
     if n == 1:
         return [project_list]
+
+    if split_by_project:
+        return [[p] for p in project_list]
 
     # Check input
     if not isinstance(n, int) or n < 1:
@@ -127,9 +130,6 @@ def split_projects(project_list, n, split_by_program=False):
     # Split-by-program mode
     if split_by_program:
         programs = set([get_program(p) for p in project_list])
-        if n != len(programs):
-            raise Exception("Number of workers should equal number of programs ({})"
-                            .format(len(programs)))
         project_groups = []
         for program in programs:
             project_groups.append([x for x in project_list if get_program(x) == program])

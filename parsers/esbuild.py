@@ -51,6 +51,7 @@ class EsbuildUserArgs(BaseParser):
             'build-projects': dict(
                 help='If set, builds only set of projects specified (space-separated)',
                 nargs='*',
+                default=[],
             ),
             'delete': dict(
                 help='If passed, delete the nodes in the json file passed with --json_delete',

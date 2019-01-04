@@ -16,9 +16,8 @@ class MasterArgs(BaseParser):
     @property
     def arguments(self):
         return {
-            'n-workers': dict(
-                help='Number of workers to split esbuild between',
-                required=True,
+            'n-jobs': dict(
+                help='Number of jobs to split build projects between',
                 type=int,
             ),
             'build-type': dict(
@@ -38,6 +37,11 @@ class MasterArgs(BaseParser):
                 nargs=1,
                 type=int,
                 default=[0],
+            ),
+            'split-by-project': dict(
+                action='store_true',
+                help='If set, builds separate index for each project',
+                default=False,
             ),
             'split-by-program': dict(
                 action='store_true',

@@ -33,7 +33,9 @@ def master_argparser():
 
 def get_project_groups(args):
     """
-    Return list of project groups - one for each worker to build
+    Returns {index_name: project_group}
+    where project_group = [project1, project2, ...] - list of projects for one
+    worker to build
     """
     if args.build_projects is None:
         projects = getattr(conf, '{}_PROJECTS'.format(args.index_type.upper()))
@@ -44,10 +46,18 @@ def get_project_groups(args):
     if args.skip_projects:
         projects = [p for p in projects if p not in args.skip_projects]
 
-    project_groups = split_projects(projects, args.n_workers,
+    project_groups = split_projects(projects, args.n_jobs,
+                                    split_by_project=args.split_by_project,
                                     split_by_program=args.split_by_program)
 
-    return project_groups
+    result = {}
+    build_label = args.build_label
+    for projects in project_groups:
+        if args.split_by_project:
+            args.build_label = '{}-{}'.format(build_label, '_'.join(projects))
+        index_name = get_index_name(args)
+        result[index_name] = projects
+    return result
 
 
 def get_index_name(args):
@@ -61,7 +71,7 @@ def get_index_name(args):
         - :release_version_number will be overwritten by values on release node in postgres
         - name prefix 'release-' is added
     """
-    label = args.build_label.replace('-', '_')
+    label = args.build_label
     version = args.build_version
     index_type = args.index_type
     is_release = args.build_type == 'release'
@@ -91,13 +101,12 @@ def delegate_jobs(args):
         response = depot_call('new', args)
         logger.info(response.text)
 
-    index_name = get_index_name(args)
     project_groups = get_project_groups(args)
-    logger.info("\n\n\tDelegating {} jobs to build {}:"
-                .format(args.n_workers, index_name))
-    user_confirm('Building {}, are you sure? (y/n):'.format(index_name), logger)
-    for i, group in enumerate(project_groups):
-        logger.info("Project group #{}:\n{}".format(i + 1, group))
+    user_confirm('Will build indices:\n\t{}, are you sure? (y/n):'
+                .format('\t'.join(project_groups.keys())), logger)
+
+    for index_name, group in project_groups.items():
+        logger.info("Project group [{}]:\n{}".format(index_name, group))
 
         # Change projects set to a subset
         args.build_projects = group
@@ -130,19 +139,22 @@ def delegate_jobs(args):
         )
 
 
+def main(args):
+    # Check that n_jobs provided if not split by project or program
+    if not args.n_jobs:
+        if not args.split_by_project and not args.split_by_program:
+            raise ValueError(
+                "Provide correct --n-jobs. Found: {}".format(args.n_jobs)
+            )
+
+    # If build_projects not provided, add all
+    if args.build_projects == []:
+        args.build_projects = conf.ACTIVE_PROJECTS
+
+    ParserBuilder.log_args(args, conf.MASTER_PARSERS, logger)
+    delegate_jobs(args)
+
+
 if __name__ == "__main__":
     args = master_argparser().parse_args()
-    ParserBuilder.log_args(args, conf.MASTER_PARSERS, logger)
-
-    if args.restore_from_snapshot:
-        # Restore index from S3 snapshot repository
-        BackupWrapper(logger).restore(args.restore_from_snapshot, args.index_name)
-
-    if args.queue_status:
-        status = depot_call('status', args)
-        logger.info(status.text)
-    elif args.queue_clear:
-        logger.info(depot_call('clear', args).text)
-    else:
-        # Delegate esbuild jobs to depot queue
-        delegate_jobs(args)
+    main(args)

@@ -23,6 +23,9 @@ def argparser():
     alias_parser.set_defaults(action='alias')
     alias_parser.add_argument("--manifest-name", required=True)
 
+    s3_parser = subparsers.add_parser("bucket_manage", help="Manually manage manifest bucket")
+    s3_parser.set_defaults(action='bucket_manage')
+
     return parser
 
 
@@ -82,6 +85,8 @@ def manage_release(args):
     if action == 'list':
         manifests = ['\n\t- ' + k.name for k in r.list()]
         print "Release Manifests:{}".format(''.join(manifests))
+        if len(manifests) == 0:
+            print '\tNothing found'
     elif action == 'read':
         manifest = r.read(args.manifest_name)
         print "Manifest {}:\n{}".format(
@@ -98,6 +103,10 @@ def manage_release(args):
                 print '{} aliased'.format(index)
             except Exception as err:
                 print '{} failed to alias: {}'.format(index, err)
+    elif action == 'bucket_manage':
+        print "Manipulate manifest bucket:"
+        bucket = r.bucket
+        import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
