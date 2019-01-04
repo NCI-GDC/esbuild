@@ -54,11 +54,7 @@ def execute_esbuild(job_json):
     esbuild_args = esbuild_parser.parse_args(esbuild_args)
 
     logger.info('-> Running esbuild')
-    # start, end = main(args=esbuild_args)
-    logger.warn('-> SKIPPING esbuild for test purposes')
-    import datetime
-    start, end = datetime.datetime.now(), datetime.datetime.now() + datetime.timedelta(hours=2.3)
-
+    start, end = main(args=esbuild_args)
     if build_type == 'release':
         logger.info('-> Saving release manifest')
         log_release(esbuild_args, start, end)
