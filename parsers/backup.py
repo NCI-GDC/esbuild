@@ -16,6 +16,8 @@ class BackupArgs(BaseParser):
     @property
     def arguments(self):
         return {
-            'restore-from-snapshot': dict(help='Name of a snapshot to restore index from'),
+            'restore-from-snapshot': dict(
+                help='Name of a snapshot to restore index from',
+            ),
             'store-to-snapshot': dict(help='Name of a snapshot to store index to'),
         }

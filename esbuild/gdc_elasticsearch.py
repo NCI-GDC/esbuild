@@ -9,7 +9,6 @@ Elasticsearch
 """
 
 import os
-import re
 import json
 import datetime
 import subprocess
@@ -18,18 +17,11 @@ import config as conf
 from cdisutils.log import get_logger
 from datadog import statsd
 from elasticsearch import NotFoundError, Elasticsearch, helpers
-from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
 from utils import ReleaseHelper
-from parsers import (
-    ParserBuilder,
-    ESArgs,
-    EsbuildPrivateArgs,
-    EsbuildUserArgs,
-)
 
 
 # TODO: Play around with these values and find the sweet spot that

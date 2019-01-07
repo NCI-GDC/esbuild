@@ -1,23 +1,18 @@
-import yaml
 import os
 import config as conf
 from datadog import statsd
 from parsers import (
     ParserBuilder,
-    DepotArgs,
-    MasterArgs,
     EsbuildUserArgs,
-    EsbuildPrivateArgs,
     BackupArgs,
     ESArgs,
 )
-from wrapper_utils import (
+from utils.misc import (
     depot_call,
     user_confirm,
     split_projects,
-    get_release_candidate_info,
 )
-from esbuild.export.s3_repository import BackupWrapper
+from utils.postgres import PostgresUtil
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
 
@@ -68,7 +63,8 @@ def get_index_name(args):
 
     If build_type == 'release':
         - :label will be prefixed with DataRelease.name read from postgres
-        - :release_version_number will be overwritten by values on release node in postgres
+        - :release_version_number will be overwritten by values on release node
+          in postgres
         - name prefix 'release-' is added
     """
     label = args.build_label
@@ -79,7 +75,8 @@ def get_index_name(args):
     # If release build, overwrite label and version to ones on DataRelease node
     # and add release- prefix
     if is_release:
-        release_name, version = get_release_candidate_info()
+        pg = PostgresUtil()
+        release_name, version = pg.get_release_candidate_info()
         label = '{}-{}'.format(release_name, label)
 
     version = '_'.join(map(str, version))

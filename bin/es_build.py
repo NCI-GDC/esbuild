@@ -1,6 +1,7 @@
 import os
 import datetime
 
+import config as conf
 from indexclient.client import IndexClient
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
@@ -12,8 +13,6 @@ from parsers import (
     EsbuildUserArgs,
     EsbuildPrivateArgs,
 )
-
-ESBUILD_ARGS = [ESArgs, EsbuildPrivateArgs, EsbuildUserArgs]
 
 
 def get_indexd():
@@ -31,7 +30,7 @@ def get_args():
     """
     Parses and returns esbuild arguments
     """
-    parser = ParserBuilder.build(ESBUILD_ARGS)
+    parser = ParserBuilder.build(conf.ESBUILD_PARSERS)
 
     args = parser.parse_args() 
     return args

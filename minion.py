@@ -1,5 +1,3 @@
-import time
-import yaml
 import socket
 import os
 import multiprocessing
@@ -7,15 +5,8 @@ import config as conf
 from datadog import statsd
 
 from bin.es_build import main
-from parsers import (
-    ParserBuilder,
-    DepotArgs,
-    EsbuildUserArgs,
-    EsbuildPrivateArgs,
-    MinionArgs,
-    ESArgs,
-)
-from wrapper_utils import put_manifest
+from parsers import ParserBuilder
+from utils.manifest import put_manifest
 from queueclient import DepotQueueClient
 from cdisutils.log import get_logger
 
