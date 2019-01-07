@@ -22,6 +22,9 @@ class ElasticsearchUtil(object):
         )
 
     def alias(self, index, alias_name='gdc_from_graph'):
+        """
+        Aliases :index to :alias_name
+        """
         self.es.indices.put_alias(index=index, name=alias_name)
 
 

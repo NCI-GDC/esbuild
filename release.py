@@ -18,10 +18,12 @@ def argparser():
     read_parser = subparsers.add_parser("read", help="Read release manifest")
     read_parser.set_defaults(action='read')
     read_parser.add_argument("--manifest-name", required=True)
+    read_parser.add_argument("--simple-view", action='store_true')
 
     alias_parser = subparsers.add_parser("alias", help="Alias indices corresponding to release manifests")
     alias_parser.set_defaults(action='alias')
     alias_parser.add_argument("--manifest-name", required=True)
+    alias_parser.add_argument("--alias-name", default='gdc_from_graph')
 
     s3_parser = subparsers.add_parser("bucket_manage", help="Manually manage manifest bucket")
     s3_parser.set_defaults(action='bucket_manage')
@@ -47,12 +49,22 @@ class ReleaseManifestUtil(object):
         keys = [_ for _ in self.bucket.list()]
         return keys
 
-    def read(self, manifest_name):
+    def read(self, manifest_name, simple_view=False):
         """
         Returns JSON contents of particular manifest
         """
         key = self.bucket.get_key(manifest_name)
-        return json.loads(key.get_contents_as_string())
+        manifest = json.loads(key.get_contents_as_string())
+        if simple_view:
+            manifest = [
+                {
+                 'index_name': r['arguments']['index_name'],
+                 'projects': r['arguments']['build_projects'],
+                 'duration': r['duration'],
+                 }
+                for r in manifest
+            ]
+        return manifest
 
     def alias(self, manifest_name):
         """
@@ -88,7 +100,7 @@ def manage_release(args):
         if len(manifests) == 0:
             print '\tNothing found'
     elif action == 'read':
-        manifest = r.read(args.manifest_name)
+        manifest = r.read(args.manifest_name, simple_view=args.simple_view)
         print "Manifest {}:\n{}".format(
             args.manifest_name, pprint.pformat(manifest)
         )
@@ -97,9 +109,11 @@ def manage_release(args):
         print "Indices to alias from {}:\n{}".format(
             args.manifest_name, pprint.pformat(indices)
         )
+        e.es.indices.delete_alias(index='_all', name=args.alias_name)
+        print "Removed old aliases to {}".format(args.alias_name)
         for pid, index in indices.items():
             try:
-                e.alias(index, alias_name='gdc_from_graph')
+                e.alias(index, alias_name=args.alias_name)
                 print '{} aliased'.format(index)
             except Exception as err:
                 print '{} failed to alias: {}'.format(index, err)
