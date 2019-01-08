@@ -5,14 +5,12 @@ from parsers import (
     MinionArgs,
     EsbuildPrivateArgs,
     EsbuildUserArgs,
-    BackupArgs,
 )
 
 ESBUILD_PARSERS = [
     ESArgs,
     EsbuildUserArgs,
     EsbuildPrivateArgs,
-    BackupArgs,
 ]
 
 MASTER_PARSERS = [

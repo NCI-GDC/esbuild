@@ -4,7 +4,6 @@ from datadog import statsd
 from parsers import (
     ParserBuilder,
     EsbuildUserArgs,
-    BackupArgs,
     ESArgs,
 )
 from utils.misc import (
@@ -46,10 +45,7 @@ def get_project_groups(args):
                                     split_by_program=args.split_by_program)
 
     result = {}
-    build_label = args.build_label
     for projects in project_groups:
-        if args.split_by_project:
-            args.build_label = '{}-{}'.format(build_label, '_'.join(projects))
         index_name = get_index_name(args)
         result[index_name] = projects
     return result
@@ -77,13 +73,16 @@ def get_index_name(args):
     if is_release:
         pg = PostgresUtil()
         release_name, version = pg.get_release_candidate_info()
-        label = '{}-{}'.format(release_name, label)
+        label = 'release-{}'.format(release_name)
 
+    # If split by project (len(projects) == 1), add project name to label
+    if len(args.build_projects) == 1:
+        label = '{}-{}'.format(label, args.build_projects[0])
+
+    # Version string
     version = '_'.join(map(str, version))
 
     index_name = "-".join([label, version, index_type])
-    if is_release:
-        index_name = '-'.join(['release', index_name])
 
     return index_name.lower()
 
@@ -111,7 +110,7 @@ def delegate_jobs(args):
         # programmatically add all args and values to a command
         esbuild_args = ParserBuilder.get_cmd_list(
             args,
-            [EsbuildUserArgs, ESArgs, BackupArgs]
+            [EsbuildUserArgs, ESArgs]
         )
 
         # Add private esbuild args manually

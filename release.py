@@ -1,8 +1,12 @@
 import pprint
 import argparse
+import logging
 
 from utils.es import ElasticsearchUtil
+from utils.backup import BackupUtil
 from utils.release import ReleaseManifestUtil
+
+log = logging.getLogger(__name__)
 
 
 def argparser():
@@ -22,51 +26,120 @@ def argparser():
     alias_parser.add_argument("--manifest-name", required=True)
     alias_parser.add_argument("--alias-name", default='gdc_from_graph')
 
+    backup_parser = subparsers.add_parser("backup", help="Backup/restore indices")
+    backup_parser.set_defaults(action='backup')
+    backup_parser.add_argument(
+        '--mode', help="Save/restore/list release indices in s3-repository snapshot.\n"
+        "NOTE: When 'save', will automatically generate snapshot name based on latest release manifest",
+        choices=['save', 'restore', 'list'], required=True,
+    )
+    backup_parser.add_argument('--snapshot-name', help="Snapshot name to restore_from/see_more_details_about")
     s3_parser = subparsers.add_parser("bucket_manage", help="Manually manage manifest bucket")
     s3_parser.set_defaults(action='bucket_manage')
 
     return parser
 
 
-def manage_release(args):
+class BaseActionHandler(object):
     """
-    Uses util classes to explore release manifests and alias corresponding indices
+    Handles actions based on parsed :args
     """
-    action = args.action
 
-    r = ReleaseManifestUtil()
-    e = ElasticsearchUtil()
+    def __init__(self, args):
+        self.args = args
 
-    if action == 'list':
-        manifests = ['\n\t- ' + k.name for k in r.list_manifests()]
-        print "Release Manifests:{}".format(''.join(manifests))
+    def handle(self):
+        """
+        Execute handler corresponding to :args.action
+        """
+        handler = getattr(self, '_{}'.format(self.args.action))
+        handler()
+
+
+class ReleaseActionHandler(BaseActionHandler):
+
+    def __init__(self, *args):
+        super(ReleaseActionHandler, self).__init__(*args)
+        self.manifest = ReleaseManifestUtil()
+        self.es = ElasticsearchUtil()
+
+    def _list(self):
+        manifests = ['\n\t- ' + k.name for k in self.manifest.list_manifests()]
+        log.info("Release Manifests:{}".format(''.join(manifests)))
         if len(manifests) == 0:
-            print '\tNothing found'
-    elif action == 'read':
-        manifest = r.read_manifest(args.manifest_name,
-                                   simple_view=args.simple_view)
-        print "Manifest {}:\n{}".format(
-            args.manifest_name, pprint.pformat(manifest)
+            log.warning('Nothing found')
+
+    def _read(self):
+        manifest = self.manifest.read_manifest(self.args.manifest_name,
+                                               simple_view=self.args.simple_view)
+        log.info("Manifest {}:\n{}".format(self.args.manifest_name,
+                                           pprint.pformat(manifest)))
+
+    def _alias(self):
+        indices = self.manifest.get_indices(self.args.manifest_name)
+        log.info(
+            "Indices to alias from {}:\n{}".format(self.args.manifest_name,
+                                                   pprint.pformat(indices))
         )
-    elif action == 'alias':
-        indices = r.get_indices(args.manifest_name)
-        print "Indices to alias from {}:\n{}".format(
-            args.manifest_name, pprint.pformat(indices)
-        )
-        e.es.indices.delete_alias(index='_all', name=args.alias_name)
-        print "Removed old aliases to {}".format(args.alias_name)
+        self.es.indices.delete_alias(index='_all', name=self.args.alias_name,
+                                     ignore=404)
+        log.info("Removed old aliases to {}".format(self.args.alias_name))
         for pid, index in indices.items():
             try:
-                e.alias(index, alias_name=args.alias_name)
-                print '{} aliased'.format(index)
+                self.es.alias(index, alias_name=self.args.alias_name)
+                log.info('{} aliased'.format(index))
             except Exception as err:
-                print '{} failed to alias: {}'.format(index, err)
-    elif action == 'bucket_manage':
-        print "Manipulate manifest bucket:"
-        bucket = r.bucket
+                log.warning('{} failed to alias: {}'.format(index, err))
+
+    def _backup(self):
+        args = self.args
+        args.action = args.mode  # assign subparser's action to args.mode
+        BackupActionHandler(args).handle()
+
+    def _bucket_manage(self):
+        log.info("Manually manipulate manifest bucket:")
+        bucket = self.manifest.bucket
         import pdb; pdb.set_trace()
+
+
+class BackupActionHandler(BaseActionHandler):
+
+    def __init__(self, *args):
+        super(BackupActionHandler, self).__init__(*args)
+        self.backup = BackupUtil()
+        self.manifest = ReleaseManifestUtil()
+        self.snapshot_pattern = 'release-{release_name}-active'
+
+    def _save(self):
+        """
+        Saves indices corresponding to latest manifest to repository
+        """
+        snapshot_name = self.snapshot_pattern.format(release_name=self.manifest.release_name)
+        indices = self.manifest.get_indices(self.manifest.manifest_name).values()
+        self.backup.backup(snapshot_name, indices)
+
+    def _restore(self):
+        """
+        Restores all indices from snapshot --snapshot-name
+
+        If --snapshot-name is not provided, restores most recent one
+        """
+        # Get snapshot name
+        snapshot = args.snapshot_name
+        if snapshot is None:
+            snapshot = self.snapshot_pattern.format(release_name=self.manifest.release_name)
+
+        # Restore all indices from the snapshot
+        self.backup.restore(snapshot, '_all')
+
+    def _list(self):
+        """
+        List all snapshots corresponding to release manifests
+        """
+        self.backup.list(self.backup.repository_name, args.snapshot_name)
 
 
 if __name__ == "__main__":
     args = argparser().parse_args()
-    manage_release(args)
+    r = ReleaseActionHandler(args)
+    r.handle()

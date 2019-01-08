@@ -127,11 +127,11 @@ class GDCElasticsearch(object):
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
             statsd.event(
-                    "denormalization started",
-                    "starting denormalizing index".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
+                "denormalization started",
+                "starting denormalizing index".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
             self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
@@ -159,13 +159,13 @@ class GDCElasticsearch(object):
                     self.log.info("Preparing ES index to be updated with {} projects"
                                   .format(projects_to_build))
                     statsd.event(
-                            "Index preparation started",
-                            "starting index {} preparation".format(self.index_name),
-                            source_type_name="esbuild",
-                            alert_type="info",
-                            tags=['es_index:{}'.format(self.index_name),
-                                  'projects:{}'.format(projects_to_build),
-                                  'stage:preparation'],
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                                'projects:{}'.format(projects_to_build),
+                                'stage:preparation'],
                     )
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
