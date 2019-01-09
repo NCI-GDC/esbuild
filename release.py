@@ -6,6 +6,7 @@ from utils.es import ElasticsearchUtil
 from utils.backup import BackupUtil
 from utils.release import ReleaseManifestUtil
 
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
@@ -81,8 +82,8 @@ class ReleaseActionHandler(BaseActionHandler):
             "Indices to alias from {}:\n{}".format(self.args.manifest_name,
                                                    pprint.pformat(indices))
         )
-        self.es.indices.delete_alias(index='_all', name=self.args.alias_name,
-                                     ignore=404)
+        self.es.es.indices.delete_alias(index='_all', name=self.args.alias_name,
+                                        ignore=404)
         log.info("Removed old aliases to {}".format(self.args.alias_name))
         for pid, index in indices.items():
             try:
@@ -136,7 +137,19 @@ class BackupActionHandler(BaseActionHandler):
         """
         List all snapshots corresponding to release manifests
         """
-        self.backup.list(self.backup.repository_name, args.snapshot_name)
+        # Get list results
+        res = self.backup.list(args.snapshot_name)
+
+        # Prettify and display
+        if args.snapshot_name is None:
+            prettystr = ''.join(
+                ['\n\t- ' + r for r in res if r.startswith('release-')]
+            )
+            log.info('\nRelease snapshots found:\n{}'.format(prettystr))
+        else:
+            prettystr = pprint.pformat(res)
+            log.info('\nSnapshot {} details:\n{}'
+                     .format(args.snapshot_name, prettystr))
 
 
 if __name__ == "__main__":

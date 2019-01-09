@@ -12,6 +12,7 @@ class ElasticsearchUtil(object):
                 es_args.get('es_user', os.getenv('ES_USER')),
                 es_args.get('es_pass', os.getenv('ES_PASS')),
             ),
+            timeout=9999,
         )
 
     def alias(self, index, alias_name='gdc_from_graph'):

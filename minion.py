@@ -6,7 +6,7 @@ from datadog import statsd
 
 from bin.es_build import main
 from parsers import ParserBuilder
-from utils.manifest import put_manifest
+from utils.release import ReleaseManifestUtil
 from queueclient import DepotQueueClient
 from cdisutils.log import get_logger
 
@@ -72,7 +72,7 @@ def log_release(args, start_time, end_time):
     file_name = '{}.json'.format(release_name)
 
     # create/update manifest in s3
-    put_manifest(manifest_entry, file_name)
+    ReleaseManifestUtil().put_manifest(manifest_entry, file_name)
 
 
 def consume_queue(host, queue_id):

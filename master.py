@@ -46,6 +46,7 @@ def get_project_groups(args):
 
     result = {}
     for projects in project_groups:
+        args.build_projects = projects
         index_name = get_index_name(args)
         result[index_name] = projects
     return result
