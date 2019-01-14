@@ -195,6 +195,7 @@ def test_include_switch():
     ('file', 'properties.downstream_analyses.properties.output_files.properties.data_category'),
     ('case', '_meta.descriptions'),
     ('case', '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"'),
+    ('case', 'properties.files.properties.analysis'),
     ('project', '_meta.descriptions'),
     ('annotation', '_meta.descriptions'),
 ])
@@ -211,6 +212,7 @@ def test_mapping_contains(mappings, mapping, path):
     ('case', 'properties.metadata_files'),
     ('case', 'properties.samples.properties.aliquots'),
     ('case', 'properties.samples.properties.portions.properties.project_id'),
+    ('case', 'properties.files.properties.analysis.properties.input_files'),
     ('annotation', 'properties.creator'),
     ('annotation', 'properties.project_id'),
 ])

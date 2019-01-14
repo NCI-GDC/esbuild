@@ -367,7 +367,6 @@ class ESMapper(object):
     def patch_project(doc):
         doc.pop('code')
 
-
     @classmethod
     def _walk_tree(cls, tree, mapping):
         for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
