@@ -599,7 +599,7 @@ class GraphIndexBuilder(object):
         case['files'] = [{k: f[k] for k in f if k not in ['cases',
                                                          'annotations',
                                                          'associated_entities']}
-                         for f in returned_files]
+                         for f in deepcopy(returned_files)]
 
         # Do not include input_files in case.files.analysis (TT-928)
         for f in case['files']:
