@@ -44,15 +44,15 @@ def get_project_groups(args):
                                     split_by_project=args.split_by_project,
                                     split_by_program=args.split_by_program)
 
-    result = {}
+    result = []
     for projects in project_groups:
         args.build_projects = projects
-        index_name = get_index_name(args)
-        result[index_name] = projects
+        index_name = get_index_name(args, split_by_project=args.split_by_project)
+        result.append({'index_name': index_name, 'projects': projects})
     return result
 
 
-def get_index_name(args):
+def get_index_name(args, split_by_project=False):
     """
     Return output index name based on arguments provided
     Naming pattern depending on build_type == 'release' or 'test':
@@ -77,7 +77,7 @@ def get_index_name(args):
         label = 'release-{}'.format(release_name)
 
     # If split by project (len(projects) == 1), add project name to label
-    if len(args.build_projects) == 1:
+    if split_by_project:
         label = '{}-{}'.format(label, args.build_projects[0])
 
     # Version string
@@ -99,14 +99,17 @@ def delegate_jobs(args):
         logger.info(response.text)
 
     project_groups = get_project_groups(args)
+    index_names = [g['index_name'] for g in project_groups]
     user_confirm('Will build indices:\n\t{}, are you sure? (y/n):'
-                .format('\t'.join(project_groups.keys())), logger)
+                .format('\t'.join(index_names)), logger)
 
-    for index_name, group in project_groups.items():
-        logger.info("Project group [{}]:\n{}".format(index_name, group))
+    for group in project_groups:
+        index_name = group['index_name']
+        projects = group['projects']
+        logger.info("Project group [{}]:\n{}".format(index_name, projects))
 
         # Change projects set to a subset
-        args.build_projects = group
+        args.build_projects = projects
 
         # programmatically add all args and values to a command
         esbuild_args = ParserBuilder.get_cmd_list(
