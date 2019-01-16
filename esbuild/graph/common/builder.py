@@ -1773,8 +1773,8 @@ class GraphIndexBuilder(object):
         """
 
         # AWG mode
-        if self.build_awg:
-            awg_states = {'live', 'submitted', 'processed', 'released'}
+        if self.awg_mode:
+            awg_states = {'live', 'submitted', 'released'}
 
             if node.label == 'project':
                 return node.awg_review is True
