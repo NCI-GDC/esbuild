@@ -4,7 +4,6 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
-from multiprocessing import Process
 from elasticsearch import Elasticsearch
 from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
@@ -15,7 +14,13 @@ import logging
 import os
 import pytest
 import time
-
+from data import ALL_PROJECT_IDS
+from parsers import (
+    ParserBuilder,
+    ESArgs,
+    EsbuildUserArgs,
+    EsbuildPrivateArgs,
+)
 from cdisutilstest.code.indexd_fixture import (
     create_user,
     setup_database,
@@ -48,6 +53,16 @@ logger.setLevel(logging.DEBUG)
 
 
 _graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
+
+
+@pytest.fixture
+def args():
+    argparser = ParserBuilder.build(
+        [ESArgs, EsbuildPrivateArgs, EsbuildUserArgs]
+    )
+    arglist = ['--index-type', 'active', '--index-name', 'gdc_from_graph', '--build-projects'] 
+    arglist.extend(ALL_PROJECT_IDS)
+    return argparser.parse_args(arglist)
 
 
 @pytest.fixture
@@ -88,14 +103,20 @@ def init_indexd(indexd_server):
         urls_metadata = {
             urls[0]: {'state': file_state}
         }
+        metadata = {
+            'release_number': '1.0',
+        }
+        version = '1'
+
         indexd_client.create(
             did=did,
             acl=acl,
             hashes={'md5': md5},
             size=size,
+            version=version,
             file_name=file_name,
             urls=urls,
-            metadata=record,
+            metadata=metadata,
             urls_metadata=urls_metadata,
         )
 

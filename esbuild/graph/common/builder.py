@@ -29,13 +29,20 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
-
+from parsers import (
+    ParserBuilder,
+    ESArgs,
+    EsbuildPrivateArgs,
+    EsbuildUserArgs,
+)
 from progressbar import (
     ProgressBar,
     Percentage,
     Bar,
     ETA,
 )
+
+CONVERTER_PARSERS = [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
@@ -127,7 +134,7 @@ class GraphIndexBuilder(object):
     """
 
     data_file_categories = ['data_file', 'metadata_file']
-    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum']
+    data_file_indexd_fields = ['acl', 'file_size', 'file_name', 'file_state', 'md5sum', 'release_number', 'version', 'baseid']
 
     mapper = None
 
@@ -177,33 +184,22 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, indexd_client, **kwargs):
+    def __init__(self, psqlgraph_driver, indexd_client, args):
         """Walks the graph to produce elasticsearch json documents.
 
         """
         self.indexd = indexd_client
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
-        # Set all optional arguments as attributes:
+        # Set all user arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
         # As of Jan 2018, this is true only for newest active projects
-        optional_arguments = [
-            'build_projects',
-            'build_awg',
-            'selective_caching',
-        ]
-        for argname in optional_arguments:
-            setattr(self, argname, kwargs.get(argname))
+        for p in CONVERTER_PARSERS:
+            p().set_object_params(self, args)
 
-        # Populate self.build_projects
-        if self.build_projects is not None:
-            if len(self.build_projects) == 0:
-                self.build_projects = [('TARGET', 'RT'), ('TCGA', 'MESO')]
-            else:
-                self.build_projects = [
-                    tuple(p.split('-', 1)) for p in self.build_projects
-                ]
+        # Log accepted arguments
+        ParserBuilder.log_args(args, CONVERTER_PARSERS, log)
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -213,11 +209,13 @@ class GraphIndexBuilder(object):
                     .format(self.__class__.__name__, required_attr)
                 )
 
-        if self.build_projects:
-            log.info('Running partial build')
-            log.info('Projects: {}'.format(self.build_projects))
-        else:
-            log.info('Running full build')
+        if not self.build_projects:
+            raise ValueError('Must set --build-projects to build')
+        log.info('Projects to build: {}'.format(self.build_projects))
+
+        self.build_projects = [
+            tuple(p.split('-', 1)) for p in self.build_projects
+        ]
 
         # Load mapper tree representations
         self.ptree_mapping = {
@@ -801,6 +799,7 @@ class GraphIndexBuilder(object):
         self.add_file_associated_entities(node, doc, case_id)
         self.add_annotations(node, relevant, doc)
         self.add_acl(node, doc)
+        self.add_versioning_fields(node, doc)
         self.add_file_data_format(node, doc)
 
         return doc
@@ -1168,6 +1167,13 @@ class GraphIndexBuilder(object):
 
         if annotations:
             doc['annotations'] = annotations
+
+    def add_versioning_fields(self, node, doc):
+        """Add the versioning fields to the file document.
+
+        """
+        for key in ['release_number', 'version', 'baseid']:
+            doc[key] = getattr(node, key)
 
     def add_acl(self, node, doc):
         """Add the protection status of a file to the file document.
@@ -1711,7 +1717,7 @@ class GraphIndexBuilder(object):
         ]
 
         # Check if project is not released (for non-AWG build only)
-        if not self.build_awg:
+        if not self.awg_mode:
             for project in projects:
                 if project.released is not True:
                     log.info('Omitting %s, project %s not released', node, project)
@@ -1761,7 +1767,7 @@ class GraphIndexBuilder(object):
         2. it's a node with a 'state' that is a 'released' state
         3. it's not a project or it doesn't have a state defined on it
 
-        When self.build_awg is set, the rules are different:
+        When self.awg_mode is set, the rules are different:
         1. it's a project and it is 'awg_review' == True
         2. it's a node with a 'state' that is a AWG state
         """
@@ -1957,16 +1963,16 @@ class GraphIndexBuilder(object):
         must have project_id field corresponding to project they are part of
         As of Jan 2018, this is not true for Legacy and old Active nodes
 
-        NOTE: [AWG build mode] If self.build_awg is set, will return only edges
+        NOTE: [AWG build mode] If self.awg_mode is set, will return only edges
         that are connected to nodes that are part of awg_review == True projects
         """
 
-        if (self.build_awg or self.selective_caching) and self.build_projects:
-            # Load only node ids with relevant project_id's
+        if (self.awg_mode or self.selective_caching) and self.build_projects:
+            # Retrieve relevant_node_ids for self.build_projects
             project_ids = ['-'.join(p) for p in self.build_projects]
 
             # For AWG build, keep only awg_review == True project subset
-            if self.build_awg:
+            if self.awg_mode:
                 awg_projects = {
                     '-'.join([p.programs[0].name, p.code]) for p in
                     self.g.nodes(md.Project).props(awg_review=True)
@@ -1979,12 +1985,15 @@ class GraphIndexBuilder(object):
             }
 
             # Add relevant Project nodes to relevant nodes set:
-            projects = list({p[1] for p in self.build_projects})
-            relevant_projects = self.g.nodes(md.Project).prop_in('code', projects)
-
+            programs, codes = zip(*self.build_projects)
+            relevant_projects = (
+                self.g.nodes(md.Project).prop_in('code', list(codes))
+                                        .path('programs')
+                                        .prop_in('name', list(programs))
+            )
             relevant_node_ids.update([p.node_id for p in relevant_projects])
 
-            # Query only relevant edges 
+            # Query only relevant edges
             query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
 
         else:
@@ -2008,7 +2017,7 @@ class GraphIndexBuilder(object):
         with self.g.session_scope():
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
             # Cache graph to self.G
-            # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
+            # NOTE: if awg_mode or selective_caching are set, will only iterate over relevant edges
             for e in self.iter_database_edges():
                 pbar.update(pbar.currval+1)
                 triple = (e.src.label, e.label, e.dst.label)
