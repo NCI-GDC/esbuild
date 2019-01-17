@@ -7,12 +7,7 @@ from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from parsers import (
-    ParserBuilder,
-    ESArgs,
-    EsbuildUserArgs,
-    EsbuildPrivateArgs,
-)
+from parsers import ParserBuilder
 
 
 def get_indexd():

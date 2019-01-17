@@ -149,6 +149,9 @@ class BackupActionHandler(BaseActionHandler):
         """
         List details about snapshot
         """
+        if args.snapshot_name is None:
+            raise ValueError('Provide --snapshot-name')
+
         # Get list results
         res = self.backup.details(args.snapshot_name)
 
