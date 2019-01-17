@@ -1,18 +1,13 @@
 import os
+import datetime
 
+import config as conf
 from indexclient.client import IndexClient
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from parsers import (
-    ParserBuilder,
-    ESArgs,
-    EsbuildUserArgs,
-    EsbuildPrivateArgs,
-)
-
-ESBUILD_ARGS = [ESArgs, EsbuildPrivateArgs, EsbuildUserArgs]
+from parsers import ParserBuilder
 
 
 def get_indexd():
@@ -30,7 +25,7 @@ def get_args():
     """
     Parses and returns esbuild arguments
     """
-    parser = ParserBuilder.build(ESBUILD_ARGS)
+    parser = ParserBuilder.build(conf.ESBUILD_PARSERS)
 
     args = parser.parse_args() 
     return args
@@ -50,7 +45,7 @@ def main(args=None):
     Main entry point for esbuild
     The build settings are controlled with user-provided args
     """
-
+    start_time = datetime.datetime.now()
     indexd_client = get_indexd()
     if args is None:
         args = get_args()
@@ -77,6 +72,8 @@ def main(args=None):
     else:
         gdc_es.go(delete_nodes=args.delete,
                   skip_build=args.test_delete)
+
+    return start_time, datetime.datetime.now()
 
 
 if __name__ == "__main__":

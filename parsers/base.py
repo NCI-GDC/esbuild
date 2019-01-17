@@ -113,11 +113,10 @@ class ParserBuilder(object):
         Logs arguments and values provided by user
         """
         for p in parsers:
-            args_to_print = [
-                arg for arg in args._get_kwargs() if arg[0].replace('_', '-') in p().arguments
-            ]
+            args_to_print = [arg for arg in p().param_names]
             logger.info("\t{}:".format(p.__name__))
-            for name, value in args_to_print:
+            for name in args_to_print:
+                value = getattr(args, name)
                 if any([k in name.lower() for k in ['pass', 'key', 'secret']]):
                     logger.info('{}={}'.format(name, 'VALUE_IS_SECRET'))
                 else:
@@ -133,3 +132,15 @@ class ParserBuilder(object):
         for p in parsers:
             cmd_list.extend(p().get_cmd_list(args))
         return cmd_list
+
+    @staticmethod
+    def get_args_dict(args, parsers):
+        """
+        Returns dictionary {'argname': 'value'} where values are extracted from :args
+        and argnames correspond to :parsers
+        """
+        args_dict = {}
+        for p in parsers:
+            for argname in p().param_names:
+                args_dict[argname] = getattr(args, argname)
+        return args_dict

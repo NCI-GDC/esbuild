@@ -1,9 +1,4 @@
-import os
 import requests
-
-from elasticsearch import Elasticsearch
-from psqlgraph import PsqlGraphDriver
-from gdcdatamodel import models as md
 
 
 def depot_call(action, args, json=None):
@@ -37,33 +32,16 @@ def user_confirm(prompt_string, logger):
             logger.error('Invalid answer: {}'.format(ans))
 
 
-def get_release_candidate_info():
-    """
-    Lookup release candidate name and version in postgres
-    """
-    postgres_driver = PsqlGraphDriver(
-        os.environ["PG_HOST"],
-        os.environ["PG_USER"],
-        os.environ["PG_PASS"],
-        os.environ["PG_NAME"],
-    )
-
-    with postgres_driver.session_scope():
-        release_node = (postgres_driver.nodes(md.DataRelease)
-                                       .props(released=False).first())
-
-    release_name = release_node.name
-    release_version = [release_node.major_version, release_node.minor_version]
-    return release_name, release_version
-
-
-def split_projects(project_list, n, split_by_program=False):
+def split_projects(project_list, n, split_by_program=False, split_by_project=False):
     """
     Splits project list into n parts
     """
 
     if n == 1:
         return [project_list]
+
+    if split_by_project:
+        return [[p] for p in project_list]
 
     # Check input
     if not isinstance(n, int) or n < 1:
@@ -77,9 +55,6 @@ def split_projects(project_list, n, split_by_program=False):
     # Split-by-program mode
     if split_by_program:
         programs = set([get_program(p) for p in project_list])
-        if n != len(programs):
-            raise Exception("Number of workers should equal number of programs ({})"
-                            .format(len(programs)))
         project_groups = []
         for program in programs:
             project_groups.append([x for x in project_list if get_program(x) == program])

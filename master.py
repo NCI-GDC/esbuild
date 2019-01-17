@@ -1,58 +1,38 @@
-import yaml
 import os
+import config as conf
 from datadog import statsd
-
 from parsers import (
     ParserBuilder,
-    DepotArgs,
-    MasterArgs,
     EsbuildUserArgs,
-    EsbuildPrivateArgs,
-    BackupArgs,
     ESArgs,
 )
-from wrapper_utils import (
+from utils.misc import (
     depot_call,
     user_confirm,
     split_projects,
-    get_release_candidate_info,
 )
-from esbuild.export.s3_repository import BackupWrapper
+from utils.postgres import PostgresUtil
 from cdisutils.log import get_logger
 logger = get_logger('esbuild_master')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
-
-ALL_PARSERS = [
-    ESArgs,
-    DepotArgs,
-    MasterArgs,
-    EsbuildUserArgs,
-    BackupArgs,
-]
-
-ESBUILD_PARSERS = [
-    ESArgs,
-    EsbuildUserArgs,
-    EsbuildPrivateArgs,
-    BackupArgs,
-]
 
 
 def master_argparser():
     return ParserBuilder.build(
-        ALL_PARSERS,
+        conf.MASTER_PARSERS,
         description='Esbuild master arguments parser',
     )
 
 
 def get_project_groups(args):
     """
-    Return list of project groups - one for each worker to build
+    Returns {index_name: project_group}
+    where project_group = [project1, project2, ...] - list of projects for one
+    worker to build
     """
     if args.build_projects is None:
-        projects = config['{}_projects'.format(args.index_type)]
+        projects = getattr(conf, '{}_PROJECTS'.format(args.index_type.upper()))
     else:
         projects = args.build_projects
 
@@ -60,38 +40,50 @@ def get_project_groups(args):
     if args.skip_projects:
         projects = [p for p in projects if p not in args.skip_projects]
 
-    project_groups = split_projects(projects, args.n_workers,
+    project_groups = split_projects(projects, args.n_jobs,
+                                    split_by_project=args.split_by_project,
                                     split_by_program=args.split_by_program)
 
-    return project_groups
+    result = []
+    for projects in project_groups:
+        args.build_projects = projects
+        index_name = get_index_name(args, split_by_project=args.split_by_project)
+        result.append({'index_name': index_name, 'projects': projects})
+    return result
 
 
-def get_index_name(args):
+def get_index_name(args, split_by_project=False):
     """
     Return output index name based on arguments provided
     Naming pattern depending on build_type == 'release' or 'test':
     {release/NONE}-{label}-{version}-{index_type}
 
     If build_type == 'release':
-        - :label and :release_version_number will be overwritten by values on release node in postgres
+        - :label will be prefixed with DataRelease.name read from postgres
+        - :release_version_number will be overwritten by values on release node
+          in postgres
         - name prefix 'release-' is added
     """
-    prefix = ''
-    label = args.build_label.replace('-', '_')
+    label = args.build_label
     version = args.build_version
     index_type = args.index_type
+    is_release = args.build_type == 'release'
 
     # If release build, overwrite label and version to ones on DataRelease node
     # and add release- prefix
-    if args.build_type == 'release':
-        prefix = 'release'
-        label, version = get_release_candidate_info()
+    if is_release:
+        pg = PostgresUtil()
+        release_name, version = pg.get_release_candidate_info()
+        label = 'release-{}'.format(release_name)
 
+    # If split by project (len(projects) == 1), add project name to label
+    if split_by_project:
+        label = '{}-{}'.format(label, args.build_projects[0])
+
+    # Version string
     version = '_'.join(map(str, version))
 
     index_name = "-".join([label, version, index_type])
-    if prefix:
-        index_name = '-'.join([prefix, index_name])
 
     return index_name.lower()
 
@@ -106,21 +98,23 @@ def delegate_jobs(args):
         response = depot_call('new', args)
         logger.info(response.text)
 
-    index_name = get_index_name(args)
     project_groups = get_project_groups(args)
-    logger.info("\n\n\tDelegating {} jobs to build {}:"
-                .format(args.n_workers, index_name))
-    user_confirm('Building {}, are you sure? (y/n):'.format(index_name), logger)
-    for i, group in enumerate(project_groups):
-        logger.info("Project group #{}:\n{}".format(i + 1, group))
+    index_names = [g['index_name'] for g in project_groups]
+    user_confirm('Will build indices:\n\t{}, are you sure? (y/n):'
+                .format('\t'.join(index_names)), logger)
+
+    for group in project_groups:
+        index_name = group['index_name']
+        projects = group['projects']
+        logger.info("Project group [{}]:\n{}".format(index_name, projects))
 
         # Change projects set to a subset
-        args.build_projects = group
+        args.build_projects = projects
 
         # programmatically add all args and values to a command
         esbuild_args = ParserBuilder.get_cmd_list(
             args,
-            [EsbuildUserArgs, ESArgs, BackupArgs]
+            [EsbuildUserArgs, ESArgs]
         )
 
         # Add private esbuild args manually
@@ -129,8 +123,11 @@ def delegate_jobs(args):
             esbuild_args.append('--awg-mode')
 
         # Validate args
-        ParserBuilder.build(ESBUILD_PARSERS).parse_args(esbuild_args)
-        job_json = {'esbuild_args': esbuild_args}
+        ParserBuilder.build(conf.ESBUILD_PARSERS).parse_args(esbuild_args)
+        job_json = {
+            'esbuild_args': esbuild_args,
+            'build_type': args.build_type,
+        }
 
         depot_call('delegate', args, json=job_json)
         statsd.event(
@@ -142,19 +139,22 @@ def delegate_jobs(args):
         )
 
 
+def main(args):
+    # Check that n_jobs provided if not split by project or program
+    if not args.n_jobs:
+        if not args.split_by_project and not args.split_by_program:
+            raise ValueError(
+                "Provide correct --n-jobs. Found: {}".format(args.n_jobs)
+            )
+
+    # If build_projects not provided, add all
+    if args.build_projects == []:
+        args.build_projects = conf.ACTIVE_PROJECTS
+
+    ParserBuilder.log_args(args, conf.MASTER_PARSERS, logger)
+    delegate_jobs(args)
+
+
 if __name__ == "__main__":
     args = master_argparser().parse_args()
-    ParserBuilder.log_args(args, ALL_PARSERS, logger)
-
-    if args.restore_from_snapshot:
-        # Restore index from S3 snapshot repository
-        BackupWrapper(logger).restore(args.restore_from_snapshot, args.index_name)
-
-    if args.queue_status:
-        status = depot_call('status', args)
-        logger.info(status.text)
-    elif args.queue_clear:
-        logger.info(depot_call('clear', args).text)
-    else:
-        # Delegate esbuild jobs to depot queue
-        delegate_jobs(args)
+    main(args)

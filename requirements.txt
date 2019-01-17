@@ -7,6 +7,7 @@ elasticsearch>=5.0.0,<6.0.0
 xlrd==0.9.3
 consulate==0.4
 datadog==0.9.0
+boto==2.49.0
 # force install of sqlalchemy 0.9.9 because indexd installs 1.0.8
 # this new version is not backwards compatible with 0.9.9
 SQLAlchemy==0.9.9

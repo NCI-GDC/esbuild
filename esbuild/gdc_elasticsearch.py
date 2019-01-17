@@ -9,28 +9,20 @@ Elasticsearch
 """
 
 import os
-import re
 import json
 import datetime
 import subprocess
+import config as conf
 
 from cdisutils.log import get_logger
 from datadog import statsd
 from elasticsearch import NotFoundError, Elasticsearch, helpers
-from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
 from utils import ReleaseHelper
-from parsers import (
-    ParserBuilder,
-    ESArgs,
-    EsbuildPrivateArgs,
-    EsbuildUserArgs,
-)
 
-ESBUILD_PARSERS = [EsbuildPrivateArgs, EsbuildUserArgs, ESArgs]
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -87,7 +79,7 @@ class GDCElasticsearch(object):
         self.log = get_logger("gdc_elasticsearch")
 
         # Assign all :args as class properties:
-        for p in ESBUILD_PARSERS:
+        for p in conf.ESBUILD_PARSERS:
             p().set_object_params(self, args)
 
         self.graph = PsqlGraphDriver(
@@ -135,11 +127,11 @@ class GDCElasticsearch(object):
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
             statsd.event(
-                    "denormalization started",
-                    "starting denormalizing index".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
+                "denormalization started",
+                "starting denormalizing index".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
             self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
@@ -167,13 +159,13 @@ class GDCElasticsearch(object):
                     self.log.info("Preparing ES index to be updated with {} projects"
                                   .format(projects_to_build))
                     statsd.event(
-                            "Index preparation started",
-                            "starting index {} preparation".format(self.index_name),
-                            source_type_name="esbuild",
-                            alert_type="info",
-                            tags=['es_index:{}'.format(self.index_name),
-                                  'projects:{}'.format(projects_to_build),
-                                  'stage:preparation'],
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                                'projects:{}'.format(projects_to_build),
+                                'stage:preparation'],
                     )
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
