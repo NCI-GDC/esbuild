@@ -32,7 +32,7 @@ def argparser():
     backup_parser.add_argument(
         '--mode', help="Save/restore/list release indices in s3-repository snapshot.\n"
         "NOTE: When 'save', will automatically generate snapshot name based on latest release manifest",
-        choices=['save', 'restore', 'list'], required=True,
+        choices=['save', 'restore', 'list', 'details'], required=True,
     )
     backup_parser.add_argument('--snapshot-name', help="Snapshot name to restore_from/see_more_details_about")
     s3_parser = subparsers.add_parser("bucket_manage", help="Manually manage manifest bucket")
@@ -140,15 +140,22 @@ class BackupActionHandler(BaseActionHandler):
         res = self.backup.list(args.snapshot_name)
 
         # Prettify and display
-        if args.snapshot_name is None:
-            prettystr = ''.join(
-                ['\n\t- ' + r for r in res if r.startswith('release-')]
-            )
-            log.info('\nRelease snapshots found:\n{}'.format(prettystr))
-        else:
-            prettystr = pprint.pformat(res)
-            log.info('\nSnapshot {} details:\n{}'
-                     .format(args.snapshot_name, prettystr))
+        prettystr = ''.join(
+            ['\n\t- ' + r for r in res if r.startswith('release-')]
+        )
+        log.info('\nRelease snapshots found:\n{}'.format(prettystr))
+
+    def _details(self):
+        """
+        List details about snapshot
+        """
+        # Get list results
+        res = self.backup.details(args.snapshot_name)
+
+        # Prettify and display
+        prettystr = pprint.pformat(res)
+        log.info('\nSnapshot {} details:\n{}'
+                 .format(args.snapshot_name, prettystr))
 
 
 if __name__ == "__main__":

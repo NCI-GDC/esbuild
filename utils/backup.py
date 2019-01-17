@@ -89,16 +89,20 @@ class BackupUtil(object):
                                  wait_for_completion=False)
         logger.info("Started restoring indices.")
 
-    def list(self, snapshot_name=None):
+    def list(self):
         """
-        List all snapshots in repository
-        If :snapshot_name is passed, show details about the snapshot
+        List all snapshot names in repository
         """
-        if snapshot_name is None:
-            logger.info("Listing {} snapshots:".format(self.s3_repository_name))
-        else:
-            logger.info("{}: snapshot {}:".format(self.s3_repository_name, snapshot_name))
-        return self._list_repository(self.s3_repository_name, snapshot_name)
+        logger.info("Listing {} snapshots:".format(self.s3_repository_name))
+        return [s['snapshot'] for s in self._get_snapshots_info(self.s3_repository_name)]
+
+    def details(self, snapshot_name):
+        """
+        Return details about particular snapshot
+        """
+        logger.info("{}: snapshot {}:".format(self.s3_repository_name, snapshot_name))
+        return self._get_snapshots_info(self.s3_repository_name,
+                                        snapshot_name=snapshot_name)[0]
 
     def _create_repository(self, repository_name):
         """
@@ -127,19 +131,9 @@ class BackupUtil(object):
             self.es_snapshot.delete(repository=repository_name,
                                     snapshot=snapshot_name)
 
-    def _list_repository(self, repository_name, snapshot_name=None):
+    def _get_snapshots_info(self, repository_name, snapshot_name='_all'):
         """
-        List all snapshots in repository
-        If :snapshot_name is passed, show details about the snapshot
+        List all snapshots' info in repository
+        If :snapshot_name is passed, only return this one
         """
-        if snapshot_name is None:
-            snapshot_name = '_all'
-
-        snapshots = self.es_snapshot.get(repository_name, snapshot_name)['snapshots']
-
-        # Return all snapshot names
-        if snapshot_name == '_all':
-            return sorted([s['snapshot'] for s in snapshots])
-
-        # Return details about :snapshot_name
-        return snapshots[0]
+        return self.es_snapshot.get(repository_name, snapshot_name)['snapshots']
