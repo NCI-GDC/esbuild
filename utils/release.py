@@ -16,7 +16,7 @@ class ReleaseManifestUtil(object):
         self.s3 = S3Util()
 
     @property
-    def bucket(self):
+    def manifest_bucket(self):
         """
         S3 bucket with release manifests
         """
@@ -40,14 +40,14 @@ class ReleaseManifestUtil(object):
         """
         Returns list of existing release manifests
         """
-        keys = [_ for _ in self.bucket.list()]
+        keys = [_ for _ in self.manifest_bucket.list()]
         return keys
 
     def read_manifest(self, manifest_name, simple_view=False):
         """
         Returns JSON contents of particular manifest
         """
-        key = self.bucket.get_key(manifest_name)
+        key = self.manifest_bucket.get_key(manifest_name)
         manifest = json.loads(key.get_contents_as_string())
         if simple_view:
             manifest = [
@@ -86,7 +86,7 @@ class ReleaseManifestUtil(object):
         def get_json(key):
             return json.loads(key.get_contents_as_string())
 
-        contents = list(self.bucket.list())
+        contents = list(self.manifest_bucket.list())
         latest_name = contents[0].name
         latest_content = get_json(contents[0])
         for key in contents:
@@ -102,7 +102,7 @@ class ReleaseManifestUtil(object):
 
         NOTE: only supports one-index-per-project builds
         """
-        manifest = self.get_latest_manifest(self.bucket)['json']
+        manifest = self.get_latest_manifest(self.manifest_bucket)['json']
 
         # Filter only rows corresponding to final project builds
         rows = {}  # project_id: manifest_row
@@ -123,14 +123,14 @@ class ReleaseManifestUtil(object):
         lines from most recent release manifest as starting point
         """
         # Get old manifest list from file in s3
-        key = self.bucket.get_key(file_name)
+        key = self.manifest_bucket.get_key(file_name)
 
         # If there is no corresponding manifest, initialize
         if key is None:
             # Create new key
-            key = self.bucket.new_key(file_name)
+            key = self.manifest_bucket.new_key(file_name)
             # If no old manifests, start with empty one
-            if len(list(self.bucket.list())) == 0:
+            if len(list(self.manifest_bucket.list())) == 0:
                 manifest_list = []
             # Else use old most recent manifest to create a base for new one
             else:

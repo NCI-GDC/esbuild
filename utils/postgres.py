@@ -22,6 +22,9 @@ class PostgresUtil(object):
             release_node = (self.g.nodes(md.DataRelease)
                                   .props(released=False).first())
 
+        if release_node is None:
+            raise ValueError('No unreleased DataRelease node found in postgres')
+
         release_name = release_node.name
         release_version = [release_node.major_version, release_node.minor_version]
         return release_name, release_version

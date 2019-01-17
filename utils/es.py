@@ -20,3 +20,10 @@ class ElasticsearchUtil(object):
         Aliases :index to :alias_name
         """
         self.es.indices.put_alias(index=index, name=alias_name)
+
+    def delete_alias(self, index, alias_name='gdc_from_graph'):
+        """
+        Removes alias :alias_name from :index if exists
+        if :index == '_all' will remove all aliases to :alias_name
+        """
+        self.es.indices.delete_alias(index=index, name=alias_name, ignore=404)

@@ -59,7 +59,7 @@ def log_release(args, start_time, end_time):
     manifest_entry = {
         "host": socket.gethostname(),
         "started": start_time.strftime(time_format),
-        "ended": start_time.strftime(time_format),
+        "ended": end_time.strftime(time_format),
         "duration": (end_time - start_time).seconds / 3600.0,
         "arguments": ParserBuilder.get_args_dict(args, conf.ESBUILD_PARSERS),
     }

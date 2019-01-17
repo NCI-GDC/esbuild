@@ -1,7 +1,7 @@
 import pprint
 import argparse
 import logging
-
+from elasticsearch import TransportError
 from utils.es import ElasticsearchUtil
 from utils.backup import BackupUtil
 from utils.release import ReleaseManifestUtil
@@ -59,7 +59,7 @@ class BaseActionHandler(object):
 
 class ReleaseActionHandler(BaseActionHandler):
 
-    def __init__(self, *args):
+    def __init__(self, args):
         super(ReleaseActionHandler, self).__init__(*args)
         self.manifest = ReleaseManifestUtil()
         self.es = ElasticsearchUtil()
@@ -82,14 +82,13 @@ class ReleaseActionHandler(BaseActionHandler):
             "Indices to alias from {}:\n{}".format(self.args.manifest_name,
                                                    pprint.pformat(indices))
         )
-        self.es.es.indices.delete_alias(index='_all', name=self.args.alias_name,
-                                        ignore=404)
+        self.es.delete_alias('_all', alias_name=self.args.alias_name)
         log.info("Removed old aliases to {}".format(self.args.alias_name))
         for pid, index in indices.items():
             try:
                 self.es.alias(index, alias_name=self.args.alias_name)
                 log.info('{} aliased'.format(index))
-            except Exception as err:
+            except TransportError as err:
                 log.warning('{} failed to alias: {}'.format(index, err))
 
     def _backup(self):
@@ -99,13 +98,13 @@ class ReleaseActionHandler(BaseActionHandler):
 
     def _bucket_manage(self):
         log.info("Manually manipulate manifest bucket:")
-        bucket = self.manifest.bucket
+        bucket = self.manifest.manifest_bucket
         import pdb; pdb.set_trace()
 
 
 class BackupActionHandler(BaseActionHandler):
 
-    def __init__(self, *args):
+    def __init__(self, args):
         super(BackupActionHandler, self).__init__(*args)
         self.backup = BackupUtil()
         self.manifest = ReleaseManifestUtil()

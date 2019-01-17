@@ -37,7 +37,7 @@ class BackupUtil(object):
 
         # Create repository if not found
         if self.s3_repository_name not in self.es_snapshot.get_repository():
-            self.create_repository(self.s3_repository_name)
+            self._create_repository(self.s3_repository_name)
 
         snapshot_settings = {
             "indices": ','.join(indices),
@@ -59,8 +59,9 @@ class BackupUtil(object):
             if isinstance(indices, str):
                 indices = [indices]
 
+            existing_indices = self.es_client.indices.get_alias()
             for index_name in indices:
-                if index_name in self.es_client.indices.get_alias():
+                if index_name in existing_indices:
                     raise Exception('Index {} already exists.'.format(index_name))
 
         logger.info("Restoring {} from snapshot {}.\nWill take some time..."
@@ -68,7 +69,7 @@ class BackupUtil(object):
         repository_name = self.s3_repository_name
         # Create repository if not found
         if repository_name not in self.es_snapshot.get_repository():
-            self.create_repository(repository_name)
+            self._create_repository(repository_name)
 
         restore_settings = {
             "ignore_unavailable": False,
