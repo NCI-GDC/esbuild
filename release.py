@@ -60,7 +60,7 @@ class BaseActionHandler(object):
 class ReleaseActionHandler(BaseActionHandler):
 
     def __init__(self, args):
-        super(ReleaseActionHandler, self).__init__(*args)
+        super(ReleaseActionHandler, self).__init__(args)
         self.manifest = ReleaseManifestUtil()
         self.es = ElasticsearchUtil()
 
@@ -105,7 +105,7 @@ class ReleaseActionHandler(BaseActionHandler):
 class BackupActionHandler(BaseActionHandler):
 
     def __init__(self, args):
-        super(BackupActionHandler, self).__init__(*args)
+        super(BackupActionHandler, self).__init__(args)
         self.backup = BackupUtil()
         self.manifest = ReleaseManifestUtil()
         self.snapshot_pattern = 'release-{release_name}-active'
@@ -137,7 +137,7 @@ class BackupActionHandler(BaseActionHandler):
         List all snapshots corresponding to release manifests
         """
         # Get list results
-        res = self.backup.list(args.snapshot_name)
+        res = self.backup.list()
 
         # Prettify and display
         prettystr = ''.join(
