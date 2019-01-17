@@ -33,8 +33,8 @@ class ActiveESMapper(ESMapper):
         return Dict({name: doc})
 
     @staticmethod
-    def index_settings():
-        settings = super(ActiveESMapper, ActiveESMapper).index_settings()
+    def index_settings(**kwargs):
+        settings = super(ActiveESMapper, ActiveESMapper).index_settings(**kwargs)
 
         settings['settings']['analysis'] = {
             "filter": {

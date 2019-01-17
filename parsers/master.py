@@ -1,0 +1,55 @@
+from base import BaseParser
+
+
+class MasterArgs(BaseParser):
+    """
+    Arguments for esbuild build master controller
+    """
+
+    @property
+    def group(self):
+        return dict(
+            title='Esbuild master arguments',
+            description='Settings related to esbuild orchestration',
+        )
+
+    @property
+    def arguments(self):
+        return {
+            'n-jobs': dict(
+                help='Number of jobs to split build projects between',
+                type=int,
+            ),
+            'build-type': dict(
+                help='Indicates if the build meant for the release. '
+                'If release, other arguments\' values are restricted',
+                choices=['release', 'develop'],
+                required=True,
+            ),
+            'build-label': dict(
+                help='Label for the index (will be automatically assigned to the value in '
+                'DataRelease node for release candidate if --build-type == "release")',
+                default='esbuild',
+            ),
+            'build-version': dict(
+                help='Version number (will be automatically assigned to the value in '
+                'DataRelease node for release candidate if --build-type == "release")',
+                nargs=1,
+                type=int,
+                default=[0],
+            ),
+            'split-by-project': dict(
+                action='store_true',
+                help='If set, builds separate index for each project',
+                default=False,
+            ),
+            'split-by-program': dict(
+                action='store_true',
+                help='If set, splits all projects into groups by program',
+                default=False,
+            ),
+            'skip-projects': dict(
+                nargs='*',
+                help='Set of projects to skip',
+            ),
+        }

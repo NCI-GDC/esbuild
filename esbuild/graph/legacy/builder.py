@@ -20,6 +20,8 @@ from .mappings import (
 class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
     mapper = LegacyESMapper
+    index_alias = 'gdc_legacy_graph'
+
     file_mapping = mapper.get_file_es_mapping()
 
     case_to_file_paths = [

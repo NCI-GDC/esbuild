@@ -1722,6 +1722,7 @@ EDGES = [
 
 # Patch nodes, separate file metadata to indexd
 NODES, INDEXD = patch_test_data_get_indexd(NODES)
+ALL_PROJECT_IDS = [p for p in {getattr(n, 'project_id', None) for n in NODES} if p]
 
 
 def insert(g):

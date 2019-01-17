@@ -114,6 +114,7 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
 class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
     mapper = ActiveESMapper
+    index_alias = 'gdc_from_graph'
 
     """
     Since the Active index has more complicated paths from case to
@@ -236,8 +237,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     for path in readgroup_subtree:
         file_to_read_group_paths.setdefault(path[-1], []).append(path[-2::-1])
 
-    def __init__(self, *args, **kwargs):
-        super(ActiveGraphIndexBuilder, self).__init__(*args, **kwargs)
+    def __init__(self, psqlgraph_driver, indexd_client, args):
+        super(ActiveGraphIndexBuilder, self).__init__(psqlgraph_driver, indexd_client, args)
 
         # Omit entities from these projects
         self.omitted_projects.add(('CCLE', 'CCLE_V2'))

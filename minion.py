@@ -1,68 +1,90 @@
-import requests
-import argparse
-import time
-import yaml
+import socket
 import os
-import subprocess
+import multiprocessing
+import config as conf
+from datadog import statsd
 
-from master import esbuild_argparser
+from bin.es_build import main
+from parsers import ParserBuilder
+from utils.release import ReleaseManifestUtil
+from queueclient import DepotQueueClient
 from cdisutils.log import get_logger
+
 logger = get_logger('esbuild_minion')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
-
-TIMEDELTA = config['timedelta']
 
 
 def minion_argparser():
-    """Parses depot arguments for esbuild minion"""
+    """
+    Returns arguments parser for esbuild minion
+    """
+    return ParserBuilder.build(
+        conf.MINION_PARSERS, description='Esbuild minion arguments parser'
+    )
 
-    parser = argparse.ArgumentParser(description='Parses esbuild job parameters')
-    parser.add_argument('--host',
-                        help='Depot server host',
-                        required=True)
-    parser.add_argument('--port',
-                        type=int,
-                        help='Depot server port',
-                        required=True)
-    parser.add_argument('--queue-id', type=str,
-                        help='Depot queue id to listen to. Has to be UUID string',
-                        required=True)
-    parser.add_argument('--do-not-wait-for-completion', action='store_true',
-                        help='If set, will not wait for esbuild completion. '
-                        'Will result in all jobs in the queue being run on the machine')
-    return parser
+
+def execute_esbuild(job_json):
+    """
+    Executes one esbuild job
+    """
+    esbuild_args = job_json['esbuild_args']
+    build_type = job_json['build_type']
+
+    # Send the event to datadog
+    statsd.event(
+        "Job received",
+        "job: {}".format(job_json),
+        source_type_name="esbuild-minion",
+        alert_type="info",
+        tags=["es_index:{}".format(args.index_name), 'minion'],
+    )
+
+    # Make sure that arguments are valid:
+    esbuild_parser = ParserBuilder.build(conf.ESBUILD_PARSERS)
+    esbuild_args = esbuild_parser.parse_args(esbuild_args)
+
+    logger.info('-> Running esbuild')
+    start, end = main(args=esbuild_args)
+    if build_type == 'release':
+        logger.info('-> Saving release manifest')
+        log_release(esbuild_args, start, end)
+
+
+def log_release(args, start_time, end_time):
+    """
+    Handles release manifest file create/update
+    """
+    time_format = '%Y-%m-%d-%H:%M:%S'
+    manifest_entry = {
+        "host": socket.gethostname(),
+        "started": start_time.strftime(time_format),
+        "ended": end_time.strftime(time_format),
+        "duration": (end_time - start_time).seconds / 3600.0,
+        "arguments": ParserBuilder.get_args_dict(args, conf.ESBUILD_PARSERS),
+    }
+    index_name = args.index_name
+
+    if not index_name.startswith('release-'):
+        raise ValueError("Unexpected index_name. Must start with 'release-'")
+
+    release_name = index_name.split('-')[1]
+    file_name = '{}.json'.format(release_name)
+
+    # create/update manifest in s3
+    ReleaseManifestUtil().put_manifest(manifest_entry, file_name)
+
+
+def consume_queue(host, queue_id):
+    clt = DepotQueueClient(host=host, queue_id=queue_id)
+    clt.consume(execute_esbuild)
 
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
+    host = args.depot_host
+    qid = args.queue_id
 
-    while True:
-        # Get work from depot api:
-        work = requests.get('http://{}:{}/v0/work/{}'
-                            .format(args.host, args.port, args.queue_id))
-        try:
-            work = work.json()
-        except Exception as err:
-            logger.error("Invalid job: {}\nError: {}".format(work, err))
-
-        if work.get('status') == 'No work found':
-            continue
-
-        try:
-            # Make sure that arguments are valid:
-            esbuild_argparser().parse_args(work['arguments'])
-            # Compose and execute the command:
-            command = ('sudo /var/tungsten/services/esbuild/es_build_{}_wrapper {}'
-                       .format(work['build_type'], ' '.join(work['arguments'])))
-            logger.info('-> Running {}'.format(command))
-            if args.do_not_wait_for_completion:
-                # NOTE: Will result in all jobs of the queue running on a single machine
-                subprocess.Popen(command, shell=True)
-            else:
-                subprocess.call(command, shell=True)
-        except Exception as err:
-            logger.error("Attempted to run job: {}\nError: {}".format(work, repr(err)))
-
-        time.sleep(TIMEDELTA)
+    for _ in range(args.n_threads):
+        p = multiprocessing.Process(target=consume_queue, args=(host, qid))
+        p.start()
