@@ -13,6 +13,7 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 from pprint import pprint
+
 from test_utils import get_dict_paths, validate_file_metadata
 from data import get_node_id
 
@@ -46,8 +47,8 @@ N_INPUT_FILES = 9
 
 
 @pytest.fixture
-def index(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
+def index(init_indexd, args):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     with _graph.session_scope():
         builder.cache_database()
     index = builder.denormalize_all()
@@ -55,15 +56,15 @@ def index(init_indexd):
 
 
 @pytest.fixture
-def cached_builder(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
+def cached_builder(init_indexd, args):
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
     return builder
 
 
 @pytest.fixture()
-def builder(init_indexd):
-    return ActiveGraphIndexBuilder(_graph, init_indexd)
+def builder(init_indexd, args):
+    return ActiveGraphIndexBuilder(_graph, init_indexd, args)
 
 
 @pytest.fixture
@@ -138,14 +139,17 @@ def test_get_file_metadata_from_indexd(index):
             validate_file_metadata(key, value)
 
 
-def test_selective_caching(init_indexd):
+def test_selective_caching(init_indexd, args):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
-                                      build_projects=projects_subset,
-                                      selective_caching=True)
+
+    # Set build_projects and selective_caching
+    args.build_projects = list(projects_subset)
+    args.selective_caching = True
+
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
 
     built_projects = {n.project_id for n in builder.G.nodes()
@@ -153,13 +157,13 @@ def test_selective_caching(init_indexd):
     assert built_projects == projects_subset
 
 
-def test_awg_build(init_indexd):
+def test_awg_build(init_indexd, args):
     """
     Tests AWG build mode
     """
-    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
-                                      build_projects=build_projects)
+    args.awg_mode = True
+    args.build_projects = ['TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE']
+    builder = ActiveGraphIndexBuilder(_graph, init_indexd, args)
     builder.cache_database()
 
     # Check that only AWG nodes were built
@@ -169,7 +173,7 @@ def test_awg_build(init_indexd):
         built_nodes[node.label].update([node.node_id])
 
     assert built_nodes == {
-        'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
+        'case': {get_node_id('submitted-awg-case')},
         'project': {get_node_id('awg-one-project')},
         'program': {get_node_id('internal-program'), get_node_id('program-tcga')}  # Why esbuild picks up all programs?
     }
@@ -314,6 +318,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].project.disease_type', 3),
     ('cases', '[*].project.primary_site', 3),
     ('cases', '[*].project_id', 0),
+    ('cases', '[*].files[*].baseid', N_FILES),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
     ('cases', '[*].samples.[*].portions.[*].portion_id', 3),
@@ -324,6 +329,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].(file_size | file_name | file_id)', N_FILES * 3),
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
+    ('files', '[*].baseid', N_FILES),
     ('files', '[*].cases.[*].project_id', 0),
     ('files', '[*].annotations.[*].case_id', 7),
     ('annotations', '[*].project_id', 0),
@@ -398,6 +404,8 @@ def test_basic_counts(index, doc_type, count):
                'annotated_somatic_mutation',
                'aggregated_somatic_mutation',
                'methylation_beta_value'}),
+    ('files', '[*].version', N_FILES, {'1'}),
+    ('files', '[*].release_number', N_FILES, {'1.0'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))

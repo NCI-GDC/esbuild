@@ -1,3 +1,5 @@
+# NOTE: Legacy esbuild is no longer supported and will never be run again.
+# Keeping this file just for the history's sake
 # -*- coding: utf-8 -*-
 """
 test_graph_index.py

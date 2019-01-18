@@ -13,7 +13,8 @@ log.setLevel(level=logging.INFO)
 
 IGNORE_KEYS = [
     'updated_datetime',  # This might change when node is touched
-    'portion_id', 'analyte_id'  # These are randomly generated each esbuild run
+    'portion_id', 'analyte_id',  # These are randomly generated each esbuild run
+    'file_state', 'state', 'releasable',  # System fields
 ]
 
 
