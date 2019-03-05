@@ -599,9 +599,14 @@ class GraphIndexBuilder(object):
         # Add files to cases
         # Do not add cases, annotations and associated entities to case.files
         case['files'] = [{k: f[k] for k in f if k not in ['cases',
-                                                          'annotations',
-                                                          'associated_entities']}
-                         for f in returned_files]
+                                                         'annotations',
+                                                         'associated_entities']}
+                         for f in deepcopy(returned_files)]
+
+        # Do not include input_files in case.files.analysis (TT-928)
+        for f in case['files']:
+            if 'analysis' in f:
+                f['analysis'].pop('input_files', None)
 
         self.validate_case(node, case)
 
