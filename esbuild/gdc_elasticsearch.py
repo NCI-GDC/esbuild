@@ -10,6 +10,7 @@ Elasticsearch
 
 import os
 import re
+import sys
 import json
 import datetime
 import subprocess
@@ -124,12 +125,12 @@ class GDCElasticsearch(object):
         self.release_helper = ReleaseHelper(self.es)
 
     def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
-           skip_build=False):
+           skip_build=False, cache_test=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
         with self.graph.session_scope() as session:
-            if not skip_build:
+            if not skip_build and not cache_test:
                 self.log.info("Caching database")
                 statsd.event(
                         "caching started",
@@ -138,12 +139,21 @@ class GDCElasticsearch(object):
                         alert_type="info",
                         tags=["es_index:{}".format(self.index_name), 'stage:caching'],
                 )
+                start_time = datetime.datetime.now()
                 self.converter.cache_database()
-            self.log.info("Querying for old nodes to delete")
-            to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
-            to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
-            self.log.info("Found %s to_delete nodes, saving for later",
-                          len(to_delete))
+                end_time = datetime.datetime.now()
+
+            if not cache_test:
+                self.log.info("Querying for old nodes to delete")
+                to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
+                to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
+                self.log.info("Found %s to_delete nodes, saving for later",
+                              len(to_delete))
+            else:
+                total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
+                    sys.getsizeof(self.converter.G.node)
+                self.log.info("Loaded data in %s, %d bytes in memory", 
+                    end_time - start_time, total_size_in_ram)
 
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
