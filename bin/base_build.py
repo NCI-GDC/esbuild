@@ -2,7 +2,6 @@ import argparse
 from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 
-
 def esbuild_argparser():
     """
     Returns argument parser for esbuild
@@ -44,47 +43,36 @@ def esbuild_argparser():
         'Will pick up only projects flagged as awg_review = true and '
         'nodes that are part of these projects and are in any of allowed states',
         default=False)
+    parser.add_argument(
+        '--save_doc_path',
+        help='Where to save docs (if necessary)',
+        default='/var/log/esbuild')
 
     return parser
 
 
-def main(converter, indexd_args, index_base):
+def main(converter=None,
+         indexd_args=None,
+         index_base=None,
+         work=None):
 
     indexd_client = IndexClient(**indexd_args)
 
-    args = esbuild_argparser().parse_args()
-
-    if args.projects:
-        if not args.index and not args.skip_es:
+    if work.get('projects'):
+        if not work.get('index') and not work.get('skip_es'):
             raise Exception('Provide --index <index_name> when using '
                             'partial build mode')
 
     gdc_es = GDCElasticsearch(
         indexd_client=indexd_client,
         converter_class=converter,
-        build_projects=args.projects,
-        build_awg=args.build_awg,
-        index_name=args.index,
+        build_projects=list(work.get('projects').split()),
+        build_awg=work.get('build_awg'),
+        index_name=work.get('index'),
         index_base=index_base,
-        skip_es=args.skip_es,
-        selective_caching=args.selective_caching,
+        skip_es=work.get('skip_es'),
+        selective_caching=work.get('selective_caching'),
     )
-    if args.delete:
-        if not args.json_delete:
-            gdc_es.go(roll_alias=not args.no_roll,
-                      delete_nodes=args.delete,
-                      cleanup_indices=not args.no_cleanup,
-                      skip_build=args.test_delete)
-        else:
-            nodes_to_delete = []
-            with open(args.json_delete, 'r') as in_file:
-                for line in in_file:
-                    nodes_to_delete.append(line.strip('\n'))
-            gdc_es.delete_nodes(to_delete=nodes_to_delete,
-                                cleanup_indices=not args.no_cleanup,
-                                delete_nodes=args.delete)
-    else:
-        gdc_es.go(roll_alias=not args.no_roll,
-                  delete_nodes=args.delete,
-                  cleanup_indices=not args.no_cleanup,
-                  skip_build=args.test_delete)
+    gdc_es.go(roll_alias=not work.get('no_roll'),
+              cleanup_indices=not work.get('no_cleanup'),
+              skip_build=work.get('test_delete'))

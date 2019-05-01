@@ -8,11 +8,12 @@ from elasticsearch import Elasticsearch
 from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
 from cdisutils.log import get_logger
+from depotclient import DepotClient
+
 logger = get_logger('esbuild_master')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
-
 
 def esbuild_argparser(parser=None):
     """
@@ -24,9 +25,9 @@ def esbuild_argparser(parser=None):
     depot_args = parser.add_argument_group(title='Depot server arguments',
                                            description='Depot server address '
                                            'and queue_id to listen to')
-    depot_args.add_argument('--host',
+    depot_args.add_argument('--depot-host',
                             help='Depot server host')
-    depot_args.add_argument('--port',
+    depot_args.add_argument('--depot-port',
                             type=int,
                             help='Depot server port')
     depot_args.add_argument('--queue-id', type=str,
@@ -36,21 +37,24 @@ def esbuild_argparser(parser=None):
                             action='store_true',
                             default=False)
     depot_args.add_argument('--queue-clear',
-                            help='Clears esbuild queue', action='store_true',
+                            help='Clears esbuild queue',
+                            action='store_true',
                             default=False)
 
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
-    es_args.add_argument('--n-workers',
-                         help='Number of workers to split esbuild between',
+    es_args.add_argument('--num-jobs',
+                         help='How many jobs to create',
                          type=int)
-    es_args.add_argument('--build-type', choices=['active', 'legacy'],
+    es_args.add_argument('--build-type',
+                         choices=['active', 'legacy'],
                          help='Choose "active" or "legacy"')
-
-    es_args.add_argument('--split-by-program', action='store_true',
+    es_args.add_argument('--split-by-program',
+                         action='store_true',
                          help='If set, splits all projects into groups by program',
                          default=False)
-    es_args.add_argument('--skip-projects', nargs='*',
+    es_args.add_argument('--skip-projects',
+                         nargs='*',
                          help='Set of projects to skip')
 
     backup_args = parser.add_argument_group(title='Backup arguments',
@@ -68,24 +72,12 @@ def parse_args():
     args = esbuild_argparser(base_parser()).parse_args()
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
-        if (any([args.index, args.n_workers, args.build_type]) and 
-            not all([args.index, args.n_workers, args.build_type])):
+        if (any([args.index, args.num_jobs, args.build_type]) and 
+            not all([args.index, args.num_jobs, args.build_type])):
             raise Exception('Provide esbuild arguments to delegate jobs.\n'
                             'Run `python master.py -h` for more info')
 
     return args
-
-
-def depot_call(action, host, port, queue_id, json=None):
-    """Calls depot api"""
-
-    url = 'http://{}:{}/v0/{}/{}'.format(host, port, action, queue_id)
-
-    method = 'put'
-    if action == 'status':
-        method = 'get'
-
-    return getattr(requests, method)(url, json=json)
 
 
 def split_projects(project_list, n, split_by_program=False):
@@ -167,6 +159,7 @@ def backup_wrapper(snapshot_name, index_name, mode):
 
 if __name__ == "__main__":
     args = parse_args()
+    depot = DepotClient(args.depot_host)
 
     if args.store_to_snapshot:
         # Backup args.index to S3 snapshot repository
@@ -176,16 +169,16 @@ if __name__ == "__main__":
         if args.restore_from_snapshot:
             backup_wrapper(args.restore_from_snapshot, args.index, 'restore')
         # Delegate esbuild jobs to depot queue
-        if args.host and args.port and args.queue_id:
+        if args.depot_host and args.depot_port and args.queue_id:
             # Get queue status:
-            status = depot_call('status', args.host, args.port, args.queue_id)
+            status = depot.queue_status(args.queue_id)
             if args.queue_clear:
-                logger.info(depot_call('clear', args.host, args.port, args.queue_id).text)
+                logger.info(depot.clear_queue(args.queue_id))
             elif args.queue_status:
-                logger.info(status.text)
+                logger.info(status)
             else:
-                if not args.n_workers:
-                    raise Exception('--n-workers not provided')
+                if not args.num_jobs:
+                    raise Exception('--num-jobs not provided')
                 if not args.index:
                     raise Exception('--index not provided')
                 if not args.build_type:
@@ -200,24 +193,23 @@ if __name__ == "__main__":
                 if args.skip_projects:
                     projects = [p for p in projects if p not in args.skip_projects]
 
-                logger.info("\n\n\tDelegating {} build with {} workers\n\tES index: {}"
-                            .format(args.build_type.upper(), args.n_workers, args.index))
+                logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
+                            .format(args.build_type.upper(), args.num_jobs, args.index))
 
-                if 'not found' in status.text:
+                if status.get('status') != 200:
                     logger.info("Creating new queue:")
-                    logger.info(depot_call('new', args.host, args.port, args.queue_id).text)
+                    logger.info(depot.create_queue(args.queue_id))
 
                 # Delegate a job for each project group:
-                for group in split_projects(projects, args.n_workers,
+                for group in split_projects(projects, args.num_jobs,
                                             split_by_program=args.split_by_program):
-                    arguments = ['--index', '{}'.format(args.index), '--no-roll',
-                                 '--projects', '{}'.format(' '.join(group))]
-
-                    if args.selective_caching:
-                        arguments.append('--selective-caching')
-                    if args.build_awg:
-                        arguments.append('--build-awg')
-
-                    job_json = {'arguments': arguments, 'build_type': args.build_type}
-                    depot_call('delegate', args.host, args.port, args.queue_id,
-                               json=job_json)
+                    job_json = {
+                        'index': args.index,
+                        'no-roll': args.no_roll,
+                        'projects': ' '.join(group),
+                        'selective-caching': args.selective_caching,
+                        'build-awg': args.build_awg,
+                        'build_type': args.build_type
+                    }
+                    logger.info('Adding work: {}'.format(job_json))
+                    depot.add_work(id=args.queue_id, work=job_json) 

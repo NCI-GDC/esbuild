@@ -1964,7 +1964,7 @@ class GraphIndexBuilder(object):
         if (self.build_awg or self.selective_caching) and self.build_projects:
             # Load only node ids with relevant project_id's
             project_ids = ['-'.join(p) for p in self.build_projects]
-
+            log.info('Getting {} from database'.format(project_ids))
             # For AWG build, keep only awg_review == True project subset
             if self.build_awg:
                 awg_projects = {
@@ -2207,7 +2207,7 @@ class GraphIndexBuilder(object):
         if len(self.experimental_strategies):
             return
 
-        log.info('Caching experitmental strategies')
+        log.info('Caching experimental strategies')
         for exp_strat in self.nodes_labeled('experimental_strategy'):
             strategy = exp_strat._props['name']
             self.experimental_strategies[strategy] = set(self.walk_path(
