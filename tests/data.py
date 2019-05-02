@@ -299,7 +299,7 @@ NODES = [
     AlignedReads(
         node_id=get_node_id('aligned-reads-1'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
@@ -321,7 +321,7 @@ NODES = [
     SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-1'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
@@ -338,7 +338,7 @@ NODES = [
     SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-2'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
