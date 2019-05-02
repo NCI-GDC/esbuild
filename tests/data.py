@@ -864,7 +864,7 @@ NODES = [
     Annotation(
         node_id=get_node_id('unreleased-annotation'),
         state='submitted',
-        status='Submitted'
+        status='Approved'
     ),
     Annotation(
         node_id=get_node_id('rescinded-redaction-annotation'),
