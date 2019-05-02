@@ -77,12 +77,25 @@ def process_work(worker_id,
                 job_data, err))
         else:
             work = job_data.get('work', {})
+            logger.info("{}".format(work))
             if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
                 if found_work:
+                    logger.info('No work found, exiting')
                     running = False
+                else:
+                    logger.info('No work found, waiting')
             elif work.get('status', None) == 'No work found':
                 if found_work:
+                    logger.info('No work found, exiting')
                     running = False
+                else:
+                    logger.info('No work found, waiting')
+            elif not work:
+                if found_work:
+                    logger.info('No work found, exiting')
+                    running = False
+                else:
+                    logger.info('No work found, waiting')
             else:
                 try:
                     # Compose and execute the command:
@@ -104,8 +117,8 @@ def process_work(worker_id,
                          work=work) 
                 except Exception as err:
                     logger.error("Attempted to run job: {}\nError: {}".format(work, repr(err)))
-
-            time.sleep(sleep_time)
+            if running:
+                time.sleep(sleep_time)
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()

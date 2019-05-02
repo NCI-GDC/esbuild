@@ -125,7 +125,15 @@ class GDCElasticsearch(object):
             self.index_name = self.get_index_name()
 
         # where to save docs if they fail
-        self.doc_output_dir = self.save_doc_path
+        if os.path.exists(self.save_doc_path):
+            self.doc_output_dir = self.save_doc_path
+        else:
+            try:
+                os.mkdir(self.save_doc_path)
+            except:
+                self.doc_output_dir = os.getcwd()
+            else:
+                self.doc_output_dir = self.save_doc_path
 
         # Used to clean up data in existing index
         self.release_helper = ReleaseHelper(self.es)
@@ -135,25 +143,27 @@ class GDCElasticsearch(object):
             json.dump(doc, out_file)
 
     def save_docs(self, case_docs, file_docs, ann_docs, project_docs):
-        time_stamp = time.now()
+        time_stamp = time.strftime("%Y%m%d_%H-%M-%S")
         file_name = '{}/case_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(case_docs, file_name)
         file_name = '{}/file_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(case_docs, file_name)
+        self.save_doc(file_docs, file_name)
         file_name = '{}/ann_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(case_docs, file_name)
+        self.save_doc(ann_docs, file_name)
         file_name = '{}/project_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(case_docs, file_name)
+        self.save_doc(project_docs, file_name)
 
     def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
            skip_build=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
+        new_index = None
+
         with self.graph.session_scope() as session:
             if not skip_build:
                 self.log.info("Caching database")
@@ -569,11 +579,6 @@ class GDCElasticsearch(object):
         else:
             n = max(current_numbers) + 1
         return INDEX_PATTERN.format(base=self.index_base, n=n)
-
-    def save_doc(self, docs, location):
-        """ Save a document set to disk """
-
-        
 
     def deploy(self, case_docs, file_docs, ann_docs,
                project_docs, roll_alias=True, cleanup_indices=True,
