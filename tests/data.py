@@ -478,6 +478,20 @@ NODES = [
         treatment_intent_type=None,
         treatment_or_therapy=u'unknown',
     ),
+    MolecularTest(
+        node_id=get_node_id('molecular-test-1'),
+        project_id='TCGA-BRCA',
+        state='released',
+        gene_symbol='CREBBP',
+        molecular_analysis_method='FISH',
+        test_result='Unknown'
+    ),
+    FollowUp(
+        node_id=get_node_id('follow-up-1'),
+        project_id='TCGA-BRCA',
+        state='released',
+        days_to_follow_up=888
+    ),
     Sample(
         node_id=get_node_id('sample-primary-tumor'),
         project_id='TCGA-BRCA',

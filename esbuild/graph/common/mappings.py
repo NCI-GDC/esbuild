@@ -114,7 +114,7 @@ class ESMapper(object):
         file_tree.data_subtype.data_type.corr = (ONE_TO_ONE, 'data_category')
         file_tree.experimental_strategy.corr = (ONE_TO_ONE, 'experimental_strategy')
         file_tree.case.corr = (ONE_TO_MANY, 'cases')
-        file_tree.platform.corr = (ONE_TO_ONE, 'platform')
+        <F2>file_tree.platform.corr = (ONE_TO_ONE, 'platform')
         file_tree.tag.corr = (ONE_TO_MANY, 'tags')
         file_tree.file.corr = (ONE_TO_MANY, 'metadata_files')
 
@@ -152,6 +152,8 @@ class ESMapper(object):
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
+        case_tree.follow_up.corr = (ONE_TO_MANY, 'follow_ups')
+        case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, 'molecular_tests')
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
