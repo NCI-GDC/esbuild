@@ -453,7 +453,6 @@ NODES = [
         state='released',
         age_at_diagnosis=47,
         classification_of_tumor=u'other',
-        days_to_birth=-17238,
         days_to_last_follow_up=-1,
         days_to_last_known_disease_status=-1,
         days_to_recurrence=-1,
@@ -468,7 +467,6 @@ NODES = [
         tissue_or_organ_of_origin=u'C34.3',
         tumor_grade=u'GB',
         tumor_stage=u'stage iiia',
-        vital_status=u'dead',
     ),
     Treatment(
         node_id=get_node_id('treatment-1'),
