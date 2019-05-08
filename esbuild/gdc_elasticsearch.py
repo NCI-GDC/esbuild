@@ -558,7 +558,7 @@ class GDCElasticsearch(object):
                     self.es.indices.flush(index=index)
                 except AuthorizationException as e:
                     # authorization exception will be raised if it's already closed
-                    if "IndexClosedException" in e.error:
+                    if e.error in ["IndexClosedException", "index_closed_exception"]:
                         self.log.info("%s is already closed" % index)
                         continue
                     else:
