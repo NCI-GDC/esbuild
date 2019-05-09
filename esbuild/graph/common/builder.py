@@ -936,6 +936,23 @@ class GraphIndexBuilder(object):
                 base = neighbor[self.flatten[neighbor.label]]
             else:
                 base = self._get_base_doc(neighbor)
+
+            # Annotation nodes need special denormalization, so use the
+            # pre-denormalized copy if we have one.
+            if neighbor.label == 'annotation':
+                denormalized_annotation = (
+                    self.annotation_entities
+                    .get(node, {}).get(neighbor.node_id)
+                )
+
+                if denormalized_annotation:
+                    base = denormalized_annotation
+                else:
+                    log.warn(
+                        'Missing denormalized annotation %s for node %s',
+                        base.get('annotation_id'),
+                        node.node_id)
+
             if corr == ONE_TO_ONE:
                 if label in doc:
                     self.warning(
