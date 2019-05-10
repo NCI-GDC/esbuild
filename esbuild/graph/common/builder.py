@@ -571,6 +571,15 @@ class GraphIndexBuilder(object):
             if annotation['entity_id'] in relevant_ids
         ]
 
+    def get_diagnosis_annotations(self, node):
+        """Return a flat list of annotations describing a case's diagnoses."""
+
+        return [
+            ann_doc
+            for diagnosis in self.neighbors_labeled(node, 'diagnosis')
+            for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
+        ]
+
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
@@ -613,9 +622,13 @@ class GraphIndexBuilder(object):
         # Flatten ids we visited in traversal to create a list of ids
         # that are relevant to this case (including the case's id)
         relevant_ids = self.get_relevant_ids(node, visited_ids)
+        relevant_ids += [f.node_id for f in files]
 
         # Pull out the annotations from files
         annotations = self.get_relevant_annotations(returned_files, relevant_ids)
+
+        # Pull out annotations from other node types outside the usual walk
+        annotations += self.get_diagnosis_annotations(node)
 
         # Create copy of annotations to return and add properties
         # (note: this is *not* in-place)
