@@ -571,6 +571,15 @@ class GraphIndexBuilder(object):
             if annotation['entity_id'] in relevant_ids
         ]
 
+    def get_diagnosis_annotations(self, node):
+        """Return a flat list of annotations describing a case's diagnoses."""
+
+        return [
+            ann_doc
+            for diagnosis in self.neighbors_labeled(node, 'diagnosis')
+            for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
+        ]
+
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
@@ -613,9 +622,13 @@ class GraphIndexBuilder(object):
         # Flatten ids we visited in traversal to create a list of ids
         # that are relevant to this case (including the case's id)
         relevant_ids = self.get_relevant_ids(node, visited_ids)
+        relevant_ids += [f.node_id for f in files]
 
         # Pull out the annotations from files
         annotations = self.get_relevant_annotations(returned_files, relevant_ids)
+
+        # Pull out annotations from other node types outside the usual walk
+        annotations += self.get_diagnosis_annotations(node)
 
         # Create copy of annotations to return and add properties
         # (note: this is *not* in-place)
@@ -936,6 +949,23 @@ class GraphIndexBuilder(object):
                 base = neighbor[self.flatten[neighbor.label]]
             else:
                 base = self._get_base_doc(neighbor)
+
+            # Annotation nodes need special denormalization, so use the
+            # pre-denormalized copy if we have one.
+            if neighbor.label == 'annotation':
+                denormalized_annotation = (
+                    self.annotation_entities
+                    .get(node, {}).get(neighbor.node_id)
+                )
+
+                if denormalized_annotation:
+                    base = denormalized_annotation
+                else:
+                    log.warn(
+                        'Missing denormalized annotation %s for node %s',
+                        base.get('annotation_id'),
+                        node.node_id)
+
             if corr == ONE_TO_ONE:
                 if label in doc:
                     self.warning(
