@@ -71,7 +71,7 @@ class ESMapper(object):
         'analyte',
         'aliquot',
         'slide',
-        'diagnosis',
+        #'diagnosis',
     ]
 
     flatten = [
@@ -153,7 +153,7 @@ class ESMapper(object):
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
-        case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, 'annotations')
+        #case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.follow_up.corr = (ONE_TO_MANY, 'follow_ups')
         case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, 'molecular_tests')
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
