@@ -6,8 +6,7 @@ deepdiff==3.3.0
 # force install of sqlalchemy 0.9.9 because indexd installs 1.0.8
 # this new version is not backwards compatible with 0.9.9
 SQLAlchemy==0.9.9
--e git+ssh://git@github.com/NCI-GDC/gdc-models.git@91e7839fc7999384d86e8ee8afb28f921d3c6f55#egg=gdcmodels
--e git+https://github.com/uc-cdis/cdisutils-test.git@0.2.2#egg=cdisutilstest
+-e git+ssh://git@github.com/NCI-GDC/gdc-models.git@0.3.0#egg=gdcmodels
 -e git+https://github.com/uc-cdis/cdis-python-utils.git@0.1.7#egg=cdispyutils
 
 # below is indexd and it's dependencies

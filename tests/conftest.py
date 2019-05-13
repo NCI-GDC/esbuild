@@ -68,8 +68,8 @@ def clear_graph_database():
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
 
 
-@pytest.fixture(scope='function')
-def init_indexd(indexd_server, indexd_client):
+@pytest.fixture
+def init_indexd(indexd_client):
     # Insert indexd data:
     for record in data.INDEXD:
         record = dict(record)  # prevent data.INDEXD object mutation
@@ -97,8 +97,7 @@ def init_indexd(indexd_server, indexd_client):
             urls_metadata=urls_metadata,
         )
 
-    yield indexd_client
-    clear_graph_database()
+    return indexd_client
 
 
 class TestError(Exception):
