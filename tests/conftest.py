@@ -68,7 +68,7 @@ def clear_graph_database():
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def init_indexd(indexd_server, indexd_client):
     # Insert indexd data:
     for record in data.INDEXD:
