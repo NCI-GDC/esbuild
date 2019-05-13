@@ -16,12 +16,15 @@ import os
 import pytest
 import time
 
-from cdisutilstest.code.indexd_fixture import (
-    create_user,
-    setup_database,
-    remove_sqlite_files,
+from indexd_test_utils import (
+    indexd_client,
+    indexd_server,
+    create_indexd_tables,
+    index_driver,
+    alias_driver,
+    auth_driver,
+    setup_indexd_test_database,
 )
-from cdisutilstest.code.conftest import indexd_server
 from indexclient.client import IndexClient
 
 # ======================================================================
@@ -66,12 +69,7 @@ def clear_graph_database():
 
 
 @pytest.fixture(scope='session')
-def init_indexd(indexd_server):
-    remove_sqlite_files()
-    setup_database()
-
-    indexd_client = IndexClient(baseurl=indexd_server.baseurl,
-                                auth=create_user('admin', 'admin'))
+def init_indexd(indexd_server, indexd_client):
     # Insert indexd data:
     for record in data.INDEXD:
         record = dict(record)  # prevent data.INDEXD object mutation
