@@ -93,6 +93,7 @@ def es_after_deletion(test_index_data):
     helper.delete_docs_from_index(index_name, projects_to_delete)
 
     # Wait for index to update
+    es.indices.refresh(index=index_name)
     time.sleep(2)
     return es, index_name, projects_before, projects_to_delete
 
