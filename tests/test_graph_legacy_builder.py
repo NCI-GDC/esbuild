@@ -38,7 +38,7 @@ def builder(init_indexd):
     return LegacyGraphIndexBuilder(_graph, init_indexd)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def index(init_indexd):
     return build_index(_graph, init_indexd)
 
