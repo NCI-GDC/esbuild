@@ -266,8 +266,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         # Omit entities from these projects
         self.omitted_projects.add(('CCLE', 'CCLE_V2'))
-        self.omitted_projects.add(('TARGET', 'ALL-P1'))
-        self.omitted_projects.add(('TARGET', 'ALL-P2'))
         self.omitted_projects.add(('CCLE', 'ALL-P1'))
         self.omitted_projects.add(('CCLE', 'ACC'))
         self.omitted_projects.add(('CCLE', 'DLBC'))
