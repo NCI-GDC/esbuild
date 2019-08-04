@@ -206,6 +206,8 @@ if __name__ == "__main__":
                     job_json = {
                         'index': args.index,
                         'no-roll': args.no_roll,
+                        'no-cleanup': args.no_cleanup,
+                        'skip-es': args.skip_es,
                         'projects': ' '.join(group),
                         'selective-caching': args.selective_caching,
                         'build-awg': args.build_awg,

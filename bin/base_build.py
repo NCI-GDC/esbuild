@@ -73,6 +73,6 @@ def main(converter=None,
         skip_es=work.get('skip-es'),
         selective_caching=work.get('selective-caching'),
     )
-    gdc_es.go(roll_alias=not work.get('no_roll'),
-              cleanup_indices=not work.get('no_cleanup'),
-              skip_build=work.get('test_delete'))
+    gdc_es.go(roll_alias=not work.get('no-roll'),
+              cleanup_indices=not work.get('no-cleanup'),
+              skip_build=work.get('test-delete'))
