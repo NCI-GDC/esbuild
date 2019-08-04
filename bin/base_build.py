@@ -14,14 +14,8 @@ def esbuild_argparser():
         '--no-cleanup', action="store_true",
         help='If passed, do not delete old indices')
     parser.add_argument(
-        '--delete', action="store_true",
-        help='If passed, delete the nodes in the json file passed with --json_delete')
-    parser.add_argument(
         '--skip_es', action="store_true",
         help='If passed, skip any actual action on es, just build json')
-    parser.add_argument(
-        '--json_delete',
-        help='File to use to delete nodes')
     parser.add_argument(
         '--test_delete', action='store_true',
         help='Test the deletion (skip load & build of index)')
