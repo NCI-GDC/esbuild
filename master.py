@@ -196,7 +196,7 @@ if __name__ == "__main__":
                 logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
                             .format(args.build_type.upper(), args.num_jobs, args.index))
 
-                if status.get('status') != 200:
+                if 'not found' in status.text:
                     logger.info("Creating new queue:")
                     logger.info(depot.create_queue(args.queue_id))
 
@@ -212,7 +212,7 @@ if __name__ == "__main__":
                         'projects': ' '.join(group),
                         'selective-caching': args.selective_caching,
                         'build-awg': args.build_awg,
-                        'build_type': args.build_type
+                        'build-type': args.build_type
                     }
                     logger.info('Adding work: {}'.format(job_json))
                     depot.add_work(id=args.queue_id, work=job_json) 

@@ -99,16 +99,16 @@ def process_work(worker_id,
             else:
                 try:
                     # Compose and execute the command:
-                    if work.get('build_type') == 'active':
+                    if work.get('build-type') == 'active':
                         builder = ActiveGraphIndexBuilder
                         index_base = 'gdc_from_graph'
-                    elif work.get('build_type') == 'legacy':
+                    elif work.get('build-type') == 'legacy':
                         builder = LegacyGraphIndexBuilder
                         index_base = 'gdc_legacy_graph'
                     else:
-                        raise Exception('Unable to find/handle build_type {}: {}'.format(work.get('build_type'), work))
+                        raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                     found_work = True
-                    logger.info('-> Running {} build'.format(work.get('build_type')))
+                    logger.info('-> Running {} build'.format(work.get('build-type')))
                     logger.info(work)
 
                     main(converter=ActiveGraphIndexBuilder,
