@@ -220,6 +220,7 @@ class GDCElasticsearch(object):
 
             # Prepare index (if it exists) to be augmented by new data
             if self.es:
+                start_time = datetime.datetime.now()
                 if self.index_name in self.es.indices.get_alias():
                     if self.build_projects:
                         projects_to_build = ','.join(self.build_projects)
@@ -239,8 +240,9 @@ class GDCElasticsearch(object):
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
 
+                denom_end_time = datetime.datetime.now()
                 self.log.info("ANALYSIS: Denormalized data in %s",
-                    cache_end_time - start_time)
+                    denom_end_time - start_time)
                 self.log.info("Deploying new ES index with new docs and bumping alias")
                 statsd.event(
                         "es uploading started",
