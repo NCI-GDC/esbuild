@@ -179,12 +179,8 @@ class GDCElasticsearch(object):
                 self.converter.cache_database()
                 cache_end_time = datetime.datetime.now()
 
-            #self.log.info("Querying for old nodes to delete")
-            #to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
             to_delete = []
-            #to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
-            #self.log.info("Found %s to_delete nodes, saving for later",
-            #              len(to_delete))
+
             total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
                 sys.getsizeof(self.converter.G.node)
             self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
