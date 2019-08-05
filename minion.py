@@ -56,13 +56,13 @@ def minion_argparser():
                         default=False)
     return parser
 
-def process_work(worker_id,
-                 depot_host,
-                 depot_queue_id,
-                 indexd_args,
-                 skip_es,
-                 save_doc_path, 
-                 sleep_time):
+def process_work(worker_id=None,
+                 depot_host=None,
+                 depot_queue_id=None,
+                 indexd_args=None,
+                 skip_es=None,
+                 save_doc_path=None, 
+                 sleep_time=None):
 
     running = True
     found_work = False
@@ -133,13 +133,13 @@ if __name__ == "__main__":
 
         proc_info['id'] = i
         proc_info['process'] = Process(target=process_work,
-                                         args=(i,
-                                               args.depot_host,
-                                               args.queue_id,
-                                               indexd_args,
-                                               args.skip_es,
-                                               args.save_doc_path,
-                                               TIMEDELTA))
+                                         args=(worker_id=i,
+                                               depot_host=args.depot_host,
+                                               depot_queue_id=args.queue_id,
+                                               indexd_args=indexd_args,
+                                               skip_es=args.skip_es,
+                                               save_doc_path=args.save_doc_path,
+                                               sleep_time=TIMEDELTA))
         proc_info['status'] = "running"
         procs.append(proc_info)
         proc_info['process'].start()
