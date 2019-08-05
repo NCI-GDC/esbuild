@@ -114,7 +114,7 @@ def process_work(worker_id,
                      index_base=index_base,
                      work=work) 
             except Exception as err:
-                logger.error("Attempted to run job: {}\nError: {}".format(work, repr(err)))
+                logger.exception("Attempted to run job: {}\nError: {}".format(work, repr(err)))
         if running:
             time.sleep(sleep_time)
 
