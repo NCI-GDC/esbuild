@@ -75,50 +75,51 @@ def process_work(worker_id,
         except Exception as err:
             logger.error("Unable to get work: {}\nError: {}".format(
                 job_data, err))
-        else:
-            work = job_data.get('work', {})
-            logger.info("{}".format(work))
-            if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
-                if found_work:
-                    logger.info('No work found, exiting')
-                    running = False
-                else:
-                    logger.info('No work found, waiting')
-            elif work.get('status', None) == 'No work found':
-                if found_work:
-                    logger.info('No work found, exiting')
-                    running = False
-                else:
-                    logger.info('No work found, waiting')
-            elif not work:
-                if found_work:
-                    logger.info('No work found, exiting')
-                    running = False
-                else:
-                    logger.info('No work found, waiting')
-            else:
-                try:
-                    # Compose and execute the command:
-                    if work.get('build-type') == 'active':
-                        builder = ActiveGraphIndexBuilder
-                        index_base = 'gdc_from_graph'
-                    elif work.get('build-type') == 'legacy':
-                        builder = LegacyGraphIndexBuilder
-                        index_base = 'gdc_legacy_graph'
-                    else:
-                        raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
-                    found_work = True
-                    logger.info('-> Running {} build'.format(work.get('build-type')))
-                    logger.info(work)
+            continue
 
-                    main(converter=ActiveGraphIndexBuilder,
-                         indexd_args=indexd_args,
-                         index_base=index_base,
-                         work=work) 
-                except Exception as err:
-                    logger.error("Attempted to run job: {}\nError: {}".format(work, repr(err)))
-            if running:
-                time.sleep(sleep_time)
+        work = job_data.get('work', {})
+        logger.info("{}".format(work))
+        if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
+            if found_work:
+                logger.info('No work found, exiting')
+                running = False
+            else:
+                logger.info('No work found, waiting')
+        elif work.get('status', None) == 'No work found':
+            if found_work:
+                logger.info('No work found, exiting')
+                running = False
+            else:
+                logger.info('No work found, waiting')
+        elif not work:
+            if found_work:
+                logger.info('No work found, exiting')
+                running = False
+            else:
+                logger.info('No work found, waiting')
+        else:
+            try:
+                # Compose and execute the command:
+                if work.get('build-type') == 'active':
+                    builder = ActiveGraphIndexBuilder
+                    index_base = 'gdc_from_graph'
+                elif work.get('build-type') == 'legacy':
+                    builder = LegacyGraphIndexBuilder
+                    index_base = 'gdc_legacy_graph'
+                else:
+                    raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
+                found_work = True
+                logger.info('-> Running {} build'.format(work.get('build-type')))
+                logger.info(work)
+
+                main(converter=ActiveGraphIndexBuilder,
+                     indexd_args=indexd_args,
+                     index_base=index_base,
+                     work=work) 
+            except Exception as err:
+                logger.error("Attempted to run job: {}\nError: {}".format(work, repr(err)))
+        if running:
+            time.sleep(sleep_time)
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
