@@ -85,7 +85,7 @@ def process_work(worker_id,
                 running = False
             else:
                 logger.info('No work found, waiting')
-        elif work.get('status', None) == 'No work found':
+        elif work.get('status') == 'No work found':
             if found_work:
                 logger.info('No work found, exiting')
                 running = False
