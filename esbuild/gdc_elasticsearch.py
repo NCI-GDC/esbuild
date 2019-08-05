@@ -88,12 +88,13 @@ class GDCElasticsearch(object):
             ('selective_caching', False),
             ('build_awg', False),
             ('skip_es', False),
-            ('save_doc_path', '/var/log/esbuild')
         ]
+
 
         for arg, default in valid_kwargs:
             setattr(self, arg, kwargs.get(arg, default))
 
+        self.save_doc_path = '/var/log/esbuild'
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = PsqlGraphDriver(
