@@ -141,7 +141,7 @@ class ReleaseHelper:
                     self.es.delete_by_query(index=index_name,
                                             doc_type=doc_type, body=query)
                 except Exception as exception:
-                    self.log.warn('Unable to delete {} from {}, skipping'.format(
+                    self.log.exception('Unable to delete {} from {}, skipping'.format(
                         doc_type, index_name))
 
     def update_metadata(self, index_name):
