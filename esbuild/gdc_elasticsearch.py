@@ -604,7 +604,7 @@ class GDCElasticsearch(object):
                                        thread_count=thread_count,
                                        chunk_size=chunk_size,
                                        max_chunk_bytes=max_chunk_bytes)
-        self.log.info("Deploying to index %s", new_index)
+        self.log.info("Deployed to index %s", new_index)
 
         # Add build metadata
         doc_counts = {'case': len(case_docs), 'file': len(file_docs),
