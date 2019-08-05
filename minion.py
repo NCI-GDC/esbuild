@@ -75,6 +75,7 @@ def process_work(worker_id,
         except Exception as err:
             logger.error("Unable to get work: {}\nError: {}".format(
                 job_data, err))
+            time.sleep(sleep_time)
             continue
 
         work = job_data.get('work', {})
