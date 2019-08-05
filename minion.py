@@ -43,8 +43,8 @@ def minion_argparser():
     parser.add_argument('--queue-id', type=str,
                         help='Depot queue id to listen to. Has to be UUID string',
                         required=True)
-    parser.add_argument('--num_threads',
-                        help='How many threads minion will run to process depot entries',
+    parser.add_argument('--num_procs',
+                        help='How many processes minion will run to process depot entries',
                         default=4,
                         type=int)
     parser.add_argument('--save_doc_path',
@@ -124,15 +124,15 @@ if __name__ == "__main__":
     indexd_args = {'baseurl': args.indexd_host,
                    'auth': (args.indexd_user, args.indexd_pass)}
 
-    threads = []
+    procs = []
 
     # create processes
-    for i in range(0, args.num_threads):
-        logger.info("Creating thread {}".format(i))
-        thread_info = {}
+    for i in range(0, args.num_procs):
+        logger.info("Creating process {}".format(i))
+        proc_info = {}
 
-        thread_info['id'] = i
-        thread_info['process'] = Process(target=process_work,
+        proc_info['id'] = i
+        proc_info['process'] = Process(target=process_work,
                                          args=(i,
                                                args.depot_host,
                                                args.queue_id,
@@ -140,10 +140,10 @@ if __name__ == "__main__":
                                                args.skip_es,
                                                args.save_doc_path,
                                                TIMEDELTA))
-        thread_info['status'] = "running"
-        threads.append(thread_info)
-        thread_info['process'].start()
+        proc_info['status'] = "running"
+        procs.append(proc_info)
+        proc_info['process'].start()
 
-    for thread in threads:
-        thread['process'].join()
+    for proc in procs:
+        proc['process'].join()
 
