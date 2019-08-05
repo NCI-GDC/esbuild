@@ -37,10 +37,6 @@ def esbuild_argparser():
         'Will pick up only projects flagged as awg_review = true and '
         'nodes that are part of these projects and are in any of allowed states',
         default=False)
-    parser.add_argument(
-        '--save_doc_path',
-        help='Where to save docs (if necessary)',
-        default='/var/log/esbuild')
 
     return parser
 
