@@ -103,9 +103,6 @@ def process_work(worker_id,
                 if work.get('build-type') == 'active':
                     builder = ActiveGraphIndexBuilder
                     index_base = 'gdc_from_graph'
-                elif work.get('build-type') == 'legacy':
-                    builder = LegacyGraphIndexBuilder
-                    index_base = 'gdc_legacy_graph'
                 else:
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                 found_work = True
