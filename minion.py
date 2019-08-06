@@ -104,6 +104,9 @@ def process_work(worker_id=None,
                 if work.get('build-type') == 'active':
                     builder = ActiveGraphIndexBuilder
                     index_base = 'gdc_from_graph'
+                elif work.get('build-type') == 'awg':
+                    builder = ActiveGraphIndexBuilder
+                    index_base = 'awg_from_graph'
                 else:
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                 found_work = True
