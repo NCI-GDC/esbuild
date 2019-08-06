@@ -94,7 +94,7 @@ class GDCElasticsearch(object):
         for arg, default in valid_kwargs:
             setattr(self, arg, kwargs.get(arg, default))
 
-        self.save_doc_path = os.expanduser('~/esbuild_output')
+        self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = PsqlGraphDriver(
