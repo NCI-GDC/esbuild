@@ -16,7 +16,7 @@ from addict import Dict
 from copy import deepcopy
 from gdcdatamodel import models  # noqa
 from psqlgraph import Node
-from normalizer import normalize
+from normalizer import normalize_from_files
 from ..common.mappings import (
     ESMapper,
     LONG,
@@ -119,7 +119,7 @@ class ActiveESMapper(ESMapper):
         if is_root:
             files = cls.add_file_autocomplete(files)
 
-        return normalize(files.to_dict())
+        return normalize_from_files(files.to_dict())[0]
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
@@ -130,7 +130,7 @@ class ActiveESMapper(ESMapper):
         if is_root:
             case = cls.add_case_autocomplete(case)
 
-        return normalize(case.to_dict())
+        return normalize_from_files(case.to_dict())[0]
 
     @classmethod
     def get_annotation_es_mapping(cls, include_file=True):
@@ -140,7 +140,7 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         annotation = cls.add_annotation_autocomplete(annotation)
 
-        return normalize(annotation.to_dict())
+        return normalize_from_files(annotation.to_dict())[0]
 
     @classmethod
     def get_project_es_mapping(cls):
@@ -150,7 +150,7 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         project = cls.add_project_autocomplete(project)
 
-        return normalize(project.to_dict())
+        return normalize_from_files(project.to_dict())[0]
 
 
 get_file_es_mapping = ActiveESMapper.get_file_es_mapping

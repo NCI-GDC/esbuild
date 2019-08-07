@@ -13,7 +13,7 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 """
 
 from gdcdatamodel import models  # noqa
-from normalizer import normalize
+from normalizer import normalize_from_files
 from ..common.mappings import (
     ESMapper,
 )
@@ -49,22 +49,22 @@ class LegacyESMapper(ESMapper):
 
 get_file_es_mapping = lambda include_case=True,\
                              is_root=True:\
-                                 normalize(
+                                 normalize_from_files(
                                      LegacyESMapper.get_file_es_mapping(
                                          include_case, 
                                          is_root
                                      )
-                                 )
+                                 )[0]
 get_case_es_mapping = lambda include_file=True,\
                              is_root=True:\
-                                 normalize(
+                                 normalize_from_files(
                                      LegacyESMapper.get_case_es_mapping(
                                          include_case,
                                          is_root
                                      )
-                                 )
-get_project_es_mapping = lambda: normalize(LegacyESMapper.get_project_es_mapping())
-get_annotation_es_mapping = lambda include_files=True: normalize(
+                                 )[0]
+get_project_es_mapping = lambda: normalize_from_files(LegacyESMapper.get_project_es_mapping())[0]
+get_annotation_es_mapping = lambda include_files=True: normalize_from_files(
                                                            LegacyESMapper.get_annotation_es_mapping()
-                                                       )
+                                                       )[0]
 index_settings = LegacyESMapper.index_settings
