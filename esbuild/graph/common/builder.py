@@ -158,6 +158,8 @@ class GraphIndexBuilder(object):
         # "label": [{"key1": "value1", "key2": "value2"}]
     }
 
+    INDEXD_URL_TYPE = u'cleversafe'
+
     required_attrs = [
         'mapper',
         'case_to_file_paths',
@@ -569,6 +571,15 @@ class GraphIndexBuilder(object):
             if annotation['entity_id'] in relevant_ids
         ]
 
+    def get_diagnosis_annotations(self, node):
+        """Return a flat list of annotations describing a case's diagnoses."""
+
+        return [
+            ann_doc
+            for diagnosis in self.neighbors_labeled(node, 'diagnosis')
+            for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
+        ]
+
     def denormalize_case(self, node):
         """Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
@@ -599,16 +610,25 @@ class GraphIndexBuilder(object):
         case['files'] = [{k: f[k] for k in f if k not in ['cases',
                                                           'annotations',
                                                           'associated_entities']}
-                         for f in returned_files]
+                         for f in deepcopy(returned_files)]
+
+        # Do not include input_files in case.files.analysis (TT-928)
+        for f in case['files']:
+            if 'analysis' in f:
+                f['analysis'].pop('input_files', None)
 
         self.validate_case(node, case)
 
         # Flatten ids we visited in traversal to create a list of ids
         # that are relevant to this case (including the case's id)
         relevant_ids = self.get_relevant_ids(node, visited_ids)
+        relevant_ids += [f.node_id for f in files]
 
         # Pull out the annotations from files
         annotations = self.get_relevant_annotations(returned_files, relevant_ids)
+
+        # Pull out annotations from other node types outside the usual walk
+        annotations += self.get_diagnosis_annotations(node)
 
         # Create copy of annotations to return and add properties
         # (note: this is *not* in-place)
@@ -834,7 +854,9 @@ class GraphIndexBuilder(object):
             if value is None:
                 value = record['metadata'].get(key)
             if key == 'file_state':
-                value = record['urls_metadata'].get('state')
+                for s3_url in record['urls_metadata'].keys():
+                    if record['urls_metadata'][s3_url].get('type') == self.INDEXD_URL_TYPE:
+                        value = record['urls_metadata'][s3_url].get('state')
 
             # Special values
             if key == 'file_size':
@@ -927,6 +949,23 @@ class GraphIndexBuilder(object):
                 base = neighbor[self.flatten[neighbor.label]]
             else:
                 base = self._get_base_doc(neighbor)
+
+            # Annotation nodes need special denormalization, so use the
+            # pre-denormalized copy if we have one.
+            if neighbor.label == 'annotation':
+                denormalized_annotation = (
+                    self.annotation_entities
+                    .get(node, {}).get(neighbor.node_id)
+                )
+
+                if denormalized_annotation:
+                    base = denormalized_annotation
+                else:
+                    log.warn(
+                        'Missing denormalized annotation %s for node %s',
+                        base.get('annotation_id'),
+                        node.node_id)
+
             if corr == ONE_TO_ONE:
                 if label in doc:
                     self.warning(
@@ -1260,6 +1299,9 @@ class GraphIndexBuilder(object):
             case_files[case] = self.remove_bam_index_files(
                 self.walk_paths(case, self.case_to_file_paths))
             files = files.union(case_files[case])
+
+        log.info('Got {} total files from {} cases'.format(
+            len(files), len(case_files)))
 
         # filter files
         files = {
@@ -1761,7 +1803,7 @@ class GraphIndexBuilder(object):
 
         # AWG mode
         if self.build_awg:
-            awg_states = {'live', 'submitted', 'processed'}
+            awg_states = {'live', 'submitted', 'processed', 'released'}
 
             if node.label == 'project':
                 return node.awg_review is True
@@ -1957,7 +1999,7 @@ class GraphIndexBuilder(object):
         if (self.build_awg or self.selective_caching) and self.build_projects:
             # Load only node ids with relevant project_id's
             project_ids = ['-'.join(p) for p in self.build_projects]
-
+            log.info('Getting {} from database'.format(project_ids))
             # For AWG build, keep only awg_review == True project subset
             if self.build_awg:
                 awg_projects = {
@@ -2200,7 +2242,7 @@ class GraphIndexBuilder(object):
         if len(self.experimental_strategies):
             return
 
-        log.info('Caching experitmental strategies')
+        log.info('Caching experimental strategies')
         for exp_strat in self.nodes_labeled('experimental_strategy'):
             strategy = exp_strat._props['name']
             self.experimental_strategies[strategy] = set(self.walk_path(

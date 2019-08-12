@@ -152,6 +152,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
     case_to_aliquot = [
         ['sample', 'aliquot'],
+        ['sample', 'analyte', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
 
@@ -172,10 +173,30 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         )
     )
 
-    aliquot_to_copy_number_paths = [
+    # Even more fun
+    # It seems that the walk will walk differently
+    # somehow. In some cases, it will walk to the
+    # end of a path, but in others, it will stop or
+    # ignore parents. The reason the following two are
+    # overlapping is because it looks like extending
+    # the path caused it to skip copy_number_segment
+    # when walking to copy_number_estimate. We still
+    # need to get to the bottom of how this logic
+    # should be used.
+    # - joe sislow (11/27/2018)
+
+    aliquot_to_copy_number_segment_paths = [
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
          'copy_number_segment'],
+    ]
+    
+    aliquot_to_copy_number_estimate_paths = [
+        ['submitted_tangent_copy_number',
+         'copy_number_liftover_workflow',
+         'copy_number_segment',
+         'copy_number_variation_workflow',
+         'copy_number_estimate'],
     ]
 
     aliquot_to_methylation_value_paths = [
@@ -200,14 +221,18 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['clinical_supplement'],
     ]
 
-    case_to_copy_number_paths = list_product(
-        case_to_aliquot, aliquot_to_copy_number_paths)
+    case_to_copy_number_segment_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_segment_paths)
+    
+    case_to_copy_number_estimate_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_estimate_paths)
 
     case_to_methylation_value_paths = list_product(
         case_to_aliquot, aliquot_to_methylation_value_paths)
 
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-    case_to_file_paths += case_to_copy_number_paths
+    case_to_file_paths += case_to_copy_number_segment_paths
+    case_to_file_paths += case_to_copy_number_estimate_paths
     case_to_file_paths += case_to_methylation_value_paths
     case_to_file_paths += case_to_slide_image_path
 
@@ -241,8 +266,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         # Omit entities from these projects
         self.omitted_projects.add(('CCLE', 'CCLE_V2'))
-        self.omitted_projects.add(('TARGET', 'ALL-P1'))
-        self.omitted_projects.add(('TARGET', 'ALL-P2'))
         self.omitted_projects.add(('CCLE', 'ALL-P1'))
         self.omitted_projects.add(('CCLE', 'ACC'))
         self.omitted_projects.add(('CCLE', 'DLBC'))
@@ -497,7 +520,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Copy number paths
         cnv_paths = [
             reverse_and_skip_first_entry(path) for path in
-            list_product([['aliquot']], self.aliquot_to_copy_number_paths)
+            list_product([['aliquot']], self.aliquot_to_copy_number_segment_paths)
+        ]
+        
+        # GISTIC paths
+        gistic_paths = [
+            reverse_and_skip_first_entry(path) for path in
+            list_product([['aliquot']], self.aliquot_to_copy_number_estimate_paths)
         ]
 
         # Methylation paths
@@ -509,6 +538,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Special case paths to be traversed to possible associated entities
         custom_paths = (
             cnv_paths
+            + gistic_paths
             + methylation_paths
         )
 

@@ -1,9 +1,45 @@
 import time
 import os
+from sys import getsizeof
+from itertools import chain
+from collections import deque
+try:
+    from reprlib import repr
+except ImportError:
+    pass
 import subprocess
 
 from elasticsearch import Elasticsearch
+from cdisutils.log import get_logger
 
+def get_total_size(obj, handlers={}):
+    """ Returns the memory used (in bytes) of an object and all of its
+        nested objects. Handlers for special objects can be passed in
+        as long as they provide an iterator to loop over themselves.
+    """
+    dict_handler = lambda d: chain.from_iterable(d.items())
+    all_handlers = {tuple: iter,
+                    list: iter,
+                    deque: iter,
+                    dict: dict_handler,
+                    set: iter,
+                    frozenset: iter,
+                   }
+    all_handlers.update(handlers)
+    seen_objs = set()
+
+    def sizeof(obj):
+        size = 0
+        if id(obj) not in seen_objs:
+            seen_objs.add(id(obj))
+            size = getsizeof(obj, 0)
+            for type_name, handler in all_handlers.items():
+                if isinstance(obj, type_name):
+                    size += sum(map(sizeof, handler(obj)))
+                    break
+        return size
+
+    return sizeof(obj)
 
 class ReleaseHelper:
     """
@@ -17,6 +53,7 @@ class ReleaseHelper:
             - run .prepare_index_to_build()
         """
         self.es = es
+        self.log = get_logger('utils_releasehelper')
 
     def prepare_index_to_build(self, index_name, projects_to_build):
         """
@@ -26,6 +63,10 @@ class ReleaseHelper:
 
         # If index does not exist, do nothing
         if index_name not in self.es.indices.get_alias():
+            return
+
+        # If index does exist, but it's empty, do nothing
+        if len(self.get_project_ids(index_name)) == 0:
             return
 
         # Remove data associated with projects that are to be build from index
@@ -96,9 +137,12 @@ class ReleaseHelper:
                             }
                         }
                     }
-
-                self.es.delete_by_query(index=index_name,
-                                        doc_type=doc_type, body=query)
+                try:
+                    self.es.delete_by_query(index=index_name,
+                                            doc_type=doc_type, body=query)
+                except Exception as exception:
+                    self.log.exception('Unable to delete {} from {}, skipping'.format(
+                        doc_type, index_name))
 
     def update_metadata(self, index_name):
         """
@@ -119,6 +163,7 @@ class ReleaseHelper:
                           'counts': counts}
         self.es.delete_by_query(index=index_name,
                                 doc_type='build_metadata', body={})
+
         self.es.create(index=index_name, id=','.join(projects_after),
                        doc_type='build_metadata', body=metadata_after)
         self.wait_for_es(index_name, 'build_metadata')

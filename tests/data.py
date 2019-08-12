@@ -299,7 +299,7 @@ NODES = [
     AlignedReads(
         node_id=get_node_id('aligned-reads-1'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
@@ -321,7 +321,7 @@ NODES = [
     SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-1'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
@@ -338,7 +338,7 @@ NODES = [
     SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-2'),
         acl=['phs000178'],
-        data_category='Sequencing Data',
+        data_category='Sequencing Reads',
         data_type='Aligned Reads',
         error_type='file_size',
         experimental_strategy='WGS',
@@ -453,22 +453,20 @@ NODES = [
         state='released',
         age_at_diagnosis=47,
         classification_of_tumor=u'other',
-        days_to_birth=-17238,
         days_to_last_follow_up=-1,
         days_to_last_known_disease_status=-1,
         days_to_recurrence=-1,
         last_known_disease_status=u'Unknown tumor status',
         morphology=u'8255/3',
-        primary_diagnosis=u'C34.30',
+        primary_diagnosis=u'Abdominal fibromatosis',
         prior_malignancy=u'no',
         progression_or_recurrence=u'unknown',
         project_id=u'TCGA-LUAD',
-        site_of_resection_or_biopsy=u'C34.3',
+        site_of_resection_or_biopsy=u'Abdominal esophagus',
         submitter_id=u'TCGA-49-AARO_diagnosis',
-        tissue_or_organ_of_origin=u'C34.3',
+        tissue_or_organ_of_origin=u'Abdominal esophagus',
         tumor_grade=u'GB',
         tumor_stage=u'stage iiia',
-        vital_status=u'dead',
     ),
     Treatment(
         node_id=get_node_id('treatment-1'),
@@ -479,6 +477,20 @@ NODES = [
         therapeutic_agents=None,
         treatment_intent_type=None,
         treatment_or_therapy=u'unknown',
+    ),
+    MolecularTest(
+        node_id=get_node_id('molecular-test-1'),
+        project_id='TCGA-BRCA',
+        state='released',
+        gene_symbol='CREBBP',
+        molecular_analysis_method='FISH',
+        test_result='Unknown'
+    ),
+    FollowUp(
+        node_id=get_node_id('follow-up-1'),
+        project_id='TCGA-BRCA',
+        state='released',
+        days_to_follow_up=888
     ),
     Sample(
         node_id=get_node_id('sample-primary-tumor'),
@@ -864,7 +876,7 @@ NODES = [
     Annotation(
         node_id=get_node_id('unreleased-annotation'),
         state='submitted',
-        status='Submitted'
+        status='Approved'
     ),
     Annotation(
         node_id=get_node_id('rescinded-redaction-annotation'),

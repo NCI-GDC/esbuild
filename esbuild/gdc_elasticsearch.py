@@ -10,9 +10,12 @@ Elasticsearch
 
 import os
 import re
+import sys
+import time
 import json
 import datetime
 import subprocess
+import resource
 
 from cdisutils.log import get_logger
 from datadog import statsd
@@ -22,7 +25,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper
+from utils import ReleaseHelper, get_total_size
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -87,9 +90,11 @@ class GDCElasticsearch(object):
             ('skip_es', False),
         ]
 
+
         for arg, default in valid_kwargs:
             setattr(self, arg, kwargs.get(arg, default))
 
+        self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = PsqlGraphDriver(
@@ -120,17 +125,50 @@ class GDCElasticsearch(object):
         if self.index_name is None:
             self.index_name = self.get_index_name()
 
+        # where to save docs if they fail
+        if os.path.exists(self.save_doc_path):
+            self.doc_output_dir = self.save_doc_path
+        else:
+            try:
+                os.mkdir(self.save_doc_path)
+            except:
+                self.doc_output_dir = os.getcwd()
+            else:
+                self.doc_output_dir = self.save_doc_path
+
         # Used to clean up data in existing index
         self.release_helper = ReleaseHelper(self.es)
+
+    def save_doc(self, doc, file_name):
+        with open(file_name, 'w') as out_file:
+            json.dump(doc, out_file)
+
+    def save_docs(self, case_docs, file_docs, ann_docs, project_docs):
+        time_stamp = time.strftime("%Y%m%d_%H-%M-%S")
+        file_name = '{}/case_docs_{}.json'.format(self.doc_output_dir, time_stamp)
+        self.log.info('Saving to {}'.format(file_name))
+        self.save_doc(case_docs, file_name)
+        file_name = '{}/file_docs_{}.json'.format(self.doc_output_dir, time_stamp)
+        self.log.info('Saving to {}'.format(file_name))
+        self.save_doc(file_docs, file_name)
+        file_name = '{}/ann_docs_{}.json'.format(self.doc_output_dir, time_stamp)
+        self.log.info('Saving to {}'.format(file_name))
+        self.save_doc(ann_docs, file_name)
+        file_name = '{}/project_docs_{}.json'.format(self.doc_output_dir, time_stamp)
+        self.log.info('Saving to {}'.format(file_name))
+        self.save_doc(project_docs, file_name)
 
     def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
            skip_build=False):
         # having a transation out here is important, since it ensures
         # that the cached database and which nodes get deleted is
         # consistent
+        new_index = None
+
         with self.graph.session_scope() as session:
             if not skip_build:
                 self.log.info("Caching database")
+
                 statsd.event(
                         "caching started",
                         "starting postgres caching",
@@ -138,12 +176,16 @@ class GDCElasticsearch(object):
                         alert_type="info",
                         tags=["es_index:{}".format(self.index_name), 'stage:caching'],
                 )
+                start_time = datetime.datetime.now()
                 self.converter.cache_database()
-            self.log.info("Querying for old nodes to delete")
-            to_delete = self.graph.nodes().sysan({"to_delete": True}).all()
-            to_delete = [n.node_id for n in to_delete if not shouldnt_delete(n)]
-            self.log.info("Found %s to_delete nodes, saving for later",
-                          len(to_delete))
+                cache_end_time = datetime.datetime.now()
+
+            to_delete = []
+
+            total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
+                sys.getsizeof(self.converter.G.node)
+            self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
+                cache_end_time - start_time, total_size_in_ram)
 
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
@@ -155,11 +197,18 @@ class GDCElasticsearch(object):
                     tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-            self.log.info("%s case docs, %s file docs, %s annotation docs, %s project docs",
+            self.log.info("ANALYSIS: %s case docs (%d),"
+                "%s file docs (%d),"
+                "%s annotation docs (%d),"
+                "%s project docs (%d)",
                           len(case_docs),
+                          get_total_size(case_docs),
                           len(file_docs),
+                          get_total_size(file_docs),
                           len(ann_docs),
-                          len(project_docs))
+                          get_total_size(ann_docs),
+                          len(project_docs),
+                          get_total_size(project_docs))
             self.log.info("Validating docs produced")
             statsd.event(
                     "validation started",
@@ -172,13 +221,14 @@ class GDCElasticsearch(object):
 
             # Prepare index (if it exists) to be augmented by new data
             if self.es:
+                start_time = datetime.datetime.now()
                 if self.index_name in self.es.indices.get_alias():
                     if self.build_projects:
                         projects_to_build = ','.join(self.build_projects)
                     else:
                         projects_to_build = 'all'
-                    self.log.info("Preparing ES index to be updated with {} projects"
-                                  .format(projects_to_build))
+                        self.log.info("ANALYSIS: Preparing ES index to be updated "
+                            "with {} projects".format(projects_to_build))
                     statsd.event(
                             "Index preparation started",
                             "starting index {} preparation".format(self.index_name),
@@ -191,6 +241,9 @@ class GDCElasticsearch(object):
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
 
+                denom_end_time = datetime.datetime.now()
+                self.log.info("ANALYSIS: Denormalized data in %s",
+                    denom_end_time - start_time)
                 self.log.info("Deploying new ES index with new docs and bumping alias")
                 statsd.event(
                         "es uploading started",
@@ -199,15 +252,20 @@ class GDCElasticsearch(object):
                         alert_type="info",
                         tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
                 )
-                new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                        index_name=self.index_name,
-                                        roll_alias=roll_alias,
-                                        cleanup_indices=cleanup_indices)
+                try:
+                    new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
+                                            index_name=self.index_name,
+                                            roll_alias=roll_alias,
+                                            cleanup_indices=cleanup_indices)
+                except Exception as exception:
+                    self.log.error('Unable to deploy documents to {}: {}, saving to {}'.format(
+                        self.index_name, exception, self.doc_output_dir))
+                    self.save_docs(case_docs, file_docs, ann_docs, project_docs)
             else:
                 new_index = 'not built'
 
         # Delete nodes that are marked "to_delete" if --delete flag is passed.
-        # Dump to log otherwise (default behavior)
+        # Dump to log otherwise (if any in list -- default behavior)
         self.delete_nodes(to_delete=to_delete, delete_nodes=delete_nodes)
 
         # Dump skipped nodes info into a file
@@ -220,6 +278,9 @@ class GDCElasticsearch(object):
                 alert_type="info",
                 tags=["es_index:{}".format(new_index), 'stage:finished'],
             )
+        end_time = datetime.datetime.now()
+        self.log.info("ANALYSIS: Run complete in %s - high water %d", end_time - start_time,
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
     def log_skipped_nodes(self):
         self.log.info("Logging skipped nodes to log file in ~")
@@ -270,8 +331,9 @@ class GDCElasticsearch(object):
                                 self.log.info("Deleting %s", node)
                                 session.delete(node)
         else:
-            self.log.info("Skipping deletion of nodes, saving them to log file in ~")
-            self.log_into_file(to_delete, 'esbuild-to_delete')
+            if to_delete:
+                self.log.info("Skipping deletion of nodes, saving them to log file in ~")
+                self.log_into_file(to_delete, 'esbuild-to_delete')
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
@@ -402,6 +464,7 @@ class GDCElasticsearch(object):
 
         # Create index if it does not exist (otherwise, just add the data)
         if index not in self.es.indices.get_alias():
+            self.log.info('Index %s not found, creating', index)
             index_settings = self.converter.mapper.index_settings()
             self.es.indices.create(index=index, body=index_settings)
             self.put_mappings(index)
@@ -411,6 +474,7 @@ class GDCElasticsearch(object):
         if not project_docs:
             self.log.warning("There were no case docs passed to populate with!")
 
+        self.log.info('Populating index %s', index)
         self.index_populate(index, case_docs, file_docs, ann_docs,
                             project_docs, thread_count=thread_count,
                             chunk_size=chunk_size, max_chunk_bytes=max_chunk_bytes)
@@ -493,7 +557,7 @@ class GDCElasticsearch(object):
                     self.es.indices.flush(index=index)
                 except AuthorizationException as e:
                     # authorization exception will be raised if it's already closed
-                    if "IndexClosedException" in e.error:
+                    if e.error in ["IndexClosedException", "index_closed_exception"]:
                         self.log.info("%s is already closed" % index)
                         continue
                     else:
@@ -541,6 +605,7 @@ class GDCElasticsearch(object):
                                        thread_count=thread_count,
                                        chunk_size=chunk_size,
                                        max_chunk_bytes=max_chunk_bytes)
+        self.log.info("Deployed to index %s", new_index)
 
         # Add build metadata
         doc_counts = {'case': len(case_docs), 'file': len(file_docs),
