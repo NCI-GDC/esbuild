@@ -62,7 +62,8 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, indexd_client, **kwargs):
+    def __init__(self, converter_class, indexd_client, index_close_thresh=5,
+                 **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
@@ -90,10 +91,10 @@ class GDCElasticsearch(object):
             ('skip_es', False),
         ]
 
-
         for arg, default in valid_kwargs:
             setattr(self, arg, kwargs.get(arg, default))
 
+        self.index_close_thresh = index_close_thresh
         self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
@@ -118,6 +119,7 @@ class GDCElasticsearch(object):
                     hosts=[os.environ["ELASTICSEARCH_HOST"]],
                     http_auth=(os.environ.get("ES_USER", ""),
                                os.environ.get("ES_PASSWORD", "")),
+                    maxsize=50,
                     timeout=9999)
         else:
             self.es = None
@@ -253,14 +255,17 @@ class GDCElasticsearch(object):
                         tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
                 )
                 try:
-                    new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                            index_name=self.index_name,
-                                            roll_alias=roll_alias,
-                                            cleanup_indices=cleanup_indices)
+                    new_index = self.deploy(
+                        case_docs, file_docs, ann_docs, project_docs,
+                        index_name=self.index_name, roll_alias=roll_alias,
+                        cleanup_indices=cleanup_indices)
                 except Exception as exception:
-                    self.log.exception(exception)
-                    self.log.error('Unable to deploy documents to {}: {}, saving to {}'.format(
-                        self.index_name, exception, self.doc_output_dir))
+                    self.log.exception(
+                        'Unable to deploy documents to {}: {}, saving to {}'
+                        ''.format(self.index_name, exception,
+                                  self.doc_output_dir),
+                        exc_info=True,
+                    )
                     self.save_docs(case_docs, file_docs, ann_docs, project_docs)
             else:
                 new_index = 'not built'
@@ -380,11 +385,12 @@ class GDCElasticsearch(object):
                 pbar.update(pbar.currval+1)
 
         actions = action_gen()
-        batches = helpers.parallel_bulk(self.es,
-                actions,
-                thread_count=thread_count,
-                chunk_size=chunk_size,
-                max_chunk_bytes=max_chunk_bytes
+        batches = helpers.parallel_bulk(
+            self.es,
+            actions,
+            thread_count=thread_count,
+            chunk_size=chunk_size,
+            max_chunk_bytes=max_chunk_bytes,
         )
         for batch in batches:
             if not batch[0]:
@@ -538,19 +544,20 @@ class GDCElasticsearch(object):
         self.log.info("Deleting old indices")
         numbers = self.get_index_numbers()
         indices = [INDEX_PATTERN.format(base=self.index_base, n=n)
-                     for n in numbers]
-        if len(numbers) <= 5:
+                   for n in numbers]
+        if len(numbers) <= self.index_close_thresh:
             self.log.info("less than 5 matching indices found, not deleting anything")
             to_close = indices
             to_delete = []
         else:
-            to_delete = indices[0:-5]
-            to_close = indices[-5:]
+            to_delete = indices[0:-self.index_close_thresh]
+            to_close = indices[-self.index_close_thresh:]
 
         self.log.info("Deleting indices %s", to_delete)
         for index in to_delete:
             self.log.info("Deleting %s", index)
             self.es.indices.delete(index=index)
+            self.es.indices.refresh()
         for index in to_close:
             if index not in kept:
                 self.log.info("Closing %s", index)
@@ -558,17 +565,23 @@ class GDCElasticsearch(object):
                     self.es.indices.flush(index=index)
                 except AuthorizationException as e:
                     # authorization exception will be raised if it's already closed
-                    if e.error in ["IndexClosedException", "index_closed_exception"]:
+                    if ('IndexClosedException' in str(e.error) or
+                            'index_closed_exception' in str(e.error)):
                         self.log.info("%s is already closed" % index)
                         continue
                     else:
-                        self.log.exception("Fail to flush %s" % index)
+                        self.log.exception("Failed to flush %s" % index,
+                                           exc_info=True)
                 except:
-                    self.log.exception("Can't flush index %s" % index)
+                    self.log.exception("Can't flush index %s" % index,
+                                       exc_info=True)
+
                 try:
                     self.es.indices.close(index=index)
+                    self.es.indices.refresh()
                 except:
-                    self.log.error("Can't close index %s" % index)
+                    self.log.exception("Can't close index %s" % index,
+                                       exc_info=True)
 
     def get_index_name(self):
         """Returns incremented index name"""

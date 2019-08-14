@@ -12,11 +12,15 @@ from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from data import get_node_id
+from conftest import get_all_indices
 
 import data
 import pytest
 import json
 import os
+
+from urllib3.exceptions import ConnectionError
+
 
 from conftest import (
     PG_HOST,
@@ -24,14 +28,16 @@ from conftest import (
     PG_PASSWORD,
     PG_DATABASE,
     _graph,
+    ES_HOST,
+    ES_PORT
 )
 
 
-@pytest.fixture(scope='function')
-def setup_test():
-    es = Elasticsearch("localhost")
-    delete_all_indices(es)
-    data.insert(_graph)
+@pytest.fixture
+def setup_test(sample_database, cleanup_indices):
+    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
+
+    cleanup_indices(es)
 
     os.environ["PG_HOST"] = PG_HOST
     os.environ["PG_USER"] = PG_USER
@@ -40,21 +46,8 @@ def setup_test():
     os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
     yield es
-    delete_all_indices(es)
 
-
-def get_all_indices(es):
-    return (
-        # closed indices:
-        es.cluster.state()['blocks'].get('indices', {}).keys() +
-        # opened indices:
-        es.indices.stats()['indices'].keys()
-    )
-
-
-def delete_all_indices(es):
-    for index in get_all_indices(es):
-        es.indices.delete(index)
+    cleanup_indices(es)
 
 
 def make_gdc_es(indexd_client, converter):
@@ -62,6 +55,7 @@ def make_gdc_es(indexd_client, converter):
         converter_class=converter,
         indexd_client=indexd_client,
         index_base="gdc_es_test",
+        index_close_thresh=4,
     )
 
 
@@ -124,17 +118,17 @@ def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, converte
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
 def test_old_index_cleanup(setup_test, init_indexd, converter):
-    for i in range(7):
+    for i in range(5):
         gdces = make_gdc_es(init_indexd, converter)
         gdces.go()
-    # running the index build seven times should delete indicies 1 and 2
-    assert set(get_all_indices(setup_test)) == {
-        "gdc_es_test_3",
-        "gdc_es_test_4",
-        "gdc_es_test_5",
-        "gdc_es_test_6",
-        "gdc_es_test_7"
-    }
-    for i in xrange(3, 6):
+
+    # running the index build five times should delete index 1
+    actual_indices = set(get_all_indices(setup_test))
+    expected_indices = {"gdc_es_test_2", "gdc_es_test_3", "gdc_es_test_4",
+                        "gdc_es_test_5"}
+    assert actual_indices == expected_indices, actual_indices
+
+    # index 1 should be deleted, index 2 and 3 should be closed
+    for i in range(2, 4):
         with pytest.raises(AuthorizationException):
-            setup_test.indices.stats('gdc_es_test_'+str(i))
+            setup_test.indices.stats('gdc_es_test_{}'.format(i))

@@ -15,6 +15,7 @@ import logging
 import os
 import pytest
 import time
+from elasticsearch.exceptions import ElasticsearchException
 
 from indexd_test_utils import (
     indexd_client,
@@ -152,7 +153,7 @@ def sample_database():
         logger.error('Failed to write updated database viz files: %s', exc)
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def graph():
     """Fixture to return temporary session database driver"""
 
@@ -166,15 +167,52 @@ def graph():
 # Elasticsearch test index
 
 
-@pytest.yield_fixture(scope='module')
-def test_index():
+def get_all_indices(es):
+    return (
+        # closed indices:
+        es.cluster.state()['blocks'].get('indices', {}).keys() +
+        # opened indices:
+        es.indices.stats()['indices'].keys()
+    )
+
+
+@pytest.fixture
+def cleanup_indices():
+    def _cleanup(es, indices=None):
+        """
+        Cleanup Elasticsearch cluster
+        :param es: ES client
+        :param indices: list of indices to delete
+        """
+        for _ in range(10):
+            try:
+                es.cluster.health(wait_for_status='yellow')
+                break
+            except ElasticsearchException:
+                time.sleep(5)
+        else:
+            raise Exception('Elasticsearch cluster offline after 20 seconds')
+
+        if not indices:
+            indices = get_all_indices(es)
+
+        for index in indices:
+            es.indices.delete(index, ignore=(404, 400))
+            es.indices.refresh()
+
+    return _cleanup
+
+
+@pytest.fixture(scope='module')
+def test_index(cleanup_indices):
     """Generate an index as a fixture for re-use between tests"""
 
-    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
     index = 'test_index__'
     doc_type = 'test'
     docs = es_data.dummy_docs
 
+    cleanup_indices(es_driver, [index])
     es_driver.indices.create(index=index, ignore=400)
     for doc in docs:
         es_driver.index(
@@ -192,19 +230,19 @@ def test_index():
         time.sleep(0.1)
 
     yield es_driver, index, doc_type, docs
-    es_driver.indices.delete(index=index, ignore=400)
+
+    cleanup_indices(es_driver, [index])
 
 
-@pytest.yield_fixture(scope='module')
-def test_index_data():
+@pytest.fixture(scope='module')
+def test_index_data(cleanup_indices):
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
-    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
     index = 'test_index_data__'
 
-    # Try to remove old test index if any 
-    es_driver.indices.delete(index=index, ignore=404)
+    cleanup_indices(es_driver, [index])
 
     # Create test index and put mappings
     es_driver.indices.create(index=index, ignore=400,
@@ -240,4 +278,5 @@ def test_index_data():
             time.sleep(0.1)
 
     yield es_driver, index
-    es_driver.indices.delete(index=index, ignore=400)
+
+    cleanup_indices(es_driver, [index])

@@ -41,6 +41,7 @@ class ActiveESMapper(ESMapper):
         _, definition = load_normalizer()
 
         settings['settings']['analysis'] = {
+            'normalizer': definition,
             "filter": {
                 "edge_ngram": {
                     "min_ngram": '1',
@@ -63,7 +64,6 @@ class ActiveESMapper(ESMapper):
                     "filter": ["lowercase"],
                 },
             },
-            'normalizer': definition,
         }
         return settings
 

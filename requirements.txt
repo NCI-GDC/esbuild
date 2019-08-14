@@ -18,4 +18,4 @@ SQLAlchemy==0.9.9
 -e git+ssh://git@github.com/NCI-GDC/indexclient.git@1.5.10#egg=indexclient
 -e git+ssh://git@github.com/NCI-GDC/python-depotclient.git@0.1.0#egg=depotclient
 -e git+ssh://git@github.com/NCI-GDC/gdc-models.git@feat/add_normalized_mappings#egg=gdcmodels
--e git+ssh://git@github.com/NCI-GDC/normalizer.git@fix/type-as-property-name#egg=normalizer
+-e git+ssh://git@github.com/NCI-GDC/normalizer.git@f5315f1089583c14c2170d50e96fc02efa1389c3#egg=normalizer
