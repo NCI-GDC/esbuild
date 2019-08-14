@@ -16,7 +16,7 @@ from addict import Dict
 from copy import deepcopy
 from gdcdatamodel import models  # noqa
 from psqlgraph import Node
-from normalizer import normalize_from_files
+from normalizer import normalize_from_files, load_normalizer
 from ..common.mappings import (
     ESMapper,
     LONG,
@@ -35,6 +35,10 @@ class ActiveESMapper(ESMapper):
     @staticmethod
     def index_settings():
         settings = super(ActiveESMapper, ActiveESMapper).index_settings()
+
+        # Load default normalizer
+        # FIXME: add support for different normalizers if needed in the future
+        _, definition = load_normalizer()
 
         settings['settings']['analysis'] = {
             "filter": {
@@ -57,8 +61,9 @@ class ActiveESMapper(ESMapper):
                 "lowercase_keyword": {
                     "tokenizer": "keyword",
                     "filter": ["lowercase"],
-                }
-            }
+                },
+            },
+            'normalizer': definition,
         }
         return settings
 

@@ -404,7 +404,6 @@ class ESMapper(object):
     @classmethod
     def get_file_es_mapping(cls, include_case=True, is_root=True):
         files = cls._get_header('file') if is_root else Dict()
-
         # Let top level properties be a union over properties from all
         # node types that this mapper considers a file
         files.properties = Dict({
@@ -419,7 +418,6 @@ class ESMapper(object):
             cls.get_file_tree(),
             files.properties
         )
-
         if not include_case:
             del files.properties.cases
 

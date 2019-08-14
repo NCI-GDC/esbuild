@@ -258,6 +258,7 @@ class GDCElasticsearch(object):
                                             roll_alias=roll_alias,
                                             cleanup_indices=cleanup_indices)
                 except Exception as exception:
+                    self.log.exception(exception)
                     self.log.error('Unable to deploy documents to {}: {}, saving to {}'.format(
                         self.index_name, exception, self.doc_output_dir))
                     self.save_docs(case_docs, file_docs, ann_docs, project_docs)
