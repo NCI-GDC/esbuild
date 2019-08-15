@@ -74,29 +74,6 @@ def get_dict_paths(d, path_list=None, path='root'):
     return list(set(path_list)), path
 
 
-@pytest.fixture(scope='module')
-def es_after_deletion(test_index_data):
-    """
-    Deletes some projects from the index but not updates the metadata,
-    leaving build_metadata inconsistent purposefully
-    """
-    es, index_name = test_index_data
-    helper = ReleaseHelper(es)
-
-    # Will delete these projects' data
-    projects_to_delete = [u"TCGA-STAD", u"FM-AD"]
-
-    # Get project list before deletion
-    projects_before = helper.get_project_ids(index_name)
-
-    # Delete documents associated with selected projects from index
-    helper.delete_docs_from_index(index_name, projects_to_delete)
-
-    # Wait for index to update
-    time.sleep(2)
-    return es, index_name, projects_before, projects_to_delete
-
-
 def test_projects_deleted(es_after_deletion):
     es, index_name, projects_before, deleted_projects = es_after_deletion
     helper = ReleaseHelper(es)

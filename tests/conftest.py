@@ -4,8 +4,7 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
-from multiprocessing import Process
-from elasticsearch import Elasticsearch
+from esbuild.utils import ReleaseHelper
 from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
 
@@ -15,6 +14,8 @@ import logging
 import os
 import pytest
 import time
+
+from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
 
 from indexd_test_utils import (
@@ -176,7 +177,7 @@ def get_all_indices(es):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cleanup_indices():
     def _cleanup(es, indices=None):
         """
@@ -280,3 +281,27 @@ def test_index_data(cleanup_indices):
     yield es_driver, index
 
     cleanup_indices(es_driver, [index])
+
+
+@pytest.fixture(scope='module')
+def es_after_deletion(test_index_data):
+    """
+    Deletes some projects from the index but not updates the metadata,
+    leaving build_metadata inconsistent purposefully
+    """
+    es, index_name = test_index_data
+    helper = ReleaseHelper(es)
+
+    # Will delete these projects' data
+    projects_to_delete = [u"TCGA-STAD", u"FM-AD"]
+
+    # Get project list before deletion
+    projects_before = helper.get_project_ids(index_name)
+
+    # Delete documents associated with selected projects from index
+    helper.delete_docs_from_index(index_name, projects_to_delete)
+
+    es.indices.refresh()
+    # Wait for index to update
+    time.sleep(2)
+    return es, index_name, projects_before, projects_to_delete

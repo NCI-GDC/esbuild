@@ -20,6 +20,7 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 TIMEDELTA = config['timedelta']
 
+
 def minion_argparser():
     """Parses depot arguments for esbuild minion"""
 
@@ -55,6 +56,7 @@ def minion_argparser():
                         action='store_true',
                         default=False)
     return parser
+
 
 def process_work(worker_id=None,
                  depot_host=None,
@@ -105,6 +107,10 @@ def process_work(worker_id=None,
                     builder = ActiveGraphIndexBuilder
                     index_base = 'gdc_from_graph'
                 elif work.get('build-type') == 'awg':
+                    # FIXME: this doesn't seem to be a valid 'build-type',
+                    # instead it should be coming from 'build-awg', but then
+                    # there's no place where an argument parser is actually
+                    # digesting anything AWG related
                     builder = ActiveGraphIndexBuilder
                     index_base = 'awg_from_graph'
                 else:
@@ -113,7 +119,7 @@ def process_work(worker_id=None,
                 logger.info('-> Running {} build'.format(work.get('build-type')))
                 logger.info(work)
 
-                main(converter=ActiveGraphIndexBuilder,
+                main(converter=builder,
                      indexd_args=indexd_args,
                      index_base=index_base,
                      work=work) 
@@ -121,6 +127,7 @@ def process_work(worker_id=None,
                 logger.exception("Attempted to run job: {}\nError: {}".format(work, repr(err)))
         if running:
             time.sleep(sleep_time)
+
 
 if __name__ == "__main__":
     args = minion_argparser().parse_args()
@@ -132,17 +139,15 @@ if __name__ == "__main__":
     # create processes
     for i in range(0, args.num_procs):
         logger.info("Creating process {}".format(i))
-        proc_info = {}
+        proc_info = dict(id=i)
 
-        proc_info['id'] = i
-        proc_info['process'] = Process(target=process_work,
-                                         args=(worker_id=i,
-                                               depot_host=args.depot_host,
-                                               depot_queue_id=args.queue_id,
-                                               indexd_args=indexd_args,
-                                               skip_es=args.skip_es,
-                                               save_doc_path=args.save_doc_path,
-                                               sleep_time=TIMEDELTA))
+        proc_info['process'] = Process(
+            target=process_work,
+            kwargs=dict(worker_id=i, depot_host=args.depot_host,
+                        depot_queue_id=args.queue_id, indexd_args=indexd_args,
+                        skip_es=args.skip_es, save_doc_path=args.save_doc_path,
+                        sleep_time=TIMEDELTA)
+        )
         proc_info['status'] = "running"
         procs.append(proc_info)
         proc_info['process'].start()
