@@ -119,7 +119,6 @@ class GDCElasticsearch(object):
                     hosts=[os.environ["ELASTICSEARCH_HOST"]],
                     http_auth=(os.environ.get("ES_USER", ""),
                                os.environ.get("ES_PASSWORD", "")),
-                    maxsize=50,
                     timeout=9999)
         else:
             self.es = None
@@ -578,7 +577,6 @@ class GDCElasticsearch(object):
 
                 try:
                     self.es.indices.close(index=index)
-                    self.es.indices.refresh()
                 except:
                     self.log.exception("Can't close index %s" % index,
                                        exc_info=True)

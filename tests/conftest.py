@@ -185,14 +185,14 @@ def cleanup_indices():
         :param es: ES client
         :param indices: list of indices to delete
         """
-        for _ in range(10):
+        for _ in range(5):
             try:
-                es.cluster.health(wait_for_status='yellow')
+                es.cluster.health(wait_for_status='yellow', timeout=60)
                 break
             except ElasticsearchException:
-                time.sleep(5)
+                time.sleep(0.1)
         else:
-            raise Exception('Elasticsearch cluster offline after 20 seconds')
+            raise Exception('Elasticsearch cluster offline after 5 minutes')
 
         if not indices:
             indices = get_all_indices(es)
@@ -208,7 +208,7 @@ def cleanup_indices():
 def test_index(cleanup_indices):
     """Generate an index as a fixture for re-use between tests"""
 
-    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
     index = 'test_index__'
     doc_type = 'test'
     docs = es_data.dummy_docs
@@ -240,7 +240,7 @@ def test_index_data(cleanup_indices):
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
-    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
     index = 'test_index_data__'
 
     cleanup_indices(es_driver, [index])

@@ -19,8 +19,6 @@ import pytest
 import json
 import os
 
-from urllib3.exceptions import ConnectionError
-
 
 from conftest import (
     PG_HOST,
