@@ -185,13 +185,14 @@ def cleanup_indices():
         :param es: ES client
         :param indices: list of indices to delete
         """
-        for _ in range(5):
+        for _ in range(10):
             try:
-                es.cluster.health(wait_for_status='yellow', timeout=60)
+                es.cluster.health(wait_for_status='yellow')
                 break
             except ElasticsearchException:
                 time.sleep(0.1)
         else:
+            # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
             raise Exception('Elasticsearch cluster offline after 5 minutes')
 
         if not indices:

@@ -33,7 +33,7 @@ from conftest import (
 
 @pytest.fixture
 def setup_test(sample_database, cleanup_indices):
-    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
+    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
 
     cleanup_indices(es)
 
