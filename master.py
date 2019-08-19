@@ -41,6 +41,33 @@ def esbuild_argparser(parser=None):
                             action='store_true',
                             default=False)
 
+    rabbitmq_args = parser.add_argument_group(title='RabbitMQ args')
+    rabbitmq_args.add_argument(
+        '--use-rabbitmq',
+        action='store_true',
+        help='Use RabbitMQ for scheduling instead'
+    )
+    rabbitmq_args.add_argument(
+        '--rabbitmq-host',
+        default=os.environ.get('RBTMQ_HOST', 'http://rabbitmq.service.consul'),
+        help='RabbitMQ host',
+    )
+    rabbitmq_args.add_argument(
+        '--rabbitmq-user',
+        default=os.environ.get('RBTMQ_USER', 'admin'),
+        help='RabbitMQ user',
+    )
+    rabbitmq_args.add_argument(
+        '--rabbitmq-pass',
+        default=os.environ.get('RBTMQ_PASS', 'admin'),
+        help='RabbitMQ password',
+    )
+    rabbitmq_args.add_argument(
+        '--rabbitmq-exchange',
+        default=os.environ.get('RBTMQ_EXCH', 'esbuild'),
+        help='RabbitMQ exchange',
+    )
+
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
     es_args.add_argument('--num-jobs',
@@ -73,7 +100,7 @@ def parse_args():
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.num_jobs, args.build_type]) and 
-            not all([args.index, args.num_jobs, args.build_type])):
+                not all([args.index, args.num_jobs, args.build_type])):
             raise Exception('Provide esbuild arguments to delegate jobs.\n'
                             'Run `python master.py -h` for more info')
 
@@ -164,6 +191,9 @@ if __name__ == "__main__":
     if args.store_to_snapshot:
         # Backup args.index to S3 snapshot repository
         backup_wrapper(args.store_to_snapshot, args.index, 'backup')
+    if args.use_rabbitmq:
+        # TODO: implement scheduling using rabbitmq
+        pass
     else:
         # Restore index from S3 snapshot repository
         if args.restore_from_snapshot:
@@ -171,11 +201,11 @@ if __name__ == "__main__":
         # Delegate esbuild jobs to depot queue
         if args.depot_host and args.depot_port and args.queue_id:
             # Get queue status:
-            status = depot.queue_status(args.queue_id)
+            q_status = depot.queue_status(args.queue_id)
             if args.queue_clear:
                 logger.info(depot.clear_queue(args.queue_id))
             elif args.queue_status:
-                logger.info(status)
+                logger.info(q_status)
             else:
                 if not args.num_jobs:
                     raise Exception('--num-jobs not provided')
@@ -196,7 +226,7 @@ if __name__ == "__main__":
                 logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
                             .format(args.build_type.upper(), args.num_jobs, args.index))
 
-                if 'not found' in status.text:
+                if q_status['status'] in [400, 404]:
                     logger.info("Creating new queue:")
                     logger.info(depot.create_queue(args.queue_id))
 
