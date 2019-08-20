@@ -11,7 +11,6 @@ from cdisutils.log import get_logger
 
 from bin.base_build import main
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from depotclient import DepotClient
 
 logger = get_logger('esbuild_minion')

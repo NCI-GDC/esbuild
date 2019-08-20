@@ -69,6 +69,9 @@ class GDCElasticsearch(object):
         :param es: An instance of Elasticsearch class
         :param converter_class: Class to use as a converter
         :param indexd_client: indexclient.client.IndexClient() object
+        :param index_close_thresh: we try to control the ES cluster size, by
+            keeping only X number of indices and deleting old ones. Set X by
+            passing this param
         :param index_base: base name template for resulting es index
         :param index_name: if provided, will build index with this name ignoring index_base
         :param build_projects: list of projects to build

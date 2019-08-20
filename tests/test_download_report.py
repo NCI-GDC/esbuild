@@ -27,7 +27,7 @@ class DownloadStatsIndexBuilderTest(TestCase):
         FileReport.metadata.create_all(_graph.engine)
         data.insert(_graph)
 
-        self.es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT, maxsize=25)
+        self.es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
         self.index_name = "download_stats_test"
         self.builder = DownloadStatsIndexBuilder(
             graph=_graph,
