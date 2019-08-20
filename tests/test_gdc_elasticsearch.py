@@ -27,12 +27,13 @@ from conftest import (
     PG_DATABASE,
     _graph,
     ES_HOST,
-    ES_PORT
+    ES_PORT,
+    cleanup_indices,
 )
 
 
 @pytest.fixture
-def setup_test(sample_database, cleanup_indices):
+def setup_test(sample_database):
     es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
 
     cleanup_indices(es)

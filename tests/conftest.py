@@ -177,36 +177,32 @@ def get_all_indices(es):
     )
 
 
-@pytest.fixture(scope='module')
-def cleanup_indices():
-    def _cleanup(es, indices=None):
-        """
-        Cleanup Elasticsearch cluster
-        :param es: ES client
-        :param indices: list of indices to delete
-        """
-        for _ in range(10):
-            try:
-                es.cluster.health(wait_for_status='yellow')
-                break
-            except ElasticsearchException:
-                time.sleep(0.1)
-        else:
-            # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
-            raise Exception('Elasticsearch cluster offline after 5 minutes')
+def cleanup_indices(es, indices=None):
+    """
+    Cleanup Elasticsearch cluster
+    :param es: ES client
+    :param indices: list of indices to delete
+    """
+    for _ in range(10):
+        try:
+            es.cluster.health(wait_for_status='yellow')
+            break
+        except ElasticsearchException:
+            time.sleep(0.1)
+    else:
+        # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
+        raise Exception('Elasticsearch cluster offline after 5 minutes')
 
-        if not indices:
-            indices = get_all_indices(es)
+    if not indices:
+        indices = get_all_indices(es)
 
-        for index in indices:
-            es.indices.delete(index, ignore=(404, 400))
-            es.indices.refresh()
-
-    return _cleanup
+    for index in indices:
+        es.indices.delete(index, ignore=(404, 400))
+        es.indices.refresh()
 
 
 @pytest.fixture(scope='module')
-def test_index(cleanup_indices):
+def test_index():
     """Generate an index as a fixture for re-use between tests"""
 
     es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
@@ -237,7 +233,7 @@ def test_index(cleanup_indices):
 
 
 @pytest.fixture(scope='module')
-def test_index_data(cleanup_indices):
+def test_index_data():
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
