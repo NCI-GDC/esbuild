@@ -4,8 +4,7 @@ Setup esbuild tests
 """
 
 from collections import namedtuple
-from multiprocessing import Process
-from elasticsearch import Elasticsearch
+from esbuild.utils import ReleaseHelper
 from gdcdatamodel.viz import create_graphviz
 from psqlgraph import PsqlGraphDriver, Node, Edge
 
@@ -15,6 +14,9 @@ import logging
 import os
 import pytest
 import time
+
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ElasticsearchException
 
 from indexd_test_utils import (
     indexd_client,
@@ -152,7 +154,7 @@ def sample_database():
         logger.error('Failed to write updated database viz files: %s', exc)
 
 
-@pytest.yield_fixture()
+@pytest.fixture()
 def graph():
     """Fixture to return temporary session database driver"""
 
@@ -166,15 +168,49 @@ def graph():
 # Elasticsearch test index
 
 
-@pytest.yield_fixture(scope='module')
+def get_all_indices(es):
+    return (
+        # closed indices:
+        es.cluster.state()['blocks'].get('indices', {}).keys() +
+        # opened indices:
+        es.indices.stats()['indices'].keys()
+    )
+
+
+def cleanup_indices(es, indices=None):
+    """
+    Cleanup Elasticsearch cluster
+    :param es: ES client
+    :param indices: list of indices to delete
+    """
+    for _ in range(10):
+        try:
+            es.cluster.health(wait_for_status='yellow')
+            break
+        except ElasticsearchException:
+            time.sleep(0.1)
+    else:
+        # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
+        raise Exception('Elasticsearch cluster offline after 5 minutes')
+
+    if not indices:
+        indices = get_all_indices(es)
+
+    for index in indices:
+        es.indices.delete(index, ignore=(404, 400))
+        es.indices.refresh()
+
+
+@pytest.fixture(scope='module')
 def test_index():
     """Generate an index as a fixture for re-use between tests"""
 
-    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
     index = 'test_index__'
     doc_type = 'test'
     docs = es_data.dummy_docs
 
+    cleanup_indices(es_driver, [index])
     es_driver.indices.create(index=index, ignore=400)
     for doc in docs:
         es_driver.index(
@@ -192,19 +228,19 @@ def test_index():
         time.sleep(0.1)
 
     yield es_driver, index, doc_type, docs
-    es_driver.indices.delete(index=index, ignore=400)
+
+    cleanup_indices(es_driver, [index])
 
 
-@pytest.yield_fixture(scope='module')
+@pytest.fixture(scope='module')
 def test_index_data():
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
-    es_driver = Elasticsearch(ES_HOST, port=ES_PORT)
+    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
     index = 'test_index_data__'
 
-    # Try to remove old test index if any 
-    es_driver.indices.delete(index=index, ignore=404)
+    cleanup_indices(es_driver, [index])
 
     # Create test index and put mappings
     es_driver.indices.create(index=index, ignore=400,
@@ -240,4 +276,29 @@ def test_index_data():
             time.sleep(0.1)
 
     yield es_driver, index
-    es_driver.indices.delete(index=index, ignore=400)
+
+    cleanup_indices(es_driver, [index])
+
+
+@pytest.fixture(scope='module')
+def es_after_deletion(test_index_data):
+    """
+    Deletes some projects from the index but not updates the metadata,
+    leaving build_metadata inconsistent purposefully
+    """
+    es, index_name = test_index_data
+    helper = ReleaseHelper(es)
+
+    # Will delete these projects' data
+    projects_to_delete = [u"TCGA-STAD", u"FM-AD"]
+
+    # Get project list before deletion
+    projects_before = helper.get_project_ids(index_name)
+
+    # Delete documents associated with selected projects from index
+    helper.delete_docs_from_index(index_name, projects_to_delete)
+
+    es.indices.refresh()
+    # Wait for index to update
+    time.sleep(2)
+    return es, index_name, projects_before, projects_to_delete
