@@ -77,6 +77,19 @@ def test_basic_es_generate(setup_test, init_indexd, converter):
                          doc_type="case",
                          id=get_node_id('case-tcga-brca-breast'))
 
+    # Test blocking release annotation does not exist in index
+    with _graph.session_scope():
+        assert not es.exists(
+            index='gdc_es_test',
+            doc_type='annotation',
+            id=get_node_id('block-release-annotation'),
+        )
+        assert es.exists( # just checking
+            index='gdc_es_test',
+            doc_type='annotation',
+            id=get_node_id('annotation-approved-center-qc-failed'),
+        )
+
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
 def test_unexpected_properties(setup_test, init_indexd, converter):
