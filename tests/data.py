@@ -1778,6 +1778,32 @@ EDGES = [
         src_id=get_node_id('blocking-release-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
+
+
+    # TT-1053 index redactions
+    Annotation(
+        node_id=get_node_id('redaction-annotation'),
+        state='released',
+        status='Approved',
+        classification='Redaction',
+    ),
+    Case(
+        # TT-1053 index redactions
+        node_id=get_node_id('redaction-case-released'),
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='released_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
+    AnnotationAnnotatesCase(
+        src_id=get_node_id('redaction-annotation'),
+        dst_id=get_node_id('redaction-case-released'),
+    ),
+    CaseMemberOfProject(
+        src_id=get_node_id('redaction-case-released'),
+        dst_id=get_node_id('fake_active_project')
+    ),
 ]
 
 

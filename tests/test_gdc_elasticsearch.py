@@ -149,3 +149,18 @@ def test_old_index_cleanup(setup_test, init_indexd, converter):
     for i in range(2, 4):
         with pytest.raises(AuthorizationException):
             setup_test.indices.stats('gdc_es_test_{}'.format(i))
+
+
+# TT-1053 index redaction
+def test_redaction_annotation_indexed(setup_test, init_indexd):
+
+    es = setup_test
+
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdces.go()
+
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('redaction-annotation'),
+    )
