@@ -159,7 +159,7 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
     gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     gdces.go()
 
-    assert es.exists(
+    assert not es.exists(  # The case needs to be unindexed
         index='gdc_es_test',
         doc_type='case',
         id=get_node_id('redaction-case-released'),
@@ -169,3 +169,8 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
         doc_type='annotation',
         id=get_node_id('redaction-annotation'),
     )
+
+
+# TODO: Case still needs to get unindexed
+# TODO: Only active redaction annotations
+# TODO: Check subject withrew consent still works as expected

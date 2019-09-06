@@ -619,23 +619,7 @@ class GraphIndexBuilder(object):
 
         self.validate_case(node, case)
 
-        # Flatten ids we visited in traversal to create a list of ids
-        # that are relevant to this case (including the case's id)
-        relevant_ids = self.get_relevant_ids(node, visited_ids)
-        relevant_ids += [f.node_id for f in files]
-
-        # Pull out the annotations from files
-        annotations = self.get_relevant_annotations(returned_files, relevant_ids)
-
-        # Pull out annotations from other node types outside the usual walk
-        annotations += self.get_diagnosis_annotations(node)
-
-        # Create copy of annotations to return and add properties
-        # (note: this is *not* in-place)
-        returned_annotations = map(copy, annotations)
-        self.patch_annotations(returned_annotations, node, project)
-
-        return case, returned_files, returned_annotations
+        return case, returned_files, []
 
     def get_case_file_docs(self, node, ptree, files):
         """Given a list of files, return a list of file docs"""
@@ -1481,13 +1465,79 @@ class GraphIndexBuilder(object):
 
         return ann_doc
 
+    def denormalize_annotations(self, annotations, projects=None):
+        g = self.g
+        annotation_ids = [node.node_id for node in annotations]
+        projects = projects or {}
+
+        with g.session_scope():
+            # Bring it into memory because can't query on label since it's a
+            # hybrid property
+            edges = g.edges().filter(Edge.src_id.in_(annotation_ids)).all()
+            edges = [edge for edge in edges if edge.label == 'annotates']
+
+            # Bidirectional edge mapping
+            entity_to_ann = {edge.dst.node_id: edge.src.node_id for edge in edges}
+            ann_to_entity = {edge.src.node_id: edge.dst.node_id for edge in edges}
+
+            entity_ids = entity_to_ann.keys()
+            entities_q = g.nodes().filter(md.Node.node_id.in_(entity_ids))
+            entities = {entity.node_id: entity for entity in entities_q}
+
+        docs = []
+
+        for annotation in annotations:
+            try:
+                doc = self._get_base_doc(annotation)
+                doc.update(dict(  # extend with more info
+                    entity_type=None,
+                    entity_id=None,
+                    entity_submitter_id=None,
+                    project=None,
+                ))
+
+                # Handle entity info
+                entity_id = ann_to_entity[annotation.node_id]
+                entity = entities[entity_id]
+                doc['entity_id'] = entity.node_id
+                doc['entity_type'] = entity.label
+                doc['entity_submitter_id'] = entity.submitter_id
+
+                # Handle project info
+                project = projects.get(annotation.project_id)
+                doc['project'] = {key: val for key, val in project.items() if key != 'summary'}
+
+            except Exception as e:
+                self.error(
+                    'denormalize_annotations',
+                    '{} encountered an error: {}'.format(annotation, e)
+                )
+                continue
+
+        return docs
+
     def denormalize_all(self):
         """Return an entire index worth of case, file, annotation, and
         project documents
 
         """
-        cases, files, annotations = self.denormalize_cases()
+        cases, files, _ = self.denormalize_cases()
         projects = self.denormalize_projects()
+
+        project_lookup = {}
+        for project in projects:
+            try:
+                project_id = project['project_id']
+                project_lookup[project_id] = project
+            except KeyError:
+                self.error(
+                    'denormalize_all',
+                    'Encountered missing project_id in denormalize_all: {}'
+                    .format(project)
+                )
+
+        annotations = self.denormalize_annotations(self.annotations, projects=project_lookup)
+
         return cases, files, annotations, projects
 
     def denormalize_cases_sample(self, k=10):
