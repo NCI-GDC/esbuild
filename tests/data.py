@@ -1170,6 +1170,26 @@ NODES = [
         namespace='genome.wustl.ed',
         short_name='WUSM',
     ),
+
+    # TT-1053 index redactions
+    Annotation(
+        node_id=get_node_id('redaction-annotation'),
+        category='Administrative Compliance',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Case temporarily redacted',
+        state='released',
+        submitter_id='18675',
+        status="Approved",
+    ),
+    Case(
+        node_id=get_node_id('redaction-case-released'),
+        project_id='TCGA-BRCA',
+        state='released',
+        submitter_id='released_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
 ]
 
 
@@ -1779,23 +1799,7 @@ EDGES = [
         dst_id=get_node_id('fake_active_project')
     ),
 
-
     # TT-1053 index redactions
-    Annotation(
-        node_id=get_node_id('redaction-annotation'),
-        state='released',
-        status='Approved',
-        classification='Redaction',
-    ),
-    Case(
-        # TT-1053 index redactions
-        node_id=get_node_id('redaction-case-released'),
-        project_id='TCGA-BRCA',
-        state='submitted',
-        submitter_id='released_case_submitter_2',
-        primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
-    ),
     AnnotationAnnotatesCase(
         src_id=get_node_id('redaction-annotation'),
         dst_id=get_node_id('redaction-case-released'),

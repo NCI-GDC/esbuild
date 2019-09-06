@@ -1906,8 +1906,6 @@ class GraphIndexBuilder(object):
                      for p in self.case_to_file_paths]
             # filter empty paths
             paths = [p for p in paths if p]
-        log.info("suppressing %s, which is redacted directly.", redacted)
-        to_suppress.append(redacted)
         log.info("Walking down towards file with paths %s", paths)
         extra = self.walk_paths(redacted, paths, whole=True)
         log.info("Found %s other things to suppress by walking from %s",
@@ -1958,13 +1956,6 @@ class GraphIndexBuilder(object):
 
             for redacted in redacted_list:
                 to_suppress += self.get_suppressed_children(redacted)
-
-            # returning the redaction annotations themselves here might
-            # seem weird, but including the redaction annotations
-            # themselves without the things they point to won't work, so
-            # we have to remove them.
-            log.info("suppressing %s, the redaction annotation.", redaction)
-            to_suppress.append(redaction)
 
         return to_suppress
 
