@@ -327,7 +327,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].cases.[*].project_id', 0),
     ('files', '[*].annotations.[*].case_id', 7),
     ('annotations', '[*].project_id', 0),
-    ('annotations', '[*].annotation_id', 1),
+    ('annotations', '[*].annotation_id', 3),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
 ])
 def test_path_count(index, doc_type, path, count):
@@ -335,7 +335,7 @@ def test_path_count(index, doc_type, path, count):
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
+@pytest.mark.parametrize('doc_type, count', [('annotations', 3), ('projects', 2),
                                              ('cases', 3), ('files', 10)])
 def test_basic_counts(index, doc_type, count):
     data = getattr(index, doc_type)

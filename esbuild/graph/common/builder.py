@@ -1484,6 +1484,13 @@ class GraphIndexBuilder(object):
             entities_q = g.nodes().filter(md.Node.node_id.in_(entity_ids))
             entities = {entity.node_id: entity for entity in entities_q}
 
+            nodes = g.nodes().filter(Node.node_id.in_(annotation_ids)).all()
+            ann_to_case = dict()
+            for node in nodes:
+                case = self.dfs_to_parent(node)
+                if case:
+                    ann_to_case[node.node_id] = case
+
         docs = []
 
         for annotation in annotations:
@@ -1494,6 +1501,8 @@ class GraphIndexBuilder(object):
                     entity_id=None,
                     entity_submitter_id=None,
                     project=None,
+                    case_id=None,
+                    case_submitter_id=None,
                 ))
 
                 # Handle entity info
@@ -1505,7 +1514,19 @@ class GraphIndexBuilder(object):
 
                 # Handle project info
                 project = projects.get(annotation.project_id)
-                doc['project'] = {key: val for key, val in project.items() if key != 'summary'}
+                if project:
+                    doc['project'] = {
+                        key: val
+                        for key, val in project.items() if key != 'summary'
+                    }
+
+                # Handle case info
+                case = ann_to_case[annotation.node_id]
+                if case:
+                    doc['case_id'] = case.node_id
+                    doc['case_submitter_id'] = case.submitter_id
+
+                docs.append(doc)
 
             except Exception as e:
                 self.error(
@@ -1515,6 +1536,14 @@ class GraphIndexBuilder(object):
                 continue
 
         return docs
+
+    def dfs_to_parent(self, node, target='case'):
+        while node:
+            if node.label == target:
+                return node
+            if not node.edges_out:
+                return None
+            node = node.edges_out[0].dst
 
     def denormalize_all(self):
         """Return an entire index worth of case, file, annotation, and
@@ -1536,6 +1565,7 @@ class GraphIndexBuilder(object):
                     .format(project)
                 )
 
+        self.annotations = self.annotations or []
         annotations = self.denormalize_annotations(self.annotations, projects=project_lookup)
 
         return cases, files, annotations, projects
@@ -1956,6 +1986,8 @@ class GraphIndexBuilder(object):
                      for p in self.case_to_file_paths]
             # filter empty paths
             paths = [p for p in paths if p]
+        log.info("suppressing %s, which is redacted directly.", redacted)
+        to_suppress.append(redacted)
         log.info("Walking down towards file with paths %s", paths)
         extra = self.walk_paths(redacted, paths, whole=True)
         log.info("Found %s other things to suppress by walking from %s",

@@ -58,7 +58,7 @@ def make_gdc_es(indexd_client, converter):
     )
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
 def test_basic_es_generate(setup_test, init_indexd, converter):
     es = setup_test
     gdces = make_gdc_es(init_indexd, converter)
@@ -170,7 +170,5 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
         id=get_node_id('redaction-annotation'),
     )
 
-
-# TODO: Case still needs to get unindexed
 # TODO: Only active redaction annotations
 # TODO: Check subject withrew consent still works as expected
