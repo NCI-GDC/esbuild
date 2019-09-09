@@ -1908,6 +1908,10 @@ class GraphIndexBuilder(object):
             elif node.state in released_states:
                 return True
 
+            if node.label == 'annotation' and \
+                    node.state != 'Approved':
+                return False
+
     def cache_skipped_node(self, node, reason):
         """
         Caches skipped node in self.skipped_nodes['{reason-for-skipping}']

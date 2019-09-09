@@ -170,5 +170,4 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
         id=get_node_id('redaction-annotation'),
     )
 
-# TODO: Only active redaction annotations
 # TODO: Check subject withrew consent still works as expected
