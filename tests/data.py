@@ -1190,6 +1190,24 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+    Annotation(
+        node_id=get_node_id('withdrew-consent-annotation'),
+        category='Subject withdrew consent',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Test subject withdrew consent',
+        state='released',
+        submitter_id='18675',
+        status="Approved",
+    ),
+    Case(
+        node_id=get_node_id('withdrew-consent-case-released'),
+        project_id='TCGA-BRCA',
+        state='released',
+        submitter_id='released_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
 ]
 
 
@@ -1806,6 +1824,14 @@ EDGES = [
     ),
     CaseMemberOfProject(
         src_id=get_node_id('redaction-case-released'),
+        dst_id=get_node_id('fake_active_project')
+    ),
+    AnnotationAnnotatesCase(
+        src_id=get_node_id('withdrew-consent-annotation'),
+        dst_id=get_node_id('withdrew-consent-case-released'),
+    ),
+    CaseMemberOfProject(
+        src_id=get_node_id('withdrew-consent-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
 ]

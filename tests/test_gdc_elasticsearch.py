@@ -170,4 +170,14 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
         id=get_node_id('redaction-annotation'),
     )
 
-# TODO: Check subject withrew consent still works as expected
+    # Check subject withdrew consent case and redaction still show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('withdrew-consent-case-released'),
+    )
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('withdrew-consent-annotation'),
+    )
