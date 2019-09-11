@@ -17,5 +17,5 @@ SQLAlchemy==0.9.9
 -e git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.0.1#egg=gdc_ng_models
 -e git+ssh://git@github.com/NCI-GDC/indexclient.git@1.5.10#egg=indexclient
 -e git+ssh://git@github.com/NCI-GDC/python-depotclient.git@0.1.0#egg=depotclient
--e git+ssh://git@github.com/NCI-GDC/gdc-models.git@release/redfish#egg=gdcmodels
+-e git+ssh://git@github.com/NCI-GDC/gdc-models.git@fix/blacklist-esbuild-issues#egg=gdcmodels
 -e git+ssh://git@github.com/NCI-GDC/normalizer.git@1.0.0#egg=normalizer
