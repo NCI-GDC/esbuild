@@ -29,6 +29,7 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
+from esbuild.utils import dfs_to_parent
 
 from progressbar import (
     ProgressBar,
@@ -1487,7 +1488,7 @@ class GraphIndexBuilder(object):
             nodes = g.nodes().filter(Node.node_id.in_(annotation_ids)).all()
             ann_to_case = dict()
             for node in nodes:
-                case = self.dfs_to_parent(node)
+                case = dfs_to_parent(node)
                 if case:
                     ann_to_case[node.node_id] = case
 
@@ -1536,14 +1537,6 @@ class GraphIndexBuilder(object):
                 continue
 
         return docs
-
-    def dfs_to_parent(self, node, target='case'):
-        while node:
-            if node.label == target:
-                return node
-            if not node.edges_out:
-                return None
-            node = node.edges_out[0].dst
 
     def denormalize_all(self):
         """Return an entire index worth of case, file, annotation, and

@@ -198,3 +198,13 @@ class ReleaseHelper:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
         return commit_hash
+
+
+def dfs_to_parent(node, target='case'):
+    if node.label == target:
+        return node
+    for edge in node.edges_out:
+        found = dfs_to_parent(edge.dst)
+        if found:
+            return found
+    return None
