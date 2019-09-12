@@ -16,10 +16,12 @@ import json
 import datetime
 import subprocess
 import resource
+from pprint import pformat
 
 from cdisutils.log import get_logger
 from datadog import statsd
-from elasticsearch import NotFoundError, Elasticsearch, helpers
+from elasticsearch import (
+    NotFoundError, Elasticsearch, helpers, exceptions as es_exc)
 from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
@@ -683,3 +685,81 @@ class GDCElasticsearch(object):
         else:
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
+
+    def reindex(self, old_index, new_index, index_settings=None):
+        if old_index == new_index:
+            raise ValueError(
+                "New index must be different from the old one: "
+                "old: '{}' new: '{}'".format(old_index, new_index)
+            )
+
+        index_settings = index_settings or self.converter.mapper.index_settings
+
+        reindex_body = {
+            'source': {
+                'index': old_index,
+            },
+            'dest': {
+                'index': new_index,
+            },
+        }
+
+        self.es.indices.create(index=new_index, body=index_settings)
+
+        try:
+            self.es.reindex(body=reindex_body, refresh=True)
+        except es_exc.ConnectionTimeout:
+            # Reindexing will take some time, so timeout is most likely to
+            # happen, however, the task will continue
+            pass
+
+        resp = self.es.tasks.list(actions='*reindex',
+                                  detailed=True,
+                                  group_by=None)
+        node_tasks = resp['nodes']
+
+        if not node_tasks:
+            self.log.info('All reindexing tasks have completed')
+            return
+
+        target_task_id = None
+        target_task_info = None
+        for node_id, node_info in node_tasks.items():
+            for task_id, task_info in node_info.get('tasks', {}):
+                description = task_info['description']
+                if old_index in description and new_index in description:
+                    target_task_id = task_id
+                    target_task_info = task_info
+                    break
+
+        if not target_task_id or not target_task_info:
+            raise Exception("How did this happen?")
+
+        time_elapsed = 0
+        while True:
+            try:
+                response = self.es.tasks.get(target_task_id,
+                                             wait_for_completion=True,
+                                             request_timeout=30)
+            except (es_exc.ConnectionTimeout, es_exc.TransportError):
+                if 'timeout_exception' not in str(es_exc.TransportError):
+                    # Something else other than a timeout went wrong, re-raise
+                    raise
+
+                time_elapsed += 30
+                continue
+            except es_exc.NotFoundError:
+                # This might happen in between ES requests cycles, so we won't
+                # get anything in the response
+                pass
+
+            try:
+                time_elapsed = response['task']['running_time_in_nanos'] // 10**6
+            except NameError:
+                # Can happen if we hit exception and no response get defined
+                pass
+            break
+
+        elapsed_mins = time_elapsed / 60.
+
+        self.log.info("Reindexing completed in: {} mins".format(elapsed_mins))
