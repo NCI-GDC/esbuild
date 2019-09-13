@@ -734,6 +734,8 @@ class GDCElasticsearch(object):
                     raise
 
                 time_elapsed += 30
+                self.log.info(
+                    "Reindexing is running for: {} secs".format(time_elapsed))
                 continue
             except es_exc.NotFoundError:
                 # This might happen in between ES requests cycles, so we won't
@@ -767,6 +769,8 @@ class GDCElasticsearch(object):
         :return: reindex operation summary
         """
 
+        self.log.info("Start reindexing")
+
         if old_index == new_index:
             raise ValueError(
                 "New index must be different from the old one: "
@@ -794,6 +798,8 @@ class GDCElasticsearch(object):
         # if query:
         #     reindex_body['source']['query'] = query
 
+        self.log.info("Creating new index: '{}'".format(new_index))
+
         self.es.indices.create(index=new_index, body=index_settings)
 
         if 'mappings' not in index_settings:
@@ -810,11 +816,14 @@ class GDCElasticsearch(object):
 
         task_info = self._get_reindex_task(old_index, new_index)
 
+        self.log.info("Monitoring active reindex task: {}".format(task_info.info))
+
         if not task_info.task_id or not task_info.info:
             raise Exception("How did this happen?")
 
         summary = self._wait_for_task_completion(task_info.task_id)
 
         self.log.info("Reindexing completed in {} min".format(summary['took']))
+        self.log.info("Summary:\n{}".format(summary))
 
         return summary
