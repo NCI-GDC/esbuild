@@ -693,7 +693,7 @@ class GDCElasticsearch(object):
                 "old: '{}' new: '{}'".format(old_index, new_index)
             )
 
-        index_settings = index_settings or self.converter.mapper.index_settings
+        index_settings = index_settings or self.converter.mapper.index_settings()
 
         reindex_body = {
             'source': {
@@ -706,8 +706,11 @@ class GDCElasticsearch(object):
 
         self.es.indices.create(index=new_index, body=index_settings)
 
+        if 'mappings' not in index_settings:
+            self.put_mappings(new_index)
+
         try:
-            self.es.reindex(body=reindex_body, refresh=True)
+            response = self.es.reindex(body=reindex_body, refresh=True)
         except es_exc.ConnectionTimeout:
             # Reindexing will take some time, so timeout is most likely to
             # happen, however, the task will continue
@@ -720,7 +723,7 @@ class GDCElasticsearch(object):
 
         if not node_tasks:
             self.log.info('All reindexing tasks have completed')
-            return
+            return {'took': 0}
 
         target_task_id = None
         target_task_info = None
@@ -736,6 +739,7 @@ class GDCElasticsearch(object):
             raise Exception("How did this happen?")
 
         time_elapsed = 0
+        results = {}
         while True:
             try:
                 response = self.es.tasks.get(target_task_id,
@@ -755,6 +759,7 @@ class GDCElasticsearch(object):
 
             try:
                 time_elapsed = response['task']['running_time_in_nanos'] // 10**6
+                results.update(response)
             except NameError:
                 # Can happen if we hit exception and no response get defined
                 pass
@@ -762,4 +767,8 @@ class GDCElasticsearch(object):
 
         elapsed_mins = time_elapsed / 60.
 
+        results['took'] = elapsed_mins
+
         self.log.info("Reindexing completed in: {} mins".format(elapsed_mins))
+
+        return results
