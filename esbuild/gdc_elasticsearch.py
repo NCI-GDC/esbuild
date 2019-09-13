@@ -59,6 +59,12 @@ def shouldnt_delete(node):
         return False
 
 
+class ESTaskInfo(object):
+    def __init__(self, task_id, task_info):
+        self.task_id = task_id
+        self.info = task_info
+
+
 class GDCElasticsearch(object):
 
     """
@@ -686,63 +692,40 @@ class GDCElasticsearch(object):
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
 
-    def reindex(self, old_index, new_index, index_settings=None):
-        if old_index == new_index:
-            raise ValueError(
-                "New index must be different from the old one: "
-                "old: '{}' new: '{}'".format(old_index, new_index)
-            )
-
-        index_settings = index_settings or self.converter.mapper.index_settings()
-
-        reindex_body = {
-            'source': {
-                'index': old_index,
-            },
-            'dest': {
-                'index': new_index,
-            },
-        }
-
-        self.es.indices.create(index=new_index, body=index_settings)
-
-        if 'mappings' not in index_settings:
-            self.put_mappings(new_index)
-
-        try:
-            response = self.es.reindex(body=reindex_body, refresh=True)
-        except es_exc.ConnectionTimeout:
-            # Reindexing will take some time, so timeout is most likely to
-            # happen, however, the task will continue
-            pass
-
-        resp = self.es.tasks.list(actions='*reindex',
-                                  detailed=True,
+    def _get_reindex_task(self, index1, index2):
+        resp = self.es.tasks.list(actions='*reindex', detailed=True,
                                   group_by=None)
         node_tasks = resp['nodes']
+        task_info = ESTaskInfo(None, None)
 
         if not node_tasks:
-            self.log.info('All reindexing tasks have completed')
-            return {'took': 0}
+            return task_info
 
-        target_task_id = None
-        target_task_info = None
         for node_id, node_info in node_tasks.items():
             for task_id, task_info in node_info.get('tasks', {}):
                 description = task_info['description']
-                if old_index in description and new_index in description:
-                    target_task_id = task_id
-                    target_task_info = task_info
+                if index1 in description and index2 in description:
+                    task_info.task_id = task_id
+                    task_info.info = task_info
                     break
 
-        if not target_task_id or not target_task_info:
-            raise Exception("How did this happen?")
+        return task_info
 
-        time_elapsed = 0
+    def _wait_for_task_completion(self, task_id):
+        """
+        Given an Elasticsearch task_id, wait for its completion and return
+        task summary
+        :param task_id: ES task ID
+        :return: Task summary
+        """
+
         results = {}
+        time_elapsed = 0
+
+        # Now lets wait for the task to complete. Good old while True loop.
         while True:
             try:
-                response = self.es.tasks.get(target_task_id,
+                response = self.es.tasks.get(task_id,
                                              wait_for_completion=True,
                                              request_timeout=30)
             except (es_exc.ConnectionTimeout, es_exc.TransportError):
@@ -756,19 +739,82 @@ class GDCElasticsearch(object):
                 # This might happen in between ES requests cycles, so we won't
                 # get anything in the response
                 pass
-
-            try:
+            else:
                 time_elapsed = response['task']['running_time_in_nanos'] // 10**6
                 results.update(response)
-            except NameError:
-                # Can happen if we hit exception and no response get defined
-                pass
-            break
+                break
 
         elapsed_mins = time_elapsed / 60.
 
         results['took'] = elapsed_mins
 
-        self.log.info("Reindexing completed in: {} mins".format(elapsed_mins))
-
         return results
+
+    def reindex(self, old_index, new_index, index_settings=None, query=None,
+                conflicts=None):
+        """
+        Perform reindex operation on an existing ``old_index``, create
+        ``new_index`` with updated mappings and invoke ES reindex API. Wait for
+        reindexing to copmlete and return the summary
+
+        :param old_index: existing ES index
+        :param new_index: new ES index to be created
+        :param index_settings: optional index settings and/or mappings
+        :param query: optional query to be run against the original index to
+            limit the documents being reindexed
+        :param conflicts: conflicts resolution strategy in case of indexing
+            collisions
+        :return: reindex operation summary
+        """
+
+        if old_index == new_index:
+            raise ValueError(
+                "New index must be different from the old one: "
+                "old: '{}' new: '{}'".format(old_index, new_index)
+            )
+
+        if conflicts or query:
+            raise NotImplementedError("Sorry")
+
+        index_settings = index_settings or self.converter.mapper.index_settings()
+
+        reindex_body = {
+            'source': {
+                'index': old_index,
+            },
+            'dest': {
+                'index': new_index,
+                # NOTE: Add conflict resolution logic as needed
+            },
+        }
+
+        # if conflicts:
+        #     reindex_body['conflicts'] = conflicts
+        #
+        # if query:
+        #     reindex_body['source']['query'] = query
+
+        self.es.indices.create(index=new_index, body=index_settings)
+
+        if 'mappings' not in index_settings:
+            self.put_mappings(new_index)
+
+        try:
+            response = self.es.reindex(body=reindex_body, refresh=True)
+        except es_exc.ConnectionTimeout:
+            # Reindexing will take some time, so timeout is most likely to
+            # happen, however, the task will continue
+            pass
+        else:
+            return response
+
+        task_info = self._get_reindex_task(old_index, new_index)
+
+        if not task_info.task_id or not task_info.info:
+            raise Exception("How did this happen?")
+
+        summary = self._wait_for_task_completion(task_info.task_id)
+
+        self.log.info("Reindexing completed in {} min".format(summary['took']))
+
+        return summary

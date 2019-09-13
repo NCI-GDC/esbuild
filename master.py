@@ -15,6 +15,7 @@ logger = get_logger('esbuild_master')
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
+
 def esbuild_argparser(parser=None):
     """
     Esbuild argument parser
@@ -73,7 +74,7 @@ def parse_args():
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.num_jobs, args.build_type]) and 
-            not all([args.index, args.num_jobs, args.build_type])):
+                not all([args.index, args.num_jobs, args.build_type])):
             raise Exception('Provide esbuild arguments to delegate jobs.\n'
                             'Run `python master.py -h` for more info')
 

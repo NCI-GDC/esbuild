@@ -31,6 +31,8 @@ from conftest import (
     cleanup_indices,
 )
 
+GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
+
 
 @pytest.fixture
 def setup_test(sample_database):
@@ -151,6 +153,15 @@ def test_old_index_cleanup(setup_test, init_indexd, converter):
             setup_test.indices.stats('gdc_es_test_{}'.format(i))
 
 
+def get_graph_counts(es, index, doc_types):
+    counts = {}
+    for dt in doc_types:
+        r = es.count(index=index, doc_type=dt)
+        counts[dt] = r['count']
+
+    return counts
+
+
 def test_reindex_change_field_type(setup_test, init_indexd):
     gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     gdc_es.go()
@@ -163,15 +174,14 @@ def test_reindex_change_field_type(setup_test, init_indexd):
 
     es = setup_test
 
+    # project.project_id is a keyword type and aggregations are possible
     aggs_resp1 = es.search(index=gdc_es.index_name, doc_type='case',
                            body=aggs_query)
 
-    doc_types = ['project', 'case', 'annotation', 'file']
-    counts1 = {}
-    for dt in doc_types:
-        r = es.count(index=gdc_es.index_name, doc_type=dt)
-        counts1[dt] = r['count']
+    # get counts before reindexing
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
 
+    # make sure that the number of cases is as expected
     assert sum([
         bucket['doc_count']
         for bucket in aggs_resp1['aggregations']['projects']['buckets']
@@ -179,6 +189,8 @@ def test_reindex_change_field_type(setup_test, init_indexd):
 
     new_index = 'new_{}'.format(gdc_es.index_name)
 
+    # Lets modify mappings for project_id and make it a 'text' type, this will
+    # disable ability to run the previous aggregation
     index_settings = gdc_es.converter.mapper.index_settings()
     mappings = {
         'file': gdc_es.converter.mapper.get_file_es_mapping(),
@@ -197,14 +209,12 @@ def test_reindex_change_field_type(setup_test, init_indexd):
 
     gdc_es.reindex(gdc_es.index_name, new_index, index_settings)
 
-    counts2 = {}
-    for dt in doc_types:
-        r = es.count(index=new_index, doc_type=dt)
-        counts2[dt] = r['count']
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
 
+    # Make sure that the counts are still the same
     assert counts1 == counts2
 
-    # The following should fail
+    # The following should fail, because ES doesn't do aggs on 'text' fields
     try:
         _ = es.search(index=new_index, doc_type='case', body=aggs_query)
     except Exception as e:
