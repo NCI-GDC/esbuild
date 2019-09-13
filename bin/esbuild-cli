@@ -1,0 +1,37 @@
+from argparse import ArgumentParser
+
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.gdc_elasticsearch import GDCElasticsearch
+
+
+def handle_reindex(args):
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
+    gdc_es.reindex(args.old_index, args.new_index)
+
+
+def get_parser():
+    parser = ArgumentParser()
+
+    subparser = parser.add_subparsers(title='subcommands')
+
+    reindex_sub = subparser.add_parser('reindex')
+    reindex_sub.add_argument(
+        '--old-index',
+        required=True,
+        help='The name or alias of an existing Elasticsearch index that needs '
+             'reindexing',
+    )
+    reindex_sub.add_argument(
+        '--new-index',
+        required=True,
+        help='The name of a destination Elasticsearch index'
+    )
+    reindex_sub.set_defaults(func=handle_reindex)
+
+    # TODO: Add more params as needed.
+
+    return parser
+
+
+if __name__ == '__main__':
+    get_parser().parse_args()
