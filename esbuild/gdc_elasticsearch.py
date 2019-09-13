@@ -720,7 +720,8 @@ class GDCElasticsearch(object):
         """
 
         results = {}
-        time_elapsed = 0
+        # NOTE: Initial reindex request had a 30sec timeout
+        time_elapsed = 30
 
         # Now lets wait for the task to complete. Good old while True loop.
         while True:
@@ -806,7 +807,8 @@ class GDCElasticsearch(object):
             self.put_mappings(new_index)
 
         try:
-            response = self.es.reindex(body=reindex_body, refresh=True)
+            response = self.es.reindex(body=reindex_body, refresh=True,
+                                       request_timeout=30)
         except es_exc.ConnectionTimeout:
             # Reindexing will take some time, so timeout is most likely to
             # happen, however, the task will continue
