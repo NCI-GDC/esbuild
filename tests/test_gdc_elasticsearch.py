@@ -207,7 +207,7 @@ def test_reindex_change_field_type(setup_test, init_indexd):
 
     index_settings.update({'mappings': mappings})
 
-    gdc_es.reindex(gdc_es.index_name, new_index, index_settings)
+    gdc_es.reindex(gdc_es.index_name, new_index, index_settings=index_settings)
 
     counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
 

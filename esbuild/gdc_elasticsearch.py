@@ -753,8 +753,8 @@ class GDCElasticsearch(object):
 
         return results
 
-    def reindex(self, old_index, new_index, index_settings=None, query=None,
-                conflicts=None):
+    def reindex(self, old_index, new_index, types=None, index_settings=None,
+                query=None, conflicts=None):
         """
         Perform reindex operation on an existing ``old_index``, create
         ``new_index`` with updated mappings and invoke ES reindex API. Wait for
@@ -762,6 +762,7 @@ class GDCElasticsearch(object):
 
         :param old_index: existing ES index
         :param new_index: new ES index to be created
+        :param types: ES document types to reindex
         :param index_settings: optional index settings and/or mappings
         :param query: optional query to be run against the original index to
             limit the documents being reindexed
@@ -798,6 +799,13 @@ class GDCElasticsearch(object):
         #
         # if query:
         #     reindex_body['source']['query'] = query
+
+        # FIXME: Maybe want to do a more extensive param check, but this should
+        # cover our immediate use cases
+        if types:
+            types = types if isinstance(types, list) else [types]
+            reindex_body['source']['type'] = types
+            reindex_body['dest']['type'] = types
 
         self.log.info("Creating new index: '{}'".format(new_index))
 

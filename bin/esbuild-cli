@@ -6,7 +6,7 @@ from esbuild.gdc_elasticsearch import GDCElasticsearch
 
 def handle_reindex(args):
     gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
-    gdc_es.reindex(args.old_index, args.new_index)
+    gdc_es.reindex(args.old_index, args.new_index, types=args.doc_types)
 
 
 def get_parser():
@@ -25,6 +25,13 @@ def get_parser():
         '--new-index',
         required=True,
         help='The name of a destination Elasticsearch index'
+    )
+    reindex_sub.add_argument(
+        '--doc-types',
+        required=False,
+        nargs='*',
+        default=[],
+        help='Elasticsearch document types to reindex',
     )
     reindex_sub.set_defaults(func=handle_reindex)
 
