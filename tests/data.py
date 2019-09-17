@@ -1208,6 +1208,24 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+    Annotation(
+        node_id=get_node_id('released-rescinded-annotation'),
+        category='Administrative Compliance',
+        classification='Redaction',
+        creator='annotator1',
+        notes='Testing annotation released and rescinded',
+        state='released',
+        submitter_id='18675',
+        status="Rescinded",
+    ),
+    Case(
+        node_id=get_node_id('released-rescinded-case'),
+        project_id='TCGA-BRCA',
+        state='released',
+        submitter_id='released_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
 ]
 
 
@@ -1832,6 +1850,14 @@ EDGES = [
     ),
     CaseMemberOfProject(
         src_id=get_node_id('withdrew-consent-case-released'),
+        dst_id=get_node_id('fake_active_project')
+    ),
+    AnnotationAnnotatesCase(
+        src_id=get_node_id('released-rescinded-annotation'),
+        dst_id=get_node_id('released-rescinded-case'),
+    ),
+    CaseMemberOfProject(
+        src_id=get_node_id('released-rescinded-case'),
         dst_id=get_node_id('fake_active_project')
     ),
 ]

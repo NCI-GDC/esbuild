@@ -1,3 +1,4 @@
+from functools32 import lru_cache
 import time
 import os
 from sys import getsizeof
@@ -200,6 +201,7 @@ class ReleaseHelper:
         return commit_hash
 
 
+@lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):
     if node.label == target:
         return node

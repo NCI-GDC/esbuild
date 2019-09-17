@@ -181,3 +181,15 @@ def test_redaction_annotation_indexed(setup_test, init_indexd):
         doc_type='annotation',
         id=get_node_id('withdrew-consent-annotation'),
     )
+
+    # Check released-rescinded redaction doesn't show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('released-rescinded-case'),
+    )
+    assert not es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('released-rescinded-annotation'),
+    )

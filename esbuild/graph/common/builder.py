@@ -1518,7 +1518,8 @@ class GraphIndexBuilder(object):
                 if project:
                     doc['project'] = {
                         key: val
-                        for key, val in project.items() if key != 'summary'
+                        for key, val in project.items()
+                        if key not in ['summary']
                     }
 
                 # Handle case info
@@ -1898,12 +1899,16 @@ class GraphIndexBuilder(object):
             elif 'state' not in node.__pg_properties__:
                 return True
 
-            elif node.state in released_states:
+            elif node.state in released_states and \
+                    node.label != 'annotation':
                 return True
 
             if node.label == 'annotation' and \
-                    node.state != 'Approved':
-                return False
+                    node.state == 'released' and \
+                    node.status == 'Approved':
+                return True
+
+        return False
 
     def cache_skipped_node(self, node, reason):
         """
