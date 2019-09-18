@@ -640,16 +640,14 @@ class GDCElasticsearch(object):
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
-        if self.build_projects:
-            doc_id = ','.join(self.build_projects)
-        else:
-            doc_id = 'ALL PROJECTS'
+        project_ids = self.build_projects or ['ALL PROJECTS']
+        doc_id = ReleaseHelper.get_build_metadata_id(self.build_projects or 'ALL PROJECTS')
 
         self.es.create(index=new_index, doc_type='build_metadata',
                        id=doc_id,
                        body={
                            'commit_hash': commit_hash,
-                           'build_projects': self.build_projects,
+                           'build_projects': project_ids,
                            'counts': doc_counts
                        })
 

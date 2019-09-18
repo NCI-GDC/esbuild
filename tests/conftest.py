@@ -250,8 +250,9 @@ def test_index_data():
     metadata_docs = es_data.build_metadata
 
     for doc in metadata_docs:
-        es_driver.index(index=index, doc_type='build_metadata',
-                        body=doc, id=','.join(doc['build_projects']))
+        es_driver.index(
+            index=index, doc_type='build_metadata', body=doc,
+            id=ReleaseHelper.get_build_metadata_id(doc['build_projects']))
 
     # Create dummy esbuild docs
     for dtype in ['case', 'file', 'project', 'annotation']:
