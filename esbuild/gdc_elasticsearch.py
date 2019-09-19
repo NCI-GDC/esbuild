@@ -60,7 +60,7 @@ def shouldnt_delete(node):
 
 
 class ESTaskInfo(object):
-    def __init__(self, task_id, task_info):
+    def __init__(self, task_id=None, task_info=None):
         self.task_id = task_id
         self.info = task_info
 
@@ -205,7 +205,7 @@ class GDCElasticsearch(object):
             self.log.info("Denormalizing database into JSON docs")
             statsd.event(
                 "denormalization started",
-                "starting denormalizing index".format(self.index_name),
+                "starting denormalizing index: '{}'".format(self.index_name),
                 source_type_name="esbuild",
                 alert_type="info",
                 tags=["es_index:{}".format(self.index_name),
@@ -700,13 +700,13 @@ class GDCElasticsearch(object):
         resp = self.es.tasks.list(actions='*reindex', detailed=True,
                                   group_by=None)
         node_tasks = resp['nodes']
-        task_info = ESTaskInfo(None, None)
+        task_info = ESTaskInfo()
 
         if not node_tasks:
             return task_info
 
         for node_id, node_info in node_tasks.items():
-            for task_id, task_info in node_info.get('tasks', {}):
+            for task_id, task_info in node_info.get('tasks', {}).items():
                 description = task_info['description']
                 if index1 in description and index2 in description:
                     task_info.task_id = task_id
@@ -733,8 +733,9 @@ class GDCElasticsearch(object):
                 response = self.es.tasks.get(task_id,
                                              wait_for_completion=True,
                                              request_timeout=30)
-            except (es_exc.ConnectionTimeout, es_exc.TransportError):
-                if 'timeout_exception' not in str(es_exc.TransportError):
+            except (es_exc.ConnectionTimeout, es_exc.TransportError) as e:
+                if not isinstance(e, es_exc.ConnectionTimeout) and \
+                        'timeout_exception' not in str(e):
                     # Something else other than a timeout went wrong, re-raise
                     raise
 
