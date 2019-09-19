@@ -1469,6 +1469,10 @@ class GraphIndexBuilder(object):
     def denormalize_annotations(self, annotations, projects=None):
         g = self.g
         annotation_ids = [node.node_id for node in annotations]
+
+        if not annotation_ids:
+            return []
+
         projects = projects or {}
 
         with g.session_scope():
