@@ -41,33 +41,6 @@ def esbuild_argparser(parser=None):
                             action='store_true',
                             default=False)
 
-    rabbitmq_args = parser.add_argument_group(title='RabbitMQ args')
-    rabbitmq_args.add_argument(
-        '--use-rabbitmq',
-        action='store_true',
-        help='Use RabbitMQ for scheduling instead'
-    )
-    rabbitmq_args.add_argument(
-        '--rabbitmq-host',
-        default=os.environ.get('RBTMQ_HOST', 'http://rabbitmq.service.consul'),
-        help='RabbitMQ host',
-    )
-    rabbitmq_args.add_argument(
-        '--rabbitmq-user',
-        default=os.environ.get('RBTMQ_USER', 'admin'),
-        help='RabbitMQ user',
-    )
-    rabbitmq_args.add_argument(
-        '--rabbitmq-pass',
-        default=os.environ.get('RBTMQ_PASS', 'admin'),
-        help='RabbitMQ password',
-    )
-    rabbitmq_args.add_argument(
-        '--rabbitmq-exchange',
-        default=os.environ.get('RBTMQ_EXCH', 'esbuild'),
-        help='RabbitMQ exchange',
-    )
-
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
     es_args.add_argument('--num-jobs',
@@ -191,9 +164,6 @@ if __name__ == "__main__":
     if args.store_to_snapshot:
         # Backup args.index to S3 snapshot repository
         backup_wrapper(args.store_to_snapshot, args.index, 'backup')
-    if args.use_rabbitmq:
-        # TODO: implement scheduling using rabbitmq
-        pass
     else:
         # Restore index from S3 snapshot repository
         if args.restore_from_snapshot:
