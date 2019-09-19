@@ -194,40 +194,41 @@ class GDCElasticsearch(object):
 
             to_delete = []
 
-            total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
-                sys.getsizeof(self.converter.G.node)
-            self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
-                cache_end_time - start_time, total_size_in_ram)
+            # total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
+            #     sys.getsizeof(self.converter.G.node)
+            # self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
+            #     cache_end_time - start_time, total_size_in_ram)
+            self.log.info("ANALYSIS: Loaded data in %s",
+                          cache_end_time - start_time)
 
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
             statsd.event(
-                    "denormalization started",
-                    "starting denormalizing index".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
+                "denormalization started",
+                "starting denormalizing index".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name),
+                      'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-            self.log.info("ANALYSIS: %s case docs (%d),"
-                "%s file docs (%d),"
-                "%s annotation docs (%d),"
-                "%s project docs (%d)",
-                          len(case_docs),
-                          get_total_size(case_docs),
-                          len(file_docs),
-                          get_total_size(file_docs),
-                          len(ann_docs),
-                          get_total_size(ann_docs),
-                          len(project_docs),
-                          get_total_size(project_docs))
+            self.log.info(
+                "ANALYSIS: %d case docs,"
+                "%d file docs,"
+                "%d annotation docs,"
+                "%d project docs",
+                len(case_docs),
+                len(file_docs),
+                len(ann_docs),
+                len(project_docs),
+            )
             self.log.info("Validating docs produced")
             statsd.event(
-                    "validation started",
-                    "starting validating index {}".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+                "validation started",
+                "starting validating index {}".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:validation'],
             )
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
 
@@ -239,30 +240,35 @@ class GDCElasticsearch(object):
                         projects_to_build = ','.join(self.build_projects)
                     else:
                         projects_to_build = 'all'
-                        self.log.info("ANALYSIS: Preparing ES index to be updated "
-                            "with {} projects".format(projects_to_build))
+                        self.log.info(
+                            "ANALYSIS: Preparing ES index to be updated "
+                            "with {} projects".format(projects_to_build)
+                        )
                     statsd.event(
-                            "Index preparation started",
-                            "starting index {} preparation".format(self.index_name),
-                            source_type_name="esbuild",
-                            alert_type="info",
-                            tags=['es_index:{}'.format(self.index_name),
-                                  'projects:{}'.format(projects_to_build),
-                                  'stage:preparation'],
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                              'projects:{}'.format(projects_to_build),
+                              'stage:preparation'],
                     )
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
 
                 denom_end_time = datetime.datetime.now()
-                self.log.info("ANALYSIS: Denormalized data in %s",
-                    denom_end_time - start_time)
+                self.log.info(
+                    "ANALYSIS: Denormalized data in %s",
+                    denom_end_time - start_time
+                )
                 self.log.info("Deploying new ES index with new docs and bumping alias")
                 statsd.event(
-                        "es uploading started",
-                        "starting uploading index {}".format(self.index_name),
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
+                    "es uploading started",
+                    "starting uploading index {}".format(self.index_name),
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name),
+                          'stage:uploading'],
                 )
                 try:
                     new_index = self.deploy(
@@ -642,16 +648,14 @@ class GDCElasticsearch(object):
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
-        if self.build_projects:
-            doc_id = ','.join(self.build_projects)
-        else:
-            doc_id = 'ALL PROJECTS'
+        project_ids = self.build_projects or ['ALL PROJECTS']
+        doc_id = ReleaseHelper.get_build_metadata_id(self.build_projects or 'ALL PROJECTS')
 
         self.es.create(index=new_index, doc_type='build_metadata',
                        id=doc_id,
                        body={
                            'commit_hash': commit_hash,
-                           'build_projects': self.build_projects,
+                           'build_projects': project_ids,
                            'counts': doc_counts
                        })
 

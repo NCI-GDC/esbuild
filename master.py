@@ -172,11 +172,11 @@ if __name__ == "__main__":
         # Delegate esbuild jobs to depot queue
         if args.depot_host and args.depot_port and args.queue_id:
             # Get queue status:
-            status = depot.queue_status(args.queue_id)
+            q_status = depot.queue_status(args.queue_id)
             if args.queue_clear:
                 logger.info(depot.clear_queue(args.queue_id))
             elif args.queue_status:
-                logger.info(status)
+                logger.info(q_status)
             else:
                 if not args.num_jobs:
                     raise Exception('--num-jobs not provided')
@@ -197,7 +197,7 @@ if __name__ == "__main__":
                 logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
                             .format(args.build_type.upper(), args.num_jobs, args.index))
 
-                if 'not found' in status.text:
+                if q_status['status'] in [400, 404]:
                     logger.info("Creating new queue:")
                     logger.info(depot.create_queue(args.queue_id))
 
