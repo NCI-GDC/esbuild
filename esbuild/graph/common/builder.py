@@ -1476,25 +1476,25 @@ class GraphIndexBuilder(object):
         projects = projects or {}
 
         with g.session_scope():
-            # Bring it into memory because can't query on label since it's a
-            # hybrid property
-            edges = g.edges().filter(Edge.src_id.in_(annotation_ids)).all()
-            edges = [edge for edge in edges if edge.label == 'annotates']
 
-            # Bidirectional edge mapping
-            entity_to_ann = {edge.dst.node_id: edge.src.node_id for edge in edges}
-            ann_to_entity = {edge.src.node_id: edge.dst.node_id for edge in edges}
-
-            entity_ids = entity_to_ann.keys()
-            entities_q = g.nodes().filter(md.Node.node_id.in_(entity_ids))
-            entities = {entity.node_id: entity for entity in entities_q}
-
-            nodes = g.nodes().filter(Node.node_id.in_(annotation_ids)).all()
+            edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
+            entities = dict()
+            ann_to_entity = dict()
             ann_to_case = dict()
-            for node in nodes:
-                case = dfs_to_parent(node)
+
+            for edge in edges_q:
+                # Can't query on label since it's a hybrid property
+                if edge.label != 'annotates':
+                    continue
+
+                annotation = edge.src
+                entity = edge.dst
+                case = dfs_to_parent(annotation)
+
+                ann_to_entity[annotation.node_id] = entity.node_id
+                entities[entity.node_id] = entity
                 if case:
-                    ann_to_case[node.node_id] = case
+                    ann_to_case[annotation.node_id] = case
 
         docs = []
 
