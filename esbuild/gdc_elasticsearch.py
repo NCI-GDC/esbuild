@@ -10,24 +10,23 @@ Elasticsearch
 
 import os
 import re
-import sys
 import time
 import json
 import datetime
 import subprocess
 import resource
-from pprint import pformat
 
 from cdisutils.log import get_logger
 from datadog import statsd
 from elasticsearch import (
-    NotFoundError, Elasticsearch, helpers, exceptions as es_exc)
+    NotFoundError, Elasticsearch, helpers, exceptions as es_exc,
+)
 from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper, get_total_size
+from utils import ReleaseHelper
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -194,10 +193,6 @@ class GDCElasticsearch(object):
 
             to_delete = []
 
-            # total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
-            #     sys.getsizeof(self.converter.G.node)
-            # self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
-            #     cache_end_time - start_time, total_size_in_ram)
             self.log.info("ANALYSIS: Loaded data in %s",
                           cache_end_time - start_time)
 
@@ -784,9 +779,6 @@ class GDCElasticsearch(object):
                 "old: '{}' new: '{}'".format(old_index, new_index)
             )
 
-        if conflicts or query:
-            raise NotImplementedError("Sorry")
-
         index_settings = index_settings or self.converter.mapper.index_settings()
 
         reindex_body = {
@@ -799,11 +791,11 @@ class GDCElasticsearch(object):
             },
         }
 
-        # if conflicts:
-        #     reindex_body['conflicts'] = conflicts
-        #
-        # if query:
-        #     reindex_body['source']['query'] = query
+        if conflicts:
+            reindex_body['conflicts'] = conflicts
+
+        if query:
+            reindex_body['source']['query'] = query
 
         # FIXME: Maybe want to do a more extensive param check, but this should
         # cover our immediate use cases

@@ -30,7 +30,7 @@ def get_parser():
         '--doc-types',
         required=False,
         nargs='*',
-        default=[],
+        default=(),
         help='Elasticsearch document types to reindex',
     )
     reindex_sub.set_defaults(func=handle_reindex)
