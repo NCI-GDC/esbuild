@@ -802,7 +802,6 @@ class GDCElasticsearch(object):
         if types:
             types = types if isinstance(types, list) else [types]
             reindex_body['source']['type'] = types
-            reindex_body['dest']['type'] = types
 
         self.log.info("Creating new index: '{}'".format(new_index))
 

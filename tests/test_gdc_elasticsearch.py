@@ -162,6 +162,24 @@ def get_graph_counts(es, index, doc_types):
     return counts
 
 
+def test_reindex_doc_types(setup_test, init_indexd):
+    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es.go()
+
+    es = setup_test
+
+    new_index = 'new_{}'.format(gdc_es.index_name)
+
+    gdc_es.reindex(gdc_es.index_name, new_index, types='annotation')
+
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
+
+    assert counts1['annotation'] == counts2['annotation']
+    assert all(c != 0 for _, c in counts1.items())
+    assert all(c == 0 for dtype, c in counts2.items() if dtype != 'annotation')
+
+
 def test_reindex_change_field_type(setup_test, init_indexd):
     gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     gdc_es.go()
