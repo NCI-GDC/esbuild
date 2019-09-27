@@ -58,12 +58,6 @@ def shouldnt_delete(node):
         return False
 
 
-class ESTaskInfo(object):
-    def __init__(self, task_id=None, task_info=None):
-        self.task_id = task_id
-        self.info = task_info
-
-
 class GDCElasticsearch(object):
 
     """
@@ -691,25 +685,6 @@ class GDCElasticsearch(object):
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
 
-    def _get_reindex_task(self, index1, index2):
-        resp = self.es.tasks.list(actions='*reindex', detailed=True,
-                                  group_by=None)
-        node_tasks = resp['nodes']
-        task_info = ESTaskInfo()
-
-        if not node_tasks:
-            return task_info
-
-        for node_id, node_info in node_tasks.items():
-            for task_id, task_info in node_info.get('tasks', {}).items():
-                description = task_info['description']
-                if index1 in description and index2 in description:
-                    task_info.task_id = task_id
-                    task_info.info = task_info
-                    break
-
-        return task_info
-
     def _wait_for_task_completion(self, task_id):
         """
         Given an Elasticsearch task_id, wait for its completion and return
@@ -718,40 +693,27 @@ class GDCElasticsearch(object):
         :return: Task summary
         """
 
-        results = {}
-        # NOTE: Initial reindex request had a 30sec timeout
-        time_elapsed = 30
-
-        # Now lets wait for the task to complete. Good old while True loop.
+        summary = {}
         while True:
-            try:
-                response = self.es.tasks.get(task_id,
-                                             wait_for_completion=True,
-                                             request_timeout=30)
-            except (es_exc.ConnectionTimeout, es_exc.TransportError) as e:
-                if not isinstance(e, es_exc.ConnectionTimeout) and \
-                        'timeout_exception' not in str(e):
-                    # Something else other than a timeout went wrong, re-raise
-                    raise
+            response = self.es.tasks.get(task_id)
 
-                time_elapsed += 30
-                self.log.info(
-                    "Reindexing is running for: {} secs".format(time_elapsed))
-                continue
-            except es_exc.NotFoundError:
-                # This might happen in between ES requests cycles, so we won't
-                # get anything in the response
-                pass
-            else:
-                time_elapsed = response['task']['running_time_in_nanos'] // 10**6
-                results.update(response)
+            if response['completed']:
                 break
 
+            so_far = response['task']['status']['batches']
+            total = response['task']['status']['total']
+            self.log.info(
+                'Reindexed: {} out of {} documents'.format(so_far, total)
+            )
+            time.sleep(10)
+
+        summary.update(response)
+
+        time_elapsed = response['task']['running_time_in_nanos'] // 10 ** 6
         elapsed_mins = time_elapsed / 60.
+        summary['took'] = elapsed_mins
 
-        results['took'] = elapsed_mins
-
-        return results
+        return summary
 
     def reindex(self, old_index, new_index, types=None, index_settings=None,
                 query=None, conflicts=None):
@@ -787,7 +749,6 @@ class GDCElasticsearch(object):
             },
             'dest': {
                 'index': new_index,
-                # NOTE: Add conflict resolution logic as needed
             },
         }
 
@@ -810,24 +771,14 @@ class GDCElasticsearch(object):
         if 'mappings' not in index_settings:
             self.put_mappings(new_index)
 
-        try:
-            response = self.es.reindex(body=reindex_body, refresh=True,
-                                       request_timeout=30)
-        except es_exc.ConnectionTimeout:
-            # Reindexing will take some time, so timeout is most likely to
-            # happen, however, the task will continue
-            pass
-        else:
-            return response
+        task_info = self.es.reindex(body=reindex_body, refresh=True,
+                                    wait_for_completion=False)
 
-        task_info = self._get_reindex_task(old_index, new_index)
+        task_id = task_info['task']
 
-        self.log.info("Monitoring active reindex task: {}".format(task_info.info))
+        self.log.info("Monitoring active reindex task: {}".format(task_id))
 
-        if not task_info.task_id or not task_info.info:
-            raise Exception("How did this happen?")
-
-        summary = self._wait_for_task_completion(task_info.task_id)
+        summary = self._wait_for_task_completion(task_id)
 
         self.log.info("Reindexing completed in {} min".format(summary['took']))
         self.log.info("Summary:\n{}".format(summary))
