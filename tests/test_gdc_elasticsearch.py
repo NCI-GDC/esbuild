@@ -31,6 +31,8 @@ from conftest import (
     cleanup_indices,
 )
 
+GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
+
 
 @pytest.fixture
 def setup_test(sample_database):
@@ -149,3 +151,92 @@ def test_old_index_cleanup(setup_test, init_indexd, converter):
     for i in range(2, 4):
         with pytest.raises(AuthorizationException):
             setup_test.indices.stats('gdc_es_test_{}'.format(i))
+
+
+def get_graph_counts(es, index, doc_types):
+    counts = {}
+    for dt in doc_types:
+        r = es.count(index=index, doc_type=dt)
+        counts[dt] = r['count']
+
+    return counts
+
+
+def test_reindex_doc_types(setup_test, init_indexd):
+    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es.go()
+
+    es = setup_test
+
+    new_index = 'new_{}'.format(gdc_es.index_name)
+
+    gdc_es.reindex(gdc_es.index_name, new_index, types='annotation')
+
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
+
+    assert counts1['annotation'] == counts2['annotation']
+    assert all(c != 0 for _, c in counts1.items())
+    assert all(c == 0 for dtype, c in counts2.items() if dtype != 'annotation')
+
+
+def test_reindex_change_field_type(setup_test, init_indexd):
+    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es.go()
+
+    aggs_query = {
+        'aggs': {'projects': {'terms': {'field': 'project.project_id'}}},
+        '_source': False,
+        'size': 0,
+    }
+
+    es = setup_test
+
+    # project.project_id is a keyword type and aggregations are possible
+    aggs_resp1 = es.search(index=gdc_es.index_name, doc_type='case',
+                           body=aggs_query)
+
+    # get counts before reindexing
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
+
+    # make sure that the number of cases is as expected
+    assert sum([
+        bucket['doc_count']
+        for bucket in aggs_resp1['aggregations']['projects']['buckets']
+    ]) == counts1['case']
+
+    new_index = 'new_{}'.format(gdc_es.index_name)
+
+    # Lets modify mappings for project_id and make it a 'text' type, this will
+    # disable ability to run the previous aggregation
+    index_settings = gdc_es.converter.mapper.index_settings()
+    mappings = {
+        'file': gdc_es.converter.mapper.get_file_es_mapping(),
+        'case': gdc_es.converter.mapper.get_case_es_mapping(),
+        'project': gdc_es.converter.mapper.get_project_es_mapping(),
+        'annotation': gdc_es.converter.mapper.get_annotation_es_mapping(),
+    }
+
+    # Change project.project_id.type to 'text'
+    mappings['project']['properties']['project_id']['type'] = 'text'
+    mappings['case']['properties']['project']['properties']['project_id']['type'] = 'text'
+    mappings['file']['properties']['cases']['properties']['project']['properties']['project_id']['type'] = 'text'
+    mappings['annotation']['properties']['project']['properties']['project_id']['type'] = 'text'
+
+    index_settings.update({'mappings': mappings})
+
+    gdc_es.reindex(gdc_es.index_name, new_index, index_settings=index_settings)
+
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
+
+    # Make sure that the counts are still the same
+    assert counts1 == counts2
+
+    # The following should fail, because ES doesn't do aggs on 'text' fields
+    try:
+        _ = es.search(index=new_index, doc_type='case', body=aggs_query)
+    except Exception as e:
+        assert 'project.project_id' in str(e)
+        assert 'use a keyword field instead' in str(e)
+    else:
+        raise AssertionError("No exception raised")

@@ -104,14 +104,10 @@ def process_work(worker_id=None,
                 # Compose and execute the command:
                 if work.get('build-type') == 'active':
                     builder = ActiveGraphIndexBuilder
-                    index_base = 'gdc_from_graph'
-                elif work.get('build-type') == 'awg':
-                    # FIXME: this doesn't seem to be a valid 'build-type',
-                    # instead it should be coming from 'build-awg', but then
-                    # there's no place where an argument parser is actually
-                    # digesting anything AWG related
-                    builder = ActiveGraphIndexBuilder
-                    index_base = 'awg_from_graph'
+                    if work.get('build-awg'):
+                        index_base = 'awg_from_graph'
+                    else:
+                        index_base = 'gdc_from_graph'
                 else:
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                 found_work = True
