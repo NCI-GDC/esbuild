@@ -15,6 +15,7 @@ logger = get_logger('esbuild_master')
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
+
 def esbuild_argparser(parser=None):
     """
     Esbuild argument parser
@@ -73,7 +74,7 @@ def parse_args():
     if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.num_jobs, args.build_type]) and 
-            not all([args.index, args.num_jobs, args.build_type])):
+                not all([args.index, args.num_jobs, args.build_type])):
             raise Exception('Provide esbuild arguments to delegate jobs.\n'
                             'Run `python master.py -h` for more info')
 
@@ -171,11 +172,11 @@ if __name__ == "__main__":
         # Delegate esbuild jobs to depot queue
         if args.depot_host and args.depot_port and args.queue_id:
             # Get queue status:
-            status = depot.queue_status(args.queue_id)
+            q_status = depot.queue_status(args.queue_id)
             if args.queue_clear:
                 logger.info(depot.clear_queue(args.queue_id))
             elif args.queue_status:
-                logger.info(status)
+                logger.info(q_status)
             else:
                 if not args.num_jobs:
                     raise Exception('--num-jobs not provided')
@@ -196,7 +197,7 @@ if __name__ == "__main__":
                 logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
                             .format(args.build_type.upper(), args.num_jobs, args.index))
 
-                if 'not found' in status.text:
+                if q_status['status'] in [400, 404]:
                     logger.info("Creating new queue:")
                     logger.info(depot.create_queue(args.queue_id))
 

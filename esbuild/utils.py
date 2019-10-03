@@ -4,14 +4,15 @@ import os
 from sys import getsizeof
 from itertools import chain
 from collections import deque
+from hashlib import md5
 try:
     from reprlib import repr
 except ImportError:
     pass
 import subprocess
 
-from elasticsearch import Elasticsearch
 from cdisutils.log import get_logger
+
 
 def get_total_size(obj, handlers={}):
     """ Returns the memory used (in bytes) of an object and all of its
@@ -165,7 +166,8 @@ class ReleaseHelper:
         self.es.delete_by_query(index=index_name,
                                 doc_type='build_metadata', body={})
 
-        self.es.create(index=index_name, id=','.join(projects_after),
+        build_metadata_id = self.get_build_metadata_id(projects_after)
+        self.es.create(index=index_name, id=build_metadata_id,
                        doc_type='build_metadata', body=metadata_after)
         self.wait_for_es(index_name, 'build_metadata')
 
@@ -200,6 +202,16 @@ class ReleaseHelper:
 
         return commit_hash
 
+    @staticmethod
+    def get_build_metadata_id(project_ids):
+        if not isinstance(project_ids, list):
+            project_ids = [str(project_ids)]
+
+        project_ids_sorted = sorted(project_ids)
+
+        md5hash = md5(','.join(project_ids_sorted))
+
+        return md5hash.hexdigest()
 
 @lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):

@@ -6,4 +6,7 @@ setup(
     description="Repository for building the GDC Elasticsearch indices.",
     license="Apache",
     packages=["esbuild"],
+    scripts=[
+        'bin/esbuild-cli',
+    ]
 )
