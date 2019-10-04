@@ -29,6 +29,7 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
+from esbuild.utils import dfs_to_parent
 
 from progressbar import (
     ProgressBar,
@@ -619,23 +620,7 @@ class GraphIndexBuilder(object):
 
         self.validate_case(node, case)
 
-        # Flatten ids we visited in traversal to create a list of ids
-        # that are relevant to this case (including the case's id)
-        relevant_ids = self.get_relevant_ids(node, visited_ids)
-        relevant_ids += [f.node_id for f in files]
-
-        # Pull out the annotations from files
-        annotations = self.get_relevant_annotations(returned_files, relevant_ids)
-
-        # Pull out annotations from other node types outside the usual walk
-        annotations += self.get_diagnosis_annotations(node)
-
-        # Create copy of annotations to return and add properties
-        # (note: this is *not* in-place)
-        returned_annotations = map(copy, annotations)
-        self.patch_annotations(returned_annotations, node, project)
-
-        return case, returned_files, returned_annotations
+        return case, returned_files, []
 
     def get_case_file_docs(self, node, ptree, files):
         """Given a list of files, return a list of file docs"""
@@ -1481,13 +1466,106 @@ class GraphIndexBuilder(object):
 
         return ann_doc
 
+    def denormalize_annotations(self, annotations, projects=None):
+        g = self.g
+        annotation_ids = [node.node_id for node in annotations]
+
+        if not annotation_ids:
+            return []
+
+        projects = projects or {}
+
+        with g.session_scope():
+
+            edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
+            entities = dict()
+            ann_to_entity = dict()
+            ann_to_case = dict()
+
+            for edge in edges_q:
+                # Can't query on label since it's a hybrid property
+                if edge.label != 'annotates':
+                    continue
+
+                annotation = edge.src
+                entity = edge.dst
+                case = dfs_to_parent(annotation)
+
+                ann_to_entity[annotation.node_id] = entity.node_id
+                entities[entity.node_id] = entity
+                if case:
+                    ann_to_case[annotation.node_id] = case
+
+        docs = []
+
+        for annotation in annotations:
+            try:
+                doc = self._get_base_doc(annotation)
+                doc.update(dict(  # extend with more info
+                    entity_type=None,
+                    entity_id=None,
+                    entity_submitter_id=None,
+                    project=None,
+                    case_id=None,
+                    case_submitter_id=None,
+                ))
+
+                # Handle entity info
+                entity_id = ann_to_entity[annotation.node_id]
+                entity = entities[entity_id]
+                doc['entity_id'] = entity.node_id
+                doc['entity_type'] = entity.label
+                doc['entity_submitter_id'] = entity.submitter_id
+
+                # Handle project info
+                project = projects.get(annotation.project_id)
+                if project:
+                    doc['project'] = {
+                        key: val
+                        for key, val in project.items()
+                        if key not in ['summary']
+                    }
+
+                # Handle case info
+                case = ann_to_case[annotation.node_id]
+                if case:
+                    doc['case_id'] = case.node_id
+                    doc['case_submitter_id'] = case.submitter_id
+
+                docs.append(doc)
+
+            except Exception as e:
+                self.error(
+                    'denormalize_annotations',
+                    '{} encountered an error: {}'.format(annotation, e)
+                )
+                continue
+
+        return docs
+
     def denormalize_all(self):
         """Return an entire index worth of case, file, annotation, and
         project documents
 
         """
-        cases, files, annotations = self.denormalize_cases()
+        cases, files, _ = self.denormalize_cases()
         projects = self.denormalize_projects()
+
+        project_lookup = {}
+        for project in projects:
+            try:
+                project_id = project['project_id']
+                project_lookup[project_id] = project
+            except KeyError:
+                self.error(
+                    'denormalize_all',
+                    'Encountered missing project_id in denormalize_all: {}'
+                    .format(project)
+                )
+
+        self.annotations = self.annotations or []
+        annotations = self.denormalize_annotations(self.annotations, projects=project_lookup)
+
         return cases, files, annotations, projects
 
     def denormalize_cases_sample(self, k=10):
@@ -1825,8 +1903,16 @@ class GraphIndexBuilder(object):
             elif 'state' not in node.__pg_properties__:
                 return True
 
-            elif node.state in released_states:
+            elif node.state in released_states and \
+                    node.label != 'annotation':
                 return True
+
+            if node.label == 'annotation' and \
+                    node.state == 'released' and \
+                    node.status == 'Approved':
+                return True
+
+        return False
 
     def cache_skipped_node(self, node, reason):
         """
@@ -1958,13 +2044,6 @@ class GraphIndexBuilder(object):
 
             for redacted in redacted_list:
                 to_suppress += self.get_suppressed_children(redacted)
-
-            # returning the redaction annotations themselves here might
-            # seem weird, but including the redaction annotations
-            # themselves without the things they point to won't work, so
-            # we have to remove them.
-            log.info("suppressing %s, the redaction annotation.", redaction)
-            to_suppress.append(redaction)
 
         return to_suppress
 
