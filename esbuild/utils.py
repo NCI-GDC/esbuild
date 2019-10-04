@@ -1,3 +1,4 @@
+from functools32 import lru_cache
 import time
 import os
 from sys import getsizeof
@@ -211,3 +212,13 @@ class ReleaseHelper:
         md5hash = md5(','.join(project_ids_sorted))
 
         return md5hash.hexdigest()
+
+@lru_cache(maxsize=32)
+def dfs_to_parent(node, target='case'):
+    if node.label == target:
+        return node
+    for edge in node.edges_out:
+        found = dfs_to_parent(edge.dst)
+        if found:
+            return found
+    return None

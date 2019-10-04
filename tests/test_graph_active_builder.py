@@ -308,11 +308,11 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
 @pytest.mark.parametrize('doc_type,path,count', [
     ('projects', '[*].primary_site', 2),
     ('projects', '[*].disease_type', 2),
-    ('cases', '[*].primary_site', 3),
-    ('cases', '[*].disease_type', 3),
-    ('cases', '[*].project.project_id', 3),
-    ('cases', '[*].project.disease_type', 3),
-    ('cases', '[*].project.primary_site', 3),
+    ('cases', '[*].primary_site', 5),
+    ('cases', '[*].disease_type', 5),
+    ('cases', '[*].project.project_id', 5),
+    ('cases', '[*].project.disease_type', 5),
+    ('cases', '[*].project.primary_site', 5),
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
@@ -327,7 +327,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].cases.[*].project_id', 0),
     ('files', '[*].annotations.[*].case_id', 7),
     ('annotations', '[*].project_id', 0),
-    ('annotations', '[*].annotation_id', 1),
+    ('annotations', '[*].annotation_id', 3),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
 ])
 def test_path_count(index, doc_type, path, count):
@@ -335,8 +335,8 @@ def test_path_count(index, doc_type, path, count):
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type, count', [('annotations', 1), ('projects', 2),
-                                             ('cases', 3), ('files', 10)])
+@pytest.mark.parametrize('doc_type, count', [('annotations', 3), ('projects', 2),
+                                             ('cases', 5), ('files', 10)])
 def test_basic_counts(index, doc_type, count):
     data = getattr(index, doc_type)
     assert len(data) == count
@@ -355,7 +355,8 @@ def test_basic_counts(index, doc_type, count):
          'Copy Number Variation',
          'DNA Methylation',
      }),
-    ('cases', '[*].submitter_id', 3, {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2'}),
+    ('cases', '[*].submitter_id', 5,
+        {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2', 'released_case_submitter_2'}),
     ('cases', '[*].demographic.year_of_birth',
      1, {1951}),
     ('cases', '[*].diagnoses.[*].age_at_diagnosis',
@@ -368,10 +369,10 @@ def test_basic_counts(index, doc_type, count):
      1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {get_node_id('read-group-1'), get_node_id('read-group-2')}),
-    ('cases', '[*].disease_type', 3, {'Breast Invasive Carcinoma',
+    ('cases', '[*].disease_type', 5, {'Breast Invasive Carcinoma',
                                       'Prostate Adenocarcinoma',
                                       'Rectum Adenocarcinoma'}),
-    ('cases', '[*].primary_site', 3, {'Breast', 'Prostate', 'Rectum'}),
+    ('cases', '[*].primary_site', 5, {'Breast', 'Prostate', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {get_node_id('read-group-qc-1')}),
     ('files', '[*].index_files.[*].file_name',

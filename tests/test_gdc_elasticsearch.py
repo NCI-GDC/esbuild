@@ -60,7 +60,7 @@ def make_gdc_es(indexd_client, converter):
     )
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
 def test_basic_es_generate(setup_test, init_indexd, converter):
     es = setup_test
     gdces = make_gdc_es(init_indexd, converter)
@@ -151,6 +151,50 @@ def test_old_index_cleanup(setup_test, init_indexd, converter):
     for i in range(2, 4):
         with pytest.raises(AuthorizationException):
             setup_test.indices.stats('gdc_es_test_{}'.format(i))
+
+
+# TT-1053 index redaction
+def test_redaction_annotation_indexed(setup_test, init_indexd):
+
+    es = setup_test
+
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdces.go()
+
+    assert not es.exists(  # The case needs to be unindexed
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('redaction-case-released'),
+    )
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('redaction-annotation'),
+    )
+
+    # Check subject withdrew consent case and redaction still show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('withdrew-consent-case-released'),
+    )
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('withdrew-consent-annotation'),
+    )
+
+    # Check released-rescinded redaction doesn't show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('released-rescinded-case'),
+    )
+    assert not es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('released-rescinded-annotation'),
+    )
 
 
 def get_graph_counts(es, index, doc_types):
