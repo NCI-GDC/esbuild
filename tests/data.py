@@ -31,7 +31,7 @@ def random_string(length=6):
 def fuzzed(node_class, node_id=None, **kwargs):
     if node_id is None:
         node_id = str(uuid.uuid4())
-    for key, types in node_class.get_pg_properties().iteritems():
+    for key, types in node_class.get_pg_properties().items():
         schema = gdcdictionary.schema[node_class.label]
         prop_def = schema['properties'].get(key, {})
 
@@ -1264,6 +1264,73 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+
+    # DAT-2619
+    # data_file skipped because of 'submitted_*' label
+    fuzzed(
+        SubmittedGenomicProfile,
+        node_id=get_node_id('submitted-genomic-profile-released-1'),
+        data_category='Genomic Profiling',
+    ),
+    # data_file skipped because of 'submitted_*' label
+    fuzzed(
+        SubmittedGenomicProfile,
+        node_id=get_node_id('submitted-genomic-profile-released-2'),
+        data_category='Genomic Profiling',
+    ),
+    # data_file skipped because of 'submitted_*' label and state
+    fuzzed(
+        SubmittedGenomicProfile,
+        node_id=get_node_id('submitted-genomic-profile-submitted'),
+        data_category='Genomic Profiling',
+        state='submitted',
+    ),
+    fuzzed(
+        GenomicProfileHarmonizationWorkflow,
+        node_id=get_node_id('gen-profile-harmonization-released-1'),
+        workflow_type='GENIE Copy Number Variation',
+    ),
+    fuzzed(
+        GenomicProfileHarmonizationWorkflow,
+        node_id=get_node_id('gen-profile-harmonization-released-2'),
+        workflow_type='GENIE Simple Somatic Mutation',
+    ),
+    fuzzed(
+        GenomicProfileHarmonizationWorkflow,
+        node_id=get_node_id('gen-profile-harmonization-released-3'),
+        workflow_type='GENIE Structural Variation',
+    ),
+    fuzzed(
+        GenomicProfileHarmonizationWorkflow,
+        node_id=get_node_id('gen-profile-harmonization-submitted'),
+        workflow_type='GENIE Structural Variation',
+    ),
+    # data_file indexed
+    fuzzed(
+        AnnotatedSomaticMutation,
+        node_id=get_node_id('genie-vcf-released'),
+        data_category='Simple Nucleotide Variation',
+    ),
+    # data_file indexed
+    fuzzed(
+        CopyNumberEstimate,
+        node_id=get_node_id('genie-cne-released'),
+        data_category='Copy Number Variation',
+    ),
+    # data_file indexed
+    fuzzed(
+        StructuralVariation,
+        node_id=get_node_id('genie-struct-var-released'),
+        data_type='Structural Alteration',
+        data_category='Somatic Structural Variation',
+    ),
+    # data_file skipped because upstream isn't released
+    fuzzed(
+        StructuralVariation,
+        node_id=get_node_id('genie-struct-var-submitted'),
+        data_type='Structural Alteration',
+        data_category='Somatic Structural Variation',
+    ),
 ]
 
 
@@ -1914,6 +1981,52 @@ EDGES = [
         src_id=get_node_id('protein-expression-from-portion-released'),
         dst_id=get_node_id('protein-expression-portion'),
         properties={},
+    ),
+
+    # DAT-2619
+    SubmittedGenomicProfileDataFromReadGroup(
+        src_id=get_node_id('submitted-genomic-profile-released-1'),
+        dst_id=get_node_id('read-group-1'),
+    ),
+    SubmittedGenomicProfileDataFromReadGroup(
+        src_id=get_node_id('submitted-genomic-profile-released-2'),
+        dst_id=get_node_id('read-group-1'),
+    ),
+    SubmittedGenomicProfileDataFromReadGroup(
+        src_id=get_node_id('submitted-genomic-profile-submitted'),
+        dst_id=get_node_id('read-group-1'),
+    ),
+    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+        src_id=get_node_id('gen-profile-harmonization-released-1'),
+        dst_id=get_node_id('submitted-genomic-profile-released-1'),
+    ),
+    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+        src_id=get_node_id('gen-profile-harmonization-released-2'),
+        dst_id=get_node_id('submitted-genomic-profile-released-2'),
+    ),
+    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+        src_id=get_node_id('gen-profile-harmonization-released-3'),
+        dst_id=get_node_id('submitted-genomic-profile-released-2'),
+    ),
+    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+        src_id=get_node_id('gen-profile-harmonization-submitted'),
+        dst_id=get_node_id('submitted-genomic-profile-submitted'),
+    ),
+    AnnotatedSomaticMutationDataFromGenomicProfileHarmonizationWorkflow(
+        src_id=get_node_id('genie-vcf-released'),
+        dst_id=get_node_id('gen-profile-harmonization-released-2'),
+    ),
+    CopyNumberEstimateDerivedFromGenomicProfileHarmonizationWorkflow(
+        src_id=get_node_id('genie-cne-released'),
+        dst_id=get_node_id('gen-profile-harmonization-released-1'),
+    ),
+    StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
+        src_id=get_node_id('genie-struct-var-released'),
+        dst_id=get_node_id('gen-profile-harmonization-released-3'),
+    ),
+    StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
+        src_id=get_node_id('genie-struct-var-submitted'),
+        dst_id=get_node_id('gen-profile-harmonization-submitted'),
     ),
 ]
 
