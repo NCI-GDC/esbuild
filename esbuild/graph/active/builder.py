@@ -227,6 +227,14 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     
     case_to_copy_number_estimate_paths = list_product(
         case_to_aliquot, aliquot_to_copy_number_estimate_paths)
+    
+    case_to_protein_expression = [
+        ['sample',
+         'protein_expression'],
+        ['sample',
+         'portion',
+         'protein_expression']
+    ]
 
     case_to_methylation_value_paths = list_product(
         case_to_aliquot, aliquot_to_methylation_value_paths)
@@ -236,6 +244,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += case_to_copy_number_estimate_paths
     case_to_file_paths += case_to_methylation_value_paths
     case_to_file_paths += case_to_slide_image_path
+    case_to_file_paths += case_to_protein_expression
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',

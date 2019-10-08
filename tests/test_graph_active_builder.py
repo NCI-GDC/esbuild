@@ -37,7 +37,7 @@ DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 
 
 # Define the number of files that should be loaded as documents
-N_FILES = 10
+N_FILES = 12
 N_OUTPUT_FILES = 6
 N_INPUT_FILES = 9
 
@@ -316,7 +316,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
-    ('cases', '[*].samples.[*].portions.[*].portion_id', 3),
+    ('cases', '[*].samples.[*].portions.[*].portion_id', 4),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 6),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
     ('cases', '[*].samples.[*].sample_id', 2),
@@ -328,7 +328,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].annotations.[*].case_id', 7),
     ('annotations', '[*].project_id', 0),
     ('annotations', '[*].annotation_id', 3),
-    ('files', '[*].associated_entities.[*].entity_type', N_FILES + 4),
+    ('files', '[*].associated_entities.[*].entity_type', N_FILES + 3),
 ])
 def test_path_count(index, doc_type, path, count):
     results = parse(path).find(getattr(index, doc_type))
@@ -336,7 +336,7 @@ def test_path_count(index, doc_type, path, count):
 
 
 @pytest.mark.parametrize('doc_type, count', [('annotations', 3), ('projects', 2),
-                                             ('cases', 5), ('files', 10)])
+                                             ('cases', 5), ('files', N_FILES)])
 def test_basic_counts(index, doc_type, count):
     data = getattr(index, doc_type)
     assert len(data) == count
@@ -345,15 +345,16 @@ def test_basic_counts(index, doc_type, count):
 @pytest.mark.parametrize('doc_type,path,count,expected', [
     ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'Made up active project'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     7, {1, 2}),
+     8, {1, 2}),
     ('projects', '[*].summary.[*].data_categories.[*].data_category',
-     7, {'Simple Nucleotide Variation',
+     8, {'Simple Nucleotide Variation',
          'Sequencing Reads',
          'Biospecimen',
          'Clinical',
          'Combined Nucleotide Variation',
          'Copy Number Variation',
          'DNA Methylation',
+         'Proteome Profiling',
      }),
     ('cases', '[*].submitter_id', 5,
         {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2', 'released_case_submitter_2'}),
@@ -398,7 +399,8 @@ def test_basic_counts(index, doc_type, count):
                'copy_number_segment',
                'annotated_somatic_mutation',
                'aggregated_somatic_mutation',
-               'methylation_beta_value'}),
+               'methylation_beta_value',
+               'protein_expression'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
