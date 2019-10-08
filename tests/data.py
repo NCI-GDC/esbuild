@@ -854,6 +854,44 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
+    ProteinExpression(
+        node_id=get_node_id('protein-expression-from-sample-released'),
+        data_type='Protein Expression Quantification',
+        state='released',
+        acl=['phs000178'],
+        submitter_id='protein-expression-from-sample-released',
+        file_name='protein-expression-from-sample.tsv',
+        data_category='Proteome Profiling',
+        file_size=12345,
+        md5sum=hashlib.md5('protein-expression-from-sample-released').hexdigest(),
+        data_format='TSV',
+        platform='RPPA',
+        project_id='TCGA-BRCA',
+    ),
+    Portion(
+        node_id=get_node_id('protein-expression-portion'),
+        project_id='TCGA-BRCA',
+        creation_datetime=1293494401,
+        state='released',
+        is_ffpe=False,
+        portion_number='01',
+        submitter_id='protein-expression-portion',
+        weight=None,
+    ),
+    ProteinExpression(
+        node_id=get_node_id('protein-expression-from-portion-released'),
+        data_type='Protein Expression Quantification',
+        state='released',
+        acl=['phs000178'],
+        submitter_id='protein-expression-from-portion-released',
+        file_name='protein-expression-from-portion.tsv',
+        data_category='Proteome Profiling',
+        file_size=23456,
+        md5sum=hashlib.md5('protein-expression-from-portion-released').hexdigest(),
+        data_format='TSV',
+        platform='RPPA',
+        project_id='TCGA-BRCA',
+    ),
     Sample(
         node_id=get_node_id('sample-unreleased'),
         project_id='TCGA-BRCA',
@@ -1859,6 +1897,23 @@ EDGES = [
     CaseMemberOfProject(
         src_id=get_node_id('released-rescinded-case'),
         dst_id=get_node_id('fake_active_project')
+    ),
+
+    # API-716
+    ProteinExpressionDerivedFromSample(
+        src_id=get_node_id('protein-expression-from-sample-released'),
+        dst_id=get_node_id('sample-blood-derived-normal'),
+        properties={},
+    ),
+    PortionDerivedFromSample(
+        src_id=get_node_id('protein-expression-portion'),
+        dst_id=get_node_id('sample-blood-derived-normal'),
+        properties={},
+    ),
+    ProteinExpressionDerivedFromPortion(
+        src_id=get_node_id('protein-expression-from-portion-released'),
+        dst_id=get_node_id('protein-expression-portion'),
+        properties={},
     ),
 ]
 
