@@ -14,7 +14,7 @@ functools32==3.2.3.post2
 -e git+ssh://git@github.com/NCI-GDC/cdisutils.git@1.2.2#egg=cdisutils
 -e git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@1.18.0#egg=gdcdictionary
 -e git+ssh://git@github.com/NCI-GDC/psqlgraph.git@1.2.2#egg=psqlgraph
--e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@1.18.0#egg=gdcdatamodel
+-e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@release/redfish#egg=gdcdatamodel
 -e git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.0.1#egg=gdc_ng_models
 -e git+ssh://git@github.com/NCI-GDC/indexclient.git@1.5.10#egg=indexclient
 -e git+ssh://git@github.com/NCI-GDC/python-depotclient.git@0.1.0#egg=depotclient
