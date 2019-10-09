@@ -37,9 +37,13 @@ DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 
 
 # Define the number of files that should be loaded as documents
-N_FILES = 12
+N_FILES = 15
 N_OUTPUT_FILES = 6
 N_INPUT_FILES = 9
+
+# Whenever a new file is added under Aliquot.node_id == get_node_id('aliquot-1')
+# this needs to be updated
+N_FILES_UNDER_ALIQUOT_1 = 10
 
 # ======================================================================
 # Fixtures
@@ -325,7 +329,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
     ('files', '[*].cases.[*].project_id', 0),
-    ('files', '[*].annotations.[*].case_id', 7),
+    ('files', '[*].annotations.[*].case_id', N_FILES_UNDER_ALIQUOT_1),
     ('annotations', '[*].project_id', 0),
     ('annotations', '[*].annotation_id', 3),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 3),
@@ -343,27 +347,29 @@ def test_basic_counts(index, doc_type, count):
 
 
 @pytest.mark.parametrize('doc_type,path,count,expected', [
-    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma', 'Made up active project'}),
-    ('projects', '[*].summary.[*].data_categories.[*].file_count',
-     8, {1, 2}),
-    ('projects', '[*].summary.[*].data_categories.[*].data_category',
-     8, {'Simple Nucleotide Variation',
-         'Sequencing Reads',
-         'Biospecimen',
-         'Clinical',
-         'Combined Nucleotide Variation',
-         'Copy Number Variation',
-         'DNA Methylation',
-         'Proteome Profiling',
+    ('projects', '[*].name', 2, {'Breast Invasive Carcinoma',
+                                 'Made up active project'}),
+    ('projects', '[*].summary.[*].data_categories.[*].file_count', 9,
+     {1, 2, 3}),  # 3 CNV
+    ('projects', '[*].summary.[*].data_categories.[*].data_category', 9, {
+        'Simple Nucleotide Variation',
+        'Sequencing Reads',
+        'Biospecimen',
+        'Clinical',
+        'Combined Nucleotide Variation',
+        'Copy Number Variation',
+        'DNA Methylation',
+        'Proteome Profiling',
+        'Somatic Structural Variation',
      }),
-    ('cases', '[*].submitter_id', 5,
-        {'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2', 'released_case_submitter_2'}),
-    ('cases', '[*].demographic.year_of_birth',
-     1, {1951}),
-    ('cases', '[*].diagnoses.[*].age_at_diagnosis',
-     1, {47}),
-    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy',
-     1, {'unknown'}),
+    ('cases', '[*].submitter_id', 5, {
+        'TCGA-AR-A1AR', 'fake_submitter_1', 'fake_submitter_2',
+        'released_case_submitter_2'
+    }),
+    ('cases', '[*].demographic.year_of_birth', 1, {1951}),
+    ('cases', '[*].diagnoses.[*].age_at_diagnosis', 1, {47}),
+    ('cases', '[*].diagnoses.[*].treatments.[*].treatment_or_therapy', 1,
+     {'unknown'}),
     ('cases', '[*].exposures.[*].cigarettes_per_day',
      1, {10.3}),
     ('cases', '[*].family_histories.[*].relationship_primary_diagnosis',
@@ -392,15 +398,12 @@ def test_basic_counts(index, doc_type, count):
     ('files', '[*].downstream_analyses.[*].output_files.[*].state',
      N_OUTPUT_FILES , {'released'}),
     ('files', '[*].type.[*]',
-     N_FILES, {'simple_somatic_mutation',
-               'aligned_reads',
-               'biospecimen_supplement',
-               'clinical_supplement',
-               'copy_number_segment',
-               'annotated_somatic_mutation',
-               'aggregated_somatic_mutation',
-               'methylation_beta_value',
-               'protein_expression'}),
+     N_FILES, {'simple_somatic_mutation', 'aligned_reads',
+               'biospecimen_supplement', 'clinical_supplement',
+               'copy_number_segment', 'annotated_somatic_mutation',
+               'aggregated_somatic_mutation', 'methylation_beta_value',
+               'protein_expression', 'copy_number_estimate',
+               'structural_variation'}),
 ])
 def test_path_value_set_equals(index, doc_type, path, expected, count):
     results = parse(path).find(getattr(index, doc_type))
