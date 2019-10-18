@@ -1,10 +1,10 @@
-from functools32 import lru_cache
 import time
 import os
-from sys import getsizeof
-from itertools import chain
 from collections import deque
+from functools32 import lru_cache
 from hashlib import md5
+from itertools import chain
+from sys import getsizeof
 try:
     from reprlib import repr
 except ImportError:
@@ -12,6 +12,8 @@ except ImportError:
 import subprocess
 
 from cdisutils.log import get_logger
+from gdcdatamodel import models
+from gdcdatamodel.models.submission import TransactionSnapshot
 
 
 def get_total_size(obj, handlers={}):
@@ -42,6 +44,134 @@ def get_total_size(obj, handlers={}):
         return size
 
     return sizeof(obj)
+
+
+class VersionedNodesCacher(object):
+    def __init__(self, project_id, graph=None, indexd_client=None):
+        self.project_id = project_id
+        self.g = graph  # or get_default_pg_connection()
+        self.i = indexd_client  # or get default_indexd_connection()
+        self.the_cache = {}
+
+        # List of properties to get form indexd document
+        self.indexd_props = ['file_size', 'acl', 'file_name', 'release_number',
+                             'file_id', 'md5sum']
+        # Property getters, when simple getattr won't work
+        self.indexd_props_getters = {
+            'release_number': lambda doc: doc.metadata['release_number'],
+            'file_id': lambda doc: doc.did,
+            'md5sum': lambda doc: doc.hashes['md5'],
+            'file_size': lambda doc: doc.size,
+        }
+
+    def query_nodes(self):
+        with self.g.session_scope():
+            nodes = (
+                self.g.nodes()
+                .filter(
+                    models.Node._props.has_key('file_name'),
+                    models.Node._props['project_id'].astext == self.project_id,
+                )
+                .yield_per(1000).enable_eagerloads(False)
+            )
+            for n in nodes:
+                yield n
+
+    def iter_nodes(self, strategy='query'):
+        if strategy == 'query':
+            return self.query_nodes()
+        else:
+            raise NotImplementedError(
+                "Node loading strategy '{}' is not implemented".format(strategy)
+            )
+
+    def get_props_from_snapshot(self, node_id, action):
+        with self.g.session_scope():
+            ts = self.g.nodes(TransactionSnapshot).filter(
+                TransactionSnapshot.id == node_id,
+                TransactionSnapshot.action == action,
+            ).order_by(TransactionSnapshot.transaction_id.desc()).first()
+
+            if not ts:
+                return {}
+
+            old = ts.old_props
+            new = ts.new_props
+
+            diff = {}
+            for key, value in old.items():
+                if new.get(key) != value:
+                    diff[key] = value
+            return diff
+
+    def get_props_from_indexd(self, versions):
+        # get only unreleased files
+        unreleased_all = [
+            v for v in versions
+            if not (v.version and v.metadata.get('release_number'))
+        ]
+
+        if len(unreleased_all) > 1:
+            raise ValueError("Multiple unreleased IndexD versions detected")
+
+        # Get latest released
+        released = sorted([v for v in versions
+                           if v.version and v.metadata.get('release_number')],
+                          key=lambda x: int(x.version))[-1]
+
+        # Get primary url ('type' should be 'cleversafe')
+        primary_urls = {url: meta
+                        for url, meta in released.urls_metadata.items()
+                        if meta.get('type') == 'cleversafe'}
+
+        if len(primary_urls) > 1:
+            raise ValueError("Multiple primary urls for doc")
+
+        _, meta = primary_urls.popitem()
+
+        old_props = {
+            'file_state': meta['state'],
+        }
+
+        for prop in self.indexd_props:
+            if hasattr(released, prop):
+                old_props[prop] = getattr(released, prop)
+            else:
+                getter = self.indexd_props_getters[prop]
+                old_props[prop] = getter(released)
+
+        return old_props
+
+    def get_old_props(self, node):
+        # NOTE: We don't care about caching released/live files, since they'll
+        # have the latest data anyways
+        if (node.state in {'released', 'live'} or
+                node.state not in {'validated', 'submitted'}):
+            return {}
+
+        versions = self.i.list_versions(node.node_id)
+
+        if len(versions) == 1:
+            # Latest version isn't released, so no older version to look for
+            return {}
+
+        # Lookup differences in TransactionSnapshot
+        transaction_props = self.get_props_from_snapshot(node.node_id,
+                                                         'version')
+
+        # Lookup differences in IndexD
+        indexd_props = self.get_props_from_indexd(versions)
+
+        transaction_props.update(indexd_props)
+
+        return transaction_props
+
+    def cache_versioned_nodes(self):
+        for node in self.iter_nodes():
+            cached = self.get_old_props(node)
+            if cached:
+                self.the_cache[node.node_id] = cached
+
 
 class ReleaseHelper:
     """
@@ -212,6 +342,7 @@ class ReleaseHelper:
         md5hash = md5(','.join(project_ids_sorted))
 
         return md5hash.hexdigest()
+
 
 @lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):
