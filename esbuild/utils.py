@@ -12,8 +12,29 @@ except ImportError:
 import subprocess
 
 from cdisutils.log import get_logger
+from dotenv import load_dotenv
 from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
+from indexclient.client import IndexClient
+from psqlgraph import PsqlGraphDriver
+
+load_dotenv()
+
+
+def get_default_pg_driver():
+    return PsqlGraphDriver(
+        user=os.getenv('PG_USER'),
+        host=os.getenv('PG_HOST'),
+        password=os.getenv('PG_PASS'),
+        database=os.getenv('PG_NAME'),
+    )
+
+
+def get_default_index_client():
+    return IndexClient(
+        baseurl=os.getenv('INDEXD_HOST'),
+        auth=(os.getenv('INDEXD_USER'), os.getenv('INDEXD_PASS')),
+    )
 
 
 def get_total_size(obj, handlers={}):
@@ -49,8 +70,8 @@ def get_total_size(obj, handlers={}):
 class VersionedNodesCacher(object):
     def __init__(self, project_id, graph=None, indexd_client=None):
         self.project_id = project_id
-        self.g = graph  # or get_default_pg_connection()
-        self.i = indexd_client  # or get default_indexd_connection()
+        self.g = graph or get_default_pg_driver()
+        self.i = indexd_client or get_default_index_client()
         self.the_cache = {}
 
         # List of properties to get form indexd document
