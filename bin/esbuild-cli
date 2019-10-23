@@ -1,12 +1,23 @@
+import json
 from argparse import ArgumentParser
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.gdc_elasticsearch import GDCElasticsearch
+from esbuild.utils import VersionedNodesCacher
 
 
 def handle_reindex(args):
     gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
     gdc_es.reindex(args.old_index, args.new_index, types=args.doc_types)
+
+
+def handle_pre_flight(args):
+    cacher = VersionedNodesCacher(project_ids=args.project_ids)
+    cacher.cache_versioned_nodes()
+
+    if args.file_out:
+        with open(args.file_out) as f:
+            json.dump(cacher.the_cache, f, indent=2)
 
 
 def get_parser():
@@ -34,6 +45,21 @@ def get_parser():
         help='Elasticsearch document types to reindex',
     )
     reindex_sub.set_defaults(func=handle_reindex)
+
+    preflight_sub = subparser.add_parser('pre-flight')
+    preflight_sub.add_argument(
+        '-p', '--project_ids',
+        nargs='+',
+        required=True,
+        help='Projects to run the pre-flight for',
+    )
+    preflight_sub.add_argument(
+        '-f', '--file-out',
+        metavar='FILE',
+        required=False,
+        help='Output file for the metadata differences.'
+    )
+    preflight_sub.set_defaults(func=handle_pre_flight)
 
     # TODO: Add more params as needed.
 

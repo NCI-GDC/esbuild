@@ -11,6 +11,7 @@ except ImportError:
     pass
 import subprocess
 
+import six
 from cdisutils.log import get_logger
 from dotenv import load_dotenv
 from gdcdatamodel import models
@@ -68,8 +69,14 @@ def get_total_size(obj, handlers={}):
 
 
 class VersionedNodesCacher(object):
-    def __init__(self, project_id, graph=None, indexd_client=None):
-        self.project_id = project_id
+    def __init__(self, project_ids, graph=None, indexd_client=None):
+        if isinstance(project_ids, six.text_type):
+            self.project_ids = project_ids.split(',')
+        elif isinstance(project_ids, list):
+            self.project_ids = project_ids
+        else:
+            raise TypeError("project_ids must be of type 'list' or 'str'")
+
         self.g = graph or get_default_pg_driver()
         self.i = indexd_client or get_default_index_client()
         self.the_cache = {}
@@ -89,9 +96,9 @@ class VersionedNodesCacher(object):
         with self.g.session_scope():
             nodes = (
                 self.g.nodes()
+                .prop_in('project_id', self.project_ids)
                 .filter(
                     models.Node._props.has_key('file_name'),
-                    models.Node._props['project_id'].astext == self.project_id,
                 )
                 .yield_per(1000).enable_eagerloads(False)
             )
