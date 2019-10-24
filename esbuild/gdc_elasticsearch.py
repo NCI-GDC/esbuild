@@ -10,7 +10,6 @@ Elasticsearch
 
 import os
 import re
-import sys
 import time
 import json
 import datetime
@@ -19,13 +18,15 @@ import resource
 
 from cdisutils.log import get_logger
 from datadog import statsd
-from elasticsearch import NotFoundError, Elasticsearch, helpers
+from elasticsearch import (
+    NotFoundError, Elasticsearch, helpers, exceptions as es_exc,
+)
 from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper, get_total_size
+from utils import ReleaseHelper
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -62,12 +63,16 @@ class GDCElasticsearch(object):
     """
     """
 
-    def __init__(self, converter_class, indexd_client, **kwargs):
+    def __init__(self, converter_class, indexd_client, index_close_thresh=5,
+                 **kwargs):
         """Walks the graph to produce elasticsearch json documents.
 
         :param es: An instance of Elasticsearch class
         :param converter_class: Class to use as a converter
         :param indexd_client: indexclient.client.IndexClient() object
+        :param index_close_thresh: we try to control the ES cluster size, by
+            keeping only X number of indices and deleting old ones. Set X by
+            passing this param
         :param index_base: base name template for resulting es index
         :param index_name: if provided, will build index with this name ignoring index_base
         :param build_projects: list of projects to build
@@ -90,10 +95,10 @@ class GDCElasticsearch(object):
             ('skip_es', False),
         ]
 
-
         for arg, default in valid_kwargs:
             setattr(self, arg, kwargs.get(arg, default))
 
+        self.index_close_thresh = index_close_thresh
         self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
@@ -182,40 +187,37 @@ class GDCElasticsearch(object):
 
             to_delete = []
 
-            total_size_in_ram = sys.getsizeof(self.converter.G.edge) +\
-                sys.getsizeof(self.converter.G.node)
-            self.log.info("ANALYSIS: Loaded data in %s, %d bytes in memory",
-                cache_end_time - start_time, total_size_in_ram)
+            self.log.info("ANALYSIS: Loaded data in %s",
+                          cache_end_time - start_time)
 
         if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
             statsd.event(
-                    "denormalization started",
-                    "starting denormalizing index".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:denormalization'],
+                "denormalization started",
+                "starting denormalizing index: '{}'".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name),
+                      'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
-            self.log.info("ANALYSIS: %s case docs (%d),"
-                "%s file docs (%d),"
-                "%s annotation docs (%d),"
-                "%s project docs (%d)",
-                          len(case_docs),
-                          get_total_size(case_docs),
-                          len(file_docs),
-                          get_total_size(file_docs),
-                          len(ann_docs),
-                          get_total_size(ann_docs),
-                          len(project_docs),
-                          get_total_size(project_docs))
+            self.log.info(
+                "ANALYSIS: %d case docs,"
+                "%d file docs,"
+                "%d annotation docs,"
+                "%d project docs",
+                len(case_docs),
+                len(file_docs),
+                len(ann_docs),
+                len(project_docs),
+            )
             self.log.info("Validating docs produced")
             statsd.event(
-                    "validation started",
-                    "starting validating index {}".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+                "validation started",
+                "starting validating index {}".format(self.index_name),
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:validation'],
             )
             self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
 
@@ -227,39 +229,48 @@ class GDCElasticsearch(object):
                         projects_to_build = ','.join(self.build_projects)
                     else:
                         projects_to_build = 'all'
-                        self.log.info("ANALYSIS: Preparing ES index to be updated "
-                            "with {} projects".format(projects_to_build))
+                        self.log.info(
+                            "ANALYSIS: Preparing ES index to be updated "
+                            "with {} projects".format(projects_to_build)
+                        )
                     statsd.event(
-                            "Index preparation started",
-                            "starting index {} preparation".format(self.index_name),
-                            source_type_name="esbuild",
-                            alert_type="info",
-                            tags=['es_index:{}'.format(self.index_name),
-                                  'projects:{}'.format(projects_to_build),
-                                  'stage:preparation'],
+                        "Index preparation started",
+                        "starting index {} preparation".format(self.index_name),
+                        source_type_name="esbuild",
+                        alert_type="info",
+                        tags=['es_index:{}'.format(self.index_name),
+                              'projects:{}'.format(projects_to_build),
+                              'stage:preparation'],
                     )
                     self.release_helper.prepare_index_to_build(self.index_name,
                                                                self.build_projects)
 
                 denom_end_time = datetime.datetime.now()
-                self.log.info("ANALYSIS: Denormalized data in %s",
-                    denom_end_time - start_time)
+                self.log.info(
+                    "ANALYSIS: Denormalized data in %s",
+                    denom_end_time - start_time
+                )
                 self.log.info("Deploying new ES index with new docs and bumping alias")
                 statsd.event(
-                        "es uploading started",
-                        "starting uploading index {}".format(self.index_name),
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=["es_index:{}".format(self.index_name), 'stage:uploading'],
+                    "es uploading started",
+                    "starting uploading index {}".format(self.index_name),
+                    source_type_name="esbuild",
+                    alert_type="info",
+                    tags=["es_index:{}".format(self.index_name),
+                          'stage:uploading'],
                 )
                 try:
-                    new_index = self.deploy(case_docs, file_docs, ann_docs, project_docs,
-                                            index_name=self.index_name,
-                                            roll_alias=roll_alias,
-                                            cleanup_indices=cleanup_indices)
+                    new_index = self.deploy(
+                        case_docs, file_docs, ann_docs, project_docs,
+                        index_name=self.index_name, roll_alias=roll_alias,
+                        cleanup_indices=cleanup_indices)
                 except Exception as exception:
-                    self.log.error('Unable to deploy documents to {}: {}, saving to {}'.format(
-                        self.index_name, exception, self.doc_output_dir))
+                    self.log.exception(
+                        'Unable to deploy documents to {}: {}, saving to {}'
+                        ''.format(self.index_name, exception,
+                                  self.doc_output_dir),
+                        exc_info=True,
+                    )
                     self.save_docs(case_docs, file_docs, ann_docs, project_docs)
             else:
                 new_index = 'not built'
@@ -379,11 +390,12 @@ class GDCElasticsearch(object):
                 pbar.update(pbar.currval+1)
 
         actions = action_gen()
-        batches = helpers.parallel_bulk(self.es,
-                actions,
-                thread_count=thread_count,
-                chunk_size=chunk_size,
-                max_chunk_bytes=max_chunk_bytes
+        batches = helpers.parallel_bulk(
+            self.es,
+            actions,
+            thread_count=thread_count,
+            chunk_size=chunk_size,
+            max_chunk_bytes=max_chunk_bytes,
         )
         for batch in batches:
             if not batch[0]:
@@ -537,19 +549,20 @@ class GDCElasticsearch(object):
         self.log.info("Deleting old indices")
         numbers = self.get_index_numbers()
         indices = [INDEX_PATTERN.format(base=self.index_base, n=n)
-                     for n in numbers]
-        if len(numbers) <= 5:
+                   for n in numbers]
+        if len(numbers) <= self.index_close_thresh:
             self.log.info("less than 5 matching indices found, not deleting anything")
             to_close = indices
             to_delete = []
         else:
-            to_delete = indices[0:-5]
-            to_close = indices[-5:]
+            to_delete = indices[0:-self.index_close_thresh]
+            to_close = indices[-self.index_close_thresh:]
 
         self.log.info("Deleting indices %s", to_delete)
         for index in to_delete:
             self.log.info("Deleting %s", index)
             self.es.indices.delete(index=index)
+            self.es.indices.refresh()
         for index in to_close:
             if index not in kept:
                 self.log.info("Closing %s", index)
@@ -557,17 +570,22 @@ class GDCElasticsearch(object):
                     self.es.indices.flush(index=index)
                 except AuthorizationException as e:
                     # authorization exception will be raised if it's already closed
-                    if e.error in ["IndexClosedException", "index_closed_exception"]:
+                    if ('IndexClosedException' in str(e.error) or
+                            'index_closed_exception' in str(e.error)):
                         self.log.info("%s is already closed" % index)
                         continue
                     else:
-                        self.log.exception("Fail to flush %s" % index)
+                        self.log.exception("Failed to flush %s" % index,
+                                           exc_info=True)
                 except:
-                    self.log.exception("Can't flush index %s" % index)
+                    self.log.exception("Can't flush index %s" % index,
+                                       exc_info=True)
+
                 try:
                     self.es.indices.close(index=index)
                 except:
-                    self.log.error("Can't close index %s" % index)
+                    self.log.exception("Can't close index %s" % index,
+                                       exc_info=True)
 
     def get_index_name(self):
         """Returns incremented index name"""
@@ -619,16 +637,14 @@ class GDCElasticsearch(object):
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
-        if self.build_projects:
-            doc_id = ','.join(self.build_projects)
-        else:
-            doc_id = 'ALL PROJECTS'
+        project_ids = self.build_projects or ['ALL PROJECTS']
+        doc_id = ReleaseHelper.get_build_metadata_id(self.build_projects or 'ALL PROJECTS')
 
         self.es.create(index=new_index, doc_type='build_metadata',
                        id=doc_id,
                        body={
                            'commit_hash': commit_hash,
-                           'build_projects': self.build_projects,
+                           'build_projects': project_ids,
                            'counts': doc_counts
                        })
 
@@ -668,3 +684,103 @@ class GDCElasticsearch(object):
         else:
             self.log.info("Skipping alias roll / old index deletion")
         return new_index
+
+    def _wait_for_task_completion(self, task_id):
+        """
+        Given an Elasticsearch task_id, wait for its completion and return
+        task summary
+        :param task_id: ES task ID
+        :return: Task summary
+        """
+
+        summary = {}
+        while True:
+            response = self.es.tasks.get(task_id)
+
+            if response['completed']:
+                break
+
+            so_far = response['task']['status']['batches']
+            total = response['task']['status']['total']
+            self.log.info(
+                'Reindexed: {} out of {} documents'.format(so_far, total)
+            )
+            time.sleep(10)
+
+        summary.update(response)
+
+        time_elapsed = response['task']['running_time_in_nanos'] // 10 ** 6
+        elapsed_mins = time_elapsed / 60.
+        summary['took'] = elapsed_mins
+
+        return summary
+
+    def reindex(self, old_index, new_index, types=None, index_settings=None,
+                query=None, conflicts=None):
+        """
+        Perform reindex operation on an existing ``old_index``, create
+        ``new_index`` with updated mappings and invoke ES reindex API. Wait for
+        reindexing to copmlete and return the summary
+
+        :param old_index: existing ES index
+        :param new_index: new ES index to be created
+        :param types: ES document types to reindex
+        :param index_settings: optional index settings and/or mappings
+        :param query: optional query to be run against the original index to
+            limit the documents being reindexed
+        :param conflicts: conflicts resolution strategy in case of indexing
+            collisions
+        :return: reindex operation summary
+        """
+
+        self.log.info("Start reindexing")
+
+        if old_index == new_index:
+            raise ValueError(
+                "New index must be different from the old one: "
+                "old: '{}' new: '{}'".format(old_index, new_index)
+            )
+
+        index_settings = index_settings or self.converter.mapper.index_settings()
+
+        reindex_body = {
+            'source': {
+                'index': old_index,
+            },
+            'dest': {
+                'index': new_index,
+            },
+        }
+
+        if conflicts:
+            reindex_body['conflicts'] = conflicts
+
+        if query:
+            reindex_body['source']['query'] = query
+
+        # FIXME: Maybe want to do a more extensive param check, but this should
+        # cover our immediate use cases
+        if types:
+            types = types if isinstance(types, list) else [types]
+            reindex_body['source']['type'] = types
+
+        self.log.info("Creating new index: '{}'".format(new_index))
+
+        self.es.indices.create(index=new_index, body=index_settings)
+
+        if 'mappings' not in index_settings:
+            self.put_mappings(new_index)
+
+        task_info = self.es.reindex(body=reindex_body, refresh=True,
+                                    wait_for_completion=False)
+
+        task_id = task_info['task']
+
+        self.log.info("Monitoring active reindex task: {}".format(task_id))
+
+        summary = self._wait_for_task_completion(task_id)
+
+        self.log.info("Reindexing completed in {} min".format(summary['took']))
+        self.log.info("Summary:\n{}".format(summary))
+
+        return summary

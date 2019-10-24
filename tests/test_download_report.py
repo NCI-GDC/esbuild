@@ -6,7 +6,7 @@ from esbuild.reports.download_report import DownloadStatsIndexBuilder
 import uuid
 import data
 from data import get_node_id
-from conftest import _graph
+from conftest import _graph, ES_HOST, ES_PORT
 
 from gdcdatamodel.models import (
     File,
@@ -27,7 +27,7 @@ class DownloadStatsIndexBuilderTest(TestCase):
         FileReport.metadata.create_all(_graph.engine)
         data.insert(_graph)
 
-        self.es = Elasticsearch(["localhost"])
+        self.es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
         self.index_name = "download_stats_test"
         self.builder = DownloadStatsIndexBuilder(
             graph=_graph,

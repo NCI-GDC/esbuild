@@ -649,6 +649,24 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+    Case(
+        # TT-1044 blocking release
+        node_id=get_node_id('blocking-release-case'),
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='unreleased_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
+    Case(
+        # TT-1044 blocking release
+        node_id=get_node_id('blocking-release-case-released'),
+        project_id='TCGA-BRCA',
+        state='submitted',
+        submitter_id='unreleased_case_submitter_2',
+        primary_site='Rectum',
+        disease_type='Rectum Adenocarcinoma'
+    ),
     Portion(
         node_id=get_node_id('portion-01'),
         project_id='TCGA-BRCA',
@@ -887,6 +905,19 @@ NODES = [
         state='released',
         submitter_id='18675',
         status="Rescinded",
+    ),
+    # TT-1044 blocking release
+    Annotation(
+        node_id=get_node_id('block-release-annotation'),
+        state='submitted',
+        status='Approved',
+        classification='Blocking Release',
+    ),
+    Annotation(
+        node_id=get_node_id('block-release-annotation-released'),
+        state='released',
+        status='Approved',
+        classification='Blocking Release',
     ),
     Annotation(
         node_id=get_node_id('annotation-without-downstream'),
@@ -1197,6 +1228,16 @@ EDGES = [
     AnnotationAnnotatesCase(
         src_id=get_node_id('rescinded-redaction-annotation'),
         dst_id=get_node_id('case-tcga-brca-breast'),
+    ),
+    # TT-1044 blocking release
+    AnnotationAnnotatesCase(
+        src_id=get_node_id('block-release-annotation'),
+        dst_id=get_node_id('blocking-release-case'),
+    ),
+    # TT-1044 blocking release
+    AnnotationAnnotatesCase(
+        src_id=get_node_id('block-release-annotation-released'),
+        dst_id=get_node_id('blocking-release-case-released'),
     ),
     AnnotationAnnotatesCase(
         src_id=get_node_id('unreleased-annotation'),
@@ -1727,6 +1768,14 @@ EDGES = [
     ),
     CaseMemberOfProject(
         src_id=get_node_id('unreleased-case-in-released-project'),
+        dst_id=get_node_id('fake_active_project')
+    ),
+    CaseMemberOfProject(
+        src_id=get_node_id('blocking-release-case'),
+        dst_id=get_node_id('fake_active_project')
+    ),
+    CaseMemberOfProject(
+        src_id=get_node_id('blocking-release-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
 ]

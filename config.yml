@@ -40,6 +40,11 @@ active_projects:
     - TCGA-PCPG
     - TARGET-WT
     - TCGA-BRCA
+    - MMRF-COMMPASS
+    - NCICCR-DLBCL
+    - TARGET-ALL-P1
+    - TARGET-ALL-P2
+    - TARGET-ALL-P3
 legacy_projects:
     - CCLE-MM
     - TCGA-SARC

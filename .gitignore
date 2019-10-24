@@ -72,3 +72,5 @@ package.json
 
 # vim
 *.swp
+
+*.sq3

@@ -147,6 +147,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     unindexed_by_property = {
         "annotation": [
             {"status": "Rescinded"},
+            {"classification": "Blocking Release"}
         ],
     }
 
