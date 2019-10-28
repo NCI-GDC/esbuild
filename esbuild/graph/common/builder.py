@@ -185,6 +185,10 @@ class GraphIndexBuilder(object):
         self.indexd = indexd_client
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
+
+        # Versioned files that haven't been released yet
+        self.versioned_files = kwargs.pop('versioned_files', None)
+
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
@@ -447,6 +451,12 @@ class GraphIndexBuilder(object):
             # Hide project_id for all nodes but project, viz. PGDC-1550
             and (key != 'project_id' or node.label == 'project')
         })
+
+        if self.versioned_files and node.node_id in self.versioned_files:
+            base.update({
+                key: value
+                for key, value in self.versioned_files[node.node_id].items()
+            })
 
         return base
 
@@ -812,6 +822,11 @@ class GraphIndexBuilder(object):
         """
         Reads file metadata from indexd and sets it to node
         """
+        # NOTE: Don't do anything if it's a new unreleased version, the
+        # key/values have already been set in _get_base_doc for these
+        if self.versioned_files and node.node_id in self.versioned_files:
+            return
+
         # Try to get cached metadata value
         record = self.file_metadata.get(node.node_id)
 
@@ -1046,7 +1061,7 @@ class GraphIndexBuilder(object):
             related_file = self.add_file_metadata_from_indexd(related_file)
 
             rf_doc = self._get_base_doc(related_file, include_id=False)
-            rf_doc['file_id'] = related_file.node_id
+            rf_doc['file_id'] = rf_doc.get('file_id') or related_file.node_id
 
             # Data types
             data_subtypes = self.neighbors_labeled(
@@ -1775,6 +1790,9 @@ class GraphIndexBuilder(object):
 
         """
 
+        if self.versioned_files and node.node_id in self.versioned_files:
+            return True
+
         # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
@@ -1905,6 +1923,8 @@ class GraphIndexBuilder(object):
 
             elif node.state in released_states and \
                     node.label != 'annotation':
+                return True
+            elif self.versioned_files and node.node_id in self.versioned_files:
                 return True
 
             if node.label == 'annotation' and \

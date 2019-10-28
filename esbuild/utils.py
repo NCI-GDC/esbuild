@@ -80,10 +80,11 @@ class VersionedNodesCacher(object):
         self.g = graph or get_default_pg_driver()
         self.i = indexd_client or get_default_index_client()
         self.the_cache = {}
+        self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
 
         # List of properties to get form indexd document
         self.indexd_props = ['file_size', 'acl', 'file_name', 'release_number',
-                             'file_id', 'md5sum']
+                             'file_id', 'md5sum', 'version']
         # Property getters, when simple getattr won't work
         self.indexd_props_getters = {
             'release_number': lambda doc: doc.metadata['release_number'],
@@ -132,7 +133,7 @@ class VersionedNodesCacher(object):
                     diff[key] = value
             return diff
 
-    def get_props_from_indexd(self, versions):
+    def get_props_from_indexd(self, versions, latest_id):
         # get only unreleased files
         unreleased_all = [
             v for v in versions
@@ -140,7 +141,15 @@ class VersionedNodesCacher(object):
         ]
 
         if len(unreleased_all) > 1:
-            raise ValueError("Multiple unreleased IndexD versions detected")
+            if len([v for v in unreleased_all if v.did == latest_id]) < 1:
+                raise ValueError("No unreleased document found")
+
+            extra = [v for v in unreleased_all if v.did != latest_id]
+
+            for e in extra:
+                self.logger.debug(
+                    "Extra unreleased IndexD doc: '{}'".format(e.did)
+                )
 
         # Get latest released
         released = sorted([v for v in versions
@@ -188,17 +197,22 @@ class VersionedNodesCacher(object):
                                                          'version')
 
         # Lookup differences in IndexD
-        indexd_props = self.get_props_from_indexd(versions)
+        indexd_props = self.get_props_from_indexd(versions, node.node_id)
 
+        # Prioritize IndexD metadata over Graph metadata
         transaction_props.update(indexd_props)
 
         return transaction_props
 
+    def run(self):
+        return self.cache_versioned_nodes()
+
     def cache_versioned_nodes(self):
         for node in self.iter_nodes():
-            cached = self.get_old_props(node)
-            if cached:
-                self.the_cache[node.node_id] = cached
+            diffs = self.get_old_props(node)
+            if diffs:
+                self.the_cache[node.node_id] = diffs
+        return self.the_cache
 
 
 class ReleaseHelper:
