@@ -431,9 +431,12 @@ class GraphIndexBuilder(object):
         """
 
         base = {}
+        old_props = {}
+        if self.versioned_files and node.node_id in self.versioned_files:
+            old_props = self.versioned_files[node.node_id]
 
         if include_id and node.label in self.file_labels:
-            base.update({'file_id': node.node_id})
+            base.update({'file_id': old_props.get('file_id') or node.node_id})
 
         elif include_id and node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
@@ -442,7 +445,7 @@ class GraphIndexBuilder(object):
             base.update({'{}_id'.format(node.label): node.node_id})
 
         base.update({
-            key: value
+            key: old_props.get(key) or value
             for key, value in node._props.iteritems()
             # Only use props in the pinned version of the dictionary
             if key in node.__pg_properties__
@@ -451,12 +454,6 @@ class GraphIndexBuilder(object):
             # Hide project_id for all nodes but project, viz. PGDC-1550
             and (key != 'project_id' or node.label == 'project')
         })
-
-        if self.versioned_files and node.node_id in self.versioned_files:
-            base.update({
-                key: value
-                for key, value in self.versioned_files[node.node_id].items()
-            })
 
         return base
 
@@ -822,10 +819,11 @@ class GraphIndexBuilder(object):
         """
         Reads file metadata from indexd and sets it to node
         """
-        # NOTE: Don't do anything if it's a new unreleased version, the
-        # key/values have already been set in _get_base_doc for these
+
         if self.versioned_files and node.node_id in self.versioned_files:
-            return
+            for key, value in self.versioned_files[node.node_id].items():
+                setattr(node, key, value)
+            return node
 
         # Try to get cached metadata value
         record = self.file_metadata.get(node.node_id)

@@ -17,7 +17,7 @@ def handle_pre_flight(args):
     cacher.cache_versioned_nodes()
 
     if args.file_out:
-        with open(args.file_out) as f:
+        with open(args.file_out, 'w') as f:
             json.dump(cacher.the_cache, f, indent=2)
     else:
         print(pformat(cacher.the_cache))

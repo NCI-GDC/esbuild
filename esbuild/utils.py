@@ -83,11 +83,9 @@ class VersionedNodesCacher(object):
         self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
 
         # List of properties to get form indexd document
-        self.indexd_props = ['file_size', 'acl', 'file_name', 'release_number',
-                             'file_id', 'md5sum', 'version']
+        self.indexd_props = ['acl', 'file_size', 'file_name', 'md5sum', 'file_id']
         # Property getters, when simple getattr won't work
         self.indexd_props_getters = {
-            'release_number': lambda doc: doc.metadata['release_number'],
             'file_id': lambda doc: doc.did,
             'md5sum': lambda doc: doc.hashes['md5'],
             'file_size': lambda doc: doc.size,
