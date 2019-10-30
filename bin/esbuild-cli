@@ -14,10 +14,10 @@ def handle_reindex(args):
 
 def handle_pre_flight(args):
     cacher = VersionedNodesCacher(project_ids=args.project_ids)
-    cacher.cache_versioned_nodes()
+    cacher.run()
 
-    if args.file_out:
-        with open(args.file_out, 'w') as f:
+    if args.out_file:
+        with open(args.out_file, 'w') as f:
             json.dump(cacher.the_cache, f, indent=2)
     else:
         print(pformat(cacher.the_cache))
@@ -53,11 +53,11 @@ def get_parser():
     preflight_sub.add_argument(
         '-p', '--project_ids',
         nargs='+',
-        required=True,
+        required=False,
         help='Projects to run the pre-flight for',
     )
     preflight_sub.add_argument(
-        '-f', '--file-out',
+        '-o', '--out-file',
         metavar='FILE',
         required=False,
         help='Output file for the metadata differences.'

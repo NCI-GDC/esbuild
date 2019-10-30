@@ -18,6 +18,7 @@ from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
+from requests.exceptions import HTTPError
 
 load_dotenv()
 
@@ -69,13 +70,13 @@ def get_total_size(obj, handlers={}):
 
 
 class VersionedNodesCacher(object):
-    def __init__(self, project_ids, graph=None, indexd_client=None):
+    def __init__(self, project_ids=None, graph=None, indexd_client=None):
         if isinstance(project_ids, six.text_type):
             self.project_ids = project_ids.split(',')
         elif isinstance(project_ids, list):
             self.project_ids = project_ids
         else:
-            raise TypeError("project_ids must be of type 'list' or 'str'")
+            self.project_ids = project_ids
 
         self.g = graph or get_default_pg_driver()
         self.i = indexd_client or get_default_index_client()
@@ -93,14 +94,12 @@ class VersionedNodesCacher(object):
 
     def query_nodes(self):
         with self.g.session_scope():
-            nodes = (
-                self.g.nodes()
-                .prop_in('project_id', self.project_ids)
-                .filter(
-                    models.Node._props.has_key('file_name'),
-                )
-                .yield_per(1000).enable_eagerloads(False)
-            )
+            q = self.g.nodes().filter(models.Node._props.has_key('file_name'))
+
+            if self.project_ids and isinstance(self.project_ids, list):
+                q = q.prop_in('project_id', self.project_ids)
+
+            nodes = q.yield_per(1000).enable_eagerloads(False)
             for n in nodes:
                 yield n
 
@@ -184,7 +183,13 @@ class VersionedNodesCacher(object):
                 node.state not in {'validated', 'submitted'}):
             return {}
 
-        versions = self.i.list_versions(node.node_id)
+        try:
+            versions = self.i.list_versions(node.node_id)
+        except HTTPError as e:
+            self.logger.error("Error while making request to IndexD: {}".format(str(e)))
+            self.logger.debug("IndexD is being weird with: {} '{}'".format(
+                node.project_id, node))
+            return {}
 
         if len(versions) == 1:
             # Latest version isn't released, so no older version to look for
@@ -210,6 +215,8 @@ class VersionedNodesCacher(object):
             diffs = self.get_old_props(node)
             if diffs:
                 self.the_cache[node.node_id] = diffs
+                self.logger.debug("Found old version of: {} '{}'".format(
+                    node.project_id, node))
         return self.the_cache
 
 
