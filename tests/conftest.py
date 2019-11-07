@@ -26,6 +26,7 @@ from indexd_test_utils import (
     alias_driver,
     auth_driver,
     setup_indexd_test_database,
+    indexd_admin_user,
 )
 from indexclient.client import IndexClient
 
@@ -303,3 +304,20 @@ def es_after_deletion(test_index_data):
     # Wait for index to update
     time.sleep(2)
     return es, index_name, projects_before, projects_to_delete
+
+
+@pytest.fixture
+def setup_test(sample_database):
+    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
+
+    cleanup_indices(es)
+
+    os.environ["PG_HOST"] = PG_HOST
+    os.environ["PG_USER"] = PG_USER
+    os.environ["PG_PASS"] = PG_PASSWORD
+    os.environ["PG_NAME"] = PG_DATABASE
+    os.environ["ELASTICSEARCH_HOST"] = "localhost"
+
+    yield es
+
+    cleanup_indices(es)

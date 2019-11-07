@@ -28,27 +28,9 @@ from conftest import (
     _graph,
     ES_HOST,
     ES_PORT,
-    cleanup_indices,
 )
 
 GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
-
-
-@pytest.fixture
-def setup_test(sample_database):
-    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
-
-    cleanup_indices(es)
-
-    os.environ["PG_HOST"] = PG_HOST
-    os.environ["PG_USER"] = PG_USER
-    os.environ["PG_PASS"] = PG_PASSWORD
-    os.environ["PG_NAME"] = PG_DATABASE
-    os.environ["ELASTICSEARCH_HOST"] = "localhost"
-
-    yield es
-
-    cleanup_indices(es)
 
 
 def make_gdc_es(indexd_client, converter):

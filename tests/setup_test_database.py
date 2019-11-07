@@ -14,6 +14,7 @@ import argparse
 from sqlalchemy import create_engine
 import logging
 
+from gdcdatamodel.models import submission
 from gdcdatamodel.models.misc import FileReport
 from gdcdatamodel.models.reports import GDCReport
 from gdcdatamodel import models  # noqa
@@ -88,6 +89,7 @@ def create_tables(host, user, password, database):
 
     FileReport.metadata.create_all(engine)
     GDCReport.metadata.create_all(engine)
+    submission.Base.metadata.create_all(engine)
 
 
 if __name__ == '__main__':

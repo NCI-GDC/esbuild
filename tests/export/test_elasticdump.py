@@ -1,4 +1,4 @@
-from conftest import ES_HOST, ES_PORT
+from tests.conftest import ES_HOST, ES_PORT
 from esbuild.export.elasticdump import export_to_gzip, ExportTypes
 from esbuild.export.s3_upload import upload_to_s3
 from moto import mock_s3
