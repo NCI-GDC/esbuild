@@ -183,6 +183,14 @@ class VersionedNodesCacher(object):
                 node.state not in {'validated', 'submitted'}):
             return {}
 
+        # Lookup TransactionSnapshot with 'version' action
+        transaction_props = self.get_props_from_snapshot(node.node_id,
+                                                         'version')
+
+        # This will mean that the given node never created a new file version
+        if not transaction_props:
+            return {}
+
         try:
             versions = self.i.list_versions(node.node_id)
         except HTTPError as e:
@@ -194,10 +202,6 @@ class VersionedNodesCacher(object):
         if len(versions) == 1:
             # Latest version isn't released, so no older version to look for
             return {}
-
-        # Lookup differences in TransactionSnapshot
-        transaction_props = self.get_props_from_snapshot(node.node_id,
-                                                         'version')
 
         # Lookup differences in IndexD
         indexd_props = self.get_props_from_indexd(versions, node.node_id)

@@ -16,7 +16,7 @@ def generate_urls_metadata(node_id, filename):
     }
 
 
-def create_indexd_docs(client, node, version, release, baseid):
+def create_indexd_for_node(client, node, version, release, baseid):
     urls_metadata = generate_urls_metadata(node.node_id, node.file_name)
 
     json_doc = {
@@ -36,6 +36,32 @@ def create_indexd_docs(client, node, version, release, baseid):
 
     doc = client.create(**json_doc)
     return doc
+
+
+def link_factory_nodes(graph, nodes, links, map_key='submitter_id'):
+    nodes_map = {getattr(n, map_key): n for n in nodes}
+    with graph.session_scope() as sxn:
+        for link in links:
+            src_id = link[0]
+            dst_id = link[1]
+            root = graph.nodes().get(dst_id)
+            child = nodes_map[src_id]
+            for pg_link_name, pg_link_def in child._pg_links.items():
+                if pg_link_def['dst_type'] == root.__class__:
+                    getattr(child, pg_link_name).append(root)
+                    break
+            sxn.merge(root)
+
+
+def create_transaction(node, old_props, action='version'):
+    program, project = node.project_id.split('-', 1)
+    tl = TransactionLog(program=program, project=project, is_dry_run=False,
+                        state='SUCCEEDED', role='create')
+    ts = TransactionSnapshot(
+        id=node.node_id, action=action, old_props=old_props,
+        new_props=node._props)
+    tl.entities.append(ts)
+    return tl
 
 
 @pytest.fixture(scope='session')
@@ -60,30 +86,19 @@ def make_subgraph(graph_factory, graph, indexd_client):
         :param nodes: list of nodes metadata
         :param edges: list of edges metadata
         :param root_links: links to existing via (submitter_id, node_id) pair
-        :param version: create older versions
+        :param make_version: create older versions
         :return: list of created nodes
         """
-        nodes = graph_factory.create_from_nodes_and_edges(nodes, edges,
-                                                          all_props=True)
+        graph_nodes = graph_factory.create_from_nodes_and_edges(nodes, edges,
+                                                                all_props=True)
         with graph.session_scope() as sxn:
-            for n in nodes:
+            for n in graph_nodes:
                 sxn.add(n)
 
-        nodes_map = {n.submitter_id: n for n in nodes}
-        with graph.session_scope():
-            for link in root_links:
-                src_id = link[0]
-                dst_id = link[1]
-                root = graph.nodes().get(dst_id)
-                child = nodes_map[src_id]
-                for pg_link_name, pg_link_def in child._pg_links.items():
-                    if pg_link_def['dst_type'] == root.__class__:
-                        getattr(child, pg_link_name).append(root)
-                        break
-                sxn.merge(root)
+        link_factory_nodes(graph, graph_nodes, root_links)
 
         cur_docs, prev_docs = [], []
-        for n in nodes:
+        for n in graph_nodes:
             if not n._dictionary.get('category', '').endswith('_file'):
                 continue
 
@@ -93,29 +108,22 @@ def make_subgraph(graph_factory, graph, indexd_client):
             if make_version:
                 prev = graph_factory.node_factory.create(n.label,
                                                          all_props=True)
-                tl = TransactionLog(
-                    program='TCGA', project='BRCA', is_dry_run=False,
-                    state='SUCCEEDED', role='create')
-                ts = TransactionSnapshot(
-                    id=n.node_id, action='version', old_props=prev._props,
-                    new_props=n._props)
-                tl.entities.append(ts)
-
+                tl = create_transaction(n, prev._props)
                 with graph.session_scope() as sxn:
                     sxn.add(tl)
 
-                prevd = create_indexd_docs(indexd_client, prev, '1', '0.0',
-                                           None)
+                prevd = create_indexd_for_node(indexd_client, prev, '1', '0.0',
+                                               None)
                 baseid = prevd.baseid
                 release = None
                 version = None
                 prev_docs.append(prevd)
 
-            curd = create_indexd_docs(indexd_client, n, version, release,
-                                      baseid)
+            curd = create_indexd_for_node(indexd_client, n, version, release,
+                                          baseid)
             cur_docs.append(curd)
 
-        return list(nodes_map.values()), cur_docs, prev_docs
+        return graph_nodes, cur_docs, prev_docs
 
     return wrapper
 
