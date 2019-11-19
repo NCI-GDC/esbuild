@@ -69,6 +69,29 @@ def get_total_size(obj, handlers={}):
     return sizeof(obj)
 
 
+class MetadataTransformer(object):
+    # A list of fields to pull from IndexD
+    INDEXD_META_FIELDS = ['acl', 'file_size', 'file_name', 'md5sum', 'file_id']
+
+    # Getters for fields, that have different attribute name or structure
+    INDEXD_META_VALUE_GETTERS = {
+        'file_id': lambda doc: doc.did,
+        'md5sum': lambda doc: doc.hashes['md5'],
+        'file_size': lambda doc: doc.size,
+    }
+
+    @classmethod
+    def transform(cls, doc):
+        td = {}
+        for field in cls.INDEXD_META_FIELDS:
+            if hasattr(doc, field):
+                td[field] = getattr(doc, field)
+            else:
+                getter = cls.INDEXD_META_VALUE_GETTERS[field]
+                td[field] = getter(doc)
+        return td
+
+
 class VersionedNodesCacher(object):
     def __init__(self, project_ids=None, graph=None, indexd_client=None):
         if isinstance(project_ids, six.text_type):
@@ -82,15 +105,6 @@ class VersionedNodesCacher(object):
         self.i = indexd_client or get_default_index_client()
         self.the_cache = {}
         self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
-
-        # List of properties to get form indexd document
-        self.indexd_props = ['acl', 'file_size', 'file_name', 'md5sum', 'file_id']
-        # Property getters, when simple getattr won't work
-        self.indexd_props_getters = {
-            'file_id': lambda doc: doc.did,
-            'md5sum': lambda doc: doc.hashes['md5'],
-            'file_size': lambda doc: doc.size,
-        }
 
     def query_nodes(self):
         with self.g.session_scope():
@@ -167,12 +181,8 @@ class VersionedNodesCacher(object):
             'file_state': meta['state'],
         }
 
-        for prop in self.indexd_props:
-            if hasattr(released, prop):
-                old_props[prop] = getattr(released, prop)
-            else:
-                getter = self.indexd_props_getters[prop]
-                old_props[prop] = getter(released)
+        indexd_meta = MetadataTransformer.transform(released)
+        old_props.update(indexd_meta)
 
         return old_props
 

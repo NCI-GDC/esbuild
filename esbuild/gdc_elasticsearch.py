@@ -102,12 +102,11 @@ class GDCElasticsearch(object):
         self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
-        self.graph = PsqlGraphDriver(
-            os.environ["PG_HOST"],
-            os.environ["PG_USER"],
-            os.environ["PG_PASS"],
-            os.environ["PG_NAME"],
-        )
+        self.graph = kwargs.pop('pg_driver',
+                                PsqlGraphDriver(os.environ["PG_HOST"],
+                                                os.environ["PG_USER"],
+                                                os.environ["PG_PASS"],
+                                                os.environ["PG_NAME"]))
 
         versioned_files = None
         if not self.build_awg and self.build_projects:
