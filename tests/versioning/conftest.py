@@ -128,8 +128,11 @@ def make_subgraph(graph_factory, graph, indexd_client):
                 prevd = create_indexd_for_node(indexd_client, prev, version,
                                                release, None)
                 baseid = prevd.baseid
-                release = '2.0' if latest_released else None
-                version = '2' if latest_released else None
+
+                # If node in graph is released, we should also release the doc
+                released = n.state == 'released'
+                release = '2.0' if released else None
+                version = '2' if released else None
                 prev_docs.append(prevd)
             else:
                 create_transaction(graph, n, {}, action='create')
@@ -147,6 +150,24 @@ def make_subgraph(graph_factory, graph, indexd_client):
 def create_aligned_reads(graph, indexd_client, make_subgraph):
     def wrapper(workflow_state='released', make_versions=True,
                 reads_state='submitted'):
+        """
+        This fixture creates 2 subtrees starting from SUR and SAR.
+        AlignedReads/AlignedReadsIndex nodes under SUR are always released and
+        AlignedReads/AlignedReadsIndex nodes under SAR have variable states
+        AlignmentWorkflow nodes for both subtrees also vary (submitted/released)
+
+        Subtree structures:
+            SAR <- AWF <- AR <- ARI
+            SUR <- AWF <- AR <- ARI
+
+        :param workflow_state: AlignmentWorkflow nodes state for both subtrees
+        :param make_versions: Make version for AR/ARI for SAR subtree
+        :param reads_state: node state for AR/ARI for SAR subtree
+        :return: tuple containing:
+            0: all created nodes
+            1: latest indexd docs (potentially unreleased)
+            2: previous versions of indexd (always released)
+        """
         nodes = [
             dict(label='submitted_aligned_reads', submitter_id='sar1'),
             dict(label='submitted_unaligned_reads', submitter_id='sur1'),
@@ -177,7 +198,6 @@ def create_aligned_reads(graph, indexd_client, make_subgraph):
         nodes, latest, previous = make_subgraph(
             nodes=nodes, edges=edges, root_links=links,
             make_versions=make_versions,
-            latest_released=(reads_state == 'released'),
         )
         return nodes, latest, previous
 
@@ -195,6 +215,25 @@ def create_aligned_reads(graph, indexd_client, make_subgraph):
     Dict(workflow_state='submitted', reads_state='submitted', make_versions=False),
 ])
 def versioned_reads_setup(request, graph, create_aligned_reads):
+    """
+    A fixture that generates different data setups.
+    Yields a tuple:
+        0: all created nodes in graph
+        1: nodes that are expected to have previous versions
+        2: IndexD documents corresponding to the above nodes
+        3: fixture params
+
+    workflow    | reads_state   | make_versions | expected doc diffs
+    ============|===============|===============|====================
+    released    | released      | True          | []
+    released    | released      | False         | []
+    released    | submitted     | True          | [ar_sar1, ari_sar1]
+    released    | submitted     | False         | []
+    submitted   | released      | True          | []
+    submitted   | released      | False         | []
+    submitted   | submitted     | True          | [ar_sar1, ari_sar1]
+    submitted   | submitted     | False         | []
+    """
     nodes, latest, previous = create_aligned_reads(**request.param.to_dict())
 
     with graph.session_scope() as sxn:
@@ -230,7 +269,11 @@ def versioned_reads_setup(request, graph, create_aligned_reads):
 @pytest.fixture
 def versioned_reads_expectations(versioned_reads_setup, indexd_client):
     """
+    Fixture that generates ES document expectations in terms of metadata from
+    IndexD. Yields a mapping in a form: {graph_node_id: expected_indexd_doc}
+
     workflow    | reads_state   | make_versions | expected
+    ============|===============|===============|=======================
     released    | released      | True          | ar_sur1_v2, ar_sar1_v2
     released    | released      | False         | ar_sur1_v1, ar_sar1_v1
     released    | submitted     | True          | ar_sur1_v2, ar_sar1_v1
@@ -239,6 +282,7 @@ def versioned_reads_expectations(versioned_reads_setup, indexd_client):
     submitted   | released      | False         | None
     submitted   | submitted     | True          | None
     submitted   | submitted     | False         | None
+
     """
     nodes, exp_nodes, exp_docs, params = versioned_reads_setup
 

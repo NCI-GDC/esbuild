@@ -1,3 +1,5 @@
+from gdcdatamodel.models.submission import TransactionSnapshot
+
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import VersionedNodesCacher, MetadataTransformer
@@ -29,6 +31,59 @@ def test_cache_versioned_nodes(graph, versioned_reads_setup, setup_test,
         assert len(expected_docs) == 0
 
 
+def assert_inclusion(doc1, doc2, ignore=()):
+    for field, val in doc1.items():
+        if field not in ignore and field in doc2:
+            assert doc2.get(field) == val
+
+
+def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
+    ari_node = ar_node.aligned_reads_indexes[0]
+
+    # Query for latest released IndexD document. The ES index should contain
+    # this metadata
+    ar_doc = indexd.get_latest_version(ar_node.node_id, True)
+    ari_doc = indexd.get_latest_version(ari_node.node_id, True)
+
+    # Query for TransactionSnapshots
+    with graph.session_scope():
+        ar_ts = graph.nodes(TransactionSnapshot).filter(
+            TransactionSnapshot.id == ar_node.node_id,
+            TransactionSnapshot.action == 'version').first()
+        ari_ts = graph.nodes(TransactionSnapshot).filter(
+            TransactionSnapshot.id == ari_node.node_id,
+            TransactionSnapshot.action == 'version').first()
+
+    ar_hits = [hit['_source'] for hit in es_response['hits']['hits'] if ar_doc.did == hit['_id']]
+
+    ar_props = MetadataTransformer.transform(ar_doc)
+    ari_props = MetadataTransformer.transform(ari_doc)
+
+    # Assert root level document properties
+    ar_hit = ar_hits[0]
+    assert_inclusion(ar_props, ar_hit)
+
+    # Assert nested index_file properties
+    assert len(ar_hit['index_files']) == 1
+    assert_inclusion(ar_hit['index_files'][0], ari_props)
+
+    # Make sure either both snapshots exist or none
+    assert ar_ts and ari_ts or (not ar_ts and not ari_ts)
+
+    # No previous versions, just early exit
+    if not ar_ts:
+        return
+
+    # Make sure that non IndexD property values are pulled from the snapshot
+    ar_props = ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props  # noqa
+    assert_inclusion(ar_props, ar_hit,
+                     MetadataTransformer.INDEXD_META_FIELDS)
+
+    ari_props = ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props  # noqa
+    assert_inclusion(ari_props, ar_hit['index_files'][0],
+                     MetadataTransformer.INDEXD_META_FIELDS)
+
+
 def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
                             versioned_reads_setup, setup_test):
     es = setup_test
@@ -43,7 +98,7 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
     builder.go()
 
     es_expectations = versioned_reads_expectations
-    _, _, versioned_docs, _ = versioned_reads_setup
+    nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
 
     source = MetadataTransformer.INDEXD_META_FIELDS + ['index_files']
     res = es.search(index=builder.index_name, doc_type='file',
@@ -52,3 +107,12 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
                           '_source': source})
 
     assert len(es_expectations) == res['hits']['total']
+
+    # If there were no versions, there are no differences to be detected
+    if not params['make_versions']:
+        return
+
+    expected_ars = set(es_expectations.keys())
+    ars = [n for n in nodes if n.label == 'aligned_reads' and n.node_id in expected_ars]
+    for ar in ars:
+        assert_aligned_reads_documents(init_indexd, graph, ar, res)

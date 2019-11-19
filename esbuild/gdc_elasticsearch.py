@@ -709,13 +709,13 @@ class GDCElasticsearch(object):
             so_far = response['task']['status']['batches']
             total = response['task']['status']['total']
             self.log.info(
-                'Reindexed: {} out of {} documents'.format(so_far, total)
+                'Reindexed: {} out of {} documents'.format(so_far*1000, total)
             )
             time.sleep(10)
 
         summary.update(response)
 
-        time_elapsed = response['task']['running_time_in_nanos'] // 10 ** 6
+        time_elapsed = response['task']['running_time_in_nanos'] // (10 ** 9)
         elapsed_mins = time_elapsed / 60.
         summary['took'] = elapsed_mins
 
