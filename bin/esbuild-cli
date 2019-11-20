@@ -1,10 +1,9 @@
 import json
 from argparse import ArgumentParser
-from pprint import pformat
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.utils import VersionedNodesCacher
+from esbuild.utils import VersionedNodesDiffCollector
 
 
 def handle_reindex(args):
@@ -13,14 +12,14 @@ def handle_reindex(args):
 
 
 def handle_pre_flight(args):
-    cacher = VersionedNodesCacher(project_ids=args.project_ids)
-    cacher.run()
+    collector = VersionedNodesDiffCollector(project_ids=args.project_ids)
+    diffs = collector.collect_differences()
 
     if args.out_file:
         with open(args.out_file, 'w') as f:
-            json.dump(cacher.the_cache, f, indent=2)
+            json.dump(diffs, f, indent=2)
     else:
-        print(pformat(cacher.the_cache))
+        print(json.dumps(diffs, indent=2))
 
 
 def get_parser():

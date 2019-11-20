@@ -2,20 +2,24 @@ from gdcdatamodel.models.submission import TransactionSnapshot
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.utils import VersionedNodesCacher, MetadataTransformer
+from esbuild.utils import (
+    VersionedNodesDiffCollector,
+    extract_indexd_metadata,
+    INDEXD_METADATA_FIELDS,
+)
 
 
 def assert_metadata(latest, diff):
-    tf = MetadataTransformer.transform(latest)
+    metadata = extract_indexd_metadata(latest)
 
-    for field, val in tf.items():
+    for field, val in metadata.items():
         assert diff.get(field) == val
 
 
 def test_cache_versioned_nodes(graph, versioned_reads_setup, setup_test,
                                indexd_client):
-    cacher = VersionedNodesCacher(project_ids=['TCGA-BRCA'], graph=graph,
-                                  indexd_client=indexd_client)
+    cacher = VersionedNodesDiffCollector(project_ids=['TCGA-BRCA'], graph=graph,
+                                         indexd_client=indexd_client)
     diffs = cacher.run()
 
     _, expected_diffs, expected_docs, params = versioned_reads_setup
@@ -56,8 +60,8 @@ def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
 
     ar_hits = [hit['_source'] for hit in es_response['hits']['hits'] if ar_doc.did == hit['_id']]
 
-    ar_props = MetadataTransformer.transform(ar_doc)
-    ari_props = MetadataTransformer.transform(ari_doc)
+    ar_props = extract_indexd_metadata(ar_doc)
+    ari_props = extract_indexd_metadata(ari_doc)
 
     # Assert root level document properties
     ar_hit = ar_hits[0]
@@ -76,12 +80,11 @@ def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
 
     # Make sure that non IndexD property values are pulled from the snapshot
     ar_props = ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props  # noqa
-    assert_inclusion(ar_props, ar_hit,
-                     MetadataTransformer.INDEXD_META_FIELDS)
+    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS)
 
     ari_props = ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props  # noqa
     assert_inclusion(ari_props, ar_hit['index_files'][0],
-                     MetadataTransformer.INDEXD_META_FIELDS)
+                     INDEXD_METADATA_FIELDS)
 
 
 def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
@@ -100,7 +103,7 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
     es_expectations = versioned_reads_expectations
     nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
 
-    source = MetadataTransformer.INDEXD_META_FIELDS + ['index_files']
+    source = INDEXD_METADATA_FIELDS + ['index_files']
     res = es.search(index=builder.index_name, doc_type='file',
                     body={'query': {'terms': {'submitter_id': ['ar_sar1',
                                                                'ar_sur1']}},

@@ -1,7 +1,6 @@
 import time
 import os
 from collections import deque
-from functools32 import lru_cache
 from hashlib import md5
 from itertools import chain
 from sys import getsizeof
@@ -18,7 +17,26 @@ from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
-from requests.exceptions import HTTPError
+from requests import HTTPError
+
+from esbuild.graph.common.builder import GraphIndexBuilder
+
+
+def get_file_state(doc):
+    state = None
+    for url, meta in doc.urls_metadata.items():
+        if meta.get('type') == GraphIndexBuilder.INDEXD_URL_TYPE:
+            state = state or meta.get('state')
+    return state
+
+
+INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ['file_id']
+INDEXD_METADATA_VALUE_GETTERS = {
+    'file_id': lambda doc: doc.did,
+    'md5sum': lambda doc: doc.hashes['md5'],
+    'file_size': lambda doc: doc.size,
+    'file_state': get_file_state,
+}
 
 load_dotenv()
 
@@ -69,30 +87,26 @@ def get_total_size(obj, handlers={}):
     return sizeof(obj)
 
 
-class MetadataTransformer(object):
-    # A list of fields to pull from IndexD
-    INDEXD_META_FIELDS = ['acl', 'file_size', 'file_name', 'md5sum', 'file_id']
+# TODO: Refactor esbuild.graph.common.builder to use this method to extract IndexD properties
+def extract_indexd_metadata(doc, fields=None, getters=None):
+    if fields is None:
+        fields = INDEXD_METADATA_FIELDS
+    if getters is None:
+        getters = INDEXD_METADATA_VALUE_GETTERS
 
-    # Getters for fields, that have different attribute name or structure
-    INDEXD_META_VALUE_GETTERS = {
-        'file_id': lambda doc: doc.did,
-        'md5sum': lambda doc: doc.hashes['md5'],
-        'file_size': lambda doc: doc.size,
-    }
-
-    @classmethod
-    def transform(cls, doc):
-        td = {}
-        for field in cls.INDEXD_META_FIELDS:
-            if hasattr(doc, field):
-                td[field] = getattr(doc, field)
-            else:
-                getter = cls.INDEXD_META_VALUE_GETTERS[field]
-                td[field] = getter(doc)
-        return td
+    metadata = {}
+    for field in fields:
+        if hasattr(doc, field):
+            metadata[field] = getattr(doc, field)
+        else:
+            getter = getters[field]
+            metadata[field] = getter(doc)
+    return metadata
 
 
-class VersionedNodesCacher(object):
+class VersionedNodesDiffCollector(object):
+    TARGET_NODE_STATES = ['validated', 'submitted']
+
     def __init__(self, project_ids=None, graph=None, indexd_client=None):
         if isinstance(project_ids, six.text_type):
             self.project_ids = project_ids.split(',')
@@ -103,12 +117,14 @@ class VersionedNodesCacher(object):
 
         self.g = graph or get_default_pg_driver()
         self.i = indexd_client or get_default_index_client()
-        self.the_cache = {}
+        self.diffs = {}
         self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
 
     def query_nodes(self):
         with self.g.session_scope():
-            q = self.g.nodes().filter(models.Node._props.has_key('file_name'))
+            q = self.g.nodes() \
+                .prop_in('state', self.TARGET_NODE_STATES) \
+                .filter(models.Node._props.has_key('file_name'))
 
             if self.project_ids and isinstance(self.project_ids, list):
                 q = q.prop_in('project_id', self.project_ids)
@@ -181,18 +197,34 @@ class VersionedNodesCacher(object):
             'file_state': meta['state'],
         }
 
-        indexd_meta = MetadataTransformer.transform(released)
+        indexd_meta = extract_indexd_metadata(released)
+
         old_props.update(indexd_meta)
 
         return old_props
 
-    def get_old_props(self, node):
-        # NOTE: We don't care about caching released/live files, since they'll
-        # have the latest data anyways
-        if (node.state in {'released', 'live'} or
-                node.state not in {'validated', 'submitted'}):
-            return {}
+    def list_versions(self, node):
+        for _ in range(5):
+            try:
+                versions = self.i.list_versions(node.node_id)
+            except HTTPError as e:
+                if e.response and e.response.status_code != 404:
+                    self.logger.error("Error while making request to IndexD: {}. Retrying".format(str(e)))
+                    time.sleep(5)
+                    continue
+                # Return an empty list if record doesn't exist
+                return []
+            return versions
 
+        self.logger.debug("IndexD is being weird with: {} '{}'".format(
+            node.project_id, node))
+        # Return an empty list if unable to query IndexD
+        return []
+
+    def get_old_props(self, node):
+        """
+        Given a Node, collect old properties from TransactionSnapshot and IndexD
+        """
         # Lookup TransactionSnapshot with 'version' action
         transaction_props = self.get_props_from_snapshot(node.node_id,
                                                          'version')
@@ -201,16 +233,10 @@ class VersionedNodesCacher(object):
         if not transaction_props:
             return {}
 
-        try:
-            versions = self.i.list_versions(node.node_id)
-        except HTTPError as e:
-            self.logger.error("Error while making request to IndexD: {}".format(str(e)))
-            self.logger.debug("IndexD is being weird with: {} '{}'".format(
-                node.project_id, node))
-            return {}
-
-        if len(versions) == 1:
-            # Latest version isn't released, so no older version to look for
+        versions = self.list_versions(node)
+        if len(versions) <= 1:
+            # Latest version isn't released or IndexD didn't return anything,
+            # so no older version to look for
             return {}
 
         # Lookup differences in IndexD
@@ -222,16 +248,16 @@ class VersionedNodesCacher(object):
         return transaction_props
 
     def run(self):
-        return self.cache_versioned_nodes()
+        return self.collect_differences()
 
-    def cache_versioned_nodes(self):
+    def collect_differences(self):
         for node in self.iter_nodes():
-            diffs = self.get_old_props(node)
-            if diffs:
-                self.the_cache[node.node_id] = diffs
+            node_diff = self.get_old_props(node)
+            if node_diff:
+                self.diffs[node.node_id] = node_diff
                 self.logger.debug("Found old version of: {} '{}'".format(
                     node.project_id, node))
-        return self.the_cache
+        return self.diffs
 
 
 class ReleaseHelper:
@@ -403,14 +429,3 @@ class ReleaseHelper:
         md5hash = md5(','.join(project_ids_sorted))
 
         return md5hash.hexdigest()
-
-
-@lru_cache(maxsize=32)
-def dfs_to_parent(node, target='case'):
-    if node.label == target:
-        return node
-    for edge in node.edges_out:
-        found = dfs_to_parent(edge.dst)
-        if found:
-            return found
-    return None

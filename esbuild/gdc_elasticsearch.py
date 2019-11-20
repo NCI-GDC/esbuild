@@ -26,7 +26,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper, VersionedNodesCacher
+from utils import ReleaseHelper, VersionedNodesDiffCollector
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -110,8 +110,8 @@ class GDCElasticsearch(object):
 
         versioned_files = None
         if not self.build_awg and self.build_projects:
-            vnc = VersionedNodesCacher(self.build_projects, self.graph,
-                                       indexd_client)
+            vnc = VersionedNodesDiffCollector(self.build_projects, self.graph,
+                                              indexd_client)
             versioned_files = vnc.run()
 
         self.converter = converter_class(self.graph,

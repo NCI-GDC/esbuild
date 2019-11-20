@@ -10,9 +10,10 @@ graph index.
 
 from cdisutils.log import get_logger
 from collections import defaultdict
-from copy import copy, deepcopy
+from copy import deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
+from functools32 import lru_cache
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
 
@@ -21,7 +22,6 @@ import logging
 import networkx as nx
 import random
 import re
-import json
 from uuid import uuid4
 
 from esbuild.graph.common.mappings import (
@@ -29,7 +29,6 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
-from esbuild.utils import dfs_to_parent
 
 from progressbar import (
     ProgressBar,
@@ -41,6 +40,16 @@ from progressbar import (
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
 
+
+@lru_cache(maxsize=32)
+def dfs_to_parent(node, target='case'):
+    if node.label == target:
+        return node
+    for edge in node.edges_out:
+        found = dfs_to_parent(edge.dst)
+        if found:
+            return found
+    return None
 
 class GraphIndexBuilder(object):
 
