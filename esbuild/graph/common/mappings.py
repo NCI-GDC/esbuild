@@ -195,6 +195,8 @@ class ESMapper(object):
                 "mapping.nested_fields.limit": 150,
                 "index.mapping.total_fields.limit": 2000,
                 "index.max_result_window": 100000000,
+                "index.number_of_shards": 1,
+                "index.number_of_replicas": 0,
             }
         }
 
