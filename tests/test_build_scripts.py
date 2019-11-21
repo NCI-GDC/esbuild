@@ -8,7 +8,7 @@ Test the build scripts that wrap core functionality
 """
 
 from subprocess import check_call
-from conftest import BIN_DIR
+from tests.conftest import BIN_DIR
 
 import pytest
 import os

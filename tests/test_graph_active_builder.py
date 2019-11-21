@@ -6,30 +6,23 @@ test_graph_index.py
 Test the builder for graph ES index
 
 """
-
-
-from esbuild.graph.common.builder import GraphIndexBuilder
-from gdcdatamodel import models as md
-from gdcmodels import get_es_models
-from jsonpath_rw import parse
 from pprint import pprint
-from test_utils import get_dict_paths, validate_file_metadata
-from data import get_node_id
 
 import pytest
-
-
-from conftest import (
-    raise_test_error,
-    Index,
-    _graph,
-)
+from functools import reduce
+from jsonpath_rw import parse
+from gdcdatamodel import models as md
+from gdcmodels import get_es_models
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
     list_product,
     subtree_paths_to_file,
 )
+from esbuild.graph.common.builder import GraphIndexBuilder
+from tests.test_utils import get_dict_paths, validate_file_metadata
+from tests.data import get_node_id
+from tests.conftest import raise_test_error, Index, _graph
 
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
@@ -95,15 +88,8 @@ def mappings():
 # Tests
 
 @pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
-def test_mapping_full(doc_type):
+def test_mapping_full(mappings, doc_type):
     """ Compare mappings defined in mappings.py to gdc-models """
-    mapper = ActiveGraphIndexBuilder.mapper
-    mappings = {
-        'file': mapper.get_file_es_mapping(),
-        'annotation': mapper.get_annotation_es_mapping(),
-        'case': mapper.get_case_es_mapping(),
-        'project': mapper.get_project_es_mapping(),
-    }
     validate_mappings(mappings, doc_type)
 
 
@@ -138,7 +124,7 @@ def test_get_file_metadata_from_indexd(index):
     (by checking that their value is not 'error' or -1 which are values in the graph)
     """
     for f in index.files:
-        for key, value in f.iteritems():
+        for key, value in f.items():
             validate_file_metadata(key, value)
 
 
@@ -241,7 +227,7 @@ def test_mapping_value_in(mappings, mapping, path, expected):
 
 @pytest.mark.parametrize('a,b,expected', [
     ([['a', 'b'], ['-', '#']],
-     [range(0, 2), range(2, 4), range(4, 8)],
+     [list(range(0, 2)), list(range(2, 4)), list(range(4, 8))],
      [['a', 'b', 0, 1],
       ['a', 'b', 2, 3],
       ['a', 'b', 4, 5, 6, 7],

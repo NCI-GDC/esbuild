@@ -1,19 +1,12 @@
 language: python
 
 python:
-  - "2.7"
+  - "3.5"
+  - "3.6"
 
 node: 6
 
 sudo: true
-
-cache:
-  # pip: true  # We have overridden the default install step, caching manually
-  # ref: <https://docs.travis-ci.com/user/caching/#Arbitrary-directories>
-  - directories:
-      - /home/travis/virtualenv/python2.7.9/lib/python2.7/site-packages
-      - $HOME/.pip-cache
-  - apt
 
 env:
   ES_HOST='localhost'

@@ -4,9 +4,9 @@ from elasticsearch import Elasticsearch
 from esbuild.reports.download_report import DownloadStatsIndexBuilder
 
 import uuid
-import data
-from data import get_node_id
-from conftest import _graph, ES_HOST, ES_PORT
+from tests import data
+from tests.data import get_node_id
+from tests.conftest import _graph, ES_HOST, ES_PORT
 
 from gdcdatamodel.models import (
     File,

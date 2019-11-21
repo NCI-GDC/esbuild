@@ -43,7 +43,7 @@ FLOAT = {
 
 
 def get_es_type(_type):
-    if long in _type or int in _type:
+    if int in _type:
         return 'long'
     elif float in _type:
         return 'double'
@@ -309,9 +309,8 @@ class ESMapper(object):
             doc.update(cls.multifield('submitter_id'))
 
         # Add all properties to document
-        fields = properties.keys()
-        for field in fields:
-            _type = get_es_type(properties[field] or [])
+        for field, types in properties.items():
+            _type = get_es_type(types or [])
             # assign the type
             doc[field] = {'type': _type}
 
@@ -371,7 +370,7 @@ class ESMapper(object):
         for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
             corr, name = v['corr']
             if name not in mapping:
-                mapping[name] = {'properties': {}}
+                mapping[name] = Dict(properties=Dict())
             if k in cls.flatten:
                 mapping[name] = STRING
             elif k == 'annotation':
@@ -411,7 +410,7 @@ class ESMapper(object):
             for node in Node.get_subclasses()
             if node.label in cls.file_labels
             for key, value in
-            cls.get_base_properties(node.label, include_id=False).iteritems()
+            cls.get_base_properties(node.label, include_id=False).items()
         })
 
         files.properties = cls._walk_tree(
@@ -468,7 +467,7 @@ class ESMapper(object):
                                                              is_root=False)
             files.properties.cases.type = 'nested'
 
-        return deepcopy(files.to_dict())
+        return Dict(deepcopy(files.to_dict()))
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
@@ -533,7 +532,7 @@ class ESMapper(object):
         # cigarettes_per_day to float
         case.properties.exposures.properties.cigarettes_per_day = FLOAT
 
-        return deepcopy(case.to_dict())
+        return Dict(deepcopy(case.to_dict()))
 
     @classmethod
     def annotation_body(cls, nested=True):
@@ -564,7 +563,7 @@ class ESMapper(object):
         annotation.properties.project.properties.program = {
             'properties': cls.get_base_properties('program')}
 
-        return deepcopy(annotation.to_dict())
+        return Dict(deepcopy(annotation.to_dict()))
 
     @classmethod
     def get_project_es_mapping(cls):
@@ -599,7 +598,7 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        return deepcopy(project.to_dict())
+        return Dict(deepcopy(project.to_dict()))
 
     @staticmethod
     def add_file_autocomplete(files):

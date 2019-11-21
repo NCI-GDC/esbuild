@@ -16,7 +16,7 @@ import datetime
 import subprocess
 import resource
 
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from datadog import statsd
 from elasticsearch import (
     NotFoundError, Elasticsearch, helpers, exceptions as es_exc,
@@ -26,7 +26,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper, VersionedNodesDiffCollector
+from esbuild.utils import ReleaseHelper, VersionedNodesDiffCollector
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -364,6 +364,7 @@ class GDCElasticsearch(object):
             title, Percentage(), ' ',
             Bar(marker='#', left='[', right=']'), ' ',
             ETA(), ' '], maxval=maxval)
+        pbar.start()
         pbar.update(0)
         return pbar
 
@@ -394,22 +395,25 @@ class GDCElasticsearch(object):
                     _source=doc
                 )
                 yield action
-                pbar.update(pbar.currval+1)
+                pbar.update(pbar.currval + 1)
 
         actions = action_gen()
-        batches = helpers.parallel_bulk(
-            self.es,
-            actions,
-            thread_count=thread_count,
-            chunk_size=chunk_size,
-            max_chunk_bytes=max_chunk_bytes,
-        )
-        for batch in batches:
-            if not batch[0]:
-                raise RuntimeError(json.dumps([
-                    doc for doc in batch[1]
-                    if doc['index']['status'] != 100
-                ], indent=2))
+        success, errors = helpers.bulk(self.es, actions)
+        # batches = helpers.parallel_bulk(
+        #     self.es,
+        #     actions,
+        #     thread_count=thread_count,
+        #     chunk_size=chunk_size,
+        #     max_chunk_bytes=max_chunk_bytes,
+        # )
+        # for batch in batches:
+        #     if not batch[0]:
+        #         raise RuntimeError(json.dumps([
+        #             doc for doc in batch[1]
+        #             if doc['index']['status'] != 100
+        #         ], indent=2))
+        if errors:
+            self.log.error(errors)
         pbar.finish()
 
     def put_mappings(self, index):
@@ -519,9 +523,9 @@ class GDCElasticsearch(object):
         if self.es:
             indices = (
                 # Closed indices
-                self.es.cluster.state()['blocks'].get('indices', {}).keys()
+                list(self.es.cluster.state()['blocks'].get('indices', {}).keys()) +
                 # Open indices
-                + self.es.indices.stats()['indices'].keys()
+                list(self.es.indices.stats()['indices'].keys())
             )
         return indices
 
@@ -545,10 +549,10 @@ class GDCElasticsearch(object):
 
         """
         try:
-            keys = self.es.indices.get_alias(self.index_base).keys()
-            if not keys:
+            index_names = list(self.es.indices.get_alias(self.index_base).keys())
+            if not index_names:
                 return None
-            return keys[0]
+            return index_names[0]
         except NotFoundError:
             return None
 
@@ -641,6 +645,7 @@ class GDCElasticsearch(object):
             commit_hash = subprocess.check_output(['git',
                                                    '--git-dir={}'.format(git_dir),
                                                    'rev-parse', 'HEAD'])
+            commit_hash = commit_hash.decode('utf-8')
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 

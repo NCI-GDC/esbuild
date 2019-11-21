@@ -38,7 +38,7 @@ class ActiveESMapper(ESMapper):
         blacklist = ActiveESMapper.get_blacklist()
         normalizer, _ = load_normalizer()
 
-        return normalize(mapping, normalizer, blacklist)
+        return Dict(normalize(mapping, normalizer, blacklist))
 
     @staticmethod
     def multifield(name):
@@ -83,7 +83,7 @@ class ActiveESMapper(ESMapper):
 
     @staticmethod
     def update_no_overwrite(original, new):
-        for key, value in new.iteritems():
+        for key, value in new.items():
             if key not in original:
                 original[key] = value
 
@@ -138,7 +138,9 @@ class ActiveESMapper(ESMapper):
         if is_root:
             files = cls.add_file_autocomplete(files)
 
-        return ActiveESMapper.apply_normalizer(files.to_dict())
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(files.to_dict())
+        )
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
@@ -149,7 +151,9 @@ class ActiveESMapper(ESMapper):
         if is_root:
             case = cls.add_case_autocomplete(case)
 
-        return ActiveESMapper.apply_normalizer(case.to_dict())
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(case.to_dict())
+        )
 
     @classmethod
     def get_annotation_es_mapping(cls, include_file=True):
@@ -159,7 +163,9 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         annotation = cls.add_annotation_autocomplete(annotation)
 
-        return ActiveESMapper.apply_normalizer(annotation.to_dict())
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(annotation.to_dict())
+        )
 
     @classmethod
     def get_project_es_mapping(cls):
@@ -169,7 +175,9 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         project = cls.add_project_autocomplete(project)
 
-        return ActiveESMapper.apply_normalizer(project.to_dict())
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(project.to_dict())
+        )
 
 
 get_file_es_mapping = ActiveESMapper.get_file_es_mapping

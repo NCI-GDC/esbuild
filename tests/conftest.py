@@ -3,21 +3,15 @@
 Setup esbuild tests
 """
 
-from collections import namedtuple
-from esbuild.utils import ReleaseHelper
-from gdcdatamodel.viz import create_graphviz
-from psqlgraph import PsqlGraphDriver, Node, Edge
-
-import data
-import es_data
 import logging
 import os
-import pytest
 import time
+from collections import namedtuple
 
+import pytest
+from gdcdatamodel.viz import create_graphviz
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
-
 from indexd_test_utils import (
     indexd_client,
     indexd_server,
@@ -28,7 +22,10 @@ from indexd_test_utils import (
     setup_indexd_test_database,
     indexd_admin_user,
 )
-from indexclient.client import IndexClient
+from psqlgraph import PsqlGraphDriver, Node, Edge
+
+from esbuild.utils import ReleaseHelper
+from tests import data, es_data
 
 # ======================================================================
 # Test Settings
@@ -56,7 +53,6 @@ logger.setLevel(logging.DEBUG)
 _graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
 
 
-@pytest.fixture
 def clear_graph_database():
     """Clear graph from database"""
 
@@ -147,6 +143,7 @@ def sample_database():
     """
 
     clear_graph_database()
+
     data.insert(_graph)
 
     try:
@@ -171,10 +168,10 @@ def graph():
 
 def get_all_indices(es):
     return (
-        # closed indices:
-        es.cluster.state()['blocks'].get('indices', {}).keys() +
+        # closed indices
+        list(es.cluster.state()['blocks'].get('indices', {}).keys()) +
         # opened indices:
-        es.indices.stats()['indices'].keys()
+        list(es.indices.stats()['indices'].keys())
     )
 
 

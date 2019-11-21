@@ -96,7 +96,7 @@ def patch_test_data_get_indexd(nodes):
             # Replace illegal md5sum with legal one:
             md5sum = str(getattr(node, 'md5sum', None))
             if not re.findall(r"([a-fA-F\d]{32})", md5sum):
-                node.md5sum = hashlib.md5(md5sum).hexdigest()
+                node.md5sum = hashlib.md5(md5sum.encode('utf-8')).hexdigest()
 
             # Patch file_size if none provided:
             if not getattr(node, 'file_size', None):
@@ -863,7 +863,7 @@ NODES = [
         file_name='protein-expression-from-sample.tsv',
         data_category='Proteome Profiling',
         file_size=12345,
-        md5sum=hashlib.md5('protein-expression-from-sample-released').hexdigest(),
+        md5sum=hashlib.md5(b'protein-expression-from-sample-released').hexdigest(),
         data_format='TSV',
         platform='RPPA',
         project_id='TCGA-BRCA',
@@ -887,7 +887,7 @@ NODES = [
         file_name='protein-expression-from-portion.tsv',
         data_category='Proteome Profiling',
         file_size=23456,
-        md5sum=hashlib.md5('protein-expression-from-portion-released').hexdigest(),
+        md5sum=hashlib.md5(b'protein-expression-from-portion-released').hexdigest(),
         data_format='TSV',
         platform='RPPA',
         project_id='TCGA-BRCA',

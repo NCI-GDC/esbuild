@@ -2,7 +2,7 @@ import calendar
 import os
 import time
 
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from elasticsearch import Elasticsearch, TransportError
 from gdcdatamodel.models.misc import FileReport
 from psqlgraph import PsqlGraphDriver
@@ -313,7 +313,7 @@ class DownloadStatsIndexBuilder(object):
 
     def continent_breakdown(self, country_breakdown):
         res = []
-        for continent, countries in CONTINENTS.iteritems():
+        for continent, countries in CONTINENTS.items():
             size = sum([desc["size"] for desc in country_breakdown
                         if desc["country"] in countries])
             count = sum([desc["count"] for desc in country_breakdown

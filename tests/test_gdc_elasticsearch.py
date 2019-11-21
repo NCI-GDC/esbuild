@@ -4,23 +4,19 @@ Tests the GDC Elasticsearch interaction for active and legacy
 indices.
 
 """
-
-from elasticsearch import Elasticsearch
-from gdcdatamodel.models import File, Demographic
-from elasticsearch.exceptions import AuthorizationException
-from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from data import get_node_id
-from conftest import get_all_indices
-
-import data
-import pytest
 import json
 import os
 
+import pytest
+from gdcdatamodel.models import File, Demographic
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import AuthorizationException
 
-from conftest import (
+from esbuild.gdc_elasticsearch import GDCElasticsearch
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
+from tests import data
+from tests.conftest import (
     PG_HOST,
     PG_USER,
     PG_PASSWORD,
@@ -28,7 +24,10 @@ from conftest import (
     _graph,
     ES_HOST,
     ES_PORT,
+    cleanup_indices,
+    get_all_indices,
 )
+from tests.data import get_node_id
 
 GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
 

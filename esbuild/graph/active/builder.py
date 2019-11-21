@@ -18,7 +18,7 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 
 import logging
 
@@ -326,7 +326,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                                           'disease_type': p['disease_type']}
                         for p in projects}
 
-        for i in xrange(len(cases)):
+        for i in range(len(cases)):
             project_id = cases[i]['project']['project_id']
             cases[i]['project']['primary_site'] = projects_map[project_id]\
                                                               ['primary_site']

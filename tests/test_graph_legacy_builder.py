@@ -7,18 +7,14 @@ Test the builder for graph ES index
 
 """
 
-from conftest import Index, _graph
-from data import fuzzed, get_node_id
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
+import pytest
 from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
-import pytest
-
-from test_utils import validate_file_metadata
-from conftest import (
-    raise_test_error,
-)
+from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
+from tests.conftest import Index, _graph, raise_test_error
+from tests.data import fuzzed, get_node_id
+from tests.test_utils import validate_file_metadata
 
 
 def build_index(graph, indexd_client):
@@ -53,7 +49,7 @@ def test_get_file_metadata_from_indexd(index):
     (by checking that their value is not 'error' or -1 which are values in the graph)
     """
     for f in index.files:
-        for key, value in f.iteritems():
+        for key, value in f.items():
             validate_file_metadata(key, value)
 
 
