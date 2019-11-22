@@ -236,10 +236,10 @@ def test_reindex_change_field_type(setup_test, init_indexd):
     # disable ability to run the previous aggregation
     index_settings = gdc_es.converter.mapper.index_settings()
     mappings = {
-        'file': gdc_es.converter.mapper.get_file_es_mapping(),
-        'case': gdc_es.converter.mapper.get_case_es_mapping(),
-        'project': gdc_es.converter.mapper.get_project_es_mapping(),
-        'annotation': gdc_es.converter.mapper.get_annotation_es_mapping(),
+        'file': gdc_es.converter.mapper.get_file_es_mapping().to_dict(),
+        'case': gdc_es.converter.mapper.get_case_es_mapping().to_dict(),
+        'project': gdc_es.converter.mapper.get_project_es_mapping().to_dict(),
+        'annotation': gdc_es.converter.mapper.get_annotation_es_mapping().to_dict(),
     }
 
     # Change project.project_id.type to 'text'

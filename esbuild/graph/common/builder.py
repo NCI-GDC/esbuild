@@ -246,7 +246,7 @@ class GraphIndexBuilder(object):
         }
 
         # Get the actual case mapping to validate against
-        self.case_es_mapping = self.mapper.get_case_es_mapping()
+        self.case_es_mapping = self.mapper.get_case_es_mapping().to_dict()
 
         self.g = psqlgraph_driver
         self.G = nx.Graph()

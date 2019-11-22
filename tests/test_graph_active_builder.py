@@ -77,10 +77,10 @@ def simple_somatic_mutations(index):
 def mappings():
     mapper = ActiveGraphIndexBuilder.mapper
     return {
-        'file': mapper.get_file_es_mapping(),
-        'annotation': mapper.get_annotation_es_mapping(),
-        'case': mapper.get_case_es_mapping(),
-        'project': mapper.get_project_es_mapping(),
+        'file': mapper.get_file_es_mapping().to_dict(),
+        'annotation': mapper.get_annotation_es_mapping().to_dict(),
+        'case': mapper.get_case_es_mapping().to_dict(),
+        'project': mapper.get_project_es_mapping().to_dict(),
     }
 
 

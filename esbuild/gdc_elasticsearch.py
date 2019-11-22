@@ -420,25 +420,29 @@ class GDCElasticsearch(object):
         """Add mappings to index.
 
         :param str index: The elasticsearch index
-
+        :returns: results of putting es mappings
         """
         return [
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="project",
-                body=self.converter.mapper.get_project_es_mapping()),
+                body=self.converter.mapper.get_project_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="file",
-                body=self.converter.mapper.get_file_es_mapping()),
+                body=self.converter.mapper.get_file_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="case",
-                body=self.converter.mapper.get_case_es_mapping()),
+                body=self.converter.mapper.get_case_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="annotation",
-                body=self.converter.mapper.get_annotation_es_mapping()),
+                body=self.converter.mapper.get_annotation_es_mapping().to_dict()
+            ),
         ]
 
     def index_populate(self, index, case_docs=[], file_docs=[],
