@@ -10,7 +10,6 @@ from queueclient.depot import DepotQueueClient
 from bin.base_build import main
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 
-
 logger = get_logger('esbuild_minion')
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())

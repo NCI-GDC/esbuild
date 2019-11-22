@@ -1,12 +1,11 @@
 import os
 
 import yaml
-from elasticsearch import Elasticsearch
-
-from bin.base_build import esbuild_argparser as base_parser
 from cdisutils.log import get_logger
+from elasticsearch import Elasticsearch
 from queueclient.depot import DepotQueueClient
 
+from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
 
 logger = get_logger('esbuild_master')
