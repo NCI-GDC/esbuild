@@ -18,6 +18,6 @@ functools32==3.2.3.post2
 -e git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@1.18.1#egg=gdcdatamodel
 -e git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.1.0#egg=gdc_ng_models
 -e git+ssh://git@github.com/NCI-GDC/indexclient.git@1.5.10#egg=indexclient
--e git+ssh://git@github.com/NCI-GDC/python-depotclient.git@0.1.0#egg=depotclient
+-e git+ssh://git@github.com/NCI-GDC/queueclient.git@b09814fc080fa6aa6c359832c76edf5ac3f0fbd2#egg=queueclient
 -e git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.0.0#egg=gdcmodels
 -e git+ssh://git@github.com/NCI-GDC/normalizer.git@1.0.0#egg=normalizer
