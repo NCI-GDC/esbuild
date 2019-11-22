@@ -137,6 +137,7 @@ NODES = [
         node_id=get_node_id('file-only-attached-to-archive-1'),
         acl=['phs0000178'],
         state='released',
+        file_name='file-only-attached-to-archive-1.txt',
     ),
     fuzzed(
         Archive,
@@ -149,6 +150,7 @@ NODES = [
         node_id=get_node_id('annotated_somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
+        file_name='annotated_somatci_mutation_1.bam'
     ),
     fuzzed(
         SomaticAnnotationWorkflow,
@@ -160,6 +162,7 @@ NODES = [
         node_id=get_node_id('simple_somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
+        file_name='simple_somatic_mutation_1.bam',
     ),
     fuzzed(
         SomaticMutationCallingWorkflow,
@@ -273,7 +276,8 @@ NODES = [
         File,
         node_id=get_node_id('non-live-file'),
         acl=['phs000178'],
-        state='uploaded'
+        state='uploaded',
+        file_name='non-live-file-foo-bar',
     ),
     File(
         node_id=get_node_id('to-delete-file'),
@@ -2038,9 +2042,9 @@ NODES, INDEXD = patch_test_data_get_indexd(NODES)
 def insert(g):
     with g.session_scope() as session:
         for node in NODES:
-            session.merge(node)
+            session.add(node)
         for edge in EDGES:
-            session.merge(edge)
+            session.add(edge)
 
         to_delete = g.nodes(File).ids(get_node_id('to-delete-file')).one()
         to_delete.sysan['to_delete'] = True

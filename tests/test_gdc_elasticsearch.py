@@ -104,7 +104,7 @@ def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, converte
     gdces = make_gdc_es(init_indexd, converter)
     with _graph.session_scope():
         to_delete_file = _graph.nodes(File).ids(get_node_id("to-delete-file")).one()
-        derived_file = data.fuzzed(File, state="live")
+        derived_file = data.fuzzed(File, state="live", file_name='foo-bar')
         to_delete_file.derived_files = [derived_file]
     gdces.go()
     assert len(get_all_indices(setup_test)) == 1
