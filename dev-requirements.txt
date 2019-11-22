@@ -7,5 +7,4 @@ deepdiff
 # below is indexd and it's dependencies
 -e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
 -e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
--e git+https://github.com/NCI-GDC/indexd.git@master#egg=indexd
--e git+https://github.com/NCI-GDC/indexd.git@chore/bump-sqlalchemy#egg=indexd
+-e git+https://github.com/NCI-GDC/indexd.git@release/py3#egg=indexd

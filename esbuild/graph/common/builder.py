@@ -694,7 +694,7 @@ class GraphIndexBuilder(object):
         """
         return {
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f['file_size'] or 0 for f in files]),
             'experimental_strategies': list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -1384,7 +1384,7 @@ class GraphIndexBuilder(object):
         doc['summary'] = {
             'case_count': len(cases),
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f['file_size'] or 0 for f in files]),
         }
 
         if exp_strat_summaries:

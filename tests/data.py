@@ -2042,9 +2042,9 @@ NODES, INDEXD = patch_test_data_get_indexd(NODES)
 def insert(g):
     with g.session_scope() as session:
         for node in NODES:
-            session.add(node)
+            session.merge(node)
         for edge in EDGES:
-            session.add(edge)
+            session.merge(edge)
 
         to_delete = g.nodes(File).ids(get_node_id('to-delete-file')).one()
         to_delete.sysan['to_delete'] = True
