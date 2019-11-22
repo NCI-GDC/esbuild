@@ -399,19 +399,6 @@ class GDCElasticsearch(object):
 
         actions = action_gen()
         success, errors = helpers.bulk(self.es, actions)
-        # batches = helpers.parallel_bulk(
-        #     self.es,
-        #     actions,
-        #     thread_count=thread_count,
-        #     chunk_size=chunk_size,
-        #     max_chunk_bytes=max_chunk_bytes,
-        # )
-        # for batch in batches:
-        #     if not batch[0]:
-        #         raise RuntimeError(json.dumps([
-        #             doc for doc in batch[1]
-        #             if doc['index']['status'] != 100
-        #         ], indent=2))
         if errors:
             self.log.error(errors)
         pbar.finish()
