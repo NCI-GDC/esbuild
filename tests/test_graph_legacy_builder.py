@@ -125,7 +125,7 @@ def test_omitted_projects(graph, init_indexd):
 
 
 def test_basic_suppression(graph, init_indexd):
-    case = fuzzed(md.Case)
+    case = fuzzed(md.Case, state='released')
     with graph.session_scope() as s:
         case.projects = [graph.nodes(md.Project).first()]
         file_ = graph.nodes(md.File).subq_path('aliquots').first()
@@ -135,7 +135,7 @@ def test_basic_suppression(graph, init_indexd):
             classification='Redaction',
             category='General',
         )]
-        s.merge(case)
+        s.add(case)
 
     index = build_index(graph, init_indexd)
 
@@ -144,7 +144,8 @@ def test_basic_suppression(graph, init_indexd):
 
 
 def test_non_case_suppression(graph, init_indexd):
-    annotation = fuzzed(md.Annotation, classification='Redaction')
+    annotation = fuzzed(md.Annotation, classification='Redaction',
+                        state='released')
     with graph.session_scope() as s:
         portion_id = get_node_id('portion-01')
         portion = graph.nodes(md.Portion).ids(portion_id).one()
@@ -157,6 +158,7 @@ def test_non_case_suppression(graph, init_indexd):
         redacted1.portions = [portion]
         redacted2 = fuzzed(md.File, node_id="redact2", state="live")
         redacted2.aliquots = [aliquot]
+        s.add(annotation)
         s.add(redacted1)
         s.add(redacted2)
     index = build_index(graph, init_indexd)
