@@ -12,16 +12,12 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 
 """
 
-from addict import Dict
 from copy import deepcopy
-from gdcdatamodel import models  # noqa
-from psqlgraph import Node
+
+from addict import Dict
 from normalizer import normalize, load_normalizer, load_blacklist
-from ..common.mappings import (
-    ESMapper,
-    LONG,
-    STRING,
-)
+
+from esbuild.graph.common.mappings import ESMapper, STRING
 
 
 class ActiveESMapper(ESMapper):

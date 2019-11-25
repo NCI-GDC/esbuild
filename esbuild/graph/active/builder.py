@@ -410,7 +410,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             f for f in self.get_parent_with_category(node, 'data_file')
             if not self.is_node_hidden(f)
         ]
-        input_file_docs = map(self.get_simple_file_doc, input_files)
+        input_file_docs = [self.get_simple_file_doc(f) for f in input_files]
 
         if input_file_docs:
             doc.setdefault('input_files', []).extend(input_file_docs)
@@ -422,7 +422,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             f for f in self.get_child_with_category(node, 'data_file')
             if not self.is_node_hidden(f)
         ]
-        output_file_docs = map(self.get_simple_file_doc, output_files)
+        output_file_docs = [self.get_simple_file_doc(f) for f in output_files]
 
         if output_file_docs:
             doc.setdefault('output_files', []).extend(output_file_docs)
