@@ -110,8 +110,9 @@ class GDCElasticsearch(object):
 
         versioned_files = None
         if not self.build_awg and self.build_projects:
-            vnc = VersionedNodesDiffCollector(self.build_projects, self.graph,
-                                              indexd_client)
+            vnc = VersionedNodesDiffCollector(
+                ['-'.join(pair) for pair in self.build_projects],
+                self.graph, indexd_client)
             versioned_files = vnc.run()
 
         self.converter = converter_class(self.graph,

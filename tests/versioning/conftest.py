@@ -91,14 +91,12 @@ def graph_factory():
 
 @pytest.fixture
 def make_subgraph(graph_factory, graph, indexd_client):
-    def wrapper(nodes, edges, root_links, make_versions=False,
-                latest_released=True):
+    def wrapper(nodes, edges, root_links, make_versions=False):
         """
         :param nodes: list of nodes metadata
         :param edges: list of edges metadata
         :param root_links: links to existing via (submitter_id, node_id) pair
         :param make_versions: create older versions
-        :param latest_released: release latest document as well
         :return: (created nodes, created docs, previously released docs)
         """
         graph_nodes = graph_factory.create_from_nodes_and_edges(nodes, edges,
