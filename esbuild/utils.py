@@ -422,7 +422,7 @@ class ReleaseHelper:
         if not isinstance(project_ids, list):
             project_ids = [str(project_ids)]
 
-        project_ids_sorted = sorted(project_ids)
-        md5hash = md5(','.join(project_ids_sorted))
+        id_string = ','.join(sorted(project_ids))
+        md5hash = md5(id_string.encode('utf-8'))
 
         return md5hash.hexdigest()

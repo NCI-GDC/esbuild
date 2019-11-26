@@ -52,10 +52,9 @@ def link_factory_nodes(graph, nodes, links, map_key='submitter_id'):
             dst_id = link[1]
             root = graph.nodes().get(dst_id)
             child = nodes_map[src_id]
-            for pg_link_name, pg_link_def in child._pg_links.items():
-                if pg_link_def['dst_type'] == root.__class__:
-                    getattr(child, pg_link_name).append(root)
-                    break
+            for pg_edge_name, pg_edge_def in root._pg_edges.items():
+                if pg_edge_def['type'] == child.__class__:
+                    getattr(root, pg_edge_name).append(child)
             sxn.merge(root)
 
 
@@ -90,7 +89,7 @@ def graph_factory():
 
 
 @pytest.fixture
-def make_subgraph(graph_factory, graph, indexd_client):
+def make_subgraph(graph_factory, pg_driver, indexd_client):
     def wrapper(nodes, edges, root_links, make_versions=False):
         """
         :param nodes: list of nodes metadata
@@ -101,11 +100,11 @@ def make_subgraph(graph_factory, graph, indexd_client):
         """
         graph_nodes = graph_factory.create_from_nodes_and_edges(nodes, edges,
                                                                 all_props=True)
-        with graph.session_scope() as sxn:
+        with pg_driver.session_scope() as sxn:
             for n in graph_nodes:
                 sxn.add(n)
 
-        link_factory_nodes(graph, graph_nodes, root_links)
+        link_factory_nodes(pg_driver, graph_nodes, root_links)
 
         cur_docs, prev_docs = [], []
         for n in graph_nodes:
@@ -121,7 +120,7 @@ def make_subgraph(graph_factory, graph, indexd_client):
                     n.label, all_props=True,
                     override={'submitter_id': n.submitter_id}
                 )
-                create_transaction(graph, n, prev._props)
+                create_transaction(pg_driver, n, prev._props)
 
                 prevd = create_indexd_for_node(indexd_client, prev, version,
                                                release, None)
@@ -133,7 +132,7 @@ def make_subgraph(graph_factory, graph, indexd_client):
                 version = '2' if released else None
                 prev_docs.append(prevd)
             else:
-                create_transaction(graph, n, {}, action='create')
+                create_transaction(pg_driver, n, {}, action='create')
 
             curd = create_indexd_for_node(indexd_client, n, version, release,
                                           baseid)
@@ -145,7 +144,7 @@ def make_subgraph(graph_factory, graph, indexd_client):
 
 
 @pytest.fixture
-def create_aligned_reads(graph, indexd_client, make_subgraph):
+def create_aligned_reads(indexd_client, make_subgraph):
     def wrapper(workflow_state='released', make_versions=True,
                 reads_state='submitted'):
         """
@@ -212,7 +211,7 @@ def create_aligned_reads(graph, indexd_client, make_subgraph):
     Dict(workflow_state='submitted', reads_state='submitted', make_versions=True),
     Dict(workflow_state='submitted', reads_state='submitted', make_versions=False),
 ])
-def versioned_reads_setup(request, graph, create_aligned_reads):
+def versioned_reads_setup(request, pg_driver, create_aligned_reads):
     """
     A fixture that generates different data setups.
     Yields a tuple:
@@ -234,9 +233,9 @@ def versioned_reads_setup(request, graph, create_aligned_reads):
     """
     nodes, latest, previous = create_aligned_reads(**request.param.to_dict())
 
-    with graph.session_scope() as sxn:
+    with pg_driver.session_scope() as sxn:
         for n in nodes:
-            if not graph.nodes().get(n.node_id):
+            if not pg_driver.nodes().get(n.node_id):
                 sxn.add(n)
 
     if request.param.make_versions and request.param.reads_state != 'released':
@@ -257,9 +256,9 @@ def versioned_reads_setup(request, graph, create_aligned_reads):
 
     yield nodes, expected, versioned_docs, request.param
 
-    with graph.session_scope() as sxn:
+    with pg_driver.session_scope() as sxn:
         for n in nodes:
-            nobj = graph.nodes().get(n.node_id)
+            nobj = pg_driver.nodes().get(n.node_id)
             if nobj:
                 sxn.delete(nobj)
 
