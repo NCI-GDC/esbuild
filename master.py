@@ -211,7 +211,8 @@ if __name__ == "__main__":
                         'projects': ' '.join(group),
                         'selective-caching': args.selective_caching,
                         'build-awg': args.build_awg,
-                        'build-type': args.build_type
+                        'build-type': args.build_type,
+                        'cache-versioned': args.cache_versioned,
                     }
                     logger.info('Adding work: {}'.format(job_json))
                     depot.enqueue(msg=job_json)

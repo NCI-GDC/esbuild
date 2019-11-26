@@ -2,6 +2,7 @@ import argparse
 from indexclient.client import IndexClient
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 
+
 def esbuild_argparser():
     """
     Returns argument parser for esbuild
@@ -37,6 +38,11 @@ def esbuild_argparser():
         'Will pick up only projects flagged as awg_review = true and '
         'nodes that are part of these projects and are in any of allowed states',
         default=False)
+    parser.add_argument(
+        '--cache-versioned',
+        action='store_true',
+        help='Collect differences for versioned unreleased files',
+    )
 
     return parser
 
@@ -47,6 +53,9 @@ def main(converter=None,
          work=None):
 
     indexd_client = IndexClient(**indexd_args)
+
+    if work is None:
+        raise ValueError("Received empty work")
 
     if work.get('projects'):
         if not work.get('index') and not work.get('skip_es'):
@@ -62,6 +71,7 @@ def main(converter=None,
         index_base=index_base,
         skip_es=work.get('skip-es'),
         selective_caching=work.get('selective-caching'),
+        cache_versioned=work.get('cache-versioned'),
     )
     gdc_es.go(roll_alias=not work.get('no-roll'),
               cleanup_indices=not work.get('no-cleanup'),

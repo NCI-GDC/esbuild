@@ -1,5 +1,5 @@
 import pytest
-from conftest import ES_HOST, ES_PORT
+from tests.conftest import ES_HOST, ES_PORT
 from moto import mock_s3
 
 import boto

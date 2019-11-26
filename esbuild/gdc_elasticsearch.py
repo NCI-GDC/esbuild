@@ -26,7 +26,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper
+from utils import ReleaseHelper, VersionedNodesDiffCollector
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -93,6 +93,7 @@ class GDCElasticsearch(object):
             ('selective_caching', False),
             ('build_awg', False),
             ('skip_es', False),
+            ('cache_versioned', False),
         ]
 
         for arg, default in valid_kwargs:
@@ -102,18 +103,24 @@ class GDCElasticsearch(object):
         self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
-        self.graph = PsqlGraphDriver(
-            os.environ["PG_HOST"],
-            os.environ["PG_USER"],
-            os.environ["PG_PASS"],
-            os.environ["PG_NAME"],
-        )
+        self.graph = kwargs.pop('pg_driver',
+                                PsqlGraphDriver(os.environ["PG_HOST"],
+                                                os.environ["PG_USER"],
+                                                os.environ["PG_PASS"],
+                                                os.environ["PG_NAME"]))
+
+        versioned_files = None
+        if not self.build_awg and self.build_projects and self.cache_versioned:
+            vnc = VersionedNodesDiffCollector(self.build_projects, self.graph,
+                                              indexd_client)
+            versioned_files = vnc.run()
 
         self.converter = converter_class(self.graph,
                                          indexd_client,
                                          build_awg=self.build_awg,
                                          build_projects=self.build_projects,
-                                         selective_caching=self.selective_caching)
+                                         selective_caching=self.selective_caching,
+                                         versioned_files=versioned_files)
         self.converter_class_name = converter_class.__class__.__name__
 
         if not self.skip_es:
@@ -703,13 +710,13 @@ class GDCElasticsearch(object):
             so_far = response['task']['status']['batches']
             total = response['task']['status']['total']
             self.log.info(
-                'Reindexed: {} out of {} documents'.format(so_far, total)
+                'Reindexed: {} out of {} documents'.format(so_far*1000, total)
             )
             time.sleep(10)
 
         summary.update(response)
 
-        time_elapsed = response['task']['running_time_in_nanos'] // 10 ** 6
+        time_elapsed = response['task']['running_time_in_nanos'] // (10 ** 9)
         elapsed_mins = time_elapsed / 60.
         summary['took'] = elapsed_mins
 
