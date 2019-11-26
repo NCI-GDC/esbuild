@@ -12,7 +12,7 @@ from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from tests.conftest import Index, _graph, raise_test_error
+from tests.conftest import Index, raise_test_error
 from tests.data import fuzzed, get_node_id
 from tests.test_utils import validate_file_metadata
 
@@ -21,7 +21,7 @@ def build_index(graph, indexd_client):
     builder = LegacyGraphIndexBuilder(graph, indexd_client)
     with graph.session_scope():
         builder.cache_database()
-    index = builder.denormalize_all()
+        index = builder.denormalize_all()
     return Index._make(index)
 
 
@@ -30,13 +30,34 @@ def build_index(graph, indexd_client):
 
 
 @pytest.fixture()
-def builder(init_indexd):
-    return LegacyGraphIndexBuilder(_graph, init_indexd)
+def builder(init_indexd, pg_driver):
+    return LegacyGraphIndexBuilder(pg_driver, init_indexd)
 
 
 @pytest.fixture
-def index(init_indexd):
-    return build_index(_graph, init_indexd)
+def index(init_indexd, pg_driver):
+    return build_index(pg_driver, init_indexd)
+
+
+@pytest.fixture
+def custom_annotation(pg_driver):
+    case = fuzzed(md.Case)
+    annotation = fuzzed(md.Annotation, category='Item flagged DNU')
+    with pg_driver.session_scope() as s:
+        f = pg_driver.nodes(md.File).ids(get_node_id('live-file')).first()
+        case.projects = [pg_driver.nodes(md.Project).props(code='BRCA').first()]
+        case.files = [f]
+        case.annotations = [annotation]
+        s.add(case)
+
+    yield case, annotation
+
+    with pg_driver.session_scope() as sxn:
+        cnode = pg_driver.nodes().get(case.node_id)
+        sxn.delete(cnode)
+        anode = pg_driver.nodes().get(annotation.node_id)
+        if anode:
+            sxn.delete(anode)
 
 
 # ======================================================================
@@ -54,18 +75,11 @@ def test_get_file_metadata_from_indexd(index):
 
 
 @pytest.mark.skip(reason='skipping failing legacy test')
-def test_annotation_case_submitter_id(graph, init_indexd):
-    case = fuzzed(md.Case)
-    annotation = fuzzed(md.Annotation, category='Item flagged DNU')
-    with graph.session_scope() as s:
-        f = graph.nodes(md.File).ids(get_node_id('live-file')).first()
-        case.projects = [graph.nodes(md.Project).first()]
-        case.files = [f]
-        case.annotations = [annotation]
-        s.merge(case)
+def test_annotation_case_submitter_id(pg_driver, init_indexd, custom_annotation):
+    case, annotation = custom_annotation
 
     annotation = [
-        ann for ann in build_index(graph, init_indexd).annotations
+        ann for ann in build_index(pg_driver, init_indexd).annotations
         if ann['annotation_id'] == annotation.node_id
     ][0]
 
@@ -116,19 +130,20 @@ def test_path_value_in(index, doc_type, path, expected, count, init_indexd):
         assert actual.value in expected
 
 
-def test_omitted_projects(graph, init_indexd):
-    builder = LegacyGraphIndexBuilder(graph, init_indexd)
-    builder.omitted_projects.add(('TCGA', 'BRCA'))
-    builder.cache_database()
-    index = Index._make(builder.denormalize_all())
+def test_omitted_projects(pg_driver, init_indexd):
+    builder = LegacyGraphIndexBuilder(pg_driver, init_indexd)
+    with pg_driver.session_scope():
+        builder.omitted_projects.add(('TCGA', 'BRCA'))
+        builder.cache_database()
+        index = Index._make(builder.denormalize_all())
     assert index.cases == []
 
 
-def test_basic_suppression(graph, init_indexd):
+def test_basic_suppression(pg_driver, init_indexd):
     case = fuzzed(md.Case, state='released')
-    with graph.session_scope() as s:
-        case.projects = [graph.nodes(md.Project).first()]
-        file_ = graph.nodes(md.File).subq_path('aliquots').first()
+    with pg_driver.session_scope() as s:
+        case.projects = [pg_driver.nodes(md.Project).first()]
+        file_ = pg_driver.nodes(md.File).subq_path('aliquots').first()
         case.files = [file_]
         case.annotations = [fuzzed(
             md.Annotation,
@@ -137,33 +152,51 @@ def test_basic_suppression(graph, init_indexd):
         )]
         s.add(case)
 
-    index = build_index(graph, init_indexd)
+    index = build_index(pg_driver, init_indexd)
 
     assert case.node_id not in [c["case_id"] for c in index.cases]
     assert 'redacted-file' not in [f["file_id"] for f in index.files]
 
 
-def test_non_case_suppression(graph, init_indexd):
-    annotation = fuzzed(md.Annotation, classification='Redaction',
-                        state='released')
-    with graph.session_scope() as s:
+@pytest.fixture
+def non_case_redaction(pg_driver):
+    annotation = fuzzed(md.Annotation, classification='Redaction')
+    with pg_driver.session_scope() as s:
         portion_id = get_node_id('portion-01')
-        portion = graph.nodes(md.Portion).ids(portion_id).one()
+        portion = pg_driver.nodes(md.Portion).ids(portion_id).one()
         portion.annotations = [annotation]
+
         sample = portion.samples[0]
         case = sample.cases[0]
         analyte = portion.analytes[0]
         aliquot = analyte.aliquots[0]
+
         redacted1 = fuzzed(md.File, node_id="redact1", state="live")
         redacted1.portions = [portion]
         redacted2 = fuzzed(md.File, node_id="redact2", state="live")
         redacted2.aliquots = [aliquot]
+
         s.add(annotation)
         s.add(redacted1)
         s.add(redacted2)
-    index = build_index(graph, init_indexd)
+
+    yield portion, sample, case
+
+    with pg_driver.session_scope() as sxn:
+        node_ids = [portion.node_id, redacted1.node_id, redacted2.node_id]
+        for nid in node_ids:
+            nobj = pg_driver.nodes().get(nid)
+            if nobj:
+                sxn.delete(nobj)
+
+
+def test_non_case_suppression(pg_driver, init_indexd, non_case_redaction):
+    portion, sample, case = non_case_redaction
+
+    index = build_index(pg_driver, init_indexd)
     case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
     sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
+
     assert portion.node_id not in [
         p.get("portion_id", None) for p in sample_doc["portions"]
     ]
@@ -171,36 +204,39 @@ def test_non_case_suppression(graph, init_indexd):
     assert "redact2" not in [f["file_id"] for f in index.files]
 
 
-def test_subject_withdrew_consent_is_not_suppressed(graph, init_indexd):
-    with graph.session_scope() as s:
-        case = graph.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
+def test_subject_withdrew_consent_is_not_suppressed(pg_driver, init_indexd):
+    with pg_driver.session_scope() as s:
+        case = pg_driver.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
         case.annotations = [fuzzed(
             md.Annotation,
             classification='Redaction',
             category='Subject withdrew consent',
         )]
+        s.merge(case)
 
-        index = build_index(graph, init_indexd)
-        # the case should be there
-        assert case.node_id in [c["case_id"] for c in index.cases]
-        # the file should be there
-        assert get_node_id("live-file") in [f["file_id"] for f in index.files]
+    index = build_index(pg_driver, init_indexd)
+    # the case should be there
+    assert case.node_id in [c["case_id"] for c in index.cases]
+    # the file should be there
+    assert get_node_id("live-file") in [f["file_id"] for f in index.files]
 
 
-def test_duplicate_classification_only_results_in_warning(graph, init_indexd):
-    with graph.session_scope():
-        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
-        exp = (graph.nodes(md.ExperimentalStrategy)
+def test_duplicate_classification_only_results_in_warning(pg_driver, init_indexd):
+    with pg_driver.session_scope() as sxn:
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
+        exp = (pg_driver.nodes(md.ExperimentalStrategy)
                .prop_in('name', ["WXS", "VALIDATION"]).all())
         live_file.experimental_strategies = exp
-    index = build_index(graph, init_indexd)
+        sxn.merge(live_file)
+
+    index = build_index(pg_driver, init_indexd)
     # the file should be there
     assert live_file.node_id in [f["file_id"] for f in index.files]
 
 
-def test_derived_files(graph, init_indexd):
-    with graph.session_scope():
-        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
+def test_derived_files(pg_driver, init_indexd):
+    with pg_driver.session_scope():
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
         fake_center = fuzzed(md.Center)
         live_file.centers = [fake_center]
         derived_file = fuzzed(
@@ -218,7 +254,7 @@ def test_derived_files(graph, init_indexd):
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
 
-    index = build_index(graph, init_indexd)
+    index = build_index(pg_driver, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
     # have the single correct related file
@@ -230,9 +266,9 @@ def test_derived_files(graph, init_indexd):
     assert len(derived_file_docs) == 0
 
 
-def test_non_live_related_files_dont_cause_source_files_in_related(graph, init_indexd):
-    with graph.session_scope():
-        live_file = graph.nodes(md.File).ids(get_node_id('live-file')).one()
+def test_non_live_related_files_dont_cause_source_files_in_related(pg_driver, init_indexd):
+    with pg_driver.session_scope():
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
         derived_file = fuzzed(
             md.File,
             state="live",
@@ -248,7 +284,7 @@ def test_non_live_related_files_dont_cause_source_files_in_related(graph, init_i
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
 
-    index = build_index(graph, init_indexd)
+    index = build_index(pg_driver, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
     # have the single correct related file

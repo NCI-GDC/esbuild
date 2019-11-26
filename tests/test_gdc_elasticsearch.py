@@ -5,11 +5,9 @@ indices.
 
 """
 import json
-import os
 
 import pytest
 from gdcdatamodel.models import File, Demographic
-from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import AuthorizationException
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
@@ -17,14 +15,6 @@ from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests import data
 from tests.conftest import (
-    PG_HOST,
-    PG_USER,
-    PG_PASSWORD,
-    PG_DATABASE,
-    _graph,
-    ES_HOST,
-    ES_PORT,
-    cleanup_indices,
     get_all_indices,
 )
 from tests.data import get_node_id
@@ -42,26 +32,26 @@ def make_gdc_es(indexd_client, converter):
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
-def test_basic_es_generate(setup_test, init_indexd, converter):
+def test_basic_es_generate(setup_test, init_indexd, converter, pg_driver):
     es = setup_test
     gdces = make_gdc_es(init_indexd, converter)
     gdces.go()
     assert len(es.indices.get_alias()) == 1
     # also verify that the to_delete file is not in the index and
     # got deleted
-    with _graph.session_scope():
+    with pg_driver.session_scope():
         assert not es.exists(index="gdc_es_test",
                              doc_type="file",
                              id=get_node_id("to-delete-file"))
 
     # Test Case exists by id
-    with _graph.session_scope():
+    with pg_driver.session_scope():
         assert es.exists(index="gdc_es_test",
                          doc_type="case",
                          id=get_node_id('case-tcga-brca-breast'))
 
     # Test blocking release annotation does not exist in index
-    with _graph.session_scope():
+    with pg_driver.session_scope():
         assert not es.exists(
             index='gdc_es_test',
             doc_type='annotation',
@@ -80,9 +70,9 @@ def test_basic_es_generate(setup_test, init_indexd, converter):
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_unexpected_properties(setup_test, init_indexd, converter):
-    with _graph.session_scope() as s:
-        demographic = _graph.nodes(Demographic).one()
+def test_unexpected_properties(setup_test, init_indexd, converter, pg_driver):
+    with pg_driver.session_scope() as s:
+        demographic = pg_driver.nodes(Demographic).one()
         s.execute("""
         UPDATE node_demographic
         SET _props = :props
@@ -99,18 +89,32 @@ def test_unexpected_properties(setup_test, init_indexd, converter):
     assert len(get_all_indices(setup_test)) == 1
 
 
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_doesnt_delete_file_with_derived_files(setup_test, init_indexd, converter):
-    gdces = make_gdc_es(init_indexd, converter)
-    with _graph.session_scope():
-        to_delete_file = _graph.nodes(File).ids(get_node_id("to-delete-file")).one()
-        derived_file = data.fuzzed(File, state="live", file_name='foo-bar')
+@pytest.fixture()
+def derived_file(pg_driver):
+    with pg_driver.session_scope() as sxn:
+        to_delete_file = pg_driver.nodes(File).ids([get_node_id('to-delete-file')]).one()
+        derived_file = data.fuzzed(File, state='live', file_name='foo-bar',
+                                   file_size=1234)
         to_delete_file.derived_files = [derived_file]
+        sxn.merge(derived_file)
+
+    yield derived_file
+
+    with pg_driver.session_scope() as sxn:
+        nobj = pg_driver.nodes().get(derived_file.node_id)
+        if nobj:
+            sxn.delete(nobj)
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+def test_doesnt_delete_file_with_derived_files(
+        setup_test, init_indexd, converter, pg_driver, derived_file):
+    gdces = make_gdc_es(init_indexd, converter)
     gdces.go()
     assert len(get_all_indices(setup_test)) == 1
-    with _graph.session_scope():
+    with pg_driver.session_scope():
         # verify that the to_delete file did not get deleted
-        node = _graph.nodes(File).get(get_node_id('to-delete-file'))
+        node = pg_driver.nodes(File).get(get_node_id('to-delete-file'))
         assert node
         # verify the filename is correct
         assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"

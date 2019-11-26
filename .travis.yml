@@ -21,10 +21,6 @@ before_install:
   # Upgrade npm
   - npm install -g npm@'>=6'
 
-  # bust only the the part of the cache that we are frequently
-  # changing
-  - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
-
 install:
   # Update nodejs
   - rm -rf ~/.nvm
@@ -46,8 +42,9 @@ install:
 
 before_script:
   - pip freeze
-  - python tests/setup_test_database.py
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
+  - psql -U postgres -c "create user test with superuser password 'test'"
+  - psql -U postgres -c "create database automated_test with owner test"
 
 script: "PYTHONPATH=. pytest -vvv tests/"

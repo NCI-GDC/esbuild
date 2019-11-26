@@ -8,7 +8,9 @@ import os
 import time
 from collections import namedtuple
 
+import psqlgraph
 import pytest
+from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
@@ -38,11 +40,6 @@ BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
 ES_HOST = 'localhost'
 ES_PORT = 9200
 
-PG_HOST = 'localhost'
-PG_USER = 'test'
-PG_PASSWORD = 'test'
-PG_DATABASE = 'automated_test'
-
 # ======================================================================
 # Util
 
@@ -50,10 +47,7 @@ logger = logging.getLogger("conftest")
 logger.setLevel(logging.DEBUG)
 
 
-_graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
-
-
-def clear_graph_database():
+def clear_graph_database(pg_driver):
     """Clear graph from database"""
 
     edge_tables = Edge.get_subclass_table_names()
@@ -63,8 +57,40 @@ def clear_graph_database():
         if t not in {'edge_edge', 'node_node'}
     ]
 
-    with _graph.engine.begin() as conn:
+    with pg_driver.engine.begin() as conn:
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+
+
+def drop_all(engine):
+    models.versioned_nodes.Base.metadata.drop_all(engine)
+    models.submission.Base.metadata.drop_all(engine)
+    models.FileReport.metadata.drop_all(engine)
+    psqlgraph.base.ORMBase.metadata.drop_all(engine)
+    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
+
+
+def create_all(engine):
+    psqlgraph.create_all(engine)
+    models.versioned_nodes.Base.metadata.create_all(engine)
+    models.submission.Base.metadata.create_all(engine)
+    models.FileReport.metadata.create_all(engine)
+
+
+@pytest.fixture(scope='session')
+def pg_driver():
+    pg_conn = PsqlGraphDriver(
+        host=os.getenv('PG_HOST', 'localhost'),
+        user=os.getenv('PG_USER', 'test'),
+        password=os.getenv('PG_PASS', 'test'),
+        database=os.getenv('PG_NAME', 'automated_test'),
+    )
+
+    drop_all(pg_conn.engine)
+    create_all(pg_conn.engine)
+
+    yield pg_conn
+
+    drop_all(pg_conn.engine)
 
 
 @pytest.fixture
@@ -110,11 +136,11 @@ def raise_test_error(*args, **kwargs):
     raise TestError('{} {}'.format(args, kwargs))
 
 
-def render_database():
+def render_database(pg_driver):
     """Save PDF graph of test suite data"""
 
-    with _graph.session_scope():
-        dot = create_graphviz(_graph.nodes())
+    with pg_driver.session_scope():
+        dot = create_graphviz(pg_driver.nodes())
         dot.render('test_suite_data.gv')
 
 
@@ -128,38 +154,32 @@ def environment(monkeypatch):
     monkeypatch.setenv('ELASTICSEARCH_HOST', 'localhost')
     monkeypatch.setenv('ES_USER', '')
     monkeypatch.setenv('ES_PASSWORD', '')
-    monkeypatch.setenv('PG_HOST', PG_HOST)
-    monkeypatch.setenv('PG_USER', PG_USER)
-    monkeypatch.setenv('PG_PASS', PG_PASSWORD)
-    monkeypatch.setenv('PG_NAME', PG_DATABASE)
+    monkeypatch.setenv('PG_HOST', 'localhost')
+    monkeypatch.setenv('PG_USER', 'test')
+    monkeypatch.setenv('PG_PASS', 'test')
+    monkeypatch.setenv('PG_NAME', 'automated_test')
 
 
 @pytest.fixture(scope="module", autouse=True)
-def sample_database():
+def sample_database(pg_driver):
     """Add all test data to the database.
 
     Attempt to render a PDF representation of the test suite.
 
     """
 
-    clear_graph_database()
+    clear_graph_database(pg_driver)
 
-    data.insert(_graph)
+    data.insert(pg_driver)
 
     try:
-        render_database()
+        render_database(pg_driver)
     except Exception as exc:
         logger.error('Failed to write updated database viz files: %s', exc)
 
+    yield pg_driver
 
-@pytest.fixture()
-def graph():
-    """Fixture to return temporary session database driver"""
-
-    with _graph.session_scope() as session:
-        session.commit, session._commit = session.flush, session.commit
-        yield _graph
-        session.rollback()
+    clear_graph_database(pg_driver)
 
 
 # ======================================================================
@@ -289,7 +309,7 @@ def es_after_deletion(test_index_data):
     helper = ReleaseHelper(es)
 
     # Will delete these projects' data
-    projects_to_delete = [u"TCGA-STAD", u"FM-AD"]
+    projects_to_delete = ["TCGA-STAD", "FM-AD"]
 
     # Get project list before deletion
     projects_before = helper.get_project_ids(index_name)
@@ -304,15 +324,11 @@ def es_after_deletion(test_index_data):
 
 
 @pytest.fixture
-def setup_test(sample_database):
+def setup_test(sample_database, environment):
     es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
 
     cleanup_indices(es)
 
-    os.environ["PG_HOST"] = PG_HOST
-    os.environ["PG_USER"] = PG_USER
-    os.environ["PG_PASS"] = PG_PASSWORD
-    os.environ["PG_NAME"] = PG_DATABASE
     os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
     yield es
