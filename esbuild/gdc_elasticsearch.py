@@ -93,6 +93,7 @@ class GDCElasticsearch(object):
             ('selective_caching', False),
             ('build_awg', False),
             ('skip_es', False),
+            ('cache_versioned', False),
         ]
 
         for arg, default in valid_kwargs:
@@ -109,10 +110,9 @@ class GDCElasticsearch(object):
                                                 os.environ["PG_NAME"]))
 
         versioned_files = None
-        if not self.build_awg and self.build_projects:
-            vnc = VersionedNodesDiffCollector(
-                ['-'.join(pair) for pair in self.build_projects],
-                self.graph, indexd_client)
+        if not self.build_awg and self.build_projects and self.cache_versioned:
+            vnc = VersionedNodesDiffCollector(self.build_projects, self.graph,
+                                              indexd_client)
             versioned_files = vnc.run()
 
         self.converter = converter_class(self.graph,

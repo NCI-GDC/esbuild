@@ -95,8 +95,9 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
         indexd_client=init_indexd,
         index_base='gdc_es_test',
         index_close_thresh=4,
-        build_projects=[('TCGA', 'BRCA')],
+        build_projects=['TCGA-BRCA'],
         pg_driver=graph,
+        cache_versioned=True,
     )
     builder.go()
 
