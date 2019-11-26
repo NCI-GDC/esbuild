@@ -10,9 +10,10 @@ graph index.
 
 from cdisutils.log import get_logger
 from collections import defaultdict
-from copy import copy, deepcopy
+from copy import deepcopy
 from datadog import statsd
 from gdcdatamodel import models as md
+from functools32 import lru_cache
 from psqlgraph import Node, Edge
 from sqlalchemy.orm import joinedload
 
@@ -21,7 +22,6 @@ import logging
 import networkx as nx
 import random
 import re
-import json
 from uuid import uuid4
 
 from esbuild.graph.common.mappings import (
@@ -29,7 +29,6 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
-from esbuild.utils import dfs_to_parent
 
 from progressbar import (
     ProgressBar,
@@ -41,6 +40,16 @@ from progressbar import (
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
 
+
+@lru_cache(maxsize=32)
+def dfs_to_parent(node, target='case'):
+    if node.label == target:
+        return node
+    for edge in node.edges_out:
+        found = dfs_to_parent(edge.dst)
+        if found:
+            return found
+    return None
 
 class GraphIndexBuilder(object):
 
@@ -185,6 +194,10 @@ class GraphIndexBuilder(object):
         self.indexd = indexd_client
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
+
+        # Versioned files that haven't been released yet
+        self.versioned_files = kwargs.pop('versioned_files', None)
+
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
@@ -427,9 +440,12 @@ class GraphIndexBuilder(object):
         """
 
         base = {}
+        old_props = {}
+        if self.versioned_files and node.node_id in self.versioned_files:
+            old_props = self.versioned_files[node.node_id]
 
         if include_id and node.label in self.file_labels:
-            base.update({'file_id': node.node_id})
+            base.update({'file_id': old_props.get('file_id') or node.node_id})
 
         elif include_id and node._dictionary['category'] == 'analysis':
             base.update({'analysis_id': node.node_id})
@@ -438,7 +454,7 @@ class GraphIndexBuilder(object):
             base.update({'{}_id'.format(node.label): node.node_id})
 
         base.update({
-            key: value
+            key: old_props.get(key) or value
             for key, value in node._props.iteritems()
             # Only use props in the pinned version of the dictionary
             if key in node.__pg_properties__
@@ -812,6 +828,12 @@ class GraphIndexBuilder(object):
         """
         Reads file metadata from indexd and sets it to node
         """
+
+        if self.versioned_files and node.node_id in self.versioned_files:
+            for key, value in self.versioned_files[node.node_id].items():
+                setattr(node, key, value)
+            return node
+
         # Try to get cached metadata value
         record = self.file_metadata.get(node.node_id)
 
@@ -1046,7 +1068,7 @@ class GraphIndexBuilder(object):
             related_file = self.add_file_metadata_from_indexd(related_file)
 
             rf_doc = self._get_base_doc(related_file, include_id=False)
-            rf_doc['file_id'] = related_file.node_id
+            rf_doc['file_id'] = rf_doc.get('file_id') or related_file.node_id
 
             # Data types
             data_subtypes = self.neighbors_labeled(
@@ -1775,6 +1797,9 @@ class GraphIndexBuilder(object):
 
         """
 
+        if self.versioned_files and node.node_id in self.versioned_files:
+            return True
+
         # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
@@ -1905,6 +1930,8 @@ class GraphIndexBuilder(object):
 
             elif node.state in released_states and \
                     node.label != 'annotation':
+                return True
+            elif self.versioned_files and node.node_id in self.versioned_files:
                 return True
 
             if node.label == 'annotation' and \
