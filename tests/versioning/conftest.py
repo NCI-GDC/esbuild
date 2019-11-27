@@ -1,10 +1,8 @@
 import pytest
 from addict import Dict
-from gdcdictionary import gdcdictionary
-from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionLog, TransactionSnapshot
-from psqlgraph import mocks
 
+from tests.conftest import cleanup_nodes
 from tests.data import get_node_id
 
 
@@ -73,23 +71,10 @@ def create_transaction(graph, node, old_props, action='version'):
     return tl
 
 
-@pytest.fixture(scope='session')
-def graph_factory():
-    graph_globals = {
-        'properties': {
-            'project_id': 'TCGA-BRCA',
-            'state': 'released',
-            'batch_id': 1,
-            'experimental_strategy': 'WXS',
-        }
-    }
-    factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
-
-    yield factory
-
-
 @pytest.fixture
 def make_subgraph(graph_factory, pg_driver, indexd_client):
+    graph_nodes = []
+
     def wrapper(nodes, edges, root_links, make_versions=False):
         """
         :param nodes: list of nodes metadata
@@ -98,8 +83,10 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
         :param make_versions: create older versions
         :return: (created nodes, created docs, previously released docs)
         """
-        graph_nodes = graph_factory.create_from_nodes_and_edges(nodes, edges,
-                                                                all_props=True)
+        graph_nodes.extend(
+            graph_factory.create_from_nodes_and_edges(nodes, edges,
+                                                      all_props=True)
+        )
         with pg_driver.session_scope() as sxn:
             for n in graph_nodes:
                 sxn.add(n)
@@ -140,7 +127,9 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
 
         return graph_nodes, cur_docs, prev_docs
 
-    return wrapper
+    yield wrapper
+
+    cleanup_nodes(pg_driver, graph_nodes)
 
 
 @pytest.fixture
@@ -233,11 +222,6 @@ def versioned_reads_setup(request, pg_driver, create_aligned_reads):
     """
     nodes, latest, previous = create_aligned_reads(**request.param.to_dict())
 
-    with pg_driver.session_scope() as sxn:
-        for n in nodes:
-            if not pg_driver.nodes().get(n.node_id):
-                sxn.add(n)
-
     if request.param.make_versions and request.param.reads_state != 'released':
         expected = [n for n in nodes if is_file(n) and n.state == 'submitted']
     else:
@@ -255,12 +239,6 @@ def versioned_reads_setup(request, pg_driver, create_aligned_reads):
             versioned_docs[ldid] = previous_map[baseid]
 
     yield nodes, expected, versioned_docs, request.param
-
-    with pg_driver.session_scope() as sxn:
-        for n in nodes:
-            nobj = pg_driver.nodes().get(n.node_id)
-            if nobj:
-                sxn.delete(nobj)
 
 
 @pytest.fixture

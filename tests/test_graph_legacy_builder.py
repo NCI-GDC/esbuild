@@ -12,7 +12,7 @@ from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from tests.conftest import Index, raise_test_error
+from tests.conftest import Index, raise_test_error, cleanup_nodes
 from tests.data import fuzzed, get_node_id
 from tests.test_utils import validate_file_metadata
 
@@ -52,12 +52,68 @@ def custom_annotation(pg_driver):
 
     yield case, annotation
 
+    cleanup_nodes(pg_driver, [case, annotation])
+
+
+@pytest.fixture
+def suppressed_case(pg_driver, graph_factory):
+    nodes = [
+        dict(label='case', submitter_id='suppressed_case'),
+        dict(label='sample', submitter_id='suppressed_sample'),
+        dict(label='aliquot', submitter_id='suppressed_aliquot'),
+        dict(label='file', submitter_id='suppressed_file'),
+    ]
+    edges = [
+        dict(src='suppressed_sample', dst='suppressed_case'),
+        dict(src='suppressed_aliquot', dst='suppressed_sample'),
+        dict(src='suppressed_file', dst='suppressed_aliquot'),
+    ]
+    nodes = graph_factory.create_from_nodes_and_edges(
+        nodes, edges, all_props=True
+    )
+
     with pg_driver.session_scope() as sxn:
-        cnode = pg_driver.nodes().get(case.node_id)
-        sxn.delete(cnode)
-        anode = pg_driver.nodes().get(annotation.node_id)
-        if anode:
-            sxn.delete(anode)
+        case = [n for n in nodes if n.label == 'case'][0]
+        redaction = graph_factory.node_factory.create(
+            'annotation',
+            override={'classification': 'Redaction', 'category': 'General',
+                      'state': 'released'},
+            all_props=True
+        )
+        case.annotations = [redaction]
+
+        sxn.add(case)
+
+    yield case, redaction
+
+    cleanup_nodes(pg_driver, nodes+[redaction])
+
+
+@pytest.fixture
+def non_case_redaction(pg_driver):
+    annotation = fuzzed(md.Annotation, classification='Redaction')
+    with pg_driver.session_scope() as s:
+        portion_id = get_node_id('portion-01')
+        portion = pg_driver.nodes(md.Portion).ids(portion_id).one()
+        portion.annotations = [annotation]
+
+        sample = portion.samples[0]
+        case = sample.cases[0]
+        analyte = portion.analytes[0]
+        aliquot = analyte.aliquots[0]
+
+        redacted1 = fuzzed(md.File, node_id="redact1", state="live")
+        redacted1.portions = [portion]
+        redacted2 = fuzzed(md.File, node_id="redact2", state="live")
+        redacted2.aliquots = [aliquot]
+
+        s.add(annotation)
+        s.add(redacted1)
+        s.add(redacted2)
+
+    yield portion, sample, case
+
+    cleanup_nodes(pg_driver, [portion, redacted1, redacted2])
 
 
 # ======================================================================
@@ -139,55 +195,12 @@ def test_omitted_projects(pg_driver, init_indexd):
     assert index.cases == []
 
 
-def test_basic_suppression(pg_driver, init_indexd):
-    case = fuzzed(md.Case, state='released')
-    with pg_driver.session_scope() as s:
-        case.projects = [pg_driver.nodes(md.Project).first()]
-        file_ = pg_driver.nodes(md.File).subq_path('aliquots').first()
-        case.files = [file_]
-        case.annotations = [fuzzed(
-            md.Annotation,
-            classification='Redaction',
-            category='General',
-        )]
-        s.add(case)
-
+def test_basic_suppression(pg_driver, init_indexd, suppressed_case):
+    case, redaction = suppressed_case
     index = build_index(pg_driver, init_indexd)
 
     assert case.node_id not in [c["case_id"] for c in index.cases]
     assert 'redacted-file' not in [f["file_id"] for f in index.files]
-
-
-@pytest.fixture
-def non_case_redaction(pg_driver):
-    annotation = fuzzed(md.Annotation, classification='Redaction')
-    with pg_driver.session_scope() as s:
-        portion_id = get_node_id('portion-01')
-        portion = pg_driver.nodes(md.Portion).ids(portion_id).one()
-        portion.annotations = [annotation]
-
-        sample = portion.samples[0]
-        case = sample.cases[0]
-        analyte = portion.analytes[0]
-        aliquot = analyte.aliquots[0]
-
-        redacted1 = fuzzed(md.File, node_id="redact1", state="live")
-        redacted1.portions = [portion]
-        redacted2 = fuzzed(md.File, node_id="redact2", state="live")
-        redacted2.aliquots = [aliquot]
-
-        s.add(annotation)
-        s.add(redacted1)
-        s.add(redacted2)
-
-    yield portion, sample, case
-
-    with pg_driver.session_scope() as sxn:
-        node_ids = [portion.node_id, redacted1.node_id, redacted2.node_id]
-        for nid in node_ids:
-            nobj = pg_driver.nodes().get(nid)
-            if nobj:
-                sxn.delete(nobj)
 
 
 def test_non_case_suppression(pg_driver, init_indexd, non_case_redaction):

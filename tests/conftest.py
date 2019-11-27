@@ -10,6 +10,7 @@ from collections import namedtuple
 
 import psqlgraph
 import pytest
+from gdcdictionary import gdcdictionary
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from elasticsearch import Elasticsearch
@@ -24,7 +25,7 @@ from indexd_test_utils import (
     setup_indexd_test_database,
     indexd_admin_user,
 )
-from psqlgraph import PsqlGraphDriver, Node, Edge
+from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
 
 from esbuild.utils import ReleaseHelper
 from tests import data, es_data
@@ -59,6 +60,14 @@ def clear_graph_database(pg_driver):
 
     with pg_driver.engine.begin() as conn:
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+
+
+def cleanup_nodes(pg_driver, nodes):
+    with pg_driver.session_scope() as sxn:
+        for n in nodes:
+            nobj = pg_driver.nodes().get(n.node_id)
+            if nobj:
+                sxn.delete(nobj)
 
 
 def drop_all(engine):
@@ -102,7 +111,7 @@ def init_indexd(indexd_client):
         md5 = record.pop('md5sum')
         size = record.pop('file_size')
         file_name = record.pop('file_name', None)
-        file_state = record.pop('file_state', None)
+        file_state = record.pop('file_state', 'validated')
         acl = record.pop('acl')
         urls = record.pop('urls')
         # NOTE: 'file_state' is stored as 'state' in indexd.
@@ -160,7 +169,7 @@ def environment(monkeypatch):
     monkeypatch.setenv('PG_NAME', 'automated_test')
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def sample_database(pg_driver):
     """Add all test data to the database.
 
@@ -180,6 +189,21 @@ def sample_database(pg_driver):
     yield pg_driver
 
     clear_graph_database(pg_driver)
+
+
+@pytest.fixture(scope='session')
+def graph_factory():
+    graph_globals = {
+        'properties': {
+            'project_id': 'TCGA-BRCA',
+            'state': 'released',
+            'batch_id': 1,
+            'experimental_strategy': 'WXS',
+        }
+    }
+    factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
+
+    yield factory
 
 
 # ======================================================================
