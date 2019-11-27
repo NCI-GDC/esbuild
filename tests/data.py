@@ -174,6 +174,7 @@ NODES = [
         node_id=get_node_id('cnv-file-1'),
         acl=['phs000178'],
         state='released',
+        file_name='cnv-file-1.bam',
     ),
     fuzzed(
         CopyNumberLiftoverWorkflow,
@@ -186,6 +187,7 @@ NODES = [
         node_id=get_node_id('cnv-segment-file-1'),
         acl=['phs000178'],
         state='released',
+        file_name='cnv-segment-file-1.ext'
     ),
     fuzzed(
         AnalysisMetadata,
@@ -360,6 +362,7 @@ NODES = [
         node_id=get_node_id('submitted-aligned-reads-without-downstream'),
         state='released',
         acl=['phs000178'],
+        file_name='submitted-aligned-reads-without-downstream.bam',
     ),
     fuzzed(
         ReadGroupQc,
@@ -975,6 +978,7 @@ NODES = [
         node_id=get_node_id('somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
+        file_name='somatic_mutation_1.vcf'
     ),
     fuzzed(
         BiospecimenSupplement,
@@ -1013,18 +1017,22 @@ NODES = [
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-2'),
+        file_name='annotated-somatic-mutation-2.vcf',
     ),
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-3'),
+        file_name='annotated-somatic-mutation-3.vcf',
     ),
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-4'),
+        file_name='annotated-somatic-mutation-4.vcf',
     ),
     fuzzed(
         AggregatedSomaticMutation,
         node_id=get_node_id('aggregated-somatic-mutation-1'),
+        file_name='aggregated-somatic-mutation-1.vcf',
     ),
     File(
         node_id=get_node_id('slide-image-file'),
@@ -1275,12 +1283,14 @@ NODES = [
         SubmittedGenomicProfile,
         node_id=get_node_id('submitted-genomic-profile-released-1'),
         data_category='Genomic Profiling',
+        file_name='submitted-genomic-profile-released-1.ext'
     ),
     # data_file skipped because of 'submitted_*' label
     fuzzed(
         SubmittedGenomicProfile,
         node_id=get_node_id('submitted-genomic-profile-released-2'),
         data_category='Genomic Profiling',
+        file_name='submitted-genomic-profile-released-2.ext',
     ),
     # data_file skipped because of 'submitted_*' label and state
     fuzzed(
@@ -1288,6 +1298,7 @@ NODES = [
         node_id=get_node_id('submitted-genomic-profile-submitted'),
         data_category='Genomic Profiling',
         state='submitted',
+        file_name='submitted-genomic-profile-submitted.ext',
     ),
     fuzzed(
         GenomicProfileHarmonizationWorkflow,
@@ -1314,12 +1325,14 @@ NODES = [
         AnnotatedSomaticMutation,
         node_id=get_node_id('genie-vcf-released'),
         data_category='Simple Nucleotide Variation',
+        file_name='genie-vcf-released.vcf',
     ),
     # data_file indexed
     fuzzed(
         CopyNumberEstimate,
         node_id=get_node_id('genie-cne-released'),
         data_category='Copy Number Variation',
+        file_name='genie-cne-released.ext'
     ),
     # data_file indexed
     fuzzed(
@@ -1327,6 +1340,7 @@ NODES = [
         node_id=get_node_id('genie-struct-var-released'),
         data_type='Structural Alteration',
         data_category='Somatic Structural Variation',
+        file_name='genie-struct-var-released.ext',
     ),
     # data_file skipped because upstream isn't released
     fuzzed(
@@ -1334,6 +1348,7 @@ NODES = [
         node_id=get_node_id('genie-struct-var-submitted'),
         data_type='Structural Alteration',
         data_category='Somatic Structural Variation',
+        file_name='genie-struct-var-submitted.ext',
     ),
 ]
 
