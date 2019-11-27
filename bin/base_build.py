@@ -7,7 +7,9 @@ def esbuild_argparser():
     """
     Returns argument parser for esbuild
     """
-    parser = argparse.ArgumentParser(description='Parameters to control esbuild runs')
+    parser = argparse.ArgumentParser(
+        description='Parameters to control esbuild runs',
+    )
     parser.add_argument(
         '--no-roll', action="store_true",
         help='If passed, do not roll the alias and delete old indices')
@@ -27,6 +29,18 @@ def esbuild_argparser():
     parser.add_argument(
         '--index', help='Index name to upsert projects to. '
         'Must set when building subset of projects')
+    parser.add_argument(
+        '--replicas',
+        help='Number of replicas to set when creating an index (default: 0)',
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        '--shards',
+        help='Number of shards to set when creating an index (default: 1)',
+        type=int,
+        default=1,
+    )
     parser.add_argument(
         '--selective-caching', action='store_true',
         help='If set, only caches nodes for projects needed. '
@@ -68,6 +82,8 @@ def main(converter=None,
         build_projects=list(work.get('projects').split()),
         build_awg=work.get('build-awg'),
         index_name=work.get('index'),
+        index_replicas=work.get('replicas'),
+        index_shards=work.get('shards'),
         index_base=index_base,
         skip_es=work.get('skip-es'),
         selective_caching=work.get('selective-caching'),

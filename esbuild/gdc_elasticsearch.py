@@ -75,6 +75,8 @@ class GDCElasticsearch(object):
             passing this param
         :param index_base: base name template for resulting es index
         :param index_name: if provided, will build index with this name ignoring index_base
+        :param index_replicas: number of replicas to set if creating an index
+        :param index_shards: number of shards to set if creating an index
         :param build_projects: list of projects to build
         :param selective_caching: cache only data relevant to build_projects to save time
             WARNING: Will skip all nodes that do not have project_id populated
@@ -89,6 +91,8 @@ class GDCElasticsearch(object):
             ('es', None),
             ('index_base', "gdc_from_graph"),
             ('index_name', None),
+            ('index_replicas', 0),
+            ('index_shards', 1),
             ('build_projects', None),
             ('selective_caching', False),
             ('build_awg', False),
@@ -503,7 +507,7 @@ class GDCElasticsearch(object):
         # Create index if it does not exist (otherwise, just add the data)
         if index not in self.es.indices.get_alias():
             self.log.info('Index %s not found, creating', index)
-            index_settings = self.converter.mapper.index_settings()
+            index_settings = self.get_index_settings()
             self.es.indices.create(index=index, body=index_settings)
             self.put_mappings(index)
 
@@ -768,7 +772,7 @@ class GDCElasticsearch(object):
                 "old: '{}' new: '{}'".format(old_index, new_index)
             )
 
-        index_settings = index_settings or self.converter.mapper.index_settings()
+        index_settings = index_settings or self.get_index_settings()
 
         reindex_body = {
             'source': {
@@ -811,3 +815,16 @@ class GDCElasticsearch(object):
         self.log.info("Summary:\n{}".format(summary))
 
         return summary
+
+    def get_index_settings(self):
+        """Get settings for a new index based on this instance's config."""
+        index_settings = self.converter.mapper.index_settings()
+        actual_settings = index_settings.setdefault('settings', {})
+
+        if self.index_replicas is not None:
+            actual_settings['index.number_of_replicas'] = self.index_replicas
+
+        if self.index_shards is not None:
+            actual_settings['index.number_of_shards'] = self.index_shards
+
+        return index_settings
