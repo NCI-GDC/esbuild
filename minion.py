@@ -82,9 +82,9 @@ def process_work(worker_id=None,
             continue
 
         logger.info("%s", work)
-        if work.get('queue_status', {}).get(depot_queue_id, None) == 0 \
-                or work.get('status') == 'No work found' \
-                or not work:
+        if not work\
+                or work.get('queue_status', {}).get(depot_queue_id, None) == 0 \
+                or work.get('status') == 'No work found':
             if found_work:
                 logger.info('No work found, exiting')
                 running = False
