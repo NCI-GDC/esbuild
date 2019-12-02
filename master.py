@@ -67,7 +67,7 @@ def parse_args():
     """ Parses arguments, checks for sanity """
 
     args = esbuild_argparser(base_parser()).parse_args()
-    if not any([args.queue_status, args.queue_clear, args.store_to_snapshot,
+    if not any([args.queue_clear, args.store_to_snapshot,
                 args.restore_from_snapshot]):
         if (any([args.index, args.num_jobs, args.build_type]) and
                 not all([args.index, args.num_jobs, args.build_type])):
