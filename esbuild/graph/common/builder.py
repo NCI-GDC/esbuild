@@ -568,7 +568,7 @@ class GraphIndexBuilder(object):
 
         return [
             _entity_id
-            for _entity_type in visited_ids.itervalues()
+            for _entity_type in visited_ids.values()
             for _entity_id in _entity_type
         ] + [node.node_id]
 

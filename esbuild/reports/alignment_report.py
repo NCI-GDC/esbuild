@@ -1,4 +1,3 @@
-from alignment_queries import exome, wgs, mirnaseq, rnaseq
 from cdislogging import get_logger
 from consulate import Consul
 from datetime import datetime
@@ -15,6 +14,8 @@ from sqlalchemy.pool import NullPool
 import os
 import salt.client
 import smtplib
+
+from esbuild.reports.alignment_queries import exome, wgs, mirnaseq, rnaseq
 
 
 def with_derived(q):
@@ -177,7 +178,7 @@ class AlignmentReporter(object):
         # now add running alignment counts
         attachment += "Currently running aligners\n"
         attachment += "==========================\n"
-        consul_keys = self.consul.kv.keys()
+        consul_keys = list(self.consul.kv.keys())
         mine_results = self.salt_caller.sminion.functions["mine.get"](
             "service:aligner", "grains.items", "grain"
         )
