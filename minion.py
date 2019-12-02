@@ -75,28 +75,16 @@ def process_work(worker_id=None,
     while running:
         # Get work from depot api:
         try:
-            job_data = depot.dequeue()
+            work = depot.dequeue()
         except Exception as err:
-            logger.error("Unable to get work: %s", job_data)
-            logger.error("Error: %s", err)
+            logger.error("Unable to get work: %s\nError: %s", work, err)
             time.sleep(sleep_time)
             continue
 
-        work = job_data.get('work', {})
-        logger.info("{}".format(work))
-        if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
-            if found_work:
-                logger.info('No work found, exiting')
-                running = False
-            else:
-                logger.info('No work found, waiting')
-        elif work.get('status') == 'No work found':
-            if found_work:
-                logger.info('No work found, exiting')
-                running = False
-            else:
-                logger.info('No work found, waiting')
-        elif not work:
+        logger.info("%s", work)
+        if work.get('queue_status', {}).get(depot_queue_id, None) == 0 \
+                or work.get('status') == 'No work found' \
+                or not work:
             if found_work:
                 logger.info('No work found, exiting')
                 running = False

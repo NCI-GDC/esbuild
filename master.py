@@ -33,10 +33,6 @@ def esbuild_argparser(parser=None):
                             help='Depot server port')
     depot_args.add_argument('--queue-id', type=str,
                             help='Depot queue id. Has to be a UUID string')
-    depot_args.add_argument('--queue-status',
-                            help='Checks esbuild queue status',
-                            action='store_true',
-                            default=False)
     depot_args.add_argument('--queue-clear',
                             help='Clears esbuild queue',
                             action='store_true',
