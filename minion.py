@@ -4,7 +4,7 @@ import time
 from multiprocessing import Process
 
 import yaml
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from queueclient.depot import DepotQueueClient
 
 from bin.base_build import main

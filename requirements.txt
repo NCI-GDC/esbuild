@@ -3,6 +3,7 @@ consulate~=0.6.0
 datadog~=0.32
 elasticsearch>=5.0.0,<6.0.0
 filechunkio~=1.8
+future
 networkx<=2.4 # Last version to support Python35 is 2.4
 progressbar2>=2.0,<4
 python-dotenv~=0.10.3
