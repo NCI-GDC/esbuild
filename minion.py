@@ -1,17 +1,14 @@
-import requests
 import argparse
-import time
-import yaml
 import os
-import subprocess
+import time
 from multiprocessing import Process
-import multiprocessing
 
+import yaml
 from cdisutils.log import get_logger
+from queueclient.depot import DepotQueueClient
 
 from bin.base_build import main
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from depotclient import DepotClient
 
 logger = get_logger('esbuild_minion')
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -58,42 +55,36 @@ def minion_argparser():
 
 
 def process_work(worker_id=None,
-                 depot_host=None,
+                 depot_host='depot.service.consul',
+                 depot_port=80,
                  depot_queue_id=None,
                  indexd_args=None,
                  skip_es=None,
-                 save_doc_path=None, 
+                 save_doc_path=None,
                  sleep_time=None):
 
     running = True
     found_work = False
     logger = get_logger('esbuild_minion_{}'.format(worker_id))
-    depot = DepotClient(depot_host)
+
+    depot = DepotQueueClient(
+        depot_queue_id,
+        host=depot_host,
+        port=depot_port,
+    )
     while running:
         # Get work from depot api:
         try:
-            job_data = depot.get_work(id=depot_queue_id)
+            work = depot.dequeue()
         except Exception as err:
-            logger.error("Unable to get work: {}\nError: {}".format(
-                job_data, err))
+            logger.error("Unable to get work: %s\nError: %s", work, err)
             time.sleep(sleep_time)
             continue
 
-        work = job_data.get('work', {})
-        logger.info("{}".format(work))
-        if work.get('queue_status', {}).get(depot_queue_id, None) == 0:
-            if found_work:
-                logger.info('No work found, exiting')
-                running = False
-            else:
-                logger.info('No work found, waiting')
-        elif work.get('status') == 'No work found':
-            if found_work:
-                logger.info('No work found, exiting')
-                running = False
-            else:
-                logger.info('No work found, waiting')
-        elif not work:
+        logger.info("%s", work)
+        if not work\
+                or work.get('queue_status', {}).get(depot_queue_id, None) == 0 \
+                or work.get('status') == 'No work found':
             if found_work:
                 logger.info('No work found, exiting')
                 running = False
@@ -117,7 +108,7 @@ def process_work(worker_id=None,
                 main(converter=builder,
                      indexd_args=indexd_args,
                      index_base=index_base,
-                     work=work) 
+                     work=work)
             except Exception as err:
                 logger.exception("Attempted to run job: {}\nError: {}".format(work, repr(err)))
         if running:
@@ -138,10 +129,15 @@ if __name__ == "__main__":
 
         proc_info['process'] = Process(
             target=process_work,
-            kwargs=dict(worker_id=i, depot_host=args.depot_host,
-                        depot_queue_id=args.queue_id, indexd_args=indexd_args,
-                        skip_es=args.skip_es, save_doc_path=args.save_doc_path,
-                        sleep_time=TIMEDELTA)
+            kwargs=dict(
+                worker_id=i,
+                depot_host=args.depot_host,
+                depot_port=args.depot_port,
+                depot_queue_id=args.queue_id,
+                indexd_args=indexd_args,
+                skip_es=args.skip_es,
+                save_doc_path=args.save_doc_path,
+                sleep_time=TIMEDELTA)
         )
         proc_info['status'] = "running"
         procs.append(proc_info)
@@ -149,4 +145,3 @@ if __name__ == "__main__":
 
     for proc in procs:
         proc['process'].join()
-
