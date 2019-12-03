@@ -228,7 +228,7 @@ def test_mapping_value_in(mappings, mapping, path, expected):
 
 @pytest.mark.parametrize('a,b,expected', [
     ([['a', 'b'], ['-', '#']],
-     [list(range(0, 2)), list(range(2, 4)), list(range(4, 8))],
+     [[0, 1], [2, 3], [4, 5, 6, 7]],
      [['a', 'b', 0, 1],
       ['a', 'b', 2, 3],
       ['a', 'b', 4, 5, 6, 7],
@@ -409,10 +409,10 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
 ])
 def test_unreleased_nodes_not_indexed(
         pg_driver, index, doc_type, path, cls, node_ids):
-    for node_id in node_ids:
-        with pg_driver.session_scope():
+    with pg_driver.session_scope():
+        for node_id in node_ids:
             node = pg_driver.nodes(cls).ids(node_id).one()
-        assert node.state in ['submitted', 'released']
+            assert node.state in ['submitted', 'released']
 
     results = parse(path).find(getattr(index, doc_type))
     result_set = {r.value for r in results}

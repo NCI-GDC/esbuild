@@ -38,6 +38,10 @@ Index = namedtuple('Index', 'cases, files, annotations, projects')
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
 
+PG_HOST = 'localhost'
+PG_USER = 'test'
+PG_PASS = 'test'
+PG_NAME = 'automated_test'
 ES_HOST = 'localhost'
 ES_PORT = 9200
 
@@ -86,12 +90,12 @@ def create_all(engine):
 
 
 @pytest.fixture(scope='session')
-def pg_driver():
+def graph():
     pg_conn = PsqlGraphDriver(
-        host=os.getenv('PG_HOST', 'localhost'),
-        user=os.getenv('PG_USER', 'test'),
-        password=os.getenv('PG_PASS', 'test'),
-        database=os.getenv('PG_NAME', 'automated_test'),
+        host=os.getenv('PG_HOST', PG_HOST),
+        user=os.getenv('PG_USER', PG_USER),
+        password=os.getenv('PG_PASS', PG_PASS),
+        database=os.getenv('PG_NAME', PG_NAME),
     )
 
     drop_all(pg_conn.engine)
@@ -156,39 +160,39 @@ def render_database(pg_driver):
 # ======================================================================
 # Fixtures
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def environment(monkeypatch):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv('ELASTICSEARCH_HOST', 'localhost')
+    monkeypatch.setenv('ELASTICSEARCH_HOST', ES_HOST)
     monkeypatch.setenv('ES_USER', '')
     monkeypatch.setenv('ES_PASSWORD', '')
-    monkeypatch.setenv('PG_HOST', 'localhost')
-    monkeypatch.setenv('PG_USER', 'test')
-    monkeypatch.setenv('PG_PASS', 'test')
-    monkeypatch.setenv('PG_NAME', 'automated_test')
+    monkeypatch.setenv('PG_HOST', PG_HOST)
+    monkeypatch.setenv('PG_USER', PG_USER)
+    monkeypatch.setenv('PG_PASS', PG_PASS)
+    monkeypatch.setenv('PG_NAME', PG_NAME)
 
 
-@pytest.fixture(scope="function", autouse=True)
-def sample_database(pg_driver):
+@pytest.fixture(scope="module")
+def pg_driver(graph):
     """Add all test data to the database.
 
     Attempt to render a PDF representation of the test suite.
 
     """
 
-    clear_graph_database(pg_driver)
+    clear_graph_database(graph)
 
-    data.insert(pg_driver)
+    data.insert(graph)
 
     try:
-        render_database(pg_driver)
+        render_database(graph)
     except Exception as exc:
         logger.error('Failed to write updated database viz files: %s', exc)
 
-    yield pg_driver
+    yield graph
 
-    clear_graph_database(pg_driver)
+    clear_graph_database(graph)
 
 
 @pytest.fixture(scope='session')
@@ -348,12 +352,10 @@ def es_after_deletion(test_index_data):
 
 
 @pytest.fixture
-def setup_test(sample_database, environment):
+def setup_test(pg_driver):
     es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
 
     cleanup_indices(es)
-
-    os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
     yield es
 

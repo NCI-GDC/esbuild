@@ -16,77 +16,24 @@ from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests import data
 from tests.conftest import (
     get_all_indices,
+    cleanup_nodes,
 )
 from tests.data import get_node_id
 
 GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
 
 
-def make_gdc_es(indexd_client, converter):
-    return GDCElasticsearch(
-        converter_class=converter,
-        indexd_client=indexd_client,
-        index_base="gdc_es_test",
-        index_close_thresh=4,
-    )
-
-
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
-def test_basic_es_generate(setup_test, init_indexd, converter, pg_driver):
-    es = setup_test
-    gdces = make_gdc_es(init_indexd, converter)
-    gdces.go()
-    assert len(es.indices.get_alias()) == 1
-    # also verify that the to_delete file is not in the index and
-    # got deleted
-    with pg_driver.session_scope():
-        assert not es.exists(index="gdc_es_test",
-                             doc_type="file",
-                             id=get_node_id("to-delete-file"))
-
-    # Test Case exists by id
-    with pg_driver.session_scope():
-        assert es.exists(index="gdc_es_test",
-                         doc_type="case",
-                         id=get_node_id('case-tcga-brca-breast'))
-
-    # Test blocking release annotation does not exist in index
-    with pg_driver.session_scope():
-        assert not es.exists(
-            index='gdc_es_test',
-            doc_type='annotation',
-            id=get_node_id('block-release-annotation'),
+@pytest.fixture
+def make_gdc_es(pg_driver):
+    def wrapper(indexd_client, converter):
+        return GDCElasticsearch(
+            converter_class=converter,
+            indexd_client=indexd_client,
+            index_base="gdc_es_test",
+            index_close_thresh=4,
+            pg_driver=pg_driver,
         )
-        assert not es.exists(
-            index='gdc_es_test',
-            doc_type='annotation',
-            id=get_node_id('block-release-annotation-released'),
-        )
-        assert es.exists( # just checking
-            index='gdc_es_test',
-            doc_type='annotation',
-            id=get_node_id('annotation-approved-center-qc-failed'),
-        )
-
-
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_unexpected_properties(setup_test, init_indexd, converter, pg_driver):
-    with pg_driver.session_scope() as s:
-        demographic = pg_driver.nodes(Demographic).one()
-        s.execute("""
-        UPDATE node_demographic
-        SET _props = :props
-        WHERE node_id = :id
-        """, {
-            'id': demographic.node_id,
-            'props': json.dumps(dict(demographic.props, **{
-                'fake_property': True,
-            }))
-        })
-
-    gdces = make_gdc_es(init_indexd, converter)
-    gdces.go()
-    assert len(get_all_indices(setup_test)) == 1
+    return wrapper
 
 
 @pytest.fixture()
@@ -100,15 +47,79 @@ def derived_file(pg_driver):
 
     yield derived_file
 
-    with pg_driver.session_scope() as sxn:
-        nobj = pg_driver.nodes().get(derived_file.node_id)
-        if nobj:
-            sxn.delete(nobj)
+    cleanup_nodes(pg_driver, [derived_file])
+
+
+@pytest.fixture
+def patched_demographic(pg_driver):
+    with pg_driver.session_scope() as s:
+        demographic = pg_driver.nodes(Demographic).one()
+        s.execute("""
+        UPDATE node_demographic
+        SET _props = :props
+        WHERE node_id = :id
+        """, {
+            'id': demographic.node_id,
+            'props': json.dumps(dict(demographic.props, **{
+                'fake_property': True,
+            }))
+        })
+
+    yield
+
+    with pg_driver.session_scope():
+        demographic = pg_driver.nodes().get(demographic.node_id)
+        demographic._props.pop('fake_property')
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(demographic, '_props')
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
+def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
+    es = setup_test
+    gdces = make_gdc_es(init_indexd, converter)
+    gdces.go()
+    assert len(es.indices.get_alias()) == 1
+    # also verify that the to_delete file is not in the index and
+    # got deleted
+    assert not es.exists(index="gdc_es_test",
+                         doc_type="file",
+                         id=get_node_id("to-delete-file"))
+
+    # Test Case exists by id
+    assert es.exists(index="gdc_es_test",
+                     doc_type="case",
+                     id=get_node_id('case-tcga-brca-breast'))
+
+    # Test blocking release annotation does not exist in index
+    assert not es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('block-release-annotation'),
+    )
+    assert not es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('block-release-annotation-released'),
+    )
+    assert es.exists( # just checking
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('annotation-approved-center-qc-failed'),
+    )
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+def test_unexpected_properties(setup_test, init_indexd, converter, make_gdc_es,
+                               patched_demographic):
+    gdces = make_gdc_es(init_indexd, converter)
+    gdces.go()
+    assert len(get_all_indices(setup_test)) == 1
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
 def test_doesnt_delete_file_with_derived_files(
-        setup_test, init_indexd, converter, pg_driver, derived_file):
+        setup_test, init_indexd, converter, pg_driver, derived_file, make_gdc_es):
     gdces = make_gdc_es(init_indexd, converter)
     gdces.go()
     assert len(get_all_indices(setup_test)) == 1
@@ -121,7 +132,7 @@ def test_doesnt_delete_file_with_derived_files(
 
 
 @pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_old_index_cleanup(setup_test, init_indexd, converter):
+def test_old_index_cleanup(setup_test, init_indexd, converter, make_gdc_es):
     for i in range(5):
         gdces = make_gdc_es(init_indexd, converter)
         gdces.go()
@@ -139,7 +150,7 @@ def test_old_index_cleanup(setup_test, init_indexd, converter):
 
 
 # TT-1053 index redaction
-def test_redaction_annotation_indexed(setup_test, init_indexd):
+def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
 
     es = setup_test
 
@@ -191,7 +202,7 @@ def get_graph_counts(es, index, doc_types):
     return counts
 
 
-def test_reindex_doc_types(setup_test, init_indexd):
+def test_reindex_doc_types(setup_test, init_indexd, make_gdc_es):
     gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     gdc_es.go()
 
@@ -209,7 +220,7 @@ def test_reindex_doc_types(setup_test, init_indexd):
     assert all(c == 0 for dtype, c in counts2.items() if dtype != 'annotation')
 
 
-def test_reindex_change_field_type(setup_test, init_indexd):
+def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
     gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
     gdc_es.go()
 

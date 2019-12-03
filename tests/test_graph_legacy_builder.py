@@ -116,6 +116,89 @@ def non_case_redaction(pg_driver):
     cleanup_nodes(pg_driver, [portion, redacted1, redacted2])
 
 
+@pytest.fixture
+def non_live_related_file(pg_driver):
+    with pg_driver.session_scope() as sxn:
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
+        derived_file = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
+        )
+        derived_file.sysan["source"] = "tcga_exome_alignment"
+        live_file.derived_files = [derived_file]
+        related_to_derived = fuzzed(
+            md.File,
+            state="uploaded",
+            file_name="derived_file.txt",
+        )
+        related_to_derived.sysan["source"] = "tcga_exome_alignment"
+        derived_file.related_files = [related_to_derived]
+        sxn.add(related_to_derived)
+        sxn.add(derived_file)
+
+    yield derived_file
+
+    cleanup_nodes(pg_driver, [related_to_derived, derived_file])
+
+
+@pytest.fixture
+def withdrew_consent_redaction(pg_driver):
+    with pg_driver.session_scope() as s:
+        case = pg_driver.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
+        annotation = fuzzed(
+            md.Annotation,
+            classification='Redaction',
+            category='Subject withdrew consent',
+        )
+        case.annotations = [annotation]
+
+        s.merge(case)
+
+    yield case, annotation
+
+    cleanup_nodes(pg_driver, [annotation])
+
+
+@pytest.fixture
+def exp_strats_setup(pg_driver):
+    with pg_driver.session_scope():
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
+        exp = (pg_driver.nodes(md.ExperimentalStrategy)
+               .prop_in('name', ["WXS", "VALIDATION"]).all())
+        live_file.experimental_strategies = exp
+
+    yield live_file
+
+    with pg_driver.session_scope():
+        live_file.experimental_strategies = []
+
+
+@pytest.fixture
+def derived_file_setup(pg_driver):
+    with pg_driver.session_scope():
+        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
+        fake_center = fuzzed(md.Center)
+        live_file.centers = [fake_center]
+        derived_file = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
+        )
+        derived_file.sysan["source"] = "tcga_exome_alignment"
+        live_file.derived_files = [derived_file]
+        related_to_derived = fuzzed(
+            md.File,
+            state="live",
+            file_name="derived_file.bam.txt",
+        )
+        related_to_derived.sysan["source"] = "tcga_exome_alignment"
+        derived_file.related_files = [related_to_derived]
+
+    yield live_file, derived_file, related_to_derived
+
+    cleanup_nodes(pg_driver, [related_to_derived, derived_file])
+
 # ======================================================================
 # Tests
 
@@ -217,16 +300,9 @@ def test_non_case_suppression(pg_driver, init_indexd, non_case_redaction):
     assert "redact2" not in [f["file_id"] for f in index.files]
 
 
-def test_subject_withdrew_consent_is_not_suppressed(pg_driver, init_indexd):
-    with pg_driver.session_scope() as s:
-        case = pg_driver.nodes(md.Case).props(submitter_id='TCGA-AR-A1AR').one()
-        case.annotations = [fuzzed(
-            md.Annotation,
-            classification='Redaction',
-            category='Subject withdrew consent',
-        )]
-        s.merge(case)
-
+def test_subject_withdrew_consent_is_not_suppressed(
+        pg_driver, init_indexd, withdrew_consent_redaction):
+    case, _ = withdrew_consent_redaction
     index = build_index(pg_driver, init_indexd)
     # the case should be there
     assert case.node_id in [c["case_id"] for c in index.cases]
@@ -234,39 +310,16 @@ def test_subject_withdrew_consent_is_not_suppressed(pg_driver, init_indexd):
     assert get_node_id("live-file") in [f["file_id"] for f in index.files]
 
 
-def test_duplicate_classification_only_results_in_warning(pg_driver, init_indexd):
-    with pg_driver.session_scope() as sxn:
-        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
-        exp = (pg_driver.nodes(md.ExperimentalStrategy)
-               .prop_in('name', ["WXS", "VALIDATION"]).all())
-        live_file.experimental_strategies = exp
-        sxn.merge(live_file)
-
+def test_duplicate_classification_only_results_in_warning(
+        pg_driver, init_indexd, exp_strats_setup):
+    live_file = exp_strats_setup
     index = build_index(pg_driver, init_indexd)
     # the file should be there
     assert live_file.node_id in [f["file_id"] for f in index.files]
 
 
-def test_derived_files(pg_driver, init_indexd):
-    with pg_driver.session_scope():
-        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
-        fake_center = fuzzed(md.Center)
-        live_file.centers = [fake_center]
-        derived_file = fuzzed(
-            md.File,
-            state="live",
-            file_name="derived_file.bam",
-        )
-        derived_file.sysan["source"] = "tcga_exome_alignment"
-        live_file.derived_files = [derived_file]
-        related_to_derived = fuzzed(
-            md.File,
-            state="live",
-            file_name="derived_file.bam.txt",
-        )
-        related_to_derived.sysan["source"] = "tcga_exome_alignment"
-        derived_file.related_files = [related_to_derived]
-
+def test_derived_files(pg_driver, init_indexd, derived_file_setup):
+    live_file, derived_file, related_to_derived = derived_file_setup
     index = build_index(pg_driver, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
@@ -279,31 +332,15 @@ def test_derived_files(pg_driver, init_indexd):
     assert len(derived_file_docs) == 0
 
 
-def test_non_live_related_files_dont_cause_source_files_in_related(pg_driver, init_indexd):
-    with pg_driver.session_scope():
-        live_file = pg_driver.nodes(md.File).ids(get_node_id('live-file')).one()
-        derived_file = fuzzed(
-            md.File,
-            state="live",
-            file_name="derived_file.bam",
-        )
-        derived_file.sysan["source"] = "tcga_exome_alignment"
-        live_file.derived_files = [derived_file]
-        related_to_derived = fuzzed(
-            md.File,
-            state="uploaded",
-            file_name="derived_file.txt",
-        )
-        related_to_derived.sysan["source"] = "tcga_exome_alignment"
-        derived_file.related_files = [related_to_derived]
-
+def test_non_live_related_files_dont_cause_source_files_in_related(
+        non_live_related_file, pg_driver, init_indexd):
     index = build_index(pg_driver, init_indexd)
 
     # derived_file should be a doc in it's own right, and should
     # have the single correct related file
     derived_file_docs = [
         f for f in index.files
-        if f["file_id"] == derived_file.node_id
+        if f["file_id"] == non_live_related_file.node_id
     ]
     assert len(derived_file_docs) == 0
 

@@ -25,21 +25,13 @@ DATA_FILE_CATEGORIES = [
 # ======================================================================
 # Types
 
-STRING = {
-    'type': 'keyword',
-}
+STRING = Dict(type='keyword')
 
-LONG = {
-    'type': 'long',
-}
+LONG = Dict(type='long')
 
-INTEGER = {
-    'type': 'integer',
-}
+INTEGER = Dict(type='integer')
 
-FLOAT = {
-    'type': 'float',
-}
+FLOAT = Dict(type='float')
 
 
 def get_es_type(_type):

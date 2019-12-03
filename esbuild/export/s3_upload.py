@@ -9,10 +9,8 @@ Functions for uploading Elasticsearch indices to an s3 interface.
 import argparse
 import math
 import os
-import platform
 import ssl
 import time
-from distutils.version import StrictVersion
 from http import client
 
 import boto
@@ -65,11 +63,7 @@ def connect_to_s3(args):
             )
         )
 
-    py_ver = platform.python_version()
-    if StrictVersion(py_ver) >= StrictVersion('2.7.9'):
-        factory = (create_factory, ())
-    else:
-        factory = None
+    factory = (create_factory, ())
     return boto.connect_s3(
         host=args.s3_host,
         aws_access_key_id=args.s3_access_key,

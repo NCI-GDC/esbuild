@@ -360,25 +360,29 @@ class GDCElasticsearch(object):
         "param int maxva': The maximumum value of the progress bar
 
         """
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
-        pbar.start()
+        pbar = ProgressBar(
+            widgets=[title, Percentage(), ' ',
+                     Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
+            maxval=maxval,
+        )
         pbar.update(0)
         return pbar
 
     def bulk_upload(self, index, doc_type, docs, thread_count=THREAD_COUNT,
-                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
+                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES,
+                    parallel_bulk=True):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
 
         :param str index: The index to upload documents to
-        :param str doc_type: The type of document to pload as
+        :param str doc_type: The type of document to upload as
         :param list docs: The documents to upload
-        :param int batch_size: The number of docs per batch
-
+        :param thread_count: Number of threads to spawn during parallel bulk
+            index upload
+        :param chunk_size: Number of actions to perform per bulk request
+        :param max_chunk_bytes: Bulk request document size limit
+        :param parallel_bulk: Use parallel_bulk for index upload or not
         """
 
         if not docs:
@@ -395,12 +399,32 @@ class GDCElasticsearch(object):
                     _source=doc
                 )
                 yield action
-                pbar.update(pbar.currval + 1)
+                pbar.update(pbar.value + 1)
 
         actions = action_gen()
-        success, errors = helpers.bulk(self.es, actions)
-        if errors:
-            self.log.error(errors)
+        if parallel_bulk:
+            batches = helpers.parallel_bulk(
+                self.es,
+                actions,
+                thread_count=thread_count,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            for batch in batches:
+                if not batch[0]:
+                    raise RuntimeError(json.dumps([
+                        doc for doc in batch[1]
+                        if doc['index']['status'] != 100
+                    ], indent=2))
+        else:
+            success, errors = helpers.bulk(
+                self.es,
+                actions,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            if errors:
+                self.log.error(errors)
         pbar.finish()
 
     def put_mappings(self, index):

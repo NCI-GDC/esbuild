@@ -326,12 +326,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                                           'disease_type': p['disease_type']}
                         for p in projects}
 
-        for i in range(len(cases)):
-            project_id = cases[i]['project']['project_id']
-            cases[i]['project']['primary_site'] = projects_map[project_id]\
-                                                              ['primary_site']
-            cases[i]['project']['disease_type'] = projects_map[project_id]\
-                                                              ['disease_type']
+        for case in cases:
+            project_id = case['project']['project_id']
+            case['project']['primary_site'] = projects_map[project_id]['primary_site']
+            case['project']['disease_type'] = projects_map[project_id]['disease_type']
 
         return cases, files, annotations, projects
 

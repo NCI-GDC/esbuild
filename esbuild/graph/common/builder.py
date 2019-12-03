@@ -52,6 +52,7 @@ def dfs_to_parent(node, target='case'):
             return found
     return None
 
+
 class GraphIndexBuilder(object):
 
     """This class handles all of the JSON production for the GDC
@@ -352,11 +353,11 @@ class GraphIndexBuilder(object):
 
         """
         maxval = maxval or 1  # prevent maxal of 0
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
-        pbar.start()
+        pbar = ProgressBar(
+            widgets=[title, Percentage(), ' ',
+                     Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
+            maxval=maxval,
+        )
         pbar.update(0)
         return pbar
 
@@ -1424,7 +1425,7 @@ class GraphIndexBuilder(object):
                     ann_docs[a['annotation_id']] = a
             for f in fi:
                 self.upsert_file_into_dict(file_docs, f)
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
         return case_docs, list(file_docs.values()), list(ann_docs.values())
 
@@ -1442,7 +1443,7 @@ class GraphIndexBuilder(object):
         pbar = self.pbar('Denormalizing projects ', len(projects))
         for project in projects:
             project_docs.append(self.denormalize_project(project))
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
         return project_docs
 
@@ -2161,7 +2162,7 @@ class GraphIndexBuilder(object):
             # Cache graph to self.G
             # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
             for e in self.iter_database_edges():
-                pbar.update(pbar.currval+1)
+                pbar.update(pbar.value+1)
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = (triple in self.differentiated_edges)
                 if triple == ("file", "data_from", "file"):
@@ -2254,7 +2255,7 @@ class GraphIndexBuilder(object):
             if len(cases) != 0:
                 self.entity_cases[e] = cases.pop()
 
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
 
     def get_cls_file_to_case_paths(self, cls):
@@ -2288,7 +2289,7 @@ class GraphIndexBuilder(object):
         for f in files:
             paths = self.get_cls_file_to_case_paths(f)
             self.relevant_nodes[f] = self.walk_paths(f, paths, whole=True)
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
 
         pbar.finish()
 
@@ -2312,7 +2313,7 @@ class GraphIndexBuilder(object):
                     self.annotation_entities[n] = {}
                 a_doc = self.denormalize_annotation(a)
                 self.annotation_entities[n][a.node_id] = a_doc
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
 
     def _cache_popular_neighbor(self, node, neighbors, labels):

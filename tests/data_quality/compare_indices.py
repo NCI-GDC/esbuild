@@ -1,12 +1,12 @@
 import argparse
 import logging
 import json
+from cdislogging import get_logger
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 from pprint import pformat
 from deepdiff import DeepDiff
 from cdisutils.dictionary import sort_dict
-from cdisutils.log import get_logger
 
 log = get_logger('compare_indices')
 log.setLevel(level=logging.INFO)

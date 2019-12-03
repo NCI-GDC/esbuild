@@ -21,8 +21,8 @@ from gdcdatamodel.models import (
 
 
 @pytest.fixture(scope='class')
-def cls_with_graph(request, pg_driver):
-    request.cls.graph = pg_driver
+def cls_with_graph(request, graph):
+    request.cls.graph = graph
 
 
 @pytest.mark.usefixtures('cls_with_graph')
