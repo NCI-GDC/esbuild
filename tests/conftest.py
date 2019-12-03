@@ -207,7 +207,7 @@ def graph_factory():
     }
     factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
 
-    yield factory
+    return factory
 
 
 # ======================================================================

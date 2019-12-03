@@ -10,7 +10,7 @@ def parse_cmd_args():
     default_state_filename = 'project-program-release.yaml'
     parser = ArgumentParser()
     parser.add_argument(
-        '--which_data',
+        'which_data',
         help="Which es instance we're setting states for",
         choices=['ACTIVE', 'LEGACY']
     )
