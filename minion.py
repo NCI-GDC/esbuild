@@ -103,6 +103,8 @@ def process_work(worker_id=None,
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                 found_work = True
                 logger.info('-> Running {} build'.format(work.get('build-type')))
+                work['skip-es'] = work.get('skip-es', skip_es)
+                work['save-doc-path'] = work.get('save-doc-path', save_doc_path)
                 logger.info(work)
 
                 main(converter=builder,

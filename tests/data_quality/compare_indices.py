@@ -6,16 +6,16 @@ from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 from pprint import pformat
 from deepdiff import DeepDiff
-from cdisutils.dictionary import sort_dict
+from dictdiffer import diff
 
 log = get_logger('compare_indices')
 log.setLevel(level=logging.INFO)
 
-IGNORE_KEYS = [
+IGNORE_KEYS = (
     'updated_datetime',  # This might change when node is touched
     'portion_id', 'analyte_id',  # These are randomly generated each esbuild run
     'file_state', 'state', 'releasable',  # System fields
-]
+)
 
 
 class DataTester:
@@ -91,7 +91,7 @@ class DataTester:
             )
         )
         if IGNORE_KEYS:
-            log.warn('Ignoring {} fields'.format(', '.join(IGNORE_KEYS)))
+            log.warning('Ignoring {} fields'.format(', '.join(IGNORE_KEYS)))
 
         # For each doctype, iterate over entire index and compare
         result = {d: {} for d in self.doc_types}
@@ -107,14 +107,18 @@ class DataTester:
                     test_doc = self.es_worker.es.get(index=self.args.test_index,
                                                      doc_type=doc_type, id=doc['_id'])
                 except:
-                    log.warn('{} {} was not found in {}, skipping'
-                             .format(doc_type, doc['_id'], self.args.test_index))
+                    log.warning('{} {} was not found in {}, skipping'
+                                .format(doc_type, doc['_id'], self.args.test_index))
                     continue
 
                 # Check if true document fully matches test document
-                true_doc = sort_dict(doc['_source'], remove_keys=IGNORE_KEYS)
-                test_doc = sort_dict(test_doc['_source'], remove_keys=IGNORE_KEYS)
-                is_correct = true_doc == test_doc
+                diffs = diff(doc['_source'], test_doc['_source'])
+                diffs = [
+                    d for d in diffs
+                    if (d[1] not in set(IGNORE_KEYS) and
+                        not d[1].endswith(IGNORE_KEYS))
+                ]
+                is_correct = len(diffs) == 0
 
                 result[doc_type][doc['_id']] = is_correct
                 if doc_count % 100 == 0:

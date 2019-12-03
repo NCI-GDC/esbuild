@@ -94,13 +94,13 @@ class GDCElasticsearch(object):
             ('build_awg', False),
             ('skip_es', False),
             ('cache_versioned', False),
+            ('save_doc_path', os.path.expanduser('~/esbuild_output'))
         ]
 
         for arg, default in valid_kwargs:
-            setattr(self, arg, kwargs.get(arg, default))
+            setattr(self, arg, kwargs.get(arg) or default)
 
         self.index_close_thresh = index_close_thresh
-        self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = kwargs.pop('pg_driver',

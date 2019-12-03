@@ -72,6 +72,7 @@ def main(converter=None,
         skip_es=work.get('skip-es'),
         selective_caching=work.get('selective-caching'),
         cache_versioned=work.get('cache-versioned'),
+        save_doc_path=work.get('save-doc-path'),
     )
     gdc_es.go(roll_alias=not work.get('no-roll'),
               cleanup_indices=not work.get('no-cleanup'),

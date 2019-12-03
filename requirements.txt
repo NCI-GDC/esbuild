@@ -1,6 +1,7 @@
 addict<2.2.0 # Tests for Python35 not run on >=2.2.0 anymore
 consulate~=0.6.0
 datadog~=0.32
+dictdiffer
 elasticsearch>=5.0.0,<6.0.0
 filechunkio~=1.8
 future

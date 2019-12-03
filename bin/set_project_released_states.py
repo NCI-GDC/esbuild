@@ -62,7 +62,7 @@ if __name__ == '__main__':
                     if len(data['PROJECTS']) != len(project_list):
                         for entry in data['PROJECTS']:
                             if entry not in project_names:
-                                log.warn('{} not found'.format(entry))
+                                log.warning('{} not found'.format(entry))
 
                 else:
                     project_list = prog.projects
