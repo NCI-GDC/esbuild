@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-test_build_scripts.py
+test_scripts.py
 ----------------------------------
 
 Test the build scripts that wrap core functionality
@@ -18,6 +18,15 @@ import os
     'build_download_stats_index.py',
 ])
 def test_script_runs(path, init_indexd, pg_driver):
-    os.environ['INDEXD_HOST'] = init_indexd.url
-    os.environ['INDEXD_USER'], os.environ['INDEXD_PASS'] = init_indexd.auth
     check_call(['python', os.path.join(BIN_DIR, path)])
+
+
+@pytest.mark.parametrize('posargs', [
+    ('-h',),
+    ('reindex', '-h'),
+    ('pre-flight', '-h'),
+])
+def test_esbuild_cli(init_indexd, pg_driver, posargs):
+    call_args = ['esbuild-cli']
+    call_args.extend(posargs)
+    check_call(call_args)
