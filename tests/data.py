@@ -39,11 +39,11 @@ def fuzzed(node_class, node_id=None, **kwargs):
             continue
 
         # State
-        if 'state' not in kwargs and 'state' in node_class.__pg_properties__:
-            kwargs['state'] = 'released'
+        if key == 'state':
+            kwargs[key] = 'released'
         # ACL
-        if 'acl' not in kwargs:
-            kwargs['acl'] = ['phs000178']
+        elif key == 'acl':
+            kwargs[key] = ['phs000178']
         # Enum
         elif 'enum' in prop_def:
             kwargs[key] = prop_def['enum'][0]
