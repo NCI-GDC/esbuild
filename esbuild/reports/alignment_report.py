@@ -1,5 +1,4 @@
-from alignment_queries import exome, wgs, mirnaseq, rnaseq
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from consulate import Consul
 from datetime import datetime
 from datetime import timedelta
@@ -15,6 +14,8 @@ from sqlalchemy.pool import NullPool
 import os
 import salt.client
 import smtplib
+
+from esbuild.reports.alignment_queries import exome, wgs, mirnaseq, rnaseq
 
 
 def with_derived(q):
@@ -109,11 +110,11 @@ class AlignmentReporter(object):
         return self._aligned
 
     def aligned_file_counts(self):
-        return {key: len(val) for key, val in self.aligned_files.iteritems()}
+        return {key: len(val) for key, val in self.aligned_files.items()}
 
     def aligned_file_sizes(self):
         return {key: sum([f.file_size for f in val])
-                for key, val in self.aligned_files.iteritems()}
+                for key, val in self.aligned_files.items()}
 
     def generate_files_to_attach(self):
         self.log.info("Generating files to attach")
@@ -137,7 +138,7 @@ class AlignmentReporter(object):
                                          aligned=aligned_counts[key],
                                          total=total,
                                          percent=100*(float(aligned_counts[key])/total))
-                                 for key, total in iter(sorted(self.totals.iteritems()))])
+                                 for key, total in iter(sorted(self.totals.items()))])
         attachment += "\n\n"
         attachment += "Total sizes aligned\n"
         attachment += "=============\n\n"
@@ -146,7 +147,7 @@ class AlignmentReporter(object):
                                          aligned=float(aligned_sizes[key])/1e12,
                                          total=float(total_size)/1e12,
                                          percent=100*(float(aligned_sizes[key])/total_size))
-                                 for key, total_size in iter(sorted(self.total_sizes.iteritems()))])
+                                 for key, total_size in iter(sorted(self.total_sizes.items()))])
         attachment += "\n\n"
         # breakdown WGS by step completed
         attachment += "WGS Aligned files breakdown by step completed\n"
@@ -177,7 +178,7 @@ class AlignmentReporter(object):
         # now add running alignment counts
         attachment += "Currently running aligners\n"
         attachment += "==========================\n"
-        consul_keys = self.consul.kv.keys()
+        consul_keys = list(self.consul.kv.keys())
         mine_results = self.salt_caller.sminion.functions["mine.get"](
             "service:aligner", "grains.items", "grain"
         )
@@ -195,7 +196,7 @@ class AlignmentReporter(object):
     def generate_aligned_analysis_ids_file(self):
         self.log.info("Generating file with aligned analysis ids")
         analysis_ids = []
-        for _, files in self.aligned_files.iteritems():
+        for _, files in self.aligned_files.items():
             analysis_ids.extend([f.sysan["analysis_id"] for f in files])
         attachment = "\n".join(analysis_ids)
         return attachment
@@ -214,7 +215,7 @@ class AlignmentReporter(object):
     def generate_timings_file(self):
         self.log.info("Generating wgs timings file")
         aligned_wgs_files = []
-        for key, files in self.aligned_files.iteritems():
+        for key, files in self.aligned_files.items():
             if "WGS" in key:
                 aligned_wgs_files.extend(files)
         self.log.info("Getting uuid -> hostname mapping from gdc mysql")
@@ -259,7 +260,7 @@ class AlignmentReporter(object):
         return attachment
 
     def attach_files(self, msg, files):
-        for name, contents in files.iteritems():
+        for name, contents in files.items():
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(contents)
             encoders.encode_base64(part)

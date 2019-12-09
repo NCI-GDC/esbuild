@@ -8,21 +8,28 @@ graph index.
 
 """
 
-from cdisutils.log import get_logger
-from collections import defaultdict
-from copy import deepcopy
-from datadog import statsd
-from gdcdatamodel import models as md
-from functools32 import lru_cache
-from psqlgraph import Node, Edge
-from sqlalchemy.orm import joinedload
-
 import itertools
 import logging
-import networkx as nx
 import random
 import re
+from collections import defaultdict
+from collections.abc import Iterable
+from copy import deepcopy
+from functools import lru_cache
 from uuid import uuid4
+
+import networkx as nx
+from cdislogging import get_logger
+from gdcdatamodel import models as md
+from datadog import statsd
+from progressbar import (
+    ProgressBar,
+    Percentage,
+    Bar,
+    ETA,
+)
+from psqlgraph import Node, Edge
+from sqlalchemy.orm import joinedload
 
 from esbuild.graph.common.mappings import (
     ESMapper,
@@ -30,12 +37,6 @@ from esbuild.graph.common.mappings import (
     ONE_TO_ONE,
 )
 
-from progressbar import (
-    ProgressBar,
-    Percentage,
-    Bar,
-    ETA,
-)
 
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
@@ -50,6 +51,7 @@ def dfs_to_parent(node, target='case'):
         if found:
             return found
     return None
+
 
 class GraphIndexBuilder(object):
 
@@ -245,7 +247,7 @@ class GraphIndexBuilder(object):
         }
 
         # Get the actual case mapping to validate against
-        self.case_es_mapping = self.mapper.get_case_es_mapping()
+        self.case_es_mapping = self.mapper.get_case_es_mapping().to_dict()
 
         self.g = psqlgraph_driver
         self.G = nx.Graph()
@@ -351,10 +353,11 @@ class GraphIndexBuilder(object):
 
         """
         maxval = maxval or 1  # prevent maxal of 0
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
+        pbar = ProgressBar(
+            widgets=[title, Percentage(), ' ',
+                     Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
+            maxval=maxval,
+        )
         pbar.update(0)
         return pbar
 
@@ -455,7 +458,7 @@ class GraphIndexBuilder(object):
 
         base.update({
             key: old_props.get(key) or value
-            for key, value in node._props.iteritems()
+            for key, value in node._props.items()
             # Only use props in the pinned version of the dictionary
             if key in node.__pg_properties__
             # Ignore certain keys by type
@@ -550,7 +553,7 @@ class GraphIndexBuilder(object):
         )[0]
 
         # Convert to list for later serialization
-        visited_ids = {key: list(ids) for key, ids in visited_ids.iteritems()}
+        visited_ids = {key: list(ids) for key, ids in visited_ids.items()}
 
         # Inject a dictionary of ids for each visited entity (in
         # TOP_LEVEL_IDS)
@@ -566,7 +569,7 @@ class GraphIndexBuilder(object):
 
         return [
             _entity_id
-            for _entity_type in visited_ids.itervalues()
+            for _entity_type in visited_ids.values()
             for _entity_id in _entity_type
         ] + [node.node_id]
 
@@ -660,7 +663,7 @@ class GraphIndexBuilder(object):
 
         """
         self._cache_experimental_strategies()
-        for exp_strat, file_list in self.experimental_strategies.iteritems():
+        for exp_strat, file_list in self.experimental_strategies.items():
             intersection = (file_list & files)
             if intersection:
                 yield {
@@ -675,7 +678,7 @@ class GraphIndexBuilder(object):
 
         """
         self._cache_data_categories()
-        for data_category, file_list in self.data_categories.iteritems():
+        for data_category, file_list in self.data_categories.items():
             intersection = (file_list & files)
             if intersection:
                 yield {
@@ -692,7 +695,7 @@ class GraphIndexBuilder(object):
         """
         return {
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f['file_size'] or 0 for f in files]),
             'experimental_strategies': list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -805,7 +808,8 @@ class GraphIndexBuilder(object):
         ptree = self.copy_tree(ptree, {})
 
         # Create base file doc
-        case_id = ptree.keys()[0].node_id if ptree.keys() else None
+        cases = list(ptree.keys())
+        case_id = cases[0].node_id if cases else None
         doc = self._get_base_doc(node)
 
         # Add file fields
@@ -928,7 +932,7 @@ class GraphIndexBuilder(object):
            Only prune a given node ``node`` if ``node.label`` in keys
 
         """
-        for node in ptree.keys():
+        for node in list(ptree.keys()):
             if ptree[node]:
                 self.prune_case(relevant_nodes, ptree[node], keys)
             if node.label in keys and node not in relevant_nodes:
@@ -968,7 +972,7 @@ class GraphIndexBuilder(object):
                 if denormalized_annotation:
                     base = denormalized_annotation
                 else:
-                    log.warn(
+                    log.warning(
                         'Missing denormalized annotation %s for node %s',
                         base.get('annotation_id'),
                         node.node_id)
@@ -1172,11 +1176,11 @@ class GraphIndexBuilder(object):
 
         """
         if not ptree:
-            log.warn('No ptree (case tree) for %s', node)
+            log.warning('No ptree (case tree) for %s', node)
             return []
 
         if node not in self.relevant_nodes:
-            log.warn('No relevant cases for %s', node)
+            log.warning('No relevant cases for %s', node)
             return []
 
         relevant = self.relevant_nodes[node]
@@ -1287,7 +1291,7 @@ class GraphIndexBuilder(object):
         doc = self._get_base_doc(p)
 
         # Get programs
-        program = self.neighbors_labeled(p, 'program').next()
+        program = next(self.neighbors_labeled(p, 'program'))
         log.info('Program: {}'.format(program))
         doc['program'] = self._get_base_doc(program)
 
@@ -1330,7 +1334,7 @@ class GraphIndexBuilder(object):
                 continue
 
             case_count = len({
-                p for p, p_files in case_files.iteritems()
+                p for p, p_files in case_files.items()
                 if len(exp_files & p_files)
             })
 
@@ -1352,7 +1356,7 @@ class GraphIndexBuilder(object):
                 continue
 
             case_count = len({
-                p for p, p_files in case_files.iteritems()
+                p for p, p_files in case_files.items()
                 if len(dt_files & p_files)
             })
 
@@ -1381,7 +1385,7 @@ class GraphIndexBuilder(object):
         doc['summary'] = {
             'case_count': len(cases),
             'file_count': len(files),
-            'file_size': sum([f['file_size'] for f in files]),
+            'file_size': sum([f['file_size'] or 0 for f in files]),
         }
 
         if exp_strat_summaries:
@@ -1421,9 +1425,9 @@ class GraphIndexBuilder(object):
                     ann_docs[a['annotation_id']] = a
             for f in fi:
                 self.upsert_file_into_dict(file_docs, f)
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
-        return case_docs, file_docs.values(), ann_docs.values()
+        return case_docs, list(file_docs.values()), list(ann_docs.values())
 
     def denormalize_projects(self, projects=None):
         """If projects is not specified, denormalize all projects in
@@ -1439,7 +1443,7 @@ class GraphIndexBuilder(object):
         pbar = self.pbar('Denormalizing projects ', len(projects))
         for project in projects:
             project_docs.append(self.denormalize_project(project))
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
         return project_docs
 
@@ -1451,7 +1455,7 @@ class GraphIndexBuilder(object):
 
         """
         ann_doc = self._get_base_doc(node)
-        entities = self.G.neighbors(node)
+        entities = list(self.G.neighbors(node))
         if len(entities) == 0:
             self.error(
                 'Annotation has no entities',
@@ -1619,8 +1623,12 @@ class GraphIndexBuilder(object):
 
         """
 
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
-        for n, p in self.G.nodes_iter(data=True):
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
+            labels = tuple(labels)
+        else:
+            labels = (labels, )
+
+        for n, p in self.G.nodes(data=True):
             if n.label in labels:
                 yield n
 
@@ -1648,7 +1656,10 @@ class GraphIndexBuilder(object):
         :param is_expected: Int count of expected elements
 
         """
-        labels = tuple(labels) if hasattr(labels, '__iter__') else (labels,)
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
+            labels = tuple(labels)
+        else:
+            labels = (labels, )
 
         if node in self.popular_nodes:
             if labels not in self.popular_nodes[node]:
@@ -1657,7 +1668,7 @@ class GraphIndexBuilder(object):
             else:
                 neighbors = self.popular_nodes[node][labels]
         else:
-            temp = self.G.neighbors(node)
+            temp = list(self.G.neighbors(node))
             if len(temp) > 200:
                 neighbors = self._cache_popular_neighbor(node, temp, labels)
             else:
@@ -1740,12 +1751,12 @@ class GraphIndexBuilder(object):
         """
         if isinstance(doc, dict):
             # Recurse through all keys in dictionary
-            for doc_key in doc.keys():
+            for doc_key in list(doc.keys()):
                 if doc_key not in mapping['properties']:
                     self.error(
                         'Key not in mapping',
                         "Key '{}' was not found in mapping keys {}".format(
-                            doc_key, mapping['properties'].keys()),
+                            doc_key, list(mapping['properties'].keys())),
                         tags=["key:{}".format(doc_key)],
                     )
                     # Remove so there is not an error when populating index
@@ -2045,7 +2056,7 @@ class GraphIndexBuilder(object):
 
         to_suppress = []
         for redaction in self.get_redaction_annotations():
-            redacted_list = self.G.neighbors(redaction)
+            redacted_list = list(self.G.neighbors(redaction))
 
             if len(redacted_list) == 0:
                 # If there is no entity, then we have to move on to
@@ -2151,7 +2162,7 @@ class GraphIndexBuilder(object):
             # Cache graph to self.G
             # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
             for e in self.iter_database_edges():
-                pbar.update(pbar.currval+1)
+                pbar.update(pbar.value+1)
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = (triple in self.differentiated_edges)
                 if triple == ("file", "data_from", "file"):
@@ -2244,7 +2255,7 @@ class GraphIndexBuilder(object):
             if len(cases) != 0:
                 self.entity_cases[e] = cases.pop()
 
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
 
     def get_cls_file_to_case_paths(self, cls):
@@ -2278,7 +2289,7 @@ class GraphIndexBuilder(object):
         for f in files:
             paths = self.get_cls_file_to_case_paths(f)
             self.relevant_nodes[f] = self.walk_paths(f, paths, whole=True)
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
 
         pbar.finish()
 
@@ -2292,7 +2303,7 @@ class GraphIndexBuilder(object):
         if not self.annotations:
             # there aren't any entities to relate
             self.annotation_entities = {}
-            log.warn('No annotations found in the cached database!')
+            log.warning('No annotations found in the cached database!')
             return
         pbar = self.pbar('Caching annotations: ', len(self.annotations))
         self.annotation_entities = {}
@@ -2302,7 +2313,7 @@ class GraphIndexBuilder(object):
                     self.annotation_entities[n] = {}
                 a_doc = self.denormalize_annotation(a)
                 self.annotation_entities[n][a.node_id] = a_doc
-            pbar.update(pbar.currval+1)
+            pbar.update(pbar.value+1)
         pbar.finish()
 
     def _cache_popular_neighbor(self, node, neighbors, labels):

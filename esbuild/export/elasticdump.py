@@ -16,13 +16,12 @@ can be installed via
     npm install -g elasticdump
 
 """
-
-from subprocess import PIPE, Popen
-
 import argparse
 import gzip
 import os
 import time
+
+from subprocess import PIPE, Popen
 
 CHUNK_SIZE = 1026
 

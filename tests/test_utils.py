@@ -1,8 +1,7 @@
 import time
-import pytest
 
-import es_data
-from data import DATA_FILE_INDEXD_FIELDS
+from tests import es_data
+from tests.data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
 
 
@@ -43,7 +42,7 @@ def validate_file_metadata(key, value):
 
     if key in DATA_FILE_INDEXD_FIELDS:
         error_msg = '"{}" is loaded from graph instead of indexd'.format(key)
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             assert value != 'error', error_msg
         elif isinstance(value, list):
             assert 'error' not in value, key
@@ -61,7 +60,7 @@ def get_dict_paths(d, path_list=None, path='root'):
     if path_list is None:
         path_list = []
 
-    for k, v in d.iteritems():
+    for k, v in d.items():
         subpath = path + '.' + k
         if isinstance(v, dict):
             sublist, subpath = get_dict_paths(v, path_list, subpath)

@@ -1,7 +1,7 @@
 import os
 
 import yaml
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from elasticsearch import Elasticsearch
 from queueclient.depot import DepotQueueClient
 

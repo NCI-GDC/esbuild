@@ -1,5 +1,5 @@
 from esbuild.graph.common.builder import GraphIndexBuilder
-from data import NODES, INDEXD
+from tests.data import NODES, INDEXD
 import pytest
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories

@@ -4,7 +4,7 @@ import time
 from multiprocessing import Process
 
 import yaml
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from queueclient.depot import DepotQueueClient
 
 from bin.base_build import main
@@ -77,7 +77,7 @@ def process_work(worker_id=None,
         try:
             work = depot.dequeue()
         except Exception as err:
-            logger.error("Unable to get work: %s\nError: %s", work, err)
+            logger.error("Unable to get work.\nError: %s", err)
             time.sleep(sleep_time)
             continue
 
@@ -102,13 +102,16 @@ def process_work(worker_id=None,
                 else:
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
                 found_work = True
-                logger.info('-> Running {} build'.format(work.get('build-type')))
-                logger.info(work)
 
                 main(converter=builder,
                      indexd_args=indexd_args,
                      index_base=index_base,
                      work=work)
+
+                logger.info('-> Running {} build'.format(work.get('build-type')))
+                work['skip-es'] = work.get('skip-es', skip_es)
+                work['save-doc-path'] = work.get('save-doc-path', save_doc_path)
+                logger.info(work)
             except Exception as err:
                 logger.exception("Attempted to run job: {}\nError: {}".format(work, repr(err)))
         if running:

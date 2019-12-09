@@ -6,18 +6,16 @@ esbuild.export.s3_upload
 Functions for uploading Elasticsearch indices to an s3 interface.
 """
 
-from filechunkio import FileChunkIO
-from boto.s3 import connection
-from distutils.version import StrictVersion
-
 import argparse
-import boto
+import math
 import os
 import ssl
-import sys
 import time
-import math
-import httplib
+from http import client
+
+import boto
+from boto.s3 import connection
+from filechunkio import FileChunkIO
 
 from esbuild.export.elasticdump import (
     ExportTypes,
@@ -57,25 +55,21 @@ def upload_to_s3(conn, bucket_name, source_path, chunk_size=52428800):
 def connect_to_s3(args):
     def create_factory(host,port=443,timeout=10):
         return (
-            httplib.HTTPSConnection(
-                host = host,
-                port = port,
-                timeout = timeout,
-                context = ssl._create_unverified_context()
+            client.HTTPSConnection(
+                host=host,
+                port=port,
+                timeout=timeout,
+                context=ssl._create_unverified_context()
             )
         )
 
-    py_ver = ".".join(str(sys.version_info[i]) for i in xrange(3))
-    if StrictVersion(py_ver) >= StrictVersion('2.7.9'):
-        factory = (create_factory, ())
-    else:
-        factory = None
+    factory = (create_factory, ())
     return boto.connect_s3(
         host=args.s3_host,
         aws_access_key_id=args.s3_access_key,
         aws_secret_access_key=args.s3_secret_key,
         validate_certs=False,
-        https_connection_factory = factory,
+        https_connection_factory=factory,
         calling_format=connection.OrdinaryCallingFormat(),
     )
 
@@ -93,24 +87,6 @@ def add_s3_args(parser):
     parser.add_argument('--s3-secret-key',
                         required=True,
                         help='Access key for s3 upload destination')
-
-    return parser
-
-
-def add_es_args(parser):
-    parser.add_argument('--es-host',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-index',
-                        required=True,
-                        help='Elasticsearch source host')
-    parser.add_argument('--es-port',
-                        default=9200,
-                        help='Elasticsearch source port')
-    parser.add_argument('--es-user',
-                        help='Basic Auth user for ES (if applicable)')
-    parser.add_argument('--es-pass',
-                        help='Basic Auth password for ES (if applicable)')
 
     return parser
 

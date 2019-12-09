@@ -1,25 +1,15 @@
 language: python
 
 python:
-  - "2.7"
+  - "3.5"
+  - "3.6"
 
 node: 6
 
 sudo: true
 
-cache:
-  # pip: true  # We have overridden the default install step, caching manually
-  # ref: <https://docs.travis-ci.com/user/caching/#Arbitrary-directories>
-  - directories:
-      - /home/travis/virtualenv/python2.7.9/lib/python2.7/site-packages
-      - $HOME/.pip-cache
-  - apt
-
 env:
-  ES_HOST='localhost'
-  ES_VERSION=5.6.14
-  NODE_VERSION=10
-  BOTO_CONFIG=/dev/null
+  - ES_HOST='localhost' ES_VERSION=5.6.14 NODE_VERSION=10 BOTO_CONFIG=/dev/null
 
 addons:
   postgresql: '9.4'
@@ -27,10 +17,6 @@ addons:
 before_install:
   # Upgrade npm
   - npm install -g npm@'>=6'
-
-  # bust only the the part of the cache that we are frequently
-  # changing
-  - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
 
 install:
   # Update nodejs
@@ -53,8 +39,9 @@ install:
 
 before_script:
   - pip freeze
-  - python tests/setup_test_database.py
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
+  - psql -U postgres -c "create user test with superuser password 'test'"
+  - psql -U postgres -c "create database automated_test with owner test"
 
 script: "PYTHONPATH=. pytest -vvv tests/"
