@@ -6,18 +6,31 @@ from the same database in the real world.
 
 """
 
-from esbuild.graph.common.builder import GraphIndexBuilder
-from gdcdatamodel.models import *  # noqa
-from gdcdictionary import gdcdictionary
-
+import hashlib
 import random
+import re
 import string
 import uuid
-import hashlib
-import re
+
+from gdcdatamodel import models
+from gdcdatamodel.models import *  # noqa
+from gdcdictionary import gdcdictionary
+from psqlgraph.mocks import NodeFactory
+
+from esbuild.graph.common.builder import GraphIndexBuilder
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
 DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
+# Populated each time get_node_id is called, Used for debugging missing ids
+NODE_ID_TO_STRING = {}
+# Defaults for the node factory
+GRAPH_GLOBALS = {
+    'properties': {
+        'project_id': 'TCGA-BRCA',
+        'state': 'released',
+    }
+}
+node_factory = NodeFactory(models, gdcdictionary.schema, GRAPH_GLOBALS)
 
 
 def random_string(length=6):
@@ -29,42 +42,12 @@ def random_string(length=6):
 
 
 def fuzzed(node_class, node_id=None, **kwargs):
-    if node_id is None:
-        node_id = str(uuid.uuid4())
-    for key, types in node_class.get_pg_properties().items():
-        schema = gdcdictionary.schema[node_class.label]
-        prop_def = schema['properties'].get(key, {})
+    # Set some required properties if not provided
+    kwargs['acl'] = kwargs.get('acl', ['phs000178'])
+    kwargs['node_id'] = node_id or str(uuid.uuid4())
 
-        if key in kwargs:
-            continue
-
-        # State
-        if key == 'state':
-            kwargs[key] = 'released'
-        # ACL
-        elif key == 'acl':
-            kwargs[key] = ['phs000178']
-        # Enum
-        elif 'enum' in prop_def:
-            kwargs[key] = prop_def['enum'][0]
-        # String
-        elif not types or str in types:
-            kwargs[key] = random_string()
-        # Integer
-        elif int in types or long in types:
-            kwargs[key] = random.randint(1e6, 1e7)
-        # Float
-        elif float in types:
-            kwargs[key] = random.random()
-        # Boolean
-        elif bool in types:
-            kwargs[key] = random.choice((True, False))
-
-    return node_class(node_id, **kwargs)
-
-
-# Populated each time get_node_id is called, Used for debugging missing ids
-NODE_ID_TO_STRING = {}
+    return node_factory.create(node_class.label, override=kwargs,
+                               all_props=True)
 
 
 def get_node_id(string_id):

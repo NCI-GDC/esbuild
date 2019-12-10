@@ -11,6 +11,8 @@ addons:
   postgresql: '9.4'
 
 before_install:
+  # This resolves some random travis failures
+  - python -c "import fcntl; fcntl.fcntl(1, fcntl.F_SETFL, 0)"
   # Upgrade npm
   - npm install -g npm@'>=6'
   - unset PYENV_ROOT
