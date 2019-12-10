@@ -7,7 +7,7 @@ Test the build scripts that wrap core functionality
 
 """
 
-from subprocess import getstatusoutput
+from subprocess import check_call
 
 import pytest
 
@@ -16,8 +16,7 @@ import pytest
     'build_download_stats_index.py',
 ])
 def test_script_runs(path, init_indexd, pg_driver):
-    status, out = getstatusoutput(path)
-    assert status == 0, out
+    check_call([path])
 
 
 @pytest.mark.parametrize('posargs', [
@@ -26,6 +25,5 @@ def test_script_runs(path, init_indexd, pg_driver):
     ['pre-flight', '-h'],
 ])
 def test_esbuild_cli(init_indexd, pg_driver, posargs):
-    cmd = ' '.join(['esbuild-cli'] + posargs)
-    status, out = getstatusoutput(cmd)
-    assert status == 0, out
+    cmd = ['esbuild-cli'] + posargs
+    check_call(cmd)
