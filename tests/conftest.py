@@ -36,7 +36,6 @@ from tests import data, es_data
 Index = namedtuple('Index', 'cases, files, annotations, projects')
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
 
 PG_HOST = 'localhost'
 PG_USER = 'test'

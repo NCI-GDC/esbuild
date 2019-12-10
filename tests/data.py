@@ -9,7 +9,6 @@ from the same database in the real world.
 import hashlib
 import random
 import re
-import string
 import uuid
 
 from gdcdatamodel import models
@@ -24,27 +23,14 @@ DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 # Populated each time get_node_id is called, Used for debugging missing ids
 NODE_ID_TO_STRING = {}
 # Defaults for the node factory
-GRAPH_GLOBALS = {
-    'properties': {
-        'project_id': 'TCGA-BRCA',
-        'state': 'released',
-    }
-}
-node_factory = NodeFactory(models, gdcdictionary.schema, GRAPH_GLOBALS)
-
-
-def random_string(length=6):
-    return ''.join([
-        random.choice(
-            string.ascii_lowercase + string.digits
-        ) for _ in range(length)
-    ])
+node_factory = NodeFactory(models, gdcdictionary.schema)
 
 
 def fuzzed(node_class, node_id=None, **kwargs):
     # Set some required properties if not provided
     kwargs['acl'] = kwargs.get('acl', ['phs000178'])
     kwargs['node_id'] = node_id or str(uuid.uuid4())
+    kwargs['state'] = kwargs.get('state') or 'released'
 
     return node_factory.create(node_class.label, override=kwargs,
                                all_props=True)
@@ -132,6 +118,7 @@ NODES = [
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated_somatic_mutation_1'),
         acl=['phs000178'],
+        data_type='Annotated Somatic Mutation',
         state='released',
         file_name='annotated_somatci_mutation_1.bam'
     ),
@@ -145,6 +132,7 @@ NODES = [
         node_id=get_node_id('simple_somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
+        data_category='Combined Nucleotide Variation',
         file_name='simple_somatic_mutation_1.bam',
     ),
     fuzzed(
@@ -170,12 +158,15 @@ NODES = [
         node_id=get_node_id('cnv-segment-file-1'),
         acl=['phs000178'],
         state='released',
+        data_type='Allele-specific Copy Number Segment',
         file_name='cnv-segment-file-1.ext'
     ),
     fuzzed(
         AnalysisMetadata,
         node_id=get_node_id('analysis-metadata-1'),
         acl=['phs000178'],
+        data_category='Sequencing Data',
+        data_format='SRA XML',
         file_name='analysis-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
@@ -190,6 +181,7 @@ NODES = [
         ExperimentMetadata,
         node_id=get_node_id('experiment-metadata-1'),
         acl=['phs000178'],
+        data_category='Sequencing Data',
         file_name='experiment-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
@@ -232,6 +224,7 @@ NODES = [
         node_id=get_node_id('index-file-2'),
         acl=['phs000178'],
         state='live',
+        data_category='Sequencing Data',
         file_name='index-file-2.bam.bai',
     ),
     fuzzed(
@@ -961,7 +954,8 @@ NODES = [
         node_id=get_node_id('somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
-        file_name='somatic_mutation_1.vcf'
+        data_category='Combined Nucleotide Variation',
+        file_name='somatic_mutation_1.vcf',
     ),
     fuzzed(
         BiospecimenSupplement,
@@ -1000,16 +994,19 @@ NODES = [
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-2'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-2.vcf',
     ),
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-3'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-3.vcf',
     ),
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-4'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-4.vcf',
     ),
     fuzzed(
@@ -1307,7 +1304,7 @@ NODES = [
     fuzzed(
         AnnotatedSomaticMutation,
         node_id=get_node_id('genie-vcf-released'),
-        data_category='Simple Nucleotide Variation',
+        data_type='Annotated Somatic Mutation',
         file_name='genie-vcf-released.vcf',
     ),
     # data_file indexed

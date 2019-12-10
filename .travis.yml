@@ -1,4 +1,8 @@
-language: generic
+language: python
+
+python:
+  - "3.5"
+  - "3.6"
 
 node: 6
 
@@ -11,17 +15,8 @@ addons:
   postgresql: '9.4'
 
 before_install:
-  # This resolves some random travis failures
-  - python -c "import fcntl; fcntl.fcntl(1, fcntl.F_SETFL, 0)"
   # Upgrade npm
   - npm install -g npm@'>=6'
-  - unset PYENV_ROOT
-  - rm -rf ~/.pyenv
-  - curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-  - export PATH="$HOME/.pyenv/bin:$PATH"
-  - pyenv install 3.5.7
-  - pyenv install 3.6.9
-
 
 install:
   # Update nodejs
@@ -38,20 +33,16 @@ install:
   
   # Install elasticdump and other requirements
   - npm install -g elasticdump
-  - virtualenv venv
-  - source venv/bin/activate
-  - pip install tox-travis tox-pyenv
+
+  - pip install tox-travis
 
 before_script:
-  - pip freeze
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
   - psql -U postgres -c "create user test with superuser password 'test'"
   - psql -U postgres -c "create database automated_test with owner test"
 
-script:
-  - pyenv local 3.5.7 3.6.9
-  - tox -e py35,py36
+script: "tox"
 
 after_script:
   - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
