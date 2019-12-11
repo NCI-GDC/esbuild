@@ -33,5 +33,5 @@ script: "tox"
 
 after_script:
   - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
-  - artifacts --quiet upload --bucket gdc-travis-artifacts --target-paths "$TRAVIS_REPO_SLUG/$TRAVIS_BUILD_NUMBER/$TRAVIS_JOB_NUMBER/" htmlcov/
+  - artifacts --quiet upload --bucket gdc-travis-artifacts --target-paths "$TRAVIS_REPO_SLUG/$TRAVIS_BUILD_NUMBER/$TRAVIS_JOB_NUMBER/" tests/htmlcov/
   - "echo Artifact link: https://gdc-travis-artifacts.osdc.io/${TRAVIS_REPO_SLUG}/${TRAVIS_BUILD_NUMBER}/${TRAVIS_JOB_NUMBER}"

@@ -116,9 +116,6 @@ def non_case_redaction(pg_driver):
         s.add(annotation)
         s.add(redacted1)
         s.add(redacted2)
-        s.merge(portion)
-        s.merge(sample)
-        s.merge(aliquot)
 
     yield portion, sample, case
 
