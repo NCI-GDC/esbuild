@@ -4,8 +4,6 @@ python:
   - "3.5"
   - "3.6"
 
-node: 6
-
 sudo: true
 
 env:
@@ -14,17 +12,7 @@ env:
 addons:
   postgresql: '9.4'
 
-before_install:
-  # Upgrade npm
-  - npm install -g npm@'>=6'
-
 install:
-  # Update nodejs
-  - rm -rf ~/.nvm
-  - git clone https://github.com/creationix/nvm.git ~/.nvm 
-  - (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`)
-  - source ~/.nvm/nvm.sh && nvm install $NODE_VERSION
-
   # Install and start elasticsearch
   - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
   - sudo dpkg -i --force-confnew elasticsearch-${ES_VERSION}.deb
@@ -32,7 +20,6 @@ install:
   - sudo service elasticsearch start
   
   # Install elasticdump and other requirements
-  - npm install -g elasticdump
   - pip install -r requirements.txt
   - pip install -r dev-requirements.txt
   - python setup.py develop
