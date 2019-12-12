@@ -20,9 +20,6 @@ def esbuild_argparser():
         '--skip_es', action="store_true",
         help='If passed, skip any actual action on es, just build json')
     parser.add_argument(
-        '--test_delete', action='store_true',
-        help='Test the deletion (skip load & build of index)')
-    parser.add_argument(
         '--projects', nargs='*',
         help='If set, builds only set of projects specified (space-separated)',
         required=False)
@@ -91,5 +88,4 @@ def main(converter=None,
         save_doc_path=work.get('save-doc-path'),
     )
     gdc_es.go(roll_alias=not work.get('no-roll'),
-              cleanup_indices=not work.get('no-cleanup'),
-              skip_build=work.get('test-delete'))
+              cleanup_indices=not work.get('no-cleanup'))

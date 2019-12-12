@@ -77,7 +77,7 @@ def process_work(worker_id=None,
     while running:
         # Get work from depot api:
         try:
-            work = depot.dequeue()
+            work = depot.dequeue()  # type: dict
         except Exception as err:
             logger.error("Unable to get work.\nError: %s", err)
             time.sleep(sleep_time)

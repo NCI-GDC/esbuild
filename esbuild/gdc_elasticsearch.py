@@ -164,45 +164,40 @@ class GDCElasticsearch(object):
         file_name = '{}/case_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(case_docs, file_name)
+
         file_name = '{}/file_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(file_docs, file_name)
+
         file_name = '{}/ann_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(ann_docs, file_name)
+
         file_name = '{}/project_docs_{}.json'.format(self.doc_output_dir, time_stamp)
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(project_docs, file_name)
 
-    def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
-           skip_build=False):
-        # having a transation out here is important, since it ensures
-        # that the cached database and which nodes get deleted is
-        # consistent
-        new_index = None
+    def go(self, roll_alias=True, cleanup_indices=True):
+        with self.graph.session_scope() as session, session.no_autoflush:
+            self.log.info("Caching database")
 
-        with self.graph.session_scope() as session:
-            if not skip_build:
-                self.log.info("Caching database")
+            statsd.event(
+                "caching started",
+                "starting postgres caching",
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:caching'],
+            )
 
-                statsd.event(
-                        "caching started",
-                        "starting postgres caching",
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=["es_index:{}".format(self.index_name), 'stage:caching'],
-                )
-                start_time = datetime.datetime.now()
-                self.converter.cache_database()
-                cache_end_time = datetime.datetime.now()
-
-            to_delete = []
+            start_time = datetime.datetime.now()
+            self.converter.cache_database()
+            cache_end_time = datetime.datetime.now()
 
             self.log.info("ANALYSIS: Loaded data in %s",
                           cache_end_time - start_time)
 
-        if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
+
             statsd.event(
                 "denormalization started",
                 "starting denormalizing index: '{}'".format(self.index_name),
@@ -212,106 +207,135 @@ class GDCElasticsearch(object):
                       'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
+
+            # Make sure we're not committing anything
+            session.rollback()
+
+        denom_end_time = datetime.datetime.now()
+        self.log.info("ANALYSIS: Denormalized data in %s",
+                      denom_end_time - start_time)
+
+        self.log.info(
+            "ANALYSIS: %d case docs, "
+            "%d file docs, "
+            "%d annotation docs, "
+            "%d project docs",
+            len(case_docs),
+            len(file_docs),
+            len(ann_docs),
+            len(project_docs),
+        )
+
+        self.log.info("Validating docs produced")
+        statsd.event(
+            "validation started",
+            "starting validating index {}".format(self.index_name),
+            source_type_name="esbuild",
+            alert_type="info",
+            tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+        )
+
+        # TODO: Validation logic needs to be fixed, because some of the queries
+        #   are invalid now. Seems like the assumption at some point was that
+        #   we always build all projects
+        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+
+        # Prepare index (if it exists) to be augmented by new data
+        if self.index_name in self.es.indices.get_alias():
+            if self.build_projects:
+                projects_to_build = ','.join(self.build_projects)
+            else:
+                projects_to_build = 'all'
+
             self.log.info(
-                "ANALYSIS: %d case docs,"
-                "%d file docs,"
-                "%d annotation docs,"
-                "%d project docs",
-                len(case_docs),
-                len(file_docs),
-                len(ann_docs),
-                len(project_docs),
+                "ANALYSIS: Preparing ES index to be updated "
+                "with {} projects".format(projects_to_build)
             )
-            self.log.info("Validating docs produced")
             statsd.event(
-                "validation started",
-                "starting validating index {}".format(self.index_name),
+                "Index preparation started",
+                "starting index {} preparation".format(self.index_name),
                 source_type_name="esbuild",
                 alert_type="info",
-                tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+                tags=['es_index:{}'.format(self.index_name),
+                      'projects:{}'.format(projects_to_build),
+                      'stage:preparation'],
             )
-            self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
-
-            # Prepare index (if it exists) to be augmented by new data
-            if self.es:
-                start_time = datetime.datetime.now()
-                if self.index_name in self.es.indices.get_alias():
-                    if self.build_projects:
-                        projects_to_build = ','.join(self.build_projects)
-                    else:
-                        projects_to_build = 'all'
-                        self.log.info(
-                            "ANALYSIS: Preparing ES index to be updated "
-                            "with {} projects".format(projects_to_build)
-                        )
-                    statsd.event(
-                        "Index preparation started",
-                        "starting index {} preparation".format(self.index_name),
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=['es_index:{}'.format(self.index_name),
-                              'projects:{}'.format(projects_to_build),
-                              'stage:preparation'],
-                    )
-                    self.release_helper.prepare_index_to_build(self.index_name,
-                                                               self.build_projects)
-
-                denom_end_time = datetime.datetime.now()
-                self.log.info(
-                    "ANALYSIS: Denormalized data in %s",
-                    denom_end_time - start_time
-                )
-                self.log.info("Deploying new ES index with new docs and bumping alias")
-                statsd.event(
-                    "es uploading started",
-                    "starting uploading index {}".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name),
-                          'stage:uploading'],
-                )
-                try:
-                    new_index = self.deploy(
-                        case_docs, file_docs, ann_docs, project_docs,
-                        index_name=self.index_name, roll_alias=roll_alias,
-                        cleanup_indices=cleanup_indices)
-                except Exception as exception:
-                    self.log.exception(
-                        'Unable to deploy documents to {}: {}, saving to {}'
-                        ''.format(self.index_name, exception,
-                                  self.doc_output_dir),
-                        exc_info=True,
-                    )
-                    self.save_docs(case_docs, file_docs, ann_docs, project_docs)
-            else:
-                new_index = 'not built'
-
-        # Delete nodes that are marked "to_delete" if --delete flag is passed.
-        # Dump to log otherwise (if any in list -- default behavior)
-        self.delete_nodes(to_delete=to_delete, delete_nodes=delete_nodes)
+            self.release_helper.prepare_index_to_build(self.index_name,
+                                                       self.build_projects)
 
         # Dump skipped nodes info into a file
         self.log_skipped_nodes()
-        if not skip_build:
+
+        if not self.es:
+            statsd.event(
+                'Dump to Local Storage',
+                'starting dumping index {} to local storage'.format(self.index_name),
+                alert_type='info',
+                tags=['es_index:{}'.format(self.index_name), 'stage:dump']
+            )
+            self.log.info('Skipping ES index deploy and saving docs on local '
+                          'storage instead')
+            # Skip index upload and save the documents instead
+            self.save_docs(case_docs, file_docs, ann_docs,  project_docs)
+            statsd.event(
+                'Dump to Local Storage',
+                'finished dumping index {} to local storage'.format(self.index_name),
+                alert_type='info',
+                tags=['es_index:{}'.format(self.index_name), 'stage:dump',
+                      'status:succeeded']
+            )
+            return
+
+        self.log.info("Deploying new ES index with new docs and bumping alias")
+        statsd.event(
+            "ES Upload",
+            "starting uploading index {}".format(self.index_name),
+            source_type_name="esbuild",
+            alert_type="info",
+            tags=["es_index:{}".format(self.index_name),
+                  'stage:uploading'],
+        )
+
+        event = {
+            'text': "successfully built index {}".format(self.index_name),
+            'alert_type': 'info',
+        }
+        extra_tags = ['status:succeeded']
+
+        try:
+            self.deploy(
+                case_docs, file_docs, ann_docs, project_docs,
+                index_name=self.index_name, roll_alias=roll_alias,
+                cleanup_indices=cleanup_indices)
+        except Exception as exception:
+            self.log.exception(
+                'Unable to deploy documents to {}: {}, saving to {}'
+                ''.format(self.index_name, exception,
+                          self.doc_output_dir),
+                exc_info=True,
+            )
+            event['text'] = 'index deploy failed: {}'.format(self.index_name)
+            event['alert_type'] = 'error'
+            extra_tags = ['status:failed']
+            self.save_docs(case_docs, file_docs, ann_docs, project_docs)
+        finally:
             statsd.event(
                 "esbuild finished",
-                "successfully built index {}".format(new_index),
                 source_type_name="esbuild",
-                alert_type="info",
-                tags=["es_index:{}".format(new_index), 'stage:finished'],
+                tags=["es_index:{}".format(self.index_name), 'stage:finished'] + extra_tags,
+                **event
             )
-        end_time = datetime.datetime.now()
-        self.log.info("ANALYSIS: Run complete in %s - high water %d", end_time - start_time,
-            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
     def log_skipped_nodes(self):
-        self.log.info("Logging skipped nodes to log file in ~")
-        self.log_into_file(self.converter.skipped_nodes, 'esbuild-skipped_nodes')
+        self.log.info("Logging skipped nodes to log file in `save_doc_path`")
+        self.log_into_file(self.converter.skipped_nodes,
+                           self.save_doc_path,
+                           'esbuild-skipped_nodes')
 
     @staticmethod
-    def log_into_file(entries, file_nametag):
+    def log_into_file(entries, path, file_nametag):
         """
-        Dump entries into file `~/{file_nametag}_{datetime_now}.{list,json}`
+        Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`
 
         Extension depends on whether `entries` is list or dict
         """
@@ -322,40 +346,15 @@ class GDCElasticsearch(object):
         else:
             raise ValueError("Can only dump list or dict objects")
 
-        file_name = '{}/{}-{}.{}'.format(os.path.expanduser('~'),
-                                         file_nametag,
-                                         datetime.datetime.now().isoformat(),
-                                         extension)
+        file_name = '{}/{}-{}.{}'.format(
+            path, file_nametag, datetime.datetime.now().isoformat(), extension)
+
         with open(file_name, 'w') as f:
             if isinstance(entries, list):
                 for entry in entries:
                     f.write(entry + '\n')
             elif isinstance(entries, dict):
-                f.write(json.dumps(entries))
-
-    def delete_nodes(self, to_delete=None, delete_nodes=True):
-        """
-        If delete_nodes is True, will remove nodes marked "sysan['to_delete']" from
-        the graph
-        Otherwise will dump these nodes into log file (default behavior)
-
-        """
-        if to_delete is None:
-            to_delete = []
-
-        if delete_nodes == True:
-            with self.graph.session_scope() as session:
-                for expired_node in to_delete:
-                    node = self.graph.nodes().get(expired_node)
-                    if node:
-                        if 'to_delete' in node.sysan:
-                            if node.sysan['to_delete']:
-                                self.log.info("Deleting %s", node)
-                                session.delete(node)
-        else:
-            if to_delete:
-                self.log.info("Skipping deletion of nodes, saving them to log file in ~")
-                self.log_into_file(to_delete, 'esbuild-to_delete')
+                f.write(json.dumps(entries, indent=2))
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
@@ -619,6 +618,7 @@ class GDCElasticsearch(object):
 
     def get_index_name(self):
         """Returns incremented index name"""
+        # TODO: Remove this and related code as well
         current_numbers = self.get_index_numbers()
         self.log.info("Currently deployed indices are %s", current_numbers)
         if not current_numbers:
@@ -639,21 +639,20 @@ class GDCElasticsearch(object):
 
         """
        
-        # If explicit name provided, will upsert data to this particular index
-        if index_name:
-            new_index = index_name
-        # Else will create a new index with incremented name
-        else:
-            new_index = self.get_index_name()
+        if not index_name:
+            raise ValueError(
+                "Please, provide index name. Automatic index version increment "
+                "has been deprecated."
+            )
 
-        self.log.info("Deploying to index %s", new_index)
-        self.index_create_and_populate(new_index, case_docs,
+        self.log.info("Deploying to index %s", index_name)
+        self.index_create_and_populate(index_name, case_docs,
                                        file_docs, ann_docs,
                                        project_docs,
                                        thread_count=thread_count,
                                        chunk_size=chunk_size,
                                        max_chunk_bytes=max_chunk_bytes)
-        self.log.info("Deployed to index %s", new_index)
+        self.log.info("Deployed to index %s", index_name)
 
         # Add build metadata
         doc_counts = {'case': len(case_docs), 'file': len(file_docs),
@@ -671,7 +670,7 @@ class GDCElasticsearch(object):
         project_ids = self.build_projects or ['ALL PROJECTS']
         doc_id = ReleaseHelper.get_build_metadata_id(self.build_projects or 'ALL PROJECTS')
 
-        self.es.create(index=new_index, doc_type='build_metadata',
+        self.es.create(index=index_name, doc_type='build_metadata',
                        id=doc_id,
                        body={
                            'commit_hash': commit_hash,
@@ -681,15 +680,15 @@ class GDCElasticsearch(object):
 
         if roll_alias:
             # ensure all writes are visible
-            self.es.indices.refresh(index=new_index)
+            self.es.indices.refresh(index=index_name)
 
             # sanity checks that there are the correct number of docs in the new index
             msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
 
-            file_count = self.es.count(index=new_index, doc_type="file")["count"]
-            case_count = self.es.count(index=new_index, doc_type="case")["count"]
-            ann_count = self.es.count(index=new_index, doc_type="annotation")["count"]
-            project_count = self.es.count(index=new_index, doc_type="project")["count"]
+            file_count = self.es.count(index=index_name, doc_type="file")["count"]
+            case_count = self.es.count(index=index_name, doc_type="case")["count"]
+            ann_count = self.es.count(index=index_name, doc_type="annotation")["count"]
+            project_count = self.es.count(index=index_name, doc_type="project")["count"]
 
             if file_count != len(file_docs):
                 self.log.warning(msg.format('file', file_count, len(file_docs)))
@@ -707,14 +706,14 @@ class GDCElasticsearch(object):
             self.log.info("Rolling alias and deleting old indices")
             old_index = self.lookup_index_by_alias()
             if old_index:
-                self.swap_index(old_index, new_index)
+                self.swap_index(old_index, index_name)
             else:
-                self.es.indices.put_alias(index=new_index, name=self.index_base)
+                self.es.indices.put_alias(index=index_name, name=self.index_base)
             if cleanup_indices:
-                self.cleanup_old_indices([old_index, new_index])
+                self.cleanup_old_indices([old_index, index_name])
         else:
             self.log.info("Skipping alias roll / old index deletion")
-        return new_index
+        return index_name
 
     def _wait_for_task_completion(self, task_id):
         """
