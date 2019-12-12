@@ -251,7 +251,7 @@ class GraphIndexBuilder(object):
         self.G = nx.Graph()
 
         self.leaf_nodes = ['center', 'tissue_source_site']
-        self.experimental_strategies = {}
+        self.experimental_strategies = defaultdict(set)
         self.data_categories = {}
         self.popular_nodes = {}
         self.cases = None
@@ -264,8 +264,8 @@ class GraphIndexBuilder(object):
         # Different from ``self.data_categories`` in that it's a
         # replacement for a hardcoded dict of data_type, data_subtype
         # relationships.  This is populated by
-        # ``self._cache_existing_data_types()``
-        self.existing_data_types = {}
+        # ``self._cache_experimental_strategies``
+        self.existing_data_types = set()
 
         # Suppress entities with redaction annotation if
         # entity.annotation.category not in this list
@@ -1482,9 +1482,15 @@ class GraphIndexBuilder(object):
         if esid:
             ann_doc['entity_submitter_id'] = esid
 
-        for e in node.edges_out:
-            if e.get_name() == 'AnnotationRelatesToCase':
-                ann_doc['case_id'] = e.dst_id
+        with self.g.context.session.no_autoflush:
+            case_edges = (
+                self.g.edges(md.AnnotationRelatesToCase)
+                .filter(md.AnnotationRelatesToCase.src_id == node.node_id)
+                .all()
+            )
+
+            if case_edges:
+                ann_doc['case_id'] = case_edges[0].dst_id
 
         return ann_doc
 
@@ -1497,7 +1503,7 @@ class GraphIndexBuilder(object):
 
         projects = projects or {}
 
-        with g.session_scope():
+        with g.context.session.no_autoflush:
 
             edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
             entities = dict()
@@ -1714,7 +1720,7 @@ class GraphIndexBuilder(object):
                     )
 
     def verify_data_category_count(self, case):
-        for data_category in self.existing_data_types.keys():
+        for data_category in self.existing_data_types:
             calc = len([
                 f for f in case['files']
                 if f.get('data_category') == data_category
@@ -2112,7 +2118,7 @@ class GraphIndexBuilder(object):
                     '-'.join([p.programs[0].name, p.code]) for p in
                     self.g.nodes(md.Project).props(awg_review=True)
                 }
-                project_ids = [p for p in project_ids if p in awg_projects]
+                project_ids = list(awg_projects.intersection(set(project_ids)))
 
             relevant_node_ids = {
                 nd.node_id for nd in
@@ -2146,7 +2152,7 @@ class GraphIndexBuilder(object):
 
         """
 
-        with self.g.session_scope():
+        with self.g.context.session.no_autoflush:
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
             # Cache graph to self.G
             # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
@@ -2187,7 +2193,6 @@ class GraphIndexBuilder(object):
 
         """
 
-        self._cache_existing_data_types()
         self._cache_experimental_strategies()
         self._cache_data_categories()
         self._cache_annotations()
@@ -2354,28 +2359,11 @@ class GraphIndexBuilder(object):
             self.experimental_strategies[strategy] = set(self.walk_path(
                 exp_strat, ['file']))
 
-        # New files have 'experimental_strategy' as a property
+        # Files have 'experimental_strategy' and 'data_type' as a property
         for file_ in self.nodes_labeled(self.file_labels):
             strategy = file_._props.get('experimental_strategy')
-            if not strategy:
-                continue
-            self.experimental_strategies.setdefault(strategy, set()).add(file_)
-
-    def _cache_existing_data_types(self):
-        """The last version of this code imported a hard coded list and called
-        it DATA_TYPES.  This function replaces this hardcoded nested
-        dict by pulling it from the graph at runtime.
-
-        :returns:
-            The data types in the graph in the format
-            ``{'data_type.name': ['data_subtype.name']}``
-
-        """
-
-        with self.g.session_scope():
-            return {
-                data_type.name: [
-                    subtype.name
-                    for subtype in data_type.data_subtypes
-                ] for data_type in self.g.nodes(md.DataType).all()
-            }
+            if strategy:
+                self.experimental_strategies[strategy].add(file_)
+            data_type = file_._props.get('data_type')
+            if data_type:
+                self.existing_data_types.add(data_type)

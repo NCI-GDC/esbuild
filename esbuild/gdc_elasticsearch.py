@@ -170,35 +170,32 @@ class GDCElasticsearch(object):
         self.log.info('Saving to {}'.format(file_name))
         self.save_doc(project_docs, file_name)
 
-    def go(self, roll_alias=True, cleanup_indices=True, delete_nodes=True,
-           skip_build=False):
-        # having a transation out here is important, since it ensures
-        # that the cached database and which nodes get deleted is
-        # consistent
-        new_index = None
+    def go(self, roll_alias=True, cleanup_indices=True, skip_build=False):
+        if skip_build:
+            # TODO: Any special logic we want to do here? e.g just denormalize?
+            #   just cache? no upload?
+            return
 
         with self.graph.session_scope() as session:
-            if not skip_build:
-                self.log.info("Caching database")
+            self.log.info("Caching database")
 
-                statsd.event(
-                        "caching started",
-                        "starting postgres caching",
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=["es_index:{}".format(self.index_name), 'stage:caching'],
-                )
-                start_time = datetime.datetime.now()
-                self.converter.cache_database()
-                cache_end_time = datetime.datetime.now()
+            statsd.event(
+                "caching started",
+                "starting postgres caching",
+                source_type_name="esbuild",
+                alert_type="info",
+                tags=["es_index:{}".format(self.index_name), 'stage:caching'],
+            )
 
-            to_delete = []
+            start_time = datetime.datetime.now()
+            self.converter.cache_database()
+            cache_end_time = datetime.datetime.now()
 
             self.log.info("ANALYSIS: Loaded data in %s",
                           cache_end_time - start_time)
 
-        if not skip_build:
             self.log.info("Denormalizing database into JSON docs")
+
             statsd.event(
                 "denormalization started",
                 "starting denormalizing index: '{}'".format(self.index_name),
@@ -208,106 +205,111 @@ class GDCElasticsearch(object):
                       'stage:denormalization'],
             )
             case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
+
+            # Make sure we're not committing anything
+            session.rollback()
+
+        denom_end_time = datetime.datetime.now()
+        self.log.info("ANALYSIS: Denormalized data in %s",
+                      denom_end_time - start_time)
+
+        self.log.info(
+            "ANALYSIS: %d case docs, "
+            "%d file docs, "
+            "%d annotation docs, "
+            "%d project docs",
+            len(case_docs),
+            len(file_docs),
+            len(ann_docs),
+            len(project_docs),
+        )
+
+        self.log.info("Validating docs produced")
+        statsd.event(
+            "validation started",
+            "starting validating index {}".format(self.index_name),
+            source_type_name="esbuild",
+            alert_type="info",
+            tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+        )
+
+        # TODO: Validation logic needs to be fixed, because some of the queries
+        #   are invalid now. Seems like the assumption at some point was that
+        #   we always build all projects
+        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+
+        if not self.es:
+            raise ValueError('Elasticsearch client not set, cannot upload')
+
+        # Prepare index (if it exists) to be augmented by new data
+        if self.index_name in self.es.indices.get_alias():
+            if self.build_projects:
+                projects_to_build = ','.join(self.build_projects)
+            else:
+                projects_to_build = 'all'
+
             self.log.info(
-                "ANALYSIS: %d case docs,"
-                "%d file docs,"
-                "%d annotation docs,"
-                "%d project docs",
-                len(case_docs),
-                len(file_docs),
-                len(ann_docs),
-                len(project_docs),
+                "ANALYSIS: Preparing ES index to be updated "
+                "with {} projects".format(projects_to_build)
             )
-            self.log.info("Validating docs produced")
             statsd.event(
-                "validation started",
-                "starting validating index {}".format(self.index_name),
+                "Index preparation started",
+                "starting index {} preparation".format(self.index_name),
                 source_type_name="esbuild",
                 alert_type="info",
-                tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+                tags=['es_index:{}'.format(self.index_name),
+                      'projects:{}'.format(projects_to_build),
+                      'stage:preparation'],
             )
-            self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
+            self.release_helper.prepare_index_to_build(self.index_name,
+                                                       self.build_projects)
 
-            # Prepare index (if it exists) to be augmented by new data
-            if self.es:
-                start_time = datetime.datetime.now()
-                if self.index_name in self.es.indices.get_alias():
-                    if self.build_projects:
-                        projects_to_build = ','.join(self.build_projects)
-                    else:
-                        projects_to_build = 'all'
-                        self.log.info(
-                            "ANALYSIS: Preparing ES index to be updated "
-                            "with {} projects".format(projects_to_build)
-                        )
-                    statsd.event(
-                        "Index preparation started",
-                        "starting index {} preparation".format(self.index_name),
-                        source_type_name="esbuild",
-                        alert_type="info",
-                        tags=['es_index:{}'.format(self.index_name),
-                              'projects:{}'.format(projects_to_build),
-                              'stage:preparation'],
-                    )
-                    self.release_helper.prepare_index_to_build(self.index_name,
-                                                               self.build_projects)
+        self.log.info("Deploying new ES index with new docs and bumping alias")
+        statsd.event(
+            "es uploading started",
+            "starting uploading index {}".format(self.index_name),
+            source_type_name="esbuild",
+            alert_type="info",
+            tags=["es_index:{}".format(self.index_name),
+                  'stage:uploading'],
+        )
 
-                denom_end_time = datetime.datetime.now()
-                self.log.info(
-                    "ANALYSIS: Denormalized data in %s",
-                    denom_end_time - start_time
-                )
-                self.log.info("Deploying new ES index with new docs and bumping alias")
-                statsd.event(
-                    "es uploading started",
-                    "starting uploading index {}".format(self.index_name),
-                    source_type_name="esbuild",
-                    alert_type="info",
-                    tags=["es_index:{}".format(self.index_name),
-                          'stage:uploading'],
-                )
-                try:
-                    new_index = self.deploy(
-                        case_docs, file_docs, ann_docs, project_docs,
-                        index_name=self.index_name, roll_alias=roll_alias,
-                        cleanup_indices=cleanup_indices)
-                except Exception as exception:
-                    self.log.exception(
-                        'Unable to deploy documents to {}: {}, saving to {}'
-                        ''.format(self.index_name, exception,
-                                  self.doc_output_dir),
-                        exc_info=True,
-                    )
-                    self.save_docs(case_docs, file_docs, ann_docs, project_docs)
-            else:
-                new_index = 'not built'
-
-        # Delete nodes that are marked "to_delete" if --delete flag is passed.
-        # Dump to log otherwise (if any in list -- default behavior)
-        self.delete_nodes(to_delete=to_delete, delete_nodes=delete_nodes)
+        new_index = None
+        try:
+            new_index = self.deploy(
+                case_docs, file_docs, ann_docs, project_docs,
+                index_name=self.index_name, roll_alias=roll_alias,
+                cleanup_indices=cleanup_indices)
+        except Exception as exception:
+            self.log.exception(
+                'Unable to deploy documents to {}: {}, saving to {}'
+                ''.format(self.index_name, exception,
+                          self.doc_output_dir),
+                exc_info=True,
+            )
+            self.save_docs(case_docs, file_docs, ann_docs, project_docs)
 
         # Dump skipped nodes info into a file
         self.log_skipped_nodes()
-        if not skip_build:
-            statsd.event(
-                "esbuild finished",
-                "successfully built index {}".format(new_index),
-                source_type_name="esbuild",
-                alert_type="info",
-                tags=["es_index:{}".format(new_index), 'stage:finished'],
-            )
-        end_time = datetime.datetime.now()
-        self.log.info("ANALYSIS: Run complete in %s - high water %d", end_time - start_time,
-            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+        statsd.event(
+            "esbuild finished",
+            "successfully built index {}".format(new_index),
+            source_type_name="esbuild",
+            alert_type="info",
+            tags=["es_index:{}".format(new_index), 'stage:finished'],
+        )
 
     def log_skipped_nodes(self):
-        self.log.info("Logging skipped nodes to log file in ~")
-        self.log_into_file(self.converter.skipped_nodes, 'esbuild-skipped_nodes')
+        self.log.info("Logging skipped nodes to log file in `save_doc_path`")
+        self.log_into_file(self.converter.skipped_nodes,
+                           self.save_doc_path,
+                           'esbuild-skipped_nodes')
 
     @staticmethod
-    def log_into_file(entries, file_nametag):
+    def log_into_file(entries, path, file_nametag):
         """
-        Dump entries into file `~/{file_nametag}_{datetime_now}.{list,json}`
+        Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`
 
         Extension depends on whether `entries` is list or dict
         """
@@ -318,40 +320,17 @@ class GDCElasticsearch(object):
         else:
             raise ValueError("Can only dump list or dict objects")
 
-        file_name = '{}/{}-{}.{}'.format(os.path.expanduser('~'),
-                                         file_nametag,
-                                         datetime.datetime.now().isoformat(),
-                                         extension)
+        file_name = '{}/{}-{}.{}'.format(
+            path, file_nametag, datetime.datetime.now().isoformat(), extension)
+
         with open(file_name, 'w') as f:
             if isinstance(entries, list):
                 for entry in entries:
                     f.write(entry + '\n')
             elif isinstance(entries, dict):
-                f.write(json.dumps(entries))
-
-    def delete_nodes(self, to_delete=None, delete_nodes=True):
-        """
-        If delete_nodes is True, will remove nodes marked "sysan['to_delete']" from
-        the graph
-        Otherwise will dump these nodes into log file (default behavior)
-
-        """
-        if to_delete is None:
-            to_delete = []
-
-        if delete_nodes == True:
-            with self.graph.session_scope() as session:
-                for expired_node in to_delete:
-                    node = self.graph.nodes().get(expired_node)
-                    if node:
-                        if 'to_delete' in node.sysan:
-                            if node.sysan['to_delete']:
-                                self.log.info("Deleting %s", node)
-                                session.delete(node)
-        else:
-            if to_delete:
-                self.log.info("Skipping deletion of nodes, saving them to log file in ~")
-                self.log_into_file(to_delete, 'esbuild-to_delete')
+                f.write(json.dumps(entries, indent=2))
+            else:
+                f.write(str(entries))
 
     def pbar(self, title, maxval):
         """Create and initialize a custom progressbar
