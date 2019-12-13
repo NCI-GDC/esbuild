@@ -1482,7 +1482,7 @@ class GraphIndexBuilder(object):
         if esid:
             ann_doc['entity_submitter_id'] = esid
 
-        with self.g.context.session.no_autoflush:
+        with self.g._new_session().no_autoflush:
             case_edges = (
                 self.g.edges(md.AnnotationRelatesToCase)
                 .filter(md.AnnotationRelatesToCase.src_id == node.node_id)
@@ -1503,7 +1503,7 @@ class GraphIndexBuilder(object):
 
         projects = projects or {}
 
-        with g.context.session.no_autoflush:
+        with g._new_session().no_autoflush:
 
             edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
             entities = dict()
