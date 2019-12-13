@@ -41,8 +41,10 @@ def index(init_indexd, pg_driver):
 
 @pytest.fixture
 def custom_annotation(pg_driver):
-    case = fuzzed(md.Case)
-    annotation = fuzzed(md.Annotation, category='Item flagged DNU')
+    case = fuzzed(md.Case, project_id='TCGA-BRCA', state='live')
+    annotation = fuzzed(
+        md.Annotation, node_id='custom-annotation', category='Item flagged DNU',
+        classification='Notification')
     with pg_driver.session_scope() as s:
         f = pg_driver.nodes(md.File).ids(get_node_id('live-file')).first()
         case.projects = [pg_driver.nodes(md.Project).props(code='BRCA').first()]
@@ -58,10 +60,10 @@ def custom_annotation(pg_driver):
 @pytest.fixture
 def suppressed_case(pg_driver, graph_factory):
     nodes = [
-        dict(label='case', submitter_id='suppressed_case'),
-        dict(label='sample', submitter_id='suppressed_sample'),
-        dict(label='aliquot', submitter_id='suppressed_aliquot'),
-        dict(label='file', submitter_id='suppressed_file'),
+        dict(label='case', submitter_id='suppressed_case', state='live'),
+        dict(label='sample', submitter_id='suppressed_sample', state='live'),
+        dict(label='aliquot', submitter_id='suppressed_aliquot', state='live'),
+        dict(label='file', submitter_id='suppressed_file', state='live'),
     ]
     edges = [
         dict(src='suppressed_sample', dst='suppressed_case'),
@@ -77,7 +79,7 @@ def suppressed_case(pg_driver, graph_factory):
         redaction = graph_factory.node_factory.create(
             'annotation',
             override={'classification': 'Redaction', 'category': 'General',
-                      'state': 'released'},
+                      'state': 'live', 'status': 'Approved'},
             all_props=True
         )
         case.annotations = [redaction]
@@ -91,20 +93,24 @@ def suppressed_case(pg_driver, graph_factory):
 
 @pytest.fixture
 def non_case_redaction(pg_driver):
-    annotation = fuzzed(md.Annotation, classification='Redaction')
+    annotation = fuzzed(md.Annotation, node_id='non-case-redaction-1',
+                        classification='Redaction', project_id='TCGA-BRCA',
+                        category='General', status='Approved')
     with pg_driver.session_scope() as s:
         portion_id = get_node_id('portion-01')
-        portion = pg_driver.nodes(md.Portion).ids(portion_id).one()
-        portion.annotations = [annotation]
+        portion = pg_driver.nodes(md.Portion).get(portion_id)
+        annotation.portions = [portion]
 
         sample = portion.samples[0]
         case = sample.cases[0]
         analyte = portion.analytes[0]
         aliquot = analyte.aliquots[0]
 
-        redacted1 = fuzzed(md.File, node_id="redact1", state="live")
+        redacted1 = fuzzed(md.File, node_id="redact1", state="live",
+                           project_id='TCGA-BRCA')
         redacted1.portions = [portion]
-        redacted2 = fuzzed(md.File, node_id="redact2", state="live")
+        redacted2 = fuzzed(md.File, node_id="redact2", state="live",
+                           project_id='TCGA-BRCA')
         redacted2.aliquots = [aliquot]
 
         s.add(annotation)
@@ -113,7 +119,7 @@ def non_case_redaction(pg_driver):
 
     yield portion, sample, case
 
-    cleanup_nodes(pg_driver, [portion, redacted1, redacted2])
+    cleanup_nodes(pg_driver, [annotation, redacted1, redacted2])
 
 
 @pytest.fixture
@@ -124,6 +130,7 @@ def non_live_related_file(pg_driver):
             md.File,
             state="live",
             file_name="derived_file.bam",
+            project_id='TCGA-BRCA',
         )
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
@@ -131,6 +138,7 @@ def non_live_related_file(pg_driver):
             md.File,
             state="uploaded",
             file_name="derived_file.txt",
+            project_id='TCGA-BRCA',
         )
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
@@ -150,6 +158,8 @@ def withdrew_consent_redaction(pg_driver):
             md.Annotation,
             classification='Redaction',
             category='Subject withdrew consent',
+            project_id='TCGA-BRCA',
+            status='Approved',
         )
         case.annotations = [annotation]
 
@@ -184,6 +194,7 @@ def derived_file_setup(pg_driver):
             md.File,
             state="live",
             file_name="derived_file.bam",
+            project_id='TCGA-BRCA',
         )
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
@@ -191,6 +202,7 @@ def derived_file_setup(pg_driver):
             md.File,
             state="live",
             file_name="derived_file.bam.txt",
+            project_id='TCGA-BRCA',
         )
         related_to_derived.sysan["source"] = "tcga_exome_alignment"
         derived_file.related_files = [related_to_derived]
@@ -282,6 +294,10 @@ def test_basic_suppression(pg_driver, init_indexd, suppressed_case):
     case, redaction = suppressed_case
     index = build_index(pg_driver, init_indexd)
 
+    with pg_driver.session_scope():
+        assert pg_driver.nodes().get(case.node_id) is not None
+        assert pg_driver.nodes().get(redaction.node_id) is not None
+
     assert case.node_id not in [c["case_id"] for c in index.cases]
     assert 'redacted-file' not in [f["file_id"] for f in index.files]
 
@@ -293,9 +309,9 @@ def test_non_case_suppression(pg_driver, init_indexd, non_case_redaction):
     case_doc = [c for c in index.cases if c["case_id"] == case.node_id][0]
     sample_doc = [s for s in case_doc["samples"] if s["sample_id"] == sample.node_id][0]
 
-    assert portion.node_id not in [
-        p.get("portion_id", None) for p in sample_doc["portions"]
-    ]
+    assert portion.node_id not in {p.get("portion_id")
+                                   for p in sample_doc["portions"]}
+
     assert "redact1" not in [f["file_id"] for f in index.files]
     assert "redact2" not in [f["file_id"] for f in index.files]
 

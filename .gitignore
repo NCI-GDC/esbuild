@@ -27,6 +27,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.python-version
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -40,7 +41,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 .pytest_cache/
-htmlcov/
+*htmlcov/
 .tox/
 .coverage
 .cache

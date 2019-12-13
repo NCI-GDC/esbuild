@@ -6,65 +6,33 @@ from the same database in the real world.
 
 """
 
-from esbuild.graph.common.builder import GraphIndexBuilder
-from gdcdatamodel.models import *  # noqa
-from gdcdictionary import gdcdictionary
-
-import random
-import string
-import uuid
 import hashlib
+import random
 import re
+import uuid
+
+from gdcdatamodel import models as md
+from gdcdictionary import gdcdictionary
+from psqlgraph.mocks import NodeFactory
+
+from esbuild.graph.common.builder import GraphIndexBuilder
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
 DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
-
-
-def random_string(length=6):
-    return ''.join([
-        random.choice(
-            string.ascii_lowercase + string.digits
-        ) for _ in range(length)
-    ])
+# Populated each time get_node_id is called, Used for debugging missing ids
+NODE_ID_TO_STRING = {}
+# Defaults for the node factory
+node_factory = NodeFactory(md, gdcdictionary.schema)
 
 
 def fuzzed(node_class, node_id=None, **kwargs):
-    if node_id is None:
-        node_id = str(uuid.uuid4())
-    for key, types in node_class.get_pg_properties().items():
-        schema = gdcdictionary.schema[node_class.label]
-        prop_def = schema['properties'].get(key, {})
+    # Set some required properties if not provided
+    kwargs['acl'] = kwargs.get('acl', ['phs000178'])
+    kwargs['node_id'] = node_id or str(uuid.uuid4())
+    kwargs['state'] = kwargs.get('state') or 'released'
 
-        if key in kwargs:
-            continue
-
-        # State
-        if 'state' not in kwargs and 'state' in node_class.__pg_properties__:
-            kwargs['state'] = 'released'
-        # ACL
-        if 'acl' not in kwargs:
-            kwargs['acl'] = ['phs000178']
-        # Enum
-        elif 'enum' in prop_def:
-            kwargs[key] = prop_def['enum'][0]
-        # String
-        elif not types or str in types:
-            kwargs[key] = random_string()
-        # Integer
-        elif int in types or long in types:
-            kwargs[key] = random.randint(1e6, 1e7)
-        # Float
-        elif float in types:
-            kwargs[key] = random.random()
-        # Boolean
-        elif bool in types:
-            kwargs[key] = random.choice((True, False))
-
-    return node_class(node_id, **kwargs)
-
-
-# Populated each time get_node_id is called, Used for debugging missing ids
-NODE_ID_TO_STRING = {}
+    return node_factory.create(node_class.label, override=kwargs,
+                               all_props=True)
 
 
 def get_node_id(string_id):
@@ -133,84 +101,90 @@ def patch_test_data_get_indexd(nodes):
 
 NODES = [
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('file-only-attached-to-archive-1'),
         acl=['phs0000178'],
         state='released',
         file_name='file-only-attached-to-archive-1.txt',
     ),
     fuzzed(
-        Archive,
+        md.Archive,
         acl=['phs000178'],
         state='released',
         node_id=get_node_id('archive_1'),
     ),
     fuzzed(
-        AnnotatedSomaticMutation,
+        md.AnnotatedSomaticMutation,
         node_id=get_node_id('annotated_somatic_mutation_1'),
         acl=['phs000178'],
+        data_type='Annotated Somatic Mutation',
         state='released',
         file_name='annotated_somatci_mutation_1.bam'
     ),
     fuzzed(
-        SomaticAnnotationWorkflow,
+        md.SomaticAnnotationWorkflow,
         node_id=get_node_id('somatic_annotation_workflow_1'),
         state='released',
     ),
     fuzzed(
-        SimpleSomaticMutation,
+        md.SimpleSomaticMutation,
         node_id=get_node_id('simple_somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
+        data_category='Combined Nucleotide Variation',
         file_name='simple_somatic_mutation_1.bam',
     ),
     fuzzed(
-        SomaticMutationCallingWorkflow,
+        md.SomaticMutationCallingWorkflow,
         node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='released',
     ),
     fuzzed(
-        SubmittedTangentCopyNumber,
+        md.SubmittedTangentCopyNumber,
         node_id=get_node_id('cnv-file-1'),
         acl=['phs000178'],
         state='released',
         file_name='cnv-file-1.bam',
     ),
     fuzzed(
-        CopyNumberLiftoverWorkflow,
+        md.CopyNumberLiftoverWorkflow,
         node_id=get_node_id('cnv-workflow-1'),
         acl=['phs000178'],
         state='released',
     ),
     fuzzed(
-        CopyNumberSegment,
+        md.CopyNumberSegment,
         node_id=get_node_id('cnv-segment-file-1'),
         acl=['phs000178'],
         state='released',
+        data_type='Allele-specific Copy Number Segment',
         file_name='cnv-segment-file-1.ext'
     ),
     fuzzed(
-        AnalysisMetadata,
+        md.AnalysisMetadata,
         node_id=get_node_id('analysis-metadata-1'),
         acl=['phs000178'],
+        data_category='Sequencing Data',
+        data_format='SRA XML',
         file_name='analysis-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
-        RunMetadata,
+        md.RunMetadata,
         node_id=get_node_id('run-metadata-1'),
         acl=['phs000178'],
         file_name='run-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
     fuzzed(
-        ExperimentMetadata,
+        md.ExperimentMetadata,
         node_id=get_node_id('experiment-metadata-1'),
         acl=['phs000178'],
+        data_category='Sequencing Data',
         file_name='experiment-metadata-1.xml',
         md5sum='d8e8fca2dc0f896fd7cb4cb0031ba249',
     ),
-    File(
+    md.File(
         node_id=get_node_id('live-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
@@ -223,7 +197,7 @@ NODES = [
         submitter_id='5cb6bc65-9cd5-45ac-9078-551bc7408906',
         error_type=None,
     ),
-    File(
+    md.File(
         node_id=get_node_id('harmonized-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
@@ -237,7 +211,7 @@ NODES = [
         )
     ),
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('index-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
@@ -245,28 +219,29 @@ NODES = [
         file_name='test_file.bam.bai',
     ),
     fuzzed(
-        AlignedReadsIndex,
+        md.AlignedReadsIndex,
         node_id=get_node_id('index-file-2'),
         acl=['phs000178'],
         state='live',
+        data_category='Sequencing Data',
         file_name='index-file-2.bam.bai',
     ),
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('legacy-file-with-empty-acl'),
         acl=[],
         state='live',
         file_name='test-file-3.bam',
     ),
     fuzzed(
-        AlignedReads,
+        md.AlignedReads,
         node_id=get_node_id('active-file-with-empty-acl'),
         state='released',
         acl=[],
         file_name='test-file-4.bam',
     ),
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('related-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
@@ -275,13 +250,13 @@ NODES = [
         file_name="a_related_file.txt"
     ),
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('non-live-file'),
         acl=['phs000178'],
         state='uploaded',
         file_name='non-live-file-foo-bar',
     ),
-    File(
+    md.File(
         node_id=get_node_id('to-delete-file'),
         acl=['phs000178'],
         project_id='TCGA-BRCA',
@@ -295,14 +270,14 @@ NODES = [
         error_type=None,
     ),
     fuzzed(
-        AlignedReads,
+        md.AlignedReads,
         node_id=get_node_id('aligned-reads-2'),
         state='released',
         data_format='BAM',
         file_name='aligned-reads-2.bam',
         acl=['phs000178'],
     ),
-    AlignedReads(
+    md.AlignedReads(
         node_id=get_node_id('aligned-reads-1'),
         acl=['phs000178'],
         data_category='Sequencing Reads',
@@ -319,12 +294,12 @@ NODES = [
         state_comment='qi8sh3',
         submitter_id='280msb',
     ),
-    AlignmentCocleaningWorkflow(
+    md.AlignmentCocleaningWorkflow(
         node_id=get_node_id('alignment_cocleaning_wf'),
         acl=['phs000178'],
         state='released',
     ),
-    SubmittedAlignedReads(
+    md.SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-1'),
         acl=['phs000178'],
         data_category='Sequencing Reads',
@@ -341,7 +316,7 @@ NODES = [
         state_comment='6665h3',
         submitter_id='submitted_aligned_reads1',
     ),
-    SubmittedAlignedReads(
+    md.SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-2'),
         acl=['phs000178'],
         data_category='Sequencing Reads',
@@ -358,21 +333,21 @@ NODES = [
         state_comment='tl16c3',
         submitter_id='submitted_aligned_reads2',
     ),
-    SubmittedAlignedReads(
+    md.SubmittedAlignedReads(
         node_id=get_node_id('submitted-aligned-reads-without-downstream'),
         state='released',
         acl=['phs000178'],
         file_name='submitted-aligned-reads-without-downstream.bam',
     ),
     fuzzed(
-        ReadGroupQc,
+        md.ReadGroupQc,
         node_id=get_node_id('read-group-qc-1'),
     ),
     fuzzed(
-        ReadGroup,
+        md.ReadGroup,
         node_id=get_node_id('read-group-without-downstream'),
     ),
-    ReadGroup(
+    md.ReadGroup(
         node_id=get_node_id('read-group-1'),
         RIN=6610844,
         adapter_name='j0o0ou',
@@ -410,18 +385,18 @@ NODES = [
         target_capture_kit_version='nuoood',
         to_trim_adapter_sequence=False,
     ),
-    ReadGroup(
+    md.ReadGroup(
         node_id=get_node_id('read-group-2'),
         state='released',
         project_id='TCGA-BRCA',
     ),
-    Clinical(
+    md.Clinical(
         node_id=get_node_id('clinical-1'),
         state='released',
         project_id='TCGA-BRCA',
         age_at_diagnosis=34,
     ),
-    Demographic(
+    md.Demographic(
         node_id=get_node_id('demographic-1'),
         project_id='TCGA-BRCA',
         ethnicity='hispanic or latino',
@@ -432,7 +407,7 @@ NODES = [
         year_of_birth=1951,
         year_of_death=-1,
     ),
-    Exposure(
+    md.Exposure(
         node_id=get_node_id('exposure-1'),
         state='released',
         alcohol_history='Unknown',
@@ -445,7 +420,7 @@ NODES = [
         weight=-1,
         years_smoked=-1
     ),
-    FamilyHistory(
+    md.FamilyHistory(
         node_id=get_node_id('family-history-1'),
         state='released',
         project_id=u'TCGA-DEV1',
@@ -455,7 +430,7 @@ NODES = [
         relationship_type=u'Nephew',
         submitter_id=u'TCGA-DEV-1-CASE-0011-FAMILY-HISTORY',
     ),
-    Diagnosis(
+    md.Diagnosis(
         node_id=get_node_id('diagnosis-unknown-tumor-status'),
         state='released',
         age_at_diagnosis=47,
@@ -475,7 +450,7 @@ NODES = [
         tumor_grade=u'GB',
         tumor_stage=u'stage iiia',
     ),
-    Treatment(
+    md.Treatment(
         node_id=get_node_id('treatment-1'),
         state='released',
         days_to_treatment_end=None,
@@ -485,7 +460,7 @@ NODES = [
         treatment_intent_type=None,
         treatment_or_therapy=u'unknown',
     ),
-    MolecularTest(
+    md.MolecularTest(
         node_id=get_node_id('molecular-test-1'),
         project_id='TCGA-BRCA',
         state='released',
@@ -493,13 +468,13 @@ NODES = [
         molecular_analysis_method='FISH',
         test_result='Unknown'
     ),
-    FollowUp(
+    md.FollowUp(
         node_id=get_node_id('follow-up-1'),
         project_id='TCGA-BRCA',
         state='released',
         days_to_follow_up=888
     ),
-    Sample(
+    md.Sample(
         node_id=get_node_id('sample-primary-tumor'),
         project_id='TCGA-BRCA',
         state='released',
@@ -522,7 +497,7 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-1'),
         project_id='TCGA-BRCA',
         state='released',
@@ -531,7 +506,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A133-02',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-attached-to-sample'),
         project_id='TCGA-BRCA',
         state='released',
@@ -540,7 +515,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A133-03',
     ),
-    Analyte(
+    md.Analyte(
         node_id=get_node_id('analyte-repli-g-qiagen-dna'),
         project_id='TCGA-BRCA',
         state='released',
@@ -553,7 +528,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-01A-31W',
         well_number=None,
     ),
-    Analyte(
+    md.Analyte(
         node_id=get_node_id('analyte-1'),
         project_id='TCGA-BRCA',
         a260_a280_ratio=1.94,
@@ -566,7 +541,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01D',
         well_number=None,
     ),
-    Analyte(
+    md.Analyte(
         node_id=get_node_id('analyte-2'),
         project_id='TCGA-BRCA',
         state='released',
@@ -579,7 +554,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01W',
         well_number=None,
     ),
-    Case(
+    md.Case(
         node_id=get_node_id('case-tcga-brca-breast'),
         project_id='TCGA-BRCA',
         state='released',
@@ -587,13 +562,13 @@ NODES = [
         primary_site='Breast',
         disease_type='Breast Invasive Carcinoma'
     ),
-    Case(
+    md.Case(
         node_id=get_node_id('unsubmitted-case'),
         project_id='TCGA-BRCA',
         state='validated',
         submitter_id='unsubmitted-case',
     ),
-    Case(
+    md.Case(
         # floating case. has no neighbors
         node_id=get_node_id('case-floating-no-neighbours'),
         project_id='TCGA-BRCA',
@@ -602,7 +577,7 @@ NODES = [
         primary_site='Breast',
         disease_type='Breast Invasive Carcinoma'
     ),
-    Case(
+    md.Case(
         # released case in unreleased project
         node_id=get_node_id('released-case-in-unreleased-project'),
         project_id='INTERNAL-DEV1',
@@ -611,7 +586,7 @@ NODES = [
         primary_site="Bone",
         disease_type="Miscellaneous Bone Tumors",
     ),
-    Case(
+    md.Case(
         # submitted case in AWG project
         node_id=get_node_id('submitted-awg-case'),
         project_id='INTERNAL-AWG-ONE',
@@ -620,7 +595,7 @@ NODES = [
         primary_site="Bone",
         disease_type="Miscellaneous Bone Tumors",
     ),
-    Case(
+    md.Case(
         # processed case in AWG project
         node_id=get_node_id('processed-awg-case'),
         project_id='INTERNAL-AWG-ONE',
@@ -629,7 +604,7 @@ NODES = [
         primary_site="Bone",
         disease_type="Miscellaneous Bone Tumors",
     ),
-    Case(
+    md.Case(
         # fake case in fake active project
         node_id=get_node_id('fake_active_case_1'),
         project_id='TCGA-FAKE_ACTIVE',
@@ -638,7 +613,7 @@ NODES = [
         primary_site='Prostate',
         disease_type='Prostate Adenocarcinoma'
     ),
-    Case(
+    md.Case(
         # second fake case in fake active project
         node_id=get_node_id('fake_active_case_2'),
         project_id='TCGA-FAKE_ACTIVE',
@@ -647,7 +622,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Case(
+    md.Case(
         # unreleased case in a released project
         node_id=get_node_id('unreleased-case-in-released-project'),
         project_id='TCGA-BRCA',
@@ -656,7 +631,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Case(
+    md.Case(
         # TT-1044 blocking release
         node_id=get_node_id('blocking-release-case'),
         project_id='TCGA-BRCA',
@@ -665,7 +640,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Case(
+    md.Case(
         # TT-1044 blocking release
         node_id=get_node_id('blocking-release-case-released'),
         project_id='TCGA-BRCA',
@@ -674,7 +649,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Portion(
+    md.Portion(
         node_id=get_node_id('portion-01'),
         project_id='TCGA-BRCA',
         creation_datetime=1293494400,
@@ -684,7 +659,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-10A-01',
         weight=None,
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-2'),
         project_id='TCGA-BRCA',
         amount=6.67,
@@ -693,7 +668,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A134-01',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-without-downstream'),
         project_id='TCGA-BRCA',
         state='released',
@@ -702,7 +677,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A134-01',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-3'),
         project_id='TCGA-BRCA',
         state='released',
@@ -711,7 +686,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31R-A136-13',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-4'),
         project_id='TCGA-BRCA',
         state='released',
@@ -720,7 +695,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A133-02',
     ),
-    Analyte(
+    md.Analyte(
         node_id=get_node_id('analyte-dna'),
         project_id='TCGA-BRCA',
         state='released',
@@ -733,7 +708,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-01A-31D',
         well_number=None,
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-5'),
         project_id='TCGA-BRCA',
         state='released',
@@ -742,7 +717,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01W-A14P-09',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-6'),
         project_id='TCGA-BRCA',
         state='released',
@@ -751,7 +726,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-10A-01D-A135-09',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-7'),
         project_id='TCGA-BRCA',
         state='released',
@@ -760,7 +735,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31R-A137-07',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-8'),
         project_id='TCGA-BRCA',
         state='released',
@@ -769,7 +744,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A135-09',
     ),
-    Slide(
+    md.Slide(
         node_id=get_node_id('slide-top-1'),
         project_id='TCGA-BRCA',
         state='released',
@@ -788,7 +763,7 @@ NODES = [
         section_location='TOP',
         submitter_id='TCGA-AR-A1AR-01A-03-TSC',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-9'),
         project_id='TCGA-BRCA',
         state='released',
@@ -797,7 +772,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31D-A138-05',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-10'),
         project_id='TCGA-BRCA',
         state='released',
@@ -806,7 +781,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31W-A14P-09',
     ),
-    Aliquot(
+    md.Aliquot(
         node_id=get_node_id('aliquot-derived-from-unreleased-sample'),
         project_id='TCGA-BRCA',
         state='released',
@@ -815,7 +790,7 @@ NODES = [
         source_center='23',
         submitter_id='TCGA-AR-A1AR-01A-31W-A14P-10',
     ),
-    Portion(
+    md.Portion(
         node_id=get_node_id('portion-31'),
         project_id='TCGA-BRCA',
         state='released',
@@ -825,7 +800,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-01A-31',
         weight=30.0,
     ),
-    Analyte(
+    md.Analyte(
         node_id=get_node_id('analyte-3'),
         project_id='TCGA-BRCA',
         state='released',
@@ -838,7 +813,7 @@ NODES = [
         submitter_id='TCGA-AR-A1AR-01A-31R',
         well_number=None,
     ),
-    Sample(
+    md.Sample(
         node_id=get_node_id('sample-blood-derived-normal'),
         project_id='TCGA-BRCA',
         state='released',
@@ -861,7 +836,7 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
-    ProteinExpression(
+    md.ProteinExpression(
         node_id=get_node_id('protein-expression-from-sample-released'),
         data_type='Protein Expression Quantification',
         state='released',
@@ -875,7 +850,7 @@ NODES = [
         platform='RPPA',
         project_id='TCGA-BRCA',
     ),
-    Portion(
+    md.Portion(
         node_id=get_node_id('protein-expression-portion'),
         project_id='TCGA-BRCA',
         creation_datetime=1293494401,
@@ -885,7 +860,7 @@ NODES = [
         submitter_id='protein-expression-portion',
         weight=None,
     ),
-    ProteinExpression(
+    md.ProteinExpression(
         node_id=get_node_id('protein-expression-from-portion-released'),
         data_type='Protein Expression Quantification',
         state='released',
@@ -899,7 +874,7 @@ NODES = [
         platform='RPPA',
         project_id='TCGA-BRCA',
     ),
-    Sample(
+    md.Sample(
         node_id=get_node_id('sample-unreleased'),
         project_id='TCGA-BRCA',
         state='submitted',
@@ -921,7 +896,7 @@ NODES = [
         tumor_code=None,
         tumor_code_id=None,
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('annotation-approved-center-qc-failed'),
         category="Center QC failed",
         classification="CenterNotification",
@@ -931,17 +906,17 @@ NODES = [
         status="Approved",
         submitter_id="0000",
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('rescinded-annotation'),
         state='released',
         status="Rescinded",
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('unreleased-annotation'),
         state='submitted',
         status='Approved'
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('rescinded-redaction-annotation'),
         category='Administrative Compliance',
         classification='Redaction',
@@ -952,36 +927,37 @@ NODES = [
         status="Rescinded",
     ),
     # TT-1044 blocking release
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('block-release-annotation'),
         state='submitted',
         status='Approved',
         classification='Blocking Release',
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('block-release-annotation-released'),
         state='released',
         status='Approved',
         classification='Blocking Release',
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('annotation-without-downstream'),
         state='released',
     ),
     fuzzed(
-        SomaticMutationCallingWorkflow,
+        md.SomaticMutationCallingWorkflow,
         node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='released',
     ),
     fuzzed(
-        SimpleSomaticMutation,
+        md.SimpleSomaticMutation,
         node_id=get_node_id('somatic_mutation_1'),
         acl=['phs000178'],
         state='released',
-        file_name='somatic_mutation_1.vcf'
+        data_category='Combined Nucleotide Variation',
+        file_name='somatic_mutation_1.vcf',
     ),
     fuzzed(
-        BiospecimenSupplement,
+        md.BiospecimenSupplement,
         node_id=get_node_id('biospecimen_supplement_1'),
         acl=['phs000178'],
         data_category='Biospecimen',
@@ -991,7 +967,7 @@ NODES = [
         state='live'
     ),
     fuzzed(
-        ClinicalSupplement,
+        md.ClinicalSupplement,
         node_id=get_node_id('clinical_supplement_1'),
         acl=['phs000178'],
         data_category='Clinical',
@@ -1001,7 +977,7 @@ NODES = [
         state='live'
     ),
     fuzzed(
-        File,
+        md.File,
         node_id=get_node_id('old-biospecimen-supplement-xml'),
         acl=['phs000178'],
         file_name='nationwidechildrens.org_biospecimen.TCGA-72-4234.xml',
@@ -1011,30 +987,33 @@ NODES = [
         file_state='submitted',
     ),
     fuzzed(
-        SomaticAggregationWorkflow,
+        md.SomaticAggregationWorkflow,
         node_id=get_node_id('somatic-aggregation-workflow-1'),
     ),
     fuzzed(
-        AnnotatedSomaticMutation,
+        md.AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-2'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-2.vcf',
     ),
     fuzzed(
-        AnnotatedSomaticMutation,
+        md.AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-3'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-3.vcf',
     ),
     fuzzed(
-        AnnotatedSomaticMutation,
+        md.AnnotatedSomaticMutation,
         node_id=get_node_id('annotated-somatic-mutation-4'),
+        data_type='Annotated Somatic Mutation',
         file_name='annotated-somatic-mutation-4.vcf',
     ),
     fuzzed(
-        AggregatedSomaticMutation,
+        md.AggregatedSomaticMutation,
         node_id=get_node_id('aggregated-somatic-mutation-1'),
         file_name='aggregated-somatic-mutation-1.vcf',
     ),
-    File(
+    md.File(
         node_id=get_node_id('slide-image-file'),
         file_name='TCGA-slide-file-1.svs',
         file_size=1245610777,
@@ -1044,7 +1023,7 @@ NODES = [
         state='live',
         file_state='submitted',
     ),
-    File(
+    md.File(
         # SNV File: added for regression of removing case.files from the active
         # index
         node_id=get_node_id('snv-file'),
@@ -1059,7 +1038,7 @@ NODES = [
     ),
 
     # Methylation values
-    SubmittedMethylationBetaValue(
+    md.SubmittedMethylationBetaValue(
         node_id=get_node_id('sub-methyl-beta-value'),
         acl=['open'],
         created_datetime=u'2016-09-29T22:03:22.817635+00:00',
@@ -1075,13 +1054,13 @@ NODES = [
         state='released',
         updated_datetime=u'2016-09-29T22:03:22.817635+00:00',
     ),
-    MethylationLiftoverWorkflow(
+    md.MethylationLiftoverWorkflow(
         node_id=get_node_id('methyl-lift-wf'),
         workflow_type='Liftover',
         state='released',
         acl=['open'],
     ),
-    MethylationBetaValue(
+    md.MethylationBetaValue(
         node_id=get_node_id('methyl-beta-value'),
         acl=['open'],
         state='released',
@@ -1099,37 +1078,37 @@ NODES = [
     ),
 
     # Prelude nodes
-    DataSubtype(
+    md.DataSubtype(
         node_id=get_node_id('data_subtype_aligned_reads'),
         name='Aligned reads',
     ),
-    DataType(
+    md.DataType(
         node_id=get_node_id('data_type_raw_sequencing'),
         name='Raw sequencing data',
     ),
-    Platform(
+    md.Platform(
         node_id=get_node_id('platform-illumina-hiseq'),
         name='Illumina HiSeq',
     ),
-    ExperimentalStrategy(
+    md.ExperimentalStrategy(
         node_id=get_node_id('experimental-strategy-rna-seq'),
         name='RNA-Seq'
     ),
-    Tag(
+    md.Tag(
         node_id=get_node_id('tag-snv'),
         name='snv',
     ),
-    Program(
+    md.Program(
         node_id=get_node_id('program-tcga'),
         dbgap_accession_number="phs000178",
         name="TCGA",
     ),
-    Program(
+    md.Program(
         node_id=get_node_id('internal-program'),
         dbgap_accession_number="gdc000000",
         name="INTERNAL",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-unc-edu'),
         code="07",
         namespace="unc.edu",
@@ -1137,7 +1116,7 @@ NODES = [
         short_name="UNC",
         center_type="CGCC",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-broad-mit-edu'),
         code="01",
         namespace="broad.mit.edu",
@@ -1145,14 +1124,14 @@ NODES = [
         short_name="BI",
         center_type="CGCC",
     ),
-    TissueSourceSite(
+    md.TissueSourceSite(
         node_id=get_node_id('tissue-source-site-breast-invasive-carcinoma'),
         project="Breast invasive carcinoma",
         bcr_id="NCH",
         code="AR",
         name="Mayo",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-hms-harvard-edu'),
         code="02",
         namespace="hms.harvard.edu",
@@ -1160,7 +1139,7 @@ NODES = [
         short_name="HMS",
         center_type="CGCC",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-jhu-usc-edu'),
         code="05",
         namespace="jhu-usc.edu",
@@ -1168,7 +1147,7 @@ NODES = [
         short_name="JHU_USC",
         center_type="CGCC",
     ),
-    Project(
+    md.Project(
         node_id=get_node_id('project-legacy-brca'),
         released=True,
         state="legacy",
@@ -1177,7 +1156,7 @@ NODES = [
         dbgap_accession_number=None,
         name="Breast Invasive Carcinoma",
     ),
-    Project(
+    md.Project(
         node_id=get_node_id('fake_active_project'),
         released=True,
         state="open",
@@ -1186,7 +1165,7 @@ NODES = [
         dbgap_accession_number=None,
         name="Made up active project",
     ),
-    Project(
+    md.Project(
         node_id=get_node_id('unreleased-project'),
         released=False,
         state="open",
@@ -1195,7 +1174,7 @@ NODES = [
         dbgap_accession_number='gdc000001',
         name="Dev project",
     ),
-    Project(
+    md.Project(
         node_id=get_node_id('awg-one-project'),
         released=False,
         state="open",
@@ -1204,7 +1183,7 @@ NODES = [
         dbgap_accession_number=None,
         name="AWG project",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-bcgsc-ca'),
         code="13",
         namespace="bcgsc.ca",
@@ -1212,7 +1191,7 @@ NODES = [
         short_name="BCGSC",
         center_type="CGCC",
     ),
-    Center(
+    md.Center(
         node_id=get_node_id('center-genome-wustl-ed'),
         center_type='GSC',
         code='09',
@@ -1222,7 +1201,7 @@ NODES = [
     ),
 
     # TT-1053 index redactions
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('redaction-annotation'),
         category='Administrative Compliance',
         classification='Redaction',
@@ -1232,7 +1211,7 @@ NODES = [
         submitter_id='18675',
         status="Approved",
     ),
-    Case(
+    md.Case(
         node_id=get_node_id('redaction-case-released'),
         project_id='TCGA-BRCA',
         state='released',
@@ -1240,7 +1219,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('withdrew-consent-annotation'),
         category='Subject withdrew consent',
         classification='Redaction',
@@ -1250,7 +1229,7 @@ NODES = [
         submitter_id='18675',
         status="Approved",
     ),
-    Case(
+    md.Case(
         node_id=get_node_id('withdrew-consent-case-released'),
         project_id='TCGA-BRCA',
         state='released',
@@ -1258,7 +1237,7 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
-    Annotation(
+    md.Annotation(
         node_id=get_node_id('released-rescinded-annotation'),
         category='Administrative Compliance',
         classification='Redaction',
@@ -1268,7 +1247,7 @@ NODES = [
         submitter_id='18675',
         status="Rescinded",
     ),
-    Case(
+    md.Case(
         node_id=get_node_id('released-rescinded-case'),
         project_id='TCGA-BRCA',
         state='released',
@@ -1280,63 +1259,63 @@ NODES = [
     # DAT-2619
     # data_file skipped because of 'submitted_*' label
     fuzzed(
-        SubmittedGenomicProfile,
+        md.SubmittedGenomicProfile,
         node_id=get_node_id('submitted-genomic-profile-released-1'),
         data_category='Genomic Profiling',
         file_name='submitted-genomic-profile-released-1.ext'
     ),
     # data_file skipped because of 'submitted_*' label
     fuzzed(
-        SubmittedGenomicProfile,
+        md.SubmittedGenomicProfile,
         node_id=get_node_id('submitted-genomic-profile-released-2'),
         data_category='Genomic Profiling',
         file_name='submitted-genomic-profile-released-2.ext',
     ),
     # data_file skipped because of 'submitted_*' label and state
     fuzzed(
-        SubmittedGenomicProfile,
+        md.SubmittedGenomicProfile,
         node_id=get_node_id('submitted-genomic-profile-submitted'),
         data_category='Genomic Profiling',
         state='submitted',
         file_name='submitted-genomic-profile-submitted.ext',
     ),
     fuzzed(
-        GenomicProfileHarmonizationWorkflow,
+        md.GenomicProfileHarmonizationWorkflow,
         node_id=get_node_id('gen-profile-harmonization-released-1'),
         workflow_type='GENIE Copy Number Variation',
     ),
     fuzzed(
-        GenomicProfileHarmonizationWorkflow,
+        md.GenomicProfileHarmonizationWorkflow,
         node_id=get_node_id('gen-profile-harmonization-released-2'),
         workflow_type='GENIE Simple Somatic Mutation',
     ),
     fuzzed(
-        GenomicProfileHarmonizationWorkflow,
+        md.GenomicProfileHarmonizationWorkflow,
         node_id=get_node_id('gen-profile-harmonization-released-3'),
         workflow_type='GENIE Structural Variation',
     ),
     fuzzed(
-        GenomicProfileHarmonizationWorkflow,
+        md.GenomicProfileHarmonizationWorkflow,
         node_id=get_node_id('gen-profile-harmonization-submitted'),
         workflow_type='GENIE Structural Variation',
     ),
     # data_file indexed
     fuzzed(
-        AnnotatedSomaticMutation,
+        md.AnnotatedSomaticMutation,
         node_id=get_node_id('genie-vcf-released'),
-        data_category='Simple Nucleotide Variation',
+        data_type='Annotated Somatic Mutation',
         file_name='genie-vcf-released.vcf',
     ),
     # data_file indexed
     fuzzed(
-        CopyNumberEstimate,
+        md.CopyNumberEstimate,
         node_id=get_node_id('genie-cne-released'),
         data_category='Copy Number Variation',
         file_name='genie-cne-released.ext'
     ),
     # data_file indexed
     fuzzed(
-        StructuralVariation,
+        md.StructuralVariation,
         node_id=get_node_id('genie-struct-var-released'),
         data_type='Structural Alteration',
         data_category='Somatic Structural Variation',
@@ -1344,7 +1323,7 @@ NODES = [
     ),
     # data_file skipped because upstream isn't released
     fuzzed(
-        StructuralVariation,
+        md.StructuralVariation,
         node_id=get_node_id('genie-struct-var-submitted'),
         data_type='Structural Alteration',
         data_category='Somatic Structural Variation',
@@ -1355,256 +1334,256 @@ NODES = [
 
 EDGES = [
     # Somatic mutation workflows
-    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+    md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
         src_id=get_node_id('somatic-aggregation-workflow-1'),
         dst_id=get_node_id('annotated_somatic_mutation_1'),
     ),
-    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+    md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
         src_id=get_node_id('somatic-aggregation-workflow-1'),
         dst_id=get_node_id('annotated-somatic-mutation-2'),
     ),
-    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+    md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
         src_id=get_node_id('somatic-aggregation-workflow-1'),
         dst_id=get_node_id('annotated-somatic-mutation-3'),
     ),
-    SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
+    md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
         src_id=get_node_id('somatic-aggregation-workflow-1'),
         dst_id=get_node_id('annotated-somatic-mutation-4'),
     ),
-    AggregatedSomaticMutationDataFromSomaticAggregationWorkflow(
+    md.AggregatedSomaticMutationDataFromSomaticAggregationWorkflow(
         src_id=get_node_id('aggregated-somatic-mutation-1'),
         dst_id=get_node_id('somatic-aggregation-workflow-1'),
     ),
-    AnnotatedSomaticMutationDataFromSomaticAnnotationWorkflow(
+    md.AnnotatedSomaticMutationDataFromSomaticAnnotationWorkflow(
         src_id=get_node_id('annotated_somatic_mutation_1'),
         dst_id=get_node_id('somatic_annotation_workflow_1'),
     ),
-    SomaticAnnotationWorkflowPerformedOnSimpleSomaticMutation(
+    md.SomaticAnnotationWorkflowPerformedOnSimpleSomaticMutation(
         src_id=get_node_id('somatic_annotation_workflow_1'),
         dst_id=get_node_id('simple_somatic_mutation_1'),
     ),
-    SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
+    md.SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
         src_id=get_node_id('simple_somatic_mutation_1'),
         dst_id=get_node_id('somatic_mutation_calling_workflow_1'),
     ),
-    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+    md.SomaticMutationCallingWorkflowPerformedOnAlignedReads(
         src_id=get_node_id('somatic_mutation_calling_workflow_1'),
         dst_id=get_node_id('aligned-reads-1'),
     ),
-    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+    md.SomaticMutationCallingWorkflowPerformedOnAlignedReads(
         src_id=get_node_id('somatic_mutation_calling_workflow_1'),
         dst_id=get_node_id('aligned-reads-2'),
     ),
 
     # Supplement nodes
-    FileDescribesCase(
+    md.FileDescribesCase(
         src_id=get_node_id('old-biospecimen-supplement-xml'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    BiospecimenSupplementDerivedFromCase(
+    md.BiospecimenSupplementDerivedFromCase(
         src_id=get_node_id('biospecimen_supplement_1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('rescinded-redaction-annotation'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
     # TT-1044 blocking release
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('block-release-annotation'),
         dst_id=get_node_id('blocking-release-case'),
     ),
     # TT-1044 blocking release
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('block-release-annotation-released'),
         dst_id=get_node_id('blocking-release-case-released'),
     ),
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('unreleased-annotation'),
         dst_id=get_node_id('unreleased-case-in-released-project'),
     ),
-    ClinicalSupplementDerivedFromCase(
+    md.ClinicalSupplementDerivedFromCase(
         src_id=get_node_id('clinical_supplement_1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
 
     # Read Groups
-    ReadGroupQcGeneratedFromReadGroup(
+    md.ReadGroupQcGeneratedFromReadGroup(
         src_id=get_node_id('read-group-qc-1'),
         dst_id=get_node_id('read-group-1'),
     ),
-    ReadGroupDerivedFromAliquot(
+    md.ReadGroupDerivedFromAliquot(
         src_id=get_node_id('read-group-1'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    ReadGroupDerivedFromAliquot(
+    md.ReadGroupDerivedFromAliquot(
         src_id=get_node_id('read-group-without-downstream'),
         dst_id=get_node_id('aliquot-without-downstream'),
     ),
-    SubmittedAlignedReadsDataFromReadGroup(
+    md.SubmittedAlignedReadsDataFromReadGroup(
         src_id=get_node_id('submitted-aligned-reads-without-downstream'),
         dst_id=get_node_id('read-group-without-downstream'),
     ),
-    ReadGroupDerivedFromAliquot(
+    md.ReadGroupDerivedFromAliquot(
         src_id=get_node_id('read-group-2'),
         dst_id=get_node_id('aliquot-2'),
     ),
 
     # Aligned Reads
-    SubmittedAlignedReadsDataFromReadGroup(
+    md.SubmittedAlignedReadsDataFromReadGroup(
         src_id=get_node_id('submitted-aligned-reads-1'),
         dst_id=get_node_id('read-group-1'),
     ),
-    SubmittedAlignedReadsDataFromReadGroup(
+    md.SubmittedAlignedReadsDataFromReadGroup(
         src_id=get_node_id('submitted-aligned-reads-2'),
         dst_id=get_node_id('read-group-2'),
     ),
-    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
+    md.AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
         src_id=get_node_id('alignment_cocleaning_wf'),
         dst_id=get_node_id('submitted-aligned-reads-1'),
     ),
-    AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
+    md.AlignmentCocleaningWorkflowPerformedOnSubmittedAlignedReads(
         src_id=get_node_id('alignment_cocleaning_wf'),
         dst_id=get_node_id('submitted-aligned-reads-2'),
     ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+    md.AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id=get_node_id('aligned-reads-1'),
         dst_id=get_node_id('alignment_cocleaning_wf'),
     ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+    md.AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id=get_node_id('aligned-reads-2'),
         dst_id=get_node_id('alignment_cocleaning_wf'),
     ),
-    AlignedReadsDataFromAlignmentCocleaningWorkflow(
+    md.AlignedReadsDataFromAlignmentCocleaningWorkflow(
         src_id=get_node_id('active-file-with-empty-acl'),
         dst_id=get_node_id('alignment_cocleaning_wf'),
     ),
-    AlignedReadsMatchedToSubmittedAlignedReads(
+    md.AlignedReadsMatchedToSubmittedAlignedReads(
         src_id=get_node_id('aligned-reads-1'),
         dst_id=get_node_id('submitted-aligned-reads-1'),
     ),
-    AlignedReadsMatchedToSubmittedAlignedReads(
+    md.AlignedReadsMatchedToSubmittedAlignedReads(
         src_id=get_node_id('aligned-reads-2'),
         dst_id=get_node_id('submitted-aligned-reads-2'),
     ),
 
     # Clinical
-    ExposureDescribesCase(
+    md.ExposureDescribesCase(
         src_id=get_node_id('exposure-1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    DiagnosisDescribesCase(
+    md.DiagnosisDescribesCase(
         src_id=get_node_id('diagnosis-unknown-tumor-status'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    TreatmentDescribesDiagnosis(
+    md.TreatmentDescribesDiagnosis(
         src_id=get_node_id('treatment-1'),
         dst_id=get_node_id('diagnosis-unknown-tumor-status'),
     ),
-    DemographicDescribesCase(
+    md.DemographicDescribesCase(
         src_id=get_node_id('demographic-1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    FamilyHistoryDescribesCase(
+    md.FamilyHistoryDescribesCase(
         src_id=get_node_id('family-history-1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
-    ClinicalDescribesCase(
+    md.ClinicalDescribesCase(
         src_id=get_node_id('clinical-1'),
         dst_id=get_node_id('case-tcga-brca-breast'),
     ),
 
     # Legacy edges
-    FileMemberOfArchive(
+    md.FileMemberOfArchive(
         src_id=get_node_id('file-only-attached-to-archive-1'),
         dst_id=get_node_id('archive_1'),
     ),
-    BiospecimenSupplementMemberOfArchive(
+    md.BiospecimenSupplementMemberOfArchive(
         src_id=get_node_id('biospecimen_supplement_1'),
         dst_id=get_node_id('archive_1'),
     ),
-    ClinicalSupplementMemberOfArchive(
+    md.ClinicalSupplementMemberOfArchive(
         src_id=get_node_id('clinical_supplement_1'),
         dst_id=get_node_id('archive_1'),
     ),
-    AnnotationAnnotatesAliquot(
+    md.AnnotationAnnotatesAliquot(
         src_id=get_node_id('annotation-approved-center-qc-failed'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    AnnotationAnnotatesAliquot(
+    md.AnnotationAnnotatesAliquot(
         src_id=get_node_id('annotation-without-downstream'),
         dst_id=get_node_id('aliquot-without-downstream'),
     ),
-    AnnotationAnnotatesAliquot(
+    md.AnnotationAnnotatesAliquot(
         src_id=get_node_id('annotation-without-downstream'),
         dst_id=get_node_id('aliquot-without-downstream'),
     ),
-    AnnotationAnnotatesAliquot(
+    md.AnnotationAnnotatesAliquot(
         src_id=get_node_id('rescinded-annotation'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileMemberOfDataSubtype(
+    md.FileMemberOfDataSubtype(
         src_id=get_node_id('live-file'),
         dst_id=get_node_id('data_subtype_aligned_reads'),
     ),
-    FileRelatedToFile(
+    md.FileRelatedToFile(
         src_id=get_node_id('live-file'),
         dst_id=get_node_id('index-file'),
     ),
-    AlignedReadsIndexDerivedFromAlignedReads(
+    md.AlignedReadsIndexDerivedFromAlignedReads(
         src_id=get_node_id('index-file-2'),
         dst_id=get_node_id('aligned-reads-1'),
     ),
-    FileRelatedToFile(
+    md.FileRelatedToFile(
         src_id=get_node_id('live-file'),
         dst_id=get_node_id('related-file'),
     ),
-    FileDataFromSlide(
+    md.FileDataFromSlide(
         src_id=get_node_id('slide-image-file'),
         dst_id=get_node_id('slide-top-1'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('live-file'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('legacy-file-with-empty-acl'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('harmonized-file'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileDataFromFile(
+    md.FileDataFromFile(
         src_id=get_node_id('harmonized-file'),
         dst_id=get_node_id('live-file'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('non-live-file'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('to-delete-file'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    FileDataFromAliquot(
+    md.FileDataFromAliquot(
         src_id=get_node_id('related-file'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-9'),
         dst_id=get_node_id('analyte-dna'),
         properties={}
     ),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-attached-to-sample'),
         dst_id=get_node_id('sample-blood-derived-normal'),
     ),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-derived-from-unreleased-sample'),
         dst_id=get_node_id('sample-unreleased')
     ),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-6'),
         dst_id=get_node_id('center-genome-wustl-ed'),
         properties={'plate_column': '11',
@@ -1613,7 +1592,7 @@ EDGES = [
                     'shipment_center_id': '09',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-3'),
         dst_id=get_node_id('center-bcgsc-ca'),
         properties={'plate_column': '6',
@@ -1622,7 +1601,7 @@ EDGES = [
                     'shipment_center_id': '13',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-5'),
         dst_id=get_node_id('center-genome-wustl-ed'),
         properties={'plate_column': '11',
@@ -1631,35 +1610,35 @@ EDGES = [
                     'shipment_center_id': '09',
                     'shipment_datetime': 1304380800,
                     'shipment_reason': None}),
-    AnalyteDerivedFromPortion(
+    md.AnalyteDerivedFromPortion(
         src_id=get_node_id('analyte-2'),
         dst_id=get_node_id('portion-01'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-5'),
         dst_id=get_node_id('analyte-2'),
         properties={}),
-    AnalyteDerivedFromPortion(
+    md.AnalyteDerivedFromPortion(
         src_id=get_node_id('analyte-dna'),
         dst_id=get_node_id('portion-31'),
         properties={}),
 
-    FileDataFromCase(
+    md.FileDataFromCase(
         # Added for regression of removing case.files from the active
         # index
         src_id=get_node_id('snv-file'),
         dst_id=get_node_id('case-tcga-brca-breast'),
         properties={}),
 
-    SampleDerivedFromCase(
+    md.SampleDerivedFromCase(
         src_id=get_node_id('sample-blood-derived-normal'),
         dst_id=get_node_id('case-tcga-brca-breast'),
         properties={}),
-    SampleDerivedFromCase(
+    md.SampleDerivedFromCase(
         src_id=get_node_id('sample-unreleased'),
         dst_id=get_node_id('unreleased-case-in-released-project'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-8'),
         dst_id=get_node_id('center-genome-wustl-ed'),
         properties={'plate_column': '5',
@@ -1668,36 +1647,36 @@ EDGES = [
                     'shipment_center_id': '09',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    SlideDerivedFromPortion(
+    md.SlideDerivedFromPortion(
         src_id=get_node_id('slide-top-1'),
         dst_id=get_node_id('portion-31'),
         properties={}),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('case-tcga-brca-breast'),
         dst_id=get_node_id('project-legacy-brca'),
         properties={}),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('unsubmitted-case'),
         dst_id=get_node_id('project-legacy-brca'),
         properties={}),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('released-case-in-unreleased-project'),
         dst_id=get_node_id('unreleased-project'),
         properties={}),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('submitted-awg-case'),
         dst_id=get_node_id('awg-one-project'),
         properties={}),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('processed-awg-case'),
         dst_id=get_node_id('awg-one-project'),
         properties={}),
 
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-6'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-9'),
         dst_id=get_node_id('center-jhu-usc-edu'),
         properties={'plate_column': '5',
@@ -1706,27 +1685,27 @@ EDGES = [
                     'shipment_center_id': '05',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-1'),
         dst_id=get_node_id('analyte-1'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-8'),
         dst_id=get_node_id('analyte-dna'),
         properties={}),
-    AnalyteDerivedFromPortion(
+    md.AnalyteDerivedFromPortion(
         src_id=get_node_id('analyte-repli-g-qiagen-dna'),
         dst_id=get_node_id('portion-31'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-1'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-8'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-1'),
         dst_id=get_node_id('center-hms-harvard-edu'),
         properties={'plate_column': '11',
@@ -1735,67 +1714,67 @@ EDGES = [
                     'shipment_center_id': '02',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-6'),
         dst_id=get_node_id('analyte-1'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-4'),
         dst_id=get_node_id('analyte-dna'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-2'),
         dst_id=get_node_id('analyte-dna'),
         properties={}),
-    CaseProcessedAtTissueSourceSite(
+    md.CaseProcessedAtTissueSourceSite(
         src_id=get_node_id('case-tcga-brca-breast'),
         dst_id=get_node_id('tissue-source-site-breast-invasive-carcinoma'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-without-downstream'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-3'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-without-downstream'),
         dst_id=get_node_id('analyte-dna'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-5'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-2'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-10'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    PortionDerivedFromSample(
+    md.PortionDerivedFromSample(
         src_id=get_node_id('portion-31'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    PortionDerivedFromSample(
+    md.PortionDerivedFromSample(
         src_id=get_node_id('portion-01'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-4'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-3'),
         dst_id=get_node_id('analyte-3'),
         properties={}),
-    AnalyteDerivedFromPortion(
+    md.AnalyteDerivedFromPortion(
         src_id=get_node_id('analyte-3'),
         dst_id=get_node_id('portion-31'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-without-downstream'),
         dst_id=get_node_id('center-broad-mit-edu'),
         properties={'plate_column': '5',
@@ -1804,7 +1783,7 @@ EDGES = [
                     'shipment_center_id': '01',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-7'),
         dst_id=get_node_id('center-unc-edu'),
         properties={'plate_column': '6',
@@ -1813,15 +1792,15 @@ EDGES = [
                     'shipment_center_id': '07',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    SampleDerivedFromCase(
+    md.SampleDerivedFromCase(
         src_id=get_node_id('sample-primary-tumor'),
         dst_id=get_node_id('case-tcga-brca-breast'),
         properties={}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-7'),
         dst_id=get_node_id('analyte-3'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-2'),
         dst_id=get_node_id('center-broad-mit-edu'),
         properties={'plate_column': '11',
@@ -1830,11 +1809,11 @@ EDGES = [
                     'shipment_center_id': '01',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AnalyteDerivedFromPortion(
+    md.AnalyteDerivedFromPortion(
         src_id=get_node_id('analyte-1'),
         dst_id=get_node_id('portion-01'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-4'),
         dst_id=get_node_id('center-hms-harvard-edu'),
         properties={'plate_column': '5',
@@ -1843,15 +1822,15 @@ EDGES = [
                     'shipment_center_id': '02',
                     'shipment_datetime': 1299542400,
                     'shipment_reason': None}),
-    AliquotDerivedFromAnalyte(
+    md.AliquotDerivedFromAnalyte(
         src_id=get_node_id('aliquot-10'),
         dst_id=get_node_id('analyte-repli-g-qiagen-dna'),
         properties={}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-9'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AliquotShippedToCenter(
+    md.AliquotShippedToCenter(
         src_id=get_node_id('aliquot-10'),
         dst_id=get_node_id('center-genome-wustl-ed'),
         properties={'plate_column': '5',
@@ -1860,190 +1839,190 @@ EDGES = [
                     'shipment_center_id': '09',
                     'shipment_datetime': 1304380800,
                     'shipment_reason': None}),
-    AliquotDerivedFromSample(
+    md.AliquotDerivedFromSample(
         src_id=get_node_id('aliquot-7'),
         dst_id=get_node_id('sample-primary-tumor'),
         properties={}),
-    AnalysisMetadataDerivedFromFile(
+    md.AnalysisMetadataDerivedFromFile(
         src_id=get_node_id('analysis-metadata-1'),
         dst_id=get_node_id('live-file'),
     ),
 
     # Somatic Mutation Calling
-    SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
+    md.SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
         src_id=get_node_id('somatic_mutation_1'),
         dst_id=get_node_id('somatic_mutation_calling_workflow_1'),
     ),
-    SomaticMutationCallingWorkflowPerformedOnAlignedReads(
+    md.SomaticMutationCallingWorkflowPerformedOnAlignedReads(
         src_id=get_node_id('somatic_mutation_calling_workflow_1'),
         dst_id=get_node_id('aligned-reads-1'),
     ),
 
     # SRA metadata
-    RunMetadataDerivedFromFile(
+    md.RunMetadataDerivedFromFile(
         src_id=get_node_id('run-metadata-1'),
         dst_id=get_node_id('live-file'),
     ),
-    ExperimentMetadataDerivedFromFile(
+    md.ExperimentMetadataDerivedFromFile(
         src_id=get_node_id('experiment-metadata-1'),
         dst_id=get_node_id('live-file'),
     ),
 
     # Copy Number
-    SubmittedTangentCopyNumberDerivedFromAliquot(
+    md.SubmittedTangentCopyNumberDerivedFromAliquot(
         src_id=get_node_id('cnv-file-1'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
+    md.CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
         src_id=get_node_id('cnv-workflow-1'),
         dst_id=get_node_id('cnv-file-1'),
     ),
-    CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
+    md.CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
         src_id=get_node_id('cnv-segment-file-1'),
         dst_id=get_node_id('cnv-workflow-1'),
     ),
 
-    SubmittedMethylationBetaValueDerivedFromAliquot(
+    md.SubmittedMethylationBetaValueDerivedFromAliquot(
         src_id=get_node_id('sub-methyl-beta-value'),
         dst_id=get_node_id('aliquot-1'),
     ),
-    MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
+    md.MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
         src_id=get_node_id('methyl-lift-wf'),
         dst_id=get_node_id('sub-methyl-beta-value'),
     ),
-    MethylationBetaValueDataFromMethylationLiftoverWorkflow(
+    md.MethylationBetaValueDataFromMethylationLiftoverWorkflow(
         src_id=get_node_id('methyl-beta-value'),
         dst_id=get_node_id('methyl-lift-wf'),
     ),
 
     # Prelude
-    DataSubtypeMemberOfDataType(
+    md.DataSubtypeMemberOfDataType(
         src_id=get_node_id('data_subtype_aligned_reads'),
         dst_id=get_node_id('data_type_raw_sequencing'),
     ),
-    ProjectMemberOfProgram(
+    md.ProjectMemberOfProgram(
         src_id=get_node_id('project-legacy-brca'),
         dst_id=get_node_id('program-tcga'),
     ),
-    ProjectMemberOfProgram(
+    md.ProjectMemberOfProgram(
         src_id=get_node_id('unreleased-project'),
         dst_id=get_node_id('internal-program'),
     ),
-    ProjectMemberOfProgram(
+    md.ProjectMemberOfProgram(
         src_id=get_node_id('awg-one-project'),
         dst_id=get_node_id('internal-program'),
     ),
     #  Ticket API-188
-    ProjectMemberOfProgram(
+    md.ProjectMemberOfProgram(
         src_id=get_node_id('fake_active_project'),
         dst_id=get_node_id('program-tcga'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('fake_active_case_1'),
         dst_id=get_node_id('fake_active_project'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('fake_active_case_2'),
         dst_id=get_node_id('fake_active_project'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('unreleased-case-in-released-project'),
         dst_id=get_node_id('fake_active_project')
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('blocking-release-case'),
         dst_id=get_node_id('fake_active_project')
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('blocking-release-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
 
     # TT-1053 index redactions
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('redaction-annotation'),
         dst_id=get_node_id('redaction-case-released'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('redaction-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('withdrew-consent-annotation'),
         dst_id=get_node_id('withdrew-consent-case-released'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('withdrew-consent-case-released'),
         dst_id=get_node_id('fake_active_project')
     ),
-    AnnotationAnnotatesCase(
+    md.AnnotationAnnotatesCase(
         src_id=get_node_id('released-rescinded-annotation'),
         dst_id=get_node_id('released-rescinded-case'),
     ),
-    CaseMemberOfProject(
+    md.CaseMemberOfProject(
         src_id=get_node_id('released-rescinded-case'),
         dst_id=get_node_id('fake_active_project')
     ),
 
     # API-716
-    ProteinExpressionDerivedFromSample(
+    md.ProteinExpressionDerivedFromSample(
         src_id=get_node_id('protein-expression-from-sample-released'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={},
     ),
-    PortionDerivedFromSample(
+    md.PortionDerivedFromSample(
         src_id=get_node_id('protein-expression-portion'),
         dst_id=get_node_id('sample-blood-derived-normal'),
         properties={},
     ),
-    ProteinExpressionDerivedFromPortion(
+    md.ProteinExpressionDerivedFromPortion(
         src_id=get_node_id('protein-expression-from-portion-released'),
         dst_id=get_node_id('protein-expression-portion'),
         properties={},
     ),
 
     # DAT-2619
-    SubmittedGenomicProfileDataFromReadGroup(
+    md.SubmittedGenomicProfileDataFromReadGroup(
         src_id=get_node_id('submitted-genomic-profile-released-1'),
         dst_id=get_node_id('read-group-1'),
     ),
-    SubmittedGenomicProfileDataFromReadGroup(
+    md.SubmittedGenomicProfileDataFromReadGroup(
         src_id=get_node_id('submitted-genomic-profile-released-2'),
         dst_id=get_node_id('read-group-1'),
     ),
-    SubmittedGenomicProfileDataFromReadGroup(
+    md.SubmittedGenomicProfileDataFromReadGroup(
         src_id=get_node_id('submitted-genomic-profile-submitted'),
         dst_id=get_node_id('read-group-1'),
     ),
-    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+    md.GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
         src_id=get_node_id('gen-profile-harmonization-released-1'),
         dst_id=get_node_id('submitted-genomic-profile-released-1'),
     ),
-    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+    md.GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
         src_id=get_node_id('gen-profile-harmonization-released-2'),
         dst_id=get_node_id('submitted-genomic-profile-released-2'),
     ),
-    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+    md.GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
         src_id=get_node_id('gen-profile-harmonization-released-3'),
         dst_id=get_node_id('submitted-genomic-profile-released-2'),
     ),
-    GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
+    md.GenomicProfileHarmonizationWorkflowPerformedOnSubmittedGenomicProfile(
         src_id=get_node_id('gen-profile-harmonization-submitted'),
         dst_id=get_node_id('submitted-genomic-profile-submitted'),
     ),
-    AnnotatedSomaticMutationDataFromGenomicProfileHarmonizationWorkflow(
+    md.AnnotatedSomaticMutationDataFromGenomicProfileHarmonizationWorkflow(
         src_id=get_node_id('genie-vcf-released'),
         dst_id=get_node_id('gen-profile-harmonization-released-2'),
     ),
-    CopyNumberEstimateDerivedFromGenomicProfileHarmonizationWorkflow(
+    md.CopyNumberEstimateDerivedFromGenomicProfileHarmonizationWorkflow(
         src_id=get_node_id('genie-cne-released'),
         dst_id=get_node_id('gen-profile-harmonization-released-1'),
     ),
-    StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
+    md.StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
         src_id=get_node_id('genie-struct-var-released'),
         dst_id=get_node_id('gen-profile-harmonization-released-3'),
     ),
-    StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
+    md.StructuralVariationDataFromGenomicProfileHarmonizationWorkflow(
         src_id=get_node_id('genie-struct-var-submitted'),
         dst_id=get_node_id('gen-profile-harmonization-submitted'),
     ),
@@ -2061,6 +2040,6 @@ def insert(g):
         for edge in EDGES:
             session.merge(edge)
 
-        to_delete = g.nodes(File).ids(get_node_id('to-delete-file')).one()
+        to_delete = g.nodes(md.File).ids(get_node_id('to-delete-file')).one()
         to_delete.sysan['to_delete'] = True
         session.merge(to_delete)
