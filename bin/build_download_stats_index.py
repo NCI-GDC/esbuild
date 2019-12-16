@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from esbuild.reports.download_report import DownloadStatsIndexBuilder
 

@@ -110,7 +110,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
             # Add only archives related to self.build_projects in case of split build
             project_id = None
             for project in self.neighbors_labeled(archive, 'project'):
-                project_id = '-'.join([self.neighbors_labeled(project, 'program').next().name,
+                project_id = '-'.join([next(self.neighbors_labeled(project, 'program')).name,
                                        project.code])
 
             n_projects = len(list(self.neighbors_labeled(archive, 'project')))

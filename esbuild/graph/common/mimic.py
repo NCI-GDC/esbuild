@@ -7,6 +7,7 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
+from collections.abc import Iterable
 
 import logging
 
@@ -29,7 +30,10 @@ class CommonMimic(object):
 
         """
 
-        labels = set(labels) if hasattr(labels, '__iter__') else {labels}
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
+            labels = set(labels)
+        else:
+            labels = {labels}
 
         return [
             edge.dst

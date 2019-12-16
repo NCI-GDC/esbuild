@@ -16,10 +16,10 @@ def assert_metadata(latest, diff):
         assert diff.get(field) == val
 
 
-def test_cache_versioned_nodes(graph, versioned_reads_setup, setup_test,
+def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test,
                                indexd_client):
-    cacher = VersionedNodesDiffCollector(project_ids=['TCGA-BRCA'], graph=graph,
-                                         indexd_client=indexd_client)
+    cacher = VersionedNodesDiffCollector(
+        project_ids=['TCGA-BRCA'], graph=pg_driver, indexd_client=indexd_client)
     diffs = cacher.run()
 
     _, expected_diffs, expected_docs, params = versioned_reads_setup
@@ -35,13 +35,13 @@ def test_cache_versioned_nodes(graph, versioned_reads_setup, setup_test,
         assert len(expected_docs) == 0
 
 
-def assert_inclusion(doc1, doc2, ignore=()):
+def assert_inclusion(doc1, doc2, ignore=('updated_datetime',)):
     for field, val in doc1.items():
         if field not in ignore and field in doc2:
-            assert doc2.get(field) == val
+            assert doc2.get(field) == val, (field, val, doc2.get(field))
 
 
-def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
+def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     ari_node = ar_node.aligned_reads_indexes[0]
 
     # Query for latest released IndexD document. The ES index should contain
@@ -50,11 +50,11 @@ def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
     ari_doc = indexd.get_latest_version(ari_node.node_id, True)
 
     # Query for TransactionSnapshots
-    with graph.session_scope():
-        ar_ts = graph.nodes(TransactionSnapshot).filter(
+    with pg_driver.session_scope():
+        ar_ts = pg_driver.nodes(TransactionSnapshot).filter(
             TransactionSnapshot.id == ar_node.node_id,
             TransactionSnapshot.action == 'version').first()
-        ari_ts = graph.nodes(TransactionSnapshot).filter(
+        ari_ts = pg_driver.nodes(TransactionSnapshot).filter(
             TransactionSnapshot.id == ari_node.node_id,
             TransactionSnapshot.action == 'version').first()
 
@@ -80,14 +80,14 @@ def assert_aligned_reads_documents(indexd, graph, ar_node, es_response):
 
     # Make sure that non IndexD property values are pulled from the snapshot
     ar_props = ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props  # noqa
-    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS)
+    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS + ['updated_datetime'])
 
     ari_props = ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props  # noqa
     assert_inclusion(ari_props, ar_hit['index_files'][0],
-                     INDEXD_METADATA_FIELDS)
+                     INDEXD_METADATA_FIELDS + ['updated_datetime'])
 
 
-def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
+def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations,
                             versioned_reads_setup, setup_test):
     es = setup_test
     builder = GDCElasticsearch(
@@ -96,7 +96,7 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
         index_base='gdc_es_test',
         index_close_thresh=4,
         build_projects=['TCGA-BRCA'],
-        pg_driver=graph,
+        pg_driver=pg_driver,
         cache_versioned=True,
     )
     builder.go()
@@ -119,4 +119,4 @@ def test_esbuild_versioning(graph, init_indexd, versioned_reads_expectations,
     expected_ars = set(es_expectations.keys())
     ars = [n for n in nodes if n.label == 'aligned_reads' and n.node_id in expected_ars]
     for ar in ars:
-        assert_aligned_reads_documents(init_indexd, graph, ar, res)
+        assert_aligned_reads_documents(init_indexd, pg_driver, ar, res)

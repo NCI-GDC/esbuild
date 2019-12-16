@@ -3,21 +3,18 @@
 Setup esbuild tests
 """
 
-from collections import namedtuple
-from esbuild.utils import ReleaseHelper
-from gdcdatamodel.viz import create_graphviz
-from psqlgraph import PsqlGraphDriver, Node, Edge
-
-import data
-import es_data
 import logging
 import os
-import pytest
 import time
+from collections import namedtuple
 
+import psqlgraph
+import pytest
+from gdcdictionary import gdcdictionary
+from gdcdatamodel import models
+from gdcdatamodel.viz import create_graphviz
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
-
 from indexd_test_utils import (
     indexd_client,
     indexd_server,
@@ -28,7 +25,10 @@ from indexd_test_utils import (
     setup_indexd_test_database,
     indexd_admin_user,
 )
-from indexclient.client import IndexClient
+from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
+
+from esbuild.utils import ReleaseHelper
+from tests import data, es_data
 
 # ======================================================================
 # Test Settings
@@ -36,15 +36,13 @@ from indexclient.client import IndexClient
 Index = namedtuple('Index', 'cases, files, annotations, projects')
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-BIN_DIR = os.path.join(os.path.dirname(TEST_DIR), 'bin')
-
-ES_HOST = 'localhost'
-ES_PORT = 9200
 
 PG_HOST = 'localhost'
 PG_USER = 'test'
-PG_PASSWORD = 'test'
-PG_DATABASE = 'automated_test'
+PG_PASS = 'test'
+PG_NAME = 'automated_test'
+ES_HOST = 'localhost'
+ES_PORT = 9200
 
 # ======================================================================
 # Util
@@ -53,11 +51,7 @@ logger = logging.getLogger("conftest")
 logger.setLevel(logging.DEBUG)
 
 
-_graph = PsqlGraphDriver(PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE)
-
-
-@pytest.fixture
-def clear_graph_database():
+def clear_graph_database(pg_driver):
     """Clear graph from database"""
 
     edge_tables = Edge.get_subclass_table_names()
@@ -67,8 +61,48 @@ def clear_graph_database():
         if t not in {'edge_edge', 'node_node'}
     ]
 
-    with _graph.engine.begin() as conn:
+    with pg_driver.engine.begin() as conn:
         conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+
+
+def cleanup_nodes(pg_driver, nodes):
+    with pg_driver.session_scope() as sxn:
+        for n in nodes:
+            nobj = pg_driver.nodes().get(n.node_id)
+            if nobj:
+                sxn.delete(nobj)
+
+
+def drop_all(engine):
+    models.versioned_nodes.Base.metadata.drop_all(engine)
+    models.submission.Base.metadata.drop_all(engine)
+    models.FileReport.metadata.drop_all(engine)
+    psqlgraph.base.ORMBase.metadata.drop_all(engine)
+    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
+
+
+def create_all(engine):
+    psqlgraph.create_all(engine)
+    models.versioned_nodes.Base.metadata.create_all(engine)
+    models.submission.Base.metadata.create_all(engine)
+    models.FileReport.metadata.create_all(engine)
+
+
+@pytest.fixture(scope='session')
+def graph():
+    pg_conn = PsqlGraphDriver(
+        host=os.getenv('PG_HOST', PG_HOST),
+        user=os.getenv('PG_USER', PG_USER),
+        password=os.getenv('PG_PASS', PG_PASS),
+        database=os.getenv('PG_NAME', PG_NAME),
+    )
+
+    drop_all(pg_conn.engine)
+    create_all(pg_conn.engine)
+
+    yield pg_conn
+
+    drop_all(pg_conn.engine)
 
 
 @pytest.fixture
@@ -80,7 +114,7 @@ def init_indexd(indexd_client):
         md5 = record.pop('md5sum')
         size = record.pop('file_size')
         file_name = record.pop('file_name', None)
-        file_state = record.pop('file_state', None)
+        file_state = record.pop('file_state', 'validated')
         acl = record.pop('acl')
         urls = record.pop('urls')
         # NOTE: 'file_state' is stored as 'state' in indexd.
@@ -114,55 +148,65 @@ def raise_test_error(*args, **kwargs):
     raise TestError('{} {}'.format(args, kwargs))
 
 
-def render_database():
+def render_database(pg_driver):
     """Save PDF graph of test suite data"""
 
-    with _graph.session_scope():
-        dot = create_graphviz(_graph.nodes())
+    with pg_driver.session_scope():
+        dot = create_graphviz(pg_driver.nodes())
         dot.render('test_suite_data.gv')
 
 
 # ======================================================================
 # Fixtures
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def environment(monkeypatch):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv('ELASTICSEARCH_HOST', 'localhost')
+    monkeypatch.setenv('ELASTICSEARCH_HOST', ES_HOST)
     monkeypatch.setenv('ES_USER', '')
     monkeypatch.setenv('ES_PASSWORD', '')
     monkeypatch.setenv('PG_HOST', PG_HOST)
     monkeypatch.setenv('PG_USER', PG_USER)
-    monkeypatch.setenv('PG_PASS', PG_PASSWORD)
-    monkeypatch.setenv('PG_NAME', PG_DATABASE)
+    monkeypatch.setenv('PG_PASS', PG_PASS)
+    monkeypatch.setenv('PG_NAME', PG_NAME)
 
 
-@pytest.fixture(scope="module", autouse=True)
-def sample_database():
+@pytest.fixture(scope="module")
+def pg_driver(graph):
     """Add all test data to the database.
 
     Attempt to render a PDF representation of the test suite.
 
     """
 
-    clear_graph_database()
-    data.insert(_graph)
+    clear_graph_database(graph)
+
+    data.insert(graph)
 
     try:
-        render_database()
+        render_database(graph)
     except Exception as exc:
         logger.error('Failed to write updated database viz files: %s', exc)
 
+    yield graph
 
-@pytest.fixture()
-def graph():
-    """Fixture to return temporary session database driver"""
+    clear_graph_database(graph)
 
-    with _graph.session_scope() as session:
-        session.commit, session._commit = session.flush, session.commit
-        yield _graph
-        session.rollback()
+
+@pytest.fixture(scope='session')
+def graph_factory():
+    graph_globals = {
+        'properties': {
+            'project_id': 'TCGA-BRCA',
+            'state': 'released',
+            'batch_id': 1,
+            'experimental_strategy': 'WXS',
+        }
+    }
+    factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
+
+    return factory
 
 
 # ======================================================================
@@ -171,10 +215,10 @@ def graph():
 
 def get_all_indices(es):
     return (
-        # closed indices:
-        es.cluster.state()['blocks'].get('indices', {}).keys() +
+        # closed indices
+        list(es.cluster.state()['blocks'].get('indices', {}).keys()) +
         # opened indices:
-        es.indices.stats()['indices'].keys()
+        list(es.indices.stats()['indices'].keys())
     )
 
 
@@ -292,7 +336,7 @@ def es_after_deletion(test_index_data):
     helper = ReleaseHelper(es)
 
     # Will delete these projects' data
-    projects_to_delete = [u"TCGA-STAD", u"FM-AD"]
+    projects_to_delete = ["TCGA-STAD", "FM-AD"]
 
     # Get project list before deletion
     projects_before = helper.get_project_ids(index_name)
@@ -307,16 +351,10 @@ def es_after_deletion(test_index_data):
 
 
 @pytest.fixture
-def setup_test(sample_database):
+def setup_test(pg_driver):
     es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
 
     cleanup_indices(es)
-
-    os.environ["PG_HOST"] = PG_HOST
-    os.environ["PG_USER"] = PG_USER
-    os.environ["PG_PASS"] = PG_PASSWORD
-    os.environ["PG_NAME"] = PG_DATABASE
-    os.environ["ELASTICSEARCH_HOST"] = "localhost"
 
     yield es
 

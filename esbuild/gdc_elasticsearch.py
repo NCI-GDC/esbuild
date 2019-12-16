@@ -16,7 +16,7 @@ import datetime
 import subprocess
 import resource
 
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from datadog import statsd
 from elasticsearch import (
     NotFoundError, Elasticsearch, helpers, exceptions as es_exc,
@@ -26,7 +26,7 @@ from gdcdatamodel.models import File
 from progressbar import ProgressBar, Percentage, Bar, ETA
 from psqlgraph import PsqlGraphDriver
 
-from utils import ReleaseHelper, VersionedNodesDiffCollector
+from esbuild.utils import ReleaseHelper, VersionedNodesDiffCollector
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -94,13 +94,13 @@ class GDCElasticsearch(object):
             ('build_awg', False),
             ('skip_es', False),
             ('cache_versioned', False),
+            ('save_doc_path', os.path.expanduser('~/esbuild_output'))
         ]
 
         for arg, default in valid_kwargs:
-            setattr(self, arg, kwargs.get(arg, default))
+            setattr(self, arg, kwargs.get(arg) or default)
 
         self.index_close_thresh = index_close_thresh
-        self.save_doc_path = os.path.expanduser('~/esbuild_output')
         self.log = get_logger("gdc_elasticsearch")
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = kwargs.pop('pg_driver',
@@ -360,24 +360,29 @@ class GDCElasticsearch(object):
         "param int maxva': The maximumum value of the progress bar
 
         """
-        pbar = ProgressBar(widgets=[
-            title, Percentage(), ' ',
-            Bar(marker='#', left='[', right=']'), ' ',
-            ETA(), ' '], maxval=maxval)
+        pbar = ProgressBar(
+            widgets=[title, Percentage(), ' ',
+                     Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
+            maxval=maxval,
+        )
         pbar.update(0)
         return pbar
 
     def bulk_upload(self, index, doc_type, docs, thread_count=THREAD_COUNT,
-                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
+                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES,
+                    parallel_bulk=True):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
 
         :param str index: The index to upload documents to
-        :param str doc_type: The type of document to pload as
+        :param str doc_type: The type of document to upload as
         :param list docs: The documents to upload
-        :param int batch_size: The number of docs per batch
-
+        :param thread_count: Number of threads to spawn during parallel bulk
+            index upload
+        :param chunk_size: Number of actions to perform per bulk request
+        :param max_chunk_bytes: Bulk request document size limit
+        :param parallel_bulk: Use parallel_bulk for index upload or not
         """
 
         if not docs:
@@ -394,47 +399,61 @@ class GDCElasticsearch(object):
                     _source=doc
                 )
                 yield action
-                pbar.update(pbar.currval+1)
+                pbar.update(pbar.value + 1)
 
         actions = action_gen()
-        batches = helpers.parallel_bulk(
-            self.es,
-            actions,
-            thread_count=thread_count,
-            chunk_size=chunk_size,
-            max_chunk_bytes=max_chunk_bytes,
-        )
-        for batch in batches:
-            if not batch[0]:
-                raise RuntimeError(json.dumps([
-                    doc for doc in batch[1]
-                    if doc['index']['status'] != 100
-                ], indent=2))
+        if parallel_bulk:
+            batches = helpers.parallel_bulk(
+                self.es,
+                actions,
+                thread_count=thread_count,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            for batch in batches:
+                if not batch[0]:
+                    raise RuntimeError(json.dumps([
+                        doc for doc in batch[1]
+                        if doc['index']['status'] != 100
+                    ], indent=2))
+        else:
+            success, errors = helpers.bulk(
+                self.es,
+                actions,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            if errors:
+                self.log.error(errors)
         pbar.finish()
 
     def put_mappings(self, index):
         """Add mappings to index.
 
         :param str index: The elasticsearch index
-
+        :returns: results of putting es mappings
         """
         return [
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="project",
-                body=self.converter.mapper.get_project_es_mapping()),
+                body=self.converter.mapper.get_project_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="file",
-                body=self.converter.mapper.get_file_es_mapping()),
+                body=self.converter.mapper.get_file_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="case",
-                body=self.converter.mapper.get_case_es_mapping()),
+                body=self.converter.mapper.get_case_es_mapping().to_dict()
+            ),
             self.es.indices.put_mapping(
                 index=index,
                 doc_type="annotation",
-                body=self.converter.mapper.get_annotation_es_mapping()),
+                body=self.converter.mapper.get_annotation_es_mapping().to_dict()
+            ),
         ]
 
     def index_populate(self, index, case_docs=[], file_docs=[],
@@ -519,9 +538,9 @@ class GDCElasticsearch(object):
         if self.es:
             indices = (
                 # Closed indices
-                self.es.cluster.state()['blocks'].get('indices', {}).keys()
+                list(self.es.cluster.state()['blocks'].get('indices', {}).keys()) +
                 # Open indices
-                + self.es.indices.stats()['indices'].keys()
+                list(self.es.indices.stats()['indices'].keys())
             )
         return indices
 
@@ -545,10 +564,10 @@ class GDCElasticsearch(object):
 
         """
         try:
-            keys = self.es.indices.get_alias(self.index_base).keys()
-            if not keys:
+            index_names = list(self.es.indices.get_alias(self.index_base).keys())
+            if not index_names:
                 return None
-            return keys[0]
+            return index_names[0]
         except NotFoundError:
             return None
 
@@ -641,6 +660,7 @@ class GDCElasticsearch(object):
             commit_hash = subprocess.check_output(['git',
                                                    '--git-dir={}'.format(git_dir),
                                                    'rev-parse', 'HEAD'])
+            commit_hash = commit_hash.decode('utf-8')
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 

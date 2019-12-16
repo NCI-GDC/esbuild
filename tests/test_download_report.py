@@ -1,12 +1,13 @@
+import pytest
 from unittest import TestCase
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from esbuild.reports.download_report import DownloadStatsIndexBuilder
 
 import uuid
-import data
-from data import get_node_id
-from conftest import _graph, ES_HOST, ES_PORT
+from tests import data
+from tests.data import get_node_id
+from tests.conftest import ES_HOST, ES_PORT, clear_graph_database
 
 from gdcdatamodel.models import (
     File,
@@ -19,27 +20,41 @@ from gdcdatamodel.models import (
 )
 
 
+@pytest.fixture(scope='class')
+def cls_with_graph(request, graph):
+    request.cls.graph = graph
+
+
+@pytest.mark.usefixtures('cls_with_graph')
 class DownloadStatsIndexBuilderTest(TestCase):
 
     def setUp(self):
         super(DownloadStatsIndexBuilderTest, self).setUp()
+
+        clear_graph_database(self.graph)
+
         # TODO maybe think about a better / more general way to do this
-        FileReport.metadata.create_all(_graph.engine)
-        data.insert(_graph)
+        FileReport.metadata.create_all(self.graph.engine)
+
+        data.insert(self.graph)
 
         self.es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
         self.index_name = "download_stats_test"
         self.builder = DownloadStatsIndexBuilder(
-            graph=_graph,
+            graph=self.graph,
             es=self.es,
             index_name=self.index_name
         )
+
         self.builder.create_es_index()
 
     def tearDown(self):
         self.es.indices.delete(index=self.index_name)
-        with _graph.session_scope() as session:
+
+        with self.graph.session_scope() as session:
             session.execute(FileReport.__table__.delete())
+
+        clear_graph_database(self.graph)
 
     def create_file(self):
         file = File(
@@ -62,15 +77,15 @@ class DownloadStatsIndexBuilderTest(TestCase):
             timestamp=datetime.now(),
             username=username,
         )
-        _graph.current_session().merge(download)
+        self.graph.current_session().merge(download)
 
     def test_basic_index_build(self):
-        with _graph.session_scope():
-            aliquot = (_graph.nodes(Aliquot)
+        with self.graph.session_scope():
+            aliquot = (self.graph.nodes(Aliquot)
                              .ids(get_node_id("aliquot-1")).one())
-            tag = _graph.nodes(Tag).props(name="snv").one()
-            strat = _graph.nodes(ExperimentalStrategy).props(name="RNA-Seq").one()
-            platform = _graph.nodes(Platform).props(name="Illumina HiSeq").one()
+            tag = self.graph.nodes(Tag).props(name="snv").one()
+            strat = self.graph.nodes(ExperimentalStrategy).props(name="RNA-Seq").one()
+            platform = self.graph.nodes(Platform).props(name="Illumina HiSeq").one()
             file = self.create_file()
             self.create_download(file, username='FOO')
             file.aliquots = [aliquot]
@@ -78,8 +93,8 @@ class DownloadStatsIndexBuilderTest(TestCase):
             file.tags = [tag]
             file.experimental_strategies = [strat]
             file.platforms = [platform]
-        with _graph.session_scope():
-            brca = _graph.nodes(Project).props(code="BRCA").one()
+        with self.graph.session_scope():
+            brca = self.graph.nodes(Project).props(code="BRCA").one()
             self.builder.go(projects=[brca])
         self.es.indices.refresh(index=self.index_name)
         result = self.es.get(
@@ -100,10 +115,10 @@ class DownloadStatsIndexBuilderTest(TestCase):
         self.assertEqual(result["continents"][0]["continent"], "North America")
         self.assertEqual(result["continents"][0]["size"], 1000)
         # confirm that we can update once index exists
-        with _graph.session_scope():
+        with self.graph.session_scope():
             self.create_download(file, country='CA', size=500)
-        with _graph.session_scope():
-            brca = _graph.nodes(Project).props(code="BRCA").one()
+        with self.graph.session_scope():
+            brca = self.graph.nodes(Project).props(code="BRCA").one()
             self.builder.go(projects=[brca])
         result = self.es.get(
             index=self.index_name,

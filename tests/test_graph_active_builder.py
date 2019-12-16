@@ -6,30 +6,23 @@ test_graph_index.py
 Test the builder for graph ES index
 
 """
-
-
-from esbuild.graph.common.builder import GraphIndexBuilder
-from gdcdatamodel import models as md
-from gdcmodels import get_es_models
-from jsonpath_rw import parse
 from pprint import pprint
-from test_utils import get_dict_paths, validate_file_metadata
-from data import get_node_id
 
 import pytest
-
-
-from conftest import (
-    raise_test_error,
-    Index,
-    _graph,
-)
+from functools import reduce
+from jsonpath_rw import parse
+from gdcdatamodel import models as md
+from gdcmodels import get_es_models
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
     list_product,
     subtree_paths_to_file,
 )
+from esbuild.graph.common.builder import GraphIndexBuilder
+from tests.test_utils import get_dict_paths, validate_file_metadata
+from tests.data import get_node_id
+from tests.conftest import raise_test_error, Index
 
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
@@ -50,24 +43,25 @@ N_FILES_UNDER_ALIQUOT_1 = 10
 
 
 @pytest.fixture
-def index(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
-    with _graph.session_scope():
+def index(init_indexd, pg_driver):
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+    with pg_driver.session_scope():
         builder.cache_database()
-    index = builder.denormalize_all()
+        index = builder.denormalize_all()
     return Index._make(index)
 
 
 @pytest.fixture
-def cached_builder(init_indexd):
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd)
-    builder.cache_database()
-    return builder
+def cached_builder(init_indexd, pg_driver):
+    with pg_driver.session_scope():
+        builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+        builder.cache_database()
+        yield builder
 
 
 @pytest.fixture()
-def builder(init_indexd):
-    return ActiveGraphIndexBuilder(_graph, init_indexd)
+def builder(init_indexd, pg_driver):
+    return ActiveGraphIndexBuilder(pg_driver, init_indexd)
 
 
 @pytest.fixture
@@ -84,10 +78,10 @@ def simple_somatic_mutations(index):
 def mappings():
     mapper = ActiveGraphIndexBuilder.mapper
     return {
-        'file': mapper.get_file_es_mapping(),
-        'annotation': mapper.get_annotation_es_mapping(),
-        'case': mapper.get_case_es_mapping(),
-        'project': mapper.get_project_es_mapping(),
+        'file': mapper.get_file_es_mapping().to_dict(),
+        'annotation': mapper.get_annotation_es_mapping().to_dict(),
+        'case': mapper.get_case_es_mapping().to_dict(),
+        'project': mapper.get_project_es_mapping().to_dict(),
     }
 
 
@@ -95,15 +89,8 @@ def mappings():
 # Tests
 
 @pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
-def test_mapping_full(doc_type):
+def test_mapping_full(mappings, doc_type):
     """ Compare mappings defined in mappings.py to gdc-models """
-    mapper = ActiveGraphIndexBuilder.mapper
-    mappings = {
-        'file': mapper.get_file_es_mapping(),
-        'annotation': mapper.get_annotation_es_mapping(),
-        'case': mapper.get_case_es_mapping(),
-        'project': mapper.get_project_es_mapping(),
-    }
     validate_mappings(mappings, doc_type)
 
 
@@ -138,16 +125,16 @@ def test_get_file_metadata_from_indexd(index):
     (by checking that their value is not 'error' or -1 which are values in the graph)
     """
     for f in index.files:
-        for key, value in f.iteritems():
+        for key, value in f.items():
             validate_file_metadata(key, value)
 
 
-def test_selective_caching(init_indexd):
+def test_selective_caching(init_indexd, pg_driver):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd,
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd,
                                       build_projects=projects_subset,
                                       selective_caching=True)
     builder.cache_database()
@@ -157,12 +144,12 @@ def test_selective_caching(init_indexd):
     assert built_projects == projects_subset
 
 
-def test_awg_build(init_indexd):
+def test_awg_build(init_indexd, pg_driver):
     """
     Tests AWG build mode
     """
     build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
-    builder = ActiveGraphIndexBuilder(_graph, init_indexd, build_awg=True,
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd, build_awg=True,
                                       build_projects=build_projects)
     builder.cache_database()
 
@@ -241,7 +228,7 @@ def test_mapping_value_in(mappings, mapping, path, expected):
 
 @pytest.mark.parametrize('a,b,expected', [
     ([['a', 'b'], ['-', '#']],
-     [range(0, 2), range(2, 4), range(4, 8)],
+     [[0, 1], [2, 3], [4, 5, 6, 7]],
      [['a', 'b', 0, 1],
       ['a', 'b', 2, 3],
       ['a', 'b', 4, 5, 6, 7],
@@ -421,10 +408,11 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
      [get_node_id('unreleased-annotation')])
 ])
 def test_unreleased_nodes_not_indexed(
-        graph, index, doc_type, path, cls, node_ids):
-    for node_id in node_ids:
-        node = graph.nodes(cls).ids(node_id).one()
-        assert node.state in ['submitted', 'released']
+        pg_driver, index, doc_type, path, cls, node_ids):
+    with pg_driver.session_scope():
+        for node_id in node_ids:
+            node = pg_driver.nodes(cls).ids(node_id).one()
+            assert node.state in ['submitted', 'released']
 
     results = parse(path).find(getattr(index, doc_type))
     result_set = {r.value for r in results}
@@ -447,13 +435,14 @@ def test_path_value_set_equals_set(index, doc_type, path, expected, count):
     assert len(results) == count
 
 
-@pytest.mark.parametrize('T', [
+@pytest.mark.parametrize('node_cls', [
     (md.SubmittedAlignedReads),
     (md.SubmittedMethylationBetaValue)
 ])
-def test_no_submitted_types(graph, index, T):
-    f_ids = {n.node_id for n in graph.nodes(T).all()}
-    assert not [d for d in index.files if d['file_id'] in f_ids]
+def test_no_submitted_types(pg_driver, index, node_cls):
+    with pg_driver.session_scope():
+        f_ids = {n.node_id for n in pg_driver.nodes(node_cls).all()}
+        assert not [d for d in index.files if d['file_id'] in f_ids]
 
 
 def test_aligned_reads_analysis_input_files(index, simple_somatic_mutations):
@@ -516,17 +505,18 @@ def test_file_to_read_group_paths(label, path):
     assert path in ActiveGraphIndexBuilder.file_to_read_group_paths[label]
 
 
-def test_get_file_read_groups(graph, index):
-    f_ids = {n.node_id for n in graph.nodes(md.SubmittedAlignedReads).all()}
-    assert not [d for d in index.files if d['file_id'] in f_ids]
+def test_get_file_read_groups(pg_driver, index):
+    with pg_driver.session_scope():
+        f_ids = {n.node_id for n in pg_driver.nodes(md.SubmittedAlignedReads).all()}
+        assert not [d for d in index.files if d['file_id'] in f_ids]
 
 
 @pytest.mark.parametrize('cls,count', [
     (md.AlignmentWorkflow, 2),
     (md.SomaticMutationCallingWorkflow, 2),
 ])
-def test_get_analysis_read_groups(graph, cached_builder, cls, count):
-    for workflow in graph.nodes(cls).all():
+def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
+    for workflow in pg_driver.nodes(cls).all():
         read_groups = list(cached_builder.get_analysis_read_groups(workflow))
         assert len(read_groups) == count
         for read_group in read_groups:
@@ -539,8 +529,8 @@ def test_get_analysis_read_groups(graph, cached_builder, cls, count):
     (md.RunMetadata, 1),
     (md.ExperimentMetadata, 1),
 ])
-def test_get_file_associated_entities(graph, cached_builder, cls, count):
-    for node in graph.nodes(cls).all():
+def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
+    for node in pg_driver.nodes(cls).all():
         if cached_builder.is_file_indexed(node):
             entities = list(cached_builder.get_file_associated_entities(node))
             assert len(entities) == count
@@ -550,8 +540,8 @@ def test_get_file_associated_entities(graph, cached_builder, cls, count):
     (md.BiospecimenSupplement, 0),
     (md.ClinicalSupplement, 0),
 ], scope='module')
-def test_add_related_files(graph, cached_builder, cls, count):
-    for node in graph.nodes(cls).all():
+def test_add_related_files(pg_driver, cached_builder, cls, count):
+    for node in pg_driver.nodes(cls).all():
         if cached_builder.is_file_indexed(node):
             doc = {}
             cached_builder.add_related_files(node, doc)
@@ -564,8 +554,8 @@ def test_add_related_files(graph, cached_builder, cls, count):
     (md.AlignedReads, False),
     (md.CopyNumberSegment, False),
 ], scope='module')
-def test_add_archive(graph, cached_builder, cls, has_archive):
-    for node in graph.nodes(cls).all():
+def test_add_archive(pg_driver, cached_builder, cls, has_archive):
+    for node in pg_driver.nodes(cls).all():
         if cached_builder.is_file_indexed(node):
             doc = {}
             cached_builder.add_archives(node, doc)
@@ -576,12 +566,12 @@ def test_aligned_reads_count(aligned_reads):
     assert len(aligned_reads) == 2
 
 
-def test_aligned_reads_associated_entities(graph, index, aligned_reads):
+def test_aligned_reads_associated_entities(index, aligned_reads):
     for f in aligned_reads:
         assert len(f['associated_entities']) == 1
 
 
-def test_aligned_reads_ancestor_sample_types(graph, index, aligned_reads):
+def test_aligned_reads_ancestor_sample_types(index, aligned_reads):
     for f in aligned_reads:
         assert len(f['cases']) == 1
         assert len(f['cases'][0]['samples']) == 1
@@ -593,7 +583,7 @@ def test_no_duplicate_top_level_ids(index):
         assert len(aliquot_ids) == len(set(aliquot_ids))
 
 
-def test_somatic_aggregation_workflow_read_groups(graph, index):
+def test_somatic_aggregation_workflow_read_groups(index):
     aggregated_somatic_mutations = [
         doc
         for doc in index.files

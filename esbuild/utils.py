@@ -1,17 +1,14 @@
-import time
 import os
+import subprocess
+import time
 from collections import deque
 from hashlib import md5
 from itertools import chain
+from reprlib import repr
 from sys import getsizeof
-try:
-    from reprlib import repr
-except ImportError:
-    pass
-import subprocess
 
 import six
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from dotenv import load_dotenv
 from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
@@ -407,9 +404,10 @@ class ReleaseHelper:
 
     @staticmethod
     def get_commit_hash():
-        git_dir = os.path.join(os.path.dirname(
-                                os.path.dirname(
-                                  os.path.realpath(__file__))), '.git')
+        git_dir = os.path.join(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.realpath(__file__))), '.git')
         try:
             commit_hash = subprocess.check_output(['git',
                                                    '--git-dir={}'.format(git_dir),
@@ -417,15 +415,14 @@ class ReleaseHelper:
         except Exception as err:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
-        return commit_hash
+        return commit_hash.decode('utf-8')
 
     @staticmethod
     def get_build_metadata_id(project_ids):
         if not isinstance(project_ids, list):
             project_ids = [str(project_ids)]
 
-        project_ids_sorted = sorted(project_ids)
-
-        md5hash = md5(','.join(project_ids_sorted))
+        id_string = ','.join(sorted(project_ids))
+        md5hash = md5(id_string.encode('utf-8'))
 
         return md5hash.hexdigest()
