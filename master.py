@@ -200,6 +200,8 @@ if __name__ == "__main__":
                                             split_by_program=args.split_by_program):
                     job_json = {
                         'index': args.index,
+                        'replicas': args.replicas,
+                        'shards': args.shards,
                         'no-roll': args.no_roll,
                         'no-cleanup': args.no_cleanup,
                         'skip-es': args.skip_es,

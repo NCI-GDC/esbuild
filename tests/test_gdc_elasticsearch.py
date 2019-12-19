@@ -25,13 +25,14 @@ GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
 
 @pytest.fixture
 def make_gdc_es(pg_driver):
-    def wrapper(indexd_client, converter):
+    def wrapper(indexd_client, converter, **kwargs):
         return GDCElasticsearch(
             converter_class=converter,
             indexd_client=indexd_client,
             index_base="gdc_es_test",
             index_close_thresh=4,
             pg_driver=pg_driver,
+            **kwargs
         )
     return wrapper
 
@@ -48,6 +49,23 @@ def derived_file(pg_driver):
     yield derived_file
 
     cleanup_nodes(pg_driver, [derived_file])
+
+
+def verify_index_settings(es, index, replicas, shards):
+    """Assert that the given index has the expected settings."""
+
+    # Confirm the settings are as expected.
+    settings_response = es.indices.get_settings(
+        index, name=['index.number_of_replicas', 'index.number_of_shards']
+    )
+    settings = settings_response[index]['settings']
+    assert int(settings['index']['number_of_replicas']) == replicas
+    assert int(settings['index']['number_of_shards']) == shards
+
+    # Confirm the actual number of replicas/shards matches the settings.
+    stats = es.indices.stats(index, level='shards')
+    assert stats['_shards']['total'] == (replicas + 1) * shards
+    assert len(stats['indices'][index]['shards']) == shards
 
 
 @pytest.fixture
@@ -79,31 +97,40 @@ def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
     es = setup_test
     gdces = make_gdc_es(init_indexd, converter)
     gdces.go()
-    assert len(es.indices.get_alias()) == 1
+
+    all_indices = get_all_indices(setup_test)
+    assert len(all_indices) == 1
+
+    index_name = all_indices[0]
+    assert index_name == 'gdc_es_test_1'
+
+    # check that we esbuilt the index with the expected default settings
+    verify_index_settings(setup_test, index=index_name, replicas=0, shards=1)
+
     # also verify that the to_delete file is not in the index and
     # got deleted
-    assert not es.exists(index="gdc_es_test",
+    assert not es.exists(index=index_name,
                          doc_type="file",
                          id=get_node_id("to-delete-file"))
 
     # Test Case exists by id
-    assert es.exists(index="gdc_es_test",
+    assert es.exists(index=index_name,
                      doc_type="case",
                      id=get_node_id('case-tcga-brca-breast'))
 
     # Test blocking release annotation does not exist in index
     assert not es.exists(
-        index='gdc_es_test',
+        index=index_name,
         doc_type='annotation',
         id=get_node_id('block-release-annotation'),
     )
     assert not es.exists(
-        index='gdc_es_test',
+        index=index_name,
         doc_type='annotation',
         id=get_node_id('block-release-annotation-released'),
     )
     assert es.exists( # just checking
-        index='gdc_es_test',
+        index=index_name,
         doc_type='annotation',
         id=get_node_id('annotation-approved-center-qc-failed'),
     )
@@ -147,6 +174,31 @@ def test_old_index_cleanup(setup_test, init_indexd, converter, make_gdc_es):
     for i in range(2, 4):
         with pytest.raises(AuthorizationException):
             setup_test.indices.stats('gdc_es_test_{}'.format(i))
+
+
+@pytest.mark.parametrize('replicas, shards', [(0, 1), (2, 6)])
+def test_index_settings(
+    setup_test,
+    init_indexd,
+    make_gdc_es,
+    replicas,
+    shards
+):
+    """Test configuring settings for an index created by esbuild."""
+    gdces = make_gdc_es(
+        indexd_client=init_indexd,
+        converter=ActiveGraphIndexBuilder,
+        index_replicas=replicas,
+        index_shards=shards,
+    )
+    gdces.go()
+
+    index_name = get_all_indices(setup_test)[0]
+    assert index_name == 'gdc_es_test_1'
+
+    verify_index_settings(
+        es=setup_test, index=index_name, replicas=replicas, shards=shards
+    )
 
 
 # TT-1053 index redaction

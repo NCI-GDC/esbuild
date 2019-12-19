@@ -20,7 +20,9 @@ TIMEDELTA = config['timedelta']
 def minion_argparser():
     """Parses depot arguments for esbuild minion"""
 
-    parser = argparse.ArgumentParser(description='Parses esbuild job parameters')
+    parser = argparse.ArgumentParser(
+        description='Parses esbuild job parameters',
+    )
     parser.add_argument('--depot-host',
                         help='Depot server host',
                         required=True)
