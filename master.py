@@ -205,7 +205,6 @@ if __name__ == "__main__":
                         'no-roll': args.no_roll,
                         'no-cleanup': args.no_cleanup,
                         'skip-es': args.skip_es,
-                        'test-delete': args.test_delete,
                         'projects': ' '.join(group),
                         'selective-caching': args.selective_caching,
                         'build-awg': args.build_awg,

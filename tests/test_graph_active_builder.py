@@ -14,6 +14,7 @@ from jsonpath_rw import parse
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 
+from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
     list_product,
@@ -47,7 +48,7 @@ def index(init_indexd, pg_driver):
     builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builder.cache_database()
-        index = builder.denormalize_all()
+    index = builder.denormalize_all()
     return Index._make(index)
 
 
@@ -129,12 +130,12 @@ def test_get_file_metadata_from_indexd(index):
             validate_file_metadata(key, value)
 
 
-def test_selective_caching(init_indexd, pg_driver):
+def test_selective_caching(init_indexd, ro_pg_driver):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
     projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd,
+    builder = ActiveGraphIndexBuilder(ro_pg_driver, init_indexd,
                                       build_projects=projects_subset,
                                       selective_caching=True)
     builder.cache_database()

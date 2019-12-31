@@ -10,6 +10,7 @@ from collections import namedtuple
 
 import psqlgraph
 import pytest
+from datadog import statsd
 from gdcdictionary import gdcdictionary
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
@@ -194,6 +195,38 @@ def pg_driver(graph):
     clear_graph_database(graph)
 
 
+@pytest.fixture(scope='module')
+def ro_pg_driver(pg_driver):
+    with pg_driver.engine.connect() as conn:
+        ro_user = 'ro_test'
+        ro_pass = 'ro_test'
+        commands = [
+            # "create user {} with password '{}'".format(ro_user, ro_pass),
+            'grant connect on database {} to {}'.format(PG_NAME, ro_user),
+            'grant select on all tables in schema public to {}'.format(ro_user),
+        ]
+        for cmd in commands:
+            conn.execute(cmd)
+
+    ro_pg_conn = PsqlGraphDriver(
+        host=os.getenv('PG_HOST', PG_HOST),
+        user=ro_user,
+        password=ro_pass,
+        database=os.getenv('PG_NAME', PG_NAME),
+    )
+
+    yield ro_pg_conn
+
+    with pg_driver.engine.connect() as conn:
+        commands = [
+            'revoke all on all tables in schema public from {}'.format(ro_user),
+            'revoke all on database {} from {}'.format(PG_NAME, ro_user),
+        ]
+
+        for cmd in commands:
+            conn.execute(cmd)
+
+
 @pytest.fixture(scope='session')
 def graph_factory():
     graph_globals = {
@@ -359,3 +392,11 @@ def setup_test(pg_driver):
     yield es
 
     cleanup_indices(es)
+
+
+@pytest.fixture(autouse=True)
+def mocked_statsd(monkeypatch):
+    def event_mock(*_, **__):
+        pass
+
+    monkeypatch.setattr(statsd, 'event', event_mock)

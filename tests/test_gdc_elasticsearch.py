@@ -332,3 +332,12 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
         assert 'use a keyword field instead' in str(e)
     else:
         raise AssertionError("No exception raised")
+
+
+def test_build_from_readonly(ro_pg_driver, init_indexd):
+    """
+    Make sure that no write attempts are made during ESBuild run
+    """
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, init_indexd,
+                              pg_driver=ro_pg_driver)
+    gdc_es.go()
