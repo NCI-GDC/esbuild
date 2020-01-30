@@ -1,8 +1,12 @@
 import time
+import uuid
+
+import pytest
 
 from tests import es_data
 from tests.data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
+from esbuild.graph.common.builder import get_namespaced_uuid, get_uuid_namespace
 
 
 def test_get_projects_list(test_index_data):
@@ -129,3 +133,23 @@ def test_update_metadata(es_after_deletion):
     for project in deleted_projects:
         assert project in projects_before
         assert project not in projects_after
+
+
+@pytest.mark.parametrize("namespace, expectation", [
+    ("aliquots", "43ad68c3-15fe-4d2a-b038-2b5795dfaddd"),
+    ("analytes", "816442b7-0b40-4c24-abee-9e6bb4dcf483"),
+    ("slides", "d11ce424-081d-47fe-8287-7ed86056b9eb"),
+])
+def test_get_uuid_namespace(namespace, expectation):
+    u = get_uuid_namespace(namespace)
+    assert expectation == str(u)
+
+
+@pytest.mark.parametrize("namespace, seed, expectation", [
+    ("aliquots", "89ddc3c8-e2ad-560b-aa1c-934f7c8a238e", "6dec5bd1-5db4-5a49-a5c4-b7ac5f6fab83"),
+    ("analytes", "89ddc3c8-e2ad-560b-aa1c-934f7c8a238e", "a24d0977-b65a-55eb-a5ce-2749adf5d3a4"),
+    ("slides", "89ddc3c8-e2ad-560b-aa1c-934f7c8a238e", "826fc9b4-537f-5caa-8dbb-1e4b3f44c07d"),
+])
+def test_get_namespaced_uuid(namespace, seed, expectation):
+    u = get_namespaced_uuid(namespace, seed)
+    assert expectation == str(u)

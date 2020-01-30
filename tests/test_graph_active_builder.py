@@ -308,11 +308,11 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('cases', '[*].project_id', 0),
     ('cases', '[*].metadata_files', 0),
     ('cases', '[*].samples.[*].project_id', 0),
-    ('cases', '[*].samples.[*].portions.[*].portion_id', 4),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 6),
+    ('cases', '[*].samples.[*].portions.[*].portion_id', 6),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].analyte_id', 7),
     ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id', 0),
-    ('cases', '[*].samples.[*].sample_id', 2),
-    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 12),
+    ('cases', '[*].samples.[*].sample_id', 3),
+    ('cases', '[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id', 13),
     ('files', '[*].(file_size | file_name | file_id)', N_FILES * 3),
     ('files', '[*].uploaded_datetime', 0),
     ('files', '[*].project_id', 0),
@@ -593,3 +593,15 @@ def test_somatic_aggregation_workflow_read_groups(index):
     assert aggregated_somatic_mutations
     for asm in aggregated_somatic_mutations:
         assert not asm['analysis'].get('metadata', {}).get('read_groups', [])
+
+
+def test_sample_analyte_indexed(index):
+    """ Tests to verify that aliquots under the subtree case.sample.analyte are indexed """
+    case_affected = None
+    for case in index.cases:
+        if case["submitter_id"] == "fake_submitter_2":
+            case_affected = case
+            break
+    assert len(case_affected["aliquot_ids"]) == 1
+    aliquot_ids = case_affected["aliquot_ids"]
+    assert aliquot_ids[0] == "9fc513c2-1103-57ba-94a1-baa068e7872b"
