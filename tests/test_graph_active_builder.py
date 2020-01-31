@@ -604,4 +604,4 @@ def test_sample_analyte_indexed(index):
             break
     assert len(case_affected["aliquot_ids"]) == 1
     aliquot_ids = case_affected["aliquot_ids"]
-    assert aliquot_ids[0] == "9fc513c2-1103-57ba-94a1-baa068e7872b"
+    assert aliquot_ids[0] == get_node_id("tt-260-aliquot")
