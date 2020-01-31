@@ -126,6 +126,7 @@ class ESMapper(object):
         # Biospecimen subtree
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
         case_tree.sample.analyte.corr = (ONE_TO_MANY, 'analytes')
+        case_tree.sample.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')

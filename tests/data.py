@@ -1255,6 +1255,30 @@ NODES = [
         primary_site='Rectum',
         disease_type='Rectum Adenocarcinoma'
     ),
+    md.Sample(
+        node_id=get_node_id("tt-260-sample"),
+        project_id="TCGA-BRCA",
+        submitter_id="TT-260-SAMPLE",
+        state="released"
+    ),
+    md.Portion(
+        node_id=get_node_id("tt-260-portion"),
+        project_id="TCGA-BRCA",
+        state="released",
+        submitter_id="TT-260-PORTION"
+    ),
+    md.Analyte(
+        node_id=get_node_id("tt-260-analyte"),
+        state="released",
+        project_id="TCGA-BRCA",
+        submitter_id="TT-260-ANALYTE"
+    ),
+    md.Aliquot(
+        node_id=get_node_id("tt-260-aliquot"),
+        state="released",
+        project_id="TCGA-BRCA",
+        submitter_id="TT-260-ALIQUOT"
+    ),
 
     # DAT-2619
     # data_file skipped because of 'submitted_*' label
@@ -1333,6 +1357,24 @@ NODES = [
 
 
 EDGES = [
+    
+    md.SampleDerivedFromCase(
+        src_id=get_node_id('tt-260-sample'),
+        dst_id=get_node_id('fake_active_case_2'),
+    ),
+    md.PortionDerivedFromSample(
+        src_id=get_node_id('tt-260-portion'),
+        dst_id=get_node_id('tt-260-sample'),
+    ),
+    md.AnalyteDerivedFromSample(
+        src_id=get_node_id('tt-260-analyte'),
+        dst_id=get_node_id('tt-260-sample'),
+    ),
+    md.AliquotDerivedFromAnalyte(
+        src_id=get_node_id('tt-260-aliquot'),
+        dst_id=get_node_id('tt-260-analyte'),
+    ),
+
     # Somatic mutation workflows
     md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
         src_id=get_node_id('somatic-aggregation-workflow-1'),

@@ -7,7 +7,7 @@ Defines :class:`GraphIndexBuilder` for use building the primary GDC
 graph index.
 
 """
-
+import hashlib
 import itertools
 import logging
 import random
@@ -16,7 +16,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
 from functools import lru_cache
-from uuid import uuid4
+from uuid import uuid5, UUID
 
 import networkx as nx
 from cdislogging import get_logger
@@ -37,7 +37,6 @@ from esbuild.graph.common.mappings import (
     ONE_TO_ONE,
 )
 
-
 log = get_logger("graph_index")
 log.setLevel(level=logging.INFO)
 
@@ -54,7 +53,6 @@ def dfs_to_parent(node, target='case'):
 
 
 class GraphIndexBuilder(object):
-
     """This class handles all of the JSON production for the GDC
     portal. Currently, the entire postgresql database is cached to
     memory.  To save space, edge labels are only maintained if we need
@@ -734,9 +732,9 @@ class GraphIndexBuilder(object):
                 if analyte['analyte_id'] not in correct_analytes:
                     log.info('Moving {} to correct location'.format(analyte['analyte_id']))
                     sample['portions'].append({
-                        'portion_id': str(uuid4()),
+                        'portion_id': get_namespaced_uuid(ns="analytes", seed=analyte["analyte_id"]),
                         'analytes': [analyte]
-                        })
+                    })
 
             # Get all slides connected to samples (SVT-249)
             sample_slides = sample.pop('slides', [])
@@ -745,24 +743,26 @@ class GraphIndexBuilder(object):
                 if slide['slide_id'] not in correct_slides:
                     log.info('Moving {} to correct location'.format(slide['slide_id']))
                     sample['portions'].append({
-                        'portion_id': str(uuid4()),
+                        'portion_id': get_namespaced_uuid(ns="slides", seed=slide["slide_id"]),
                         'slides': [slide]
-                        })
+                    })
 
             # Get all aliquots connected to samples
             sample_aliquots = sample.pop('aliquots', [])
             for aliquot in sample_aliquots:
                 # Put aliquot under analyte
                 if aliquot['aliquot_id'] not in correct_aliquots:
+                    analyte_id = get_namespaced_uuid(ns="aliquots", seed=aliquot["aliquot_id"])
+                    portion_id = get_namespaced_uuid(ns="analytes", seed=analyte_id)
                     new_dict = {
                         'analytes': [{
-                            'analyte_id': str(uuid4()),
+                            'analyte_id': analyte_id,
                             'aliquots': [aliquot]
                         }]
                     }
                     # check if another entry already added the fake id
                     if 'portion_id' not in sample['portions']:
-                        new_dict['portion_id'] = str(uuid4())
+                        new_dict['portion_id'] = portion_id
                     sample['portions'].append(new_dict)
 
             for portion in sample['portions']:
@@ -774,7 +774,7 @@ class GraphIndexBuilder(object):
                     # Put aliquot under analyte
                     if aliquot['aliquot_id'] not in correct_aliquots:
                         portion['analytes'].append([{
-                            'analyte_id': str(uuid4()),
+                            'analyte_id': get_namespaced_uuid(ns="aliquots", seed=aliquot["aliquot_id"]),
                             'aliquots': [aliquot]}])
 
     def patch_project(self, project_doc):
@@ -2364,3 +2364,37 @@ class GraphIndexBuilder(object):
             category = file_._props.get('data_category')
             if category:
                 self.data_categories[category].add(file_)
+
+
+def get_namespaced_uuid(ns, seed):
+    """ Creates a consistent UUID5 string using the provided args
+    Args:
+        ns (str): namespace
+        seed (str): seed value
+    Returns:
+        str: uuid5 string
+    """
+    namespace = get_uuid_namespace(ns)
+    return str(uuid5(namespace, seed))
+
+
+def get_uuid_namespace(label):
+    """ Returns a consistent uuid4 string for a given label
+    Args:
+        label (str): a label for a namespace, for eg aliquots
+    Returns:
+        UUID: uuid4 string
+    """
+
+    if label in UUID_NAMESPACES:
+        return UUID_NAMESPACES[label]
+
+    namespace = hashlib.sha1(bytes(label, "utf-8")).hexdigest()
+    namespace = namespace[:32]
+    namespace_uuid = UUID(hex=namespace, version=4)
+
+    UUID_NAMESPACES[label] = namespace_uuid
+    return namespace_uuid
+
+
+UUID_NAMESPACES = {}
