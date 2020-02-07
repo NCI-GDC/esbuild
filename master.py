@@ -7,6 +7,7 @@ from queueclient.depot import DepotQueueClient
 
 from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
+from esbuild.utils import ES_CONFIG
 
 logger = get_logger('esbuild_master')
 
@@ -122,12 +123,8 @@ def backup_wrapper(snapshot_name, index_name, mode):
     """
     Executes backup or restore procedure with BackupHelper
     """
-    es_client = Elasticsearch(
-        hosts=[os.environ["ES_HOST"]],
-        http_auth=(os.environ.get("ES_USER", ""),
-                   os.environ.get("ES_PASSWORD", "")),
-        timeout=9999,
-    )
+    es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
+
     backup_helper = BackupHelper(
         es_client,
         os.environ["S3_HOST"],

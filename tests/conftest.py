@@ -164,7 +164,7 @@ def render_database(pg_driver):
 def environment(monkeypatch):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv('ELASTICSEARCH_HOST', ES_HOST)
+    monkeypatch.setenv('ES_HOST', ES_HOST)
     monkeypatch.setenv('ES_USER', '')
     monkeypatch.setenv('ES_PASSWORD', '')
     monkeypatch.setenv('PG_HOST', PG_HOST)

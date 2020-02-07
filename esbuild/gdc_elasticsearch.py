@@ -8,25 +8,32 @@ Elasticsearch
 
 """
 
+import datetime
+import json
 import os
 import re
-import time
-import json
-import datetime
-import subprocess
 import resource
+import subprocess
+import time
 
 from cdislogging import get_logger
 from datadog import statsd
 from elasticsearch import (
-    NotFoundError, Elasticsearch, helpers, exceptions as es_exc,
+    Elasticsearch,
+    NotFoundError,
+    exceptions as es_exc,
+    helpers,
 )
 from elasticsearch.exceptions import AuthorizationException
 from gdcdatamodel.models import File
-from progressbar import ProgressBar, Percentage, Bar, ETA
+from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import PsqlGraphDriver
 
-from esbuild.utils import ReleaseHelper, VersionedNodesDiffCollector
+from esbuild.utils import (
+    ES_CONFIG,
+    ReleaseHelper,
+    VersionedNodesDiffCollector,
+)
 
 # TODO: Play around with these values and find the sweet spot that
 # minimizes the loading time without crashing the ES cluster
@@ -130,11 +137,8 @@ class GDCElasticsearch(object):
         if not self.skip_es:
             if not self.es:
                 # TODO sniff_on_start here?
-                self.es = Elasticsearch(
-                    hosts=[os.environ["ELASTICSEARCH_HOST"]],
-                    http_auth=(os.environ.get("ES_USER", ""),
-                               os.environ.get("ES_PASSWORD", "")),
-                    timeout=9999)
+                self.es = Elasticsearch(timeout=9999, **ES_CONFIG)
+
         else:
             self.es = None
 
@@ -638,7 +642,7 @@ class GDCElasticsearch(object):
         last 5 versions of this index.
 
         """
-       
+
         if not index_name:
             raise ValueError(
                 "Please, provide index name. Automatic index version increment "

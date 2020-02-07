@@ -37,6 +37,15 @@ INDEXD_METADATA_VALUE_GETTERS = {
 
 load_dotenv()
 
+ES_CONFIG = {
+    'hosts': [os.environ["ES_HOST"]],
+    'port': os.getenv("ES_PORT", 9200),
+    'use_ssl': os.getenv("ES_USE_SSL", "False").lower() == "true",
+    'verify_certs': os.getenv("ES_VERIFY_CERTS", "False").lower() == "true",
+    'http_auth': (os.getenv("ES_USER", ""), os.getenv("ES_PASSWORD", "")),
+    'ca_certs': os.getenv("CA_CERT_PATH", ""),
+}
+
 
 def get_default_pg_driver():
     return PsqlGraphDriver(
