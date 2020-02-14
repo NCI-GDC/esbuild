@@ -16,6 +16,9 @@ from gdcdatamodel.models import (
     FileSubmittedByCenter, FileGeneratedFromPlatform
 )
 
+from esbuild.utils import ES_CONFIG
+
+
 
 def user_access_type(logged_in, open):
     if logged_in and open:
@@ -93,10 +96,7 @@ class DownloadStatsIndexBuilder(object):
         if es:
             self.es = es
         else:
-            self.es = Elasticsearch(
-                hosts=[os.environ["ELASTICSEARCH_HOST"]],
-                http_auth=(os.environ.get("ES_USER", ""),
-                           os.environ.get("ES_PASSWORD", "")))
+            self.es = Elasticsearch(**ES_CONFIG)
 
         self.index_name = index_name
         self.doc_type = doc_type
