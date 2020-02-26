@@ -4,141 +4,340 @@ Tests the GDC Elasticsearch interaction for active and legacy
 indices.
 
 """
+import json
 
-from elasticsearch import Elasticsearch
+import pytest
 from gdcdatamodel.models import File, Demographic
 from elasticsearch.exceptions import AuthorizationException
+
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from unittest import TestCase
-
-import data
-import json
-import os
-
-from conftest import (
-    PG_HOST,
-    PG_USER,
-    PG_PASSWORD,
-    PG_DATABASE,
-    _graph,
+from tests import data
+from tests.conftest import (
+    get_all_indices,
+    cleanup_nodes,
 )
+from tests.data import get_node_id
+
+GRAPH_INDEX_DOC_TYPES = ['project', 'case', 'annotation', 'file']
 
 
-class GDCElasticsearchTest(object):
-
-    def setUp(self):
-        data.insert(_graph)
-
-        os.environ["PG_HOST"] = PG_HOST
-        os.environ["PG_USER"] = PG_USER
-        os.environ["PG_PASS"] = PG_PASSWORD
-        os.environ["PG_NAME"] = PG_DATABASE
-        os.environ["ELASTICSEARCH_HOST"] = "localhost"
-
-        self.es = Elasticsearch("localhost")
-        self.delete_all_indices()
-
-    def delete_all_indices(self):
-        indices = self.get_es_indices()
-        for index in indices:
-            self.es.indices.delete(index)
-
-    def tearDown(self):
-        super(GDCElasticsearchTest, self).tearDown()
-        self.delete_all_indices()
-
-    def make_gdc_es(self):
-        raise NotImplementedError()
-
-    def get_es_indices(self):
-        return (
-            # Closed indices
-            self.es.cluster.state()['blocks'].get('indices', {}).keys()
-            # Open indices
-            + self.es.indices.stats()['indices'].keys()
-        )
-
-    def test_basic_es_generate(self):
-        gdces = self.make_gdc_es()
-        gdces.go()
-        self.assertEqual(len(self.get_es_indices()), 1)
-        # also verify that the to_delete file is not in the index and
-        # got deleted
-        with _graph.session_scope():
-            self.assertFalse(self.es.exists(index="gdc_es_test",
-                                            doc_type="file",
-                                            id="to-delete-file"))
-
-        # Test Case exists by id
-        with _graph.session_scope():
-            self.assertTrue(self.es.exists(
-                index="gdc_es_test",
-                doc_type="case",
-                id='eda6d2d5-4199-4f76-a45b-1d0401b4e54c'))
-
-
-    def test_unexpected_properties(self):
-        with _graph.session_scope() as s:
-            demographic = _graph.nodes(Demographic).one()
-            s.execute("""
-            UPDATE node_demographic
-            SET _props = :props
-            WHERE node_id = :id
-            """, {
-                'id': demographic.node_id,
-                'props': json.dumps(dict(demographic.props, **{
-                    'fake_property': True,
-                }))
-            })
-
-        gdces = self.make_gdc_es()
-        gdces.go()
-        self.assertEqual(len(self.get_es_indices()), 1)
-
-    def test_doesnt_delete_file_with_derived_files(self):
-        gdces = self.make_gdc_es()
-        with _graph.session_scope():
-            to_delete_file = _graph.nodes(File).ids("to-delete-file").one()
-            derived_file = data.fuzzed(File, state="live")
-            to_delete_file.derived_files = [derived_file]
-        gdces.go()
-        self.assertEqual(len(self.get_es_indices()), 1)
-        # verify that th eto_delete file did not get deleted
-        with _graph.session_scope():
-            self.assertEqual(_graph.nodes(File).get('to-delete-file').file_name,
-                             "a_file_to_be_deleted.txt")
-
-    def test_old_index_cleanup(self):
-        for i in range(7):
-            gdces = self.make_gdc_es()
-            gdces.go()
-        indices = self.get_es_indices()
-        # running the index build seven times should delete indicies 1 and 2
-        self.assertEqual(set(indices), {"gdc_es_test_3",
-                                        "gdc_es_test_4",
-                                        "gdc_es_test_5",
-                                        "gdc_es_test_6",
-                                        "gdc_es_test_7"})
-        for i in xrange(3, 6):
-            with self.assertRaises(AuthorizationException):
-                self.es.indices.stats('gdc_es_test_'+str(i))
-
-
-class GDCActiveElasticsearchTest(GDCElasticsearchTest, TestCase):
-
-    def make_gdc_es(self):
+@pytest.fixture
+def make_gdc_es(pg_driver):
+    def wrapper(indexd_client, converter, **kwargs):
         return GDCElasticsearch(
-            converter_class=ActiveGraphIndexBuilder,
+            converter_class=converter,
+            indexd_client=indexd_client,
             index_base="gdc_es_test",
+            index_close_thresh=4,
+            pg_driver=pg_driver,
+            **kwargs
         )
+    return wrapper
 
 
-class GDCLegacyElasticsearchTest(GDCElasticsearchTest, TestCase):
+@pytest.fixture()
+def derived_file(pg_driver):
+    with pg_driver.session_scope() as sxn:
+        to_delete_file = pg_driver.nodes(File).ids([get_node_id('to-delete-file')]).one()
+        derived_file = data.fuzzed(File, state='live', file_name='foo-bar',
+                                   file_size=1234)
+        to_delete_file.derived_files = [derived_file]
+        sxn.merge(derived_file)
 
-    def make_gdc_es(self):
-        return GDCElasticsearch(
-            converter_class=LegacyGraphIndexBuilder,
-            index_base="gdc_es_test",
-        )
+    yield derived_file
+
+    cleanup_nodes(pg_driver, [derived_file])
+
+
+def verify_index_settings(es, index, replicas, shards):
+    """Assert that the given index has the expected settings."""
+
+    # Confirm the settings are as expected.
+    settings_response = es.indices.get_settings(
+        index, name=['index.number_of_replicas', 'index.number_of_shards']
+    )
+    settings = settings_response[index]['settings']
+    assert int(settings['index']['number_of_replicas']) == replicas
+    assert int(settings['index']['number_of_shards']) == shards
+
+    # Confirm the actual number of replicas/shards matches the settings.
+    stats = es.indices.stats(index, level='shards')
+    assert stats['_shards']['total'] == (replicas + 1) * shards
+    assert len(stats['indices'][index]['shards']) == shards
+
+
+@pytest.fixture
+def patched_demographic(pg_driver):
+    with pg_driver.session_scope() as s:
+        demographic = pg_driver.nodes(Demographic).one()
+        s.execute("""
+        UPDATE node_demographic
+        SET _props = :props
+        WHERE node_id = :id
+        """, {
+            'id': demographic.node_id,
+            'props': json.dumps(dict(demographic.props, **{
+                'fake_property': True,
+            }))
+        })
+
+    yield
+
+    with pg_driver.session_scope():
+        demographic = pg_driver.nodes().get(demographic.node_id)
+        demographic._props.pop('fake_property')
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(demographic, '_props')
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder])
+def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
+    es = setup_test
+    gdces = make_gdc_es(init_indexd, converter)
+    gdces.go()
+
+    all_indices = get_all_indices(setup_test)
+    assert len(all_indices) == 1
+
+    index_name = all_indices[0]
+    assert index_name == 'gdc_es_test_1'
+
+    # check that we esbuilt the index with the expected default settings
+    verify_index_settings(setup_test, index=index_name, replicas=0, shards=1)
+
+    # also verify that the to_delete file is not in the index and
+    # got deleted
+    assert not es.exists(index=index_name,
+                         doc_type="file",
+                         id=get_node_id("to-delete-file"))
+
+    # Test Case exists by id
+    assert es.exists(index=index_name,
+                     doc_type="case",
+                     id=get_node_id('case-tcga-brca-breast'))
+
+    # Test blocking release annotation does not exist in index
+    assert not es.exists(
+        index=index_name,
+        doc_type='annotation',
+        id=get_node_id('block-release-annotation'),
+    )
+    assert not es.exists(
+        index=index_name,
+        doc_type='annotation',
+        id=get_node_id('block-release-annotation-released'),
+    )
+    assert es.exists( # just checking
+        index=index_name,
+        doc_type='annotation',
+        id=get_node_id('annotation-approved-center-qc-failed'),
+    )
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+def test_unexpected_properties(setup_test, init_indexd, converter, make_gdc_es,
+                               patched_demographic):
+    gdces = make_gdc_es(init_indexd, converter)
+    gdces.go()
+    assert len(get_all_indices(setup_test)) == 1
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+def test_doesnt_delete_file_with_derived_files(
+        setup_test, init_indexd, converter, pg_driver, derived_file, make_gdc_es):
+    gdces = make_gdc_es(init_indexd, converter)
+    gdces.go()
+    assert len(get_all_indices(setup_test)) == 1
+    with pg_driver.session_scope():
+        # verify that the to_delete file did not get deleted
+        node = pg_driver.nodes(File).get(get_node_id('to-delete-file'))
+        assert node
+        # verify the filename is correct
+        assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"
+
+
+@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
+def test_old_index_cleanup(setup_test, init_indexd, converter, make_gdc_es):
+    for i in range(5):
+        gdces = make_gdc_es(init_indexd, converter)
+        gdces.go()
+
+    # running the index build five times should delete index 1
+    actual_indices = set(get_all_indices(setup_test))
+    expected_indices = {"gdc_es_test_2", "gdc_es_test_3", "gdc_es_test_4",
+                        "gdc_es_test_5"}
+    assert actual_indices == expected_indices, actual_indices
+
+    # index 1 should be deleted, index 2 and 3 should be closed
+    for i in range(2, 4):
+        with pytest.raises(AuthorizationException):
+            setup_test.indices.stats('gdc_es_test_{}'.format(i))
+
+
+@pytest.mark.parametrize('replicas, shards', [(0, 1), (2, 6)])
+def test_index_settings(
+    setup_test,
+    init_indexd,
+    make_gdc_es,
+    replicas,
+    shards
+):
+    """Test configuring settings for an index created by esbuild."""
+    gdces = make_gdc_es(
+        indexd_client=init_indexd,
+        converter=ActiveGraphIndexBuilder,
+        index_replicas=replicas,
+        index_shards=shards,
+    )
+    gdces.go()
+
+    index_name = get_all_indices(setup_test)[0]
+    assert index_name == 'gdc_es_test_1'
+
+    verify_index_settings(
+        es=setup_test, index=index_name, replicas=replicas, shards=shards
+    )
+
+
+# TT-1053 index redaction
+def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
+
+    es = setup_test
+
+    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdces.go()
+
+    assert not es.exists(  # The case needs to be unindexed
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('redaction-case-released'),
+    )
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('redaction-annotation'),
+    )
+
+    # Check subject withdrew consent case and redaction still show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('withdrew-consent-case-released'),
+    )
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('withdrew-consent-annotation'),
+    )
+
+    # Check released-rescinded redaction doesn't show up
+    assert es.exists(
+        index='gdc_es_test',
+        doc_type='case',
+        id=get_node_id('released-rescinded-case'),
+    )
+    assert not es.exists(
+        index='gdc_es_test',
+        doc_type='annotation',
+        id=get_node_id('released-rescinded-annotation'),
+    )
+
+
+def get_graph_counts(es, index, doc_types):
+    counts = {}
+    for dt in doc_types:
+        r = es.count(index=index, doc_type=dt)
+        counts[dt] = r['count']
+
+    return counts
+
+
+def test_reindex_doc_types(setup_test, init_indexd, make_gdc_es):
+    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es.go()
+
+    es = setup_test
+
+    new_index = 'new_{}'.format(gdc_es.index_name)
+
+    gdc_es.reindex(gdc_es.index_name, new_index, types='annotation')
+
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
+
+    assert counts1['annotation'] == counts2['annotation']
+    assert all(c != 0 for _, c in counts1.items())
+    assert all(c == 0 for dtype, c in counts2.items() if dtype != 'annotation')
+
+
+def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
+    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es.go()
+
+    aggs_query = {
+        'aggs': {'projects': {'terms': {'field': 'project.project_id'}}},
+        '_source': False,
+        'size': 0,
+    }
+
+    es = setup_test
+
+    # project.project_id is a keyword type and aggregations are possible
+    aggs_resp1 = es.search(index=gdc_es.index_name, doc_type='case',
+                           body=aggs_query)
+
+    # get counts before reindexing
+    counts1 = get_graph_counts(es, gdc_es.index_name, GRAPH_INDEX_DOC_TYPES)
+
+    # make sure that the number of cases is as expected
+    assert sum([
+        bucket['doc_count']
+        for bucket in aggs_resp1['aggregations']['projects']['buckets']
+    ]) == counts1['case']
+
+    new_index = 'new_{}'.format(gdc_es.index_name)
+
+    # Lets modify mappings for project_id and make it a 'text' type, this will
+    # disable ability to run the previous aggregation
+    index_settings = gdc_es.converter.mapper.index_settings()
+    mappings = {
+        'file': gdc_es.converter.mapper.get_file_es_mapping().to_dict(),
+        'case': gdc_es.converter.mapper.get_case_es_mapping().to_dict(),
+        'project': gdc_es.converter.mapper.get_project_es_mapping().to_dict(),
+        'annotation': gdc_es.converter.mapper.get_annotation_es_mapping().to_dict(),
+    }
+
+    # Change project.project_id.type to 'text'
+    mappings['project']['properties']['project_id']['type'] = 'text'
+    mappings['case']['properties']['project']['properties']['project_id']['type'] = 'text'
+    mappings['file']['properties']['cases']['properties']['project']['properties']['project_id']['type'] = 'text'
+    mappings['annotation']['properties']['project']['properties']['project_id']['type'] = 'text'
+
+    index_settings.update({'mappings': mappings})
+
+    gdc_es.reindex(gdc_es.index_name, new_index, index_settings=index_settings)
+
+    counts2 = get_graph_counts(es, new_index, GRAPH_INDEX_DOC_TYPES)
+
+    # Make sure that the counts are still the same
+    assert counts1 == counts2
+
+    # The following should fail, because ES doesn't do aggs on 'text' fields
+    try:
+        _ = es.search(index=new_index, doc_type='case', body=aggs_query)
+    except Exception as e:
+        assert 'project.project_id' in str(e)
+        assert 'use a keyword field instead' in str(e)
+    else:
+        raise AssertionError("No exception raised")
+
+
+def test_build_from_readonly(ro_pg_driver, init_indexd):
+    """
+    Make sure that no write attempts are made during ESBuild run
+    """
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, init_indexd,
+                              pg_driver=ro_pg_driver)
+    gdc_es.go()

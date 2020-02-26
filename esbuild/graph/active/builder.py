@@ -18,7 +18,7 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 
 import logging
 
@@ -147,13 +147,24 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     unindexed_by_property = {
         "annotation": [
             {"status": "Rescinded"},
+            {"classification": "Blocking Release"}
         ],
     }
 
     case_to_aliquot = [
         ['sample', 'aliquot'],
+        ['sample', 'analyte', 'aliquot'],
         ['sample', 'portion', 'analyte', 'aliquot'],
     ]
+
+    # BREADCRUMB
+    # Holy hell. Ok, the following lists are paths to where
+    # the builder *will* walk (and ONLY will walk) to find
+    # file nodes. If your path is not here, you will not
+    # get picked up. Be sure to add any paths here to
+    # get data_file nodes to show up. You'll need to create
+    # a list below, then add it to the case_to_file_paths
+    # - a very tired joe sislow (3/15/2018)
 
     readgroup_subtree = list_product(
         [[ReadGroup.label]],
@@ -163,10 +174,30 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         )
     )
 
-    aliquot_to_copy_number_paths = [
+    # Even more fun
+    # It seems that the walk will walk differently
+    # somehow. In some cases, it will walk to the
+    # end of a path, but in others, it will stop or
+    # ignore parents. The reason the following two are
+    # overlapping is because it looks like extending
+    # the path caused it to skip copy_number_segment
+    # when walking to copy_number_estimate. We still
+    # need to get to the bottom of how this logic
+    # should be used.
+    # - joe sislow (11/27/2018)
+
+    aliquot_to_copy_number_segment_paths = [
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
          'copy_number_segment'],
+    ]
+    
+    aliquot_to_copy_number_estimate_paths = [
+        ['submitted_tangent_copy_number',
+         'copy_number_liftover_workflow',
+         'copy_number_segment',
+         'copy_number_variation_workflow',
+         'copy_number_estimate'],
     ]
 
     aliquot_to_methylation_value_paths = [
@@ -175,20 +206,45 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
          'methylation_beta_value'],
     ]
 
+    # added for slide_image by joe, 3/18
+    case_to_slide_image_path = [
+        ['sample',
+         'slide',
+         'slide_image'],
+        ['sample',
+         'portion',
+         'slide',
+         'slide_image'],
+    ]
+
     case_to_file_paths = [
         ['biospecimen_supplement'],
         ['clinical_supplement'],
     ]
 
-    case_to_copy_number_paths = list_product(
-        case_to_aliquot, aliquot_to_copy_number_paths)
+    case_to_copy_number_segment_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_segment_paths)
+    
+    case_to_copy_number_estimate_paths = list_product(
+        case_to_aliquot, aliquot_to_copy_number_estimate_paths)
+    
+    case_to_protein_expression = [
+        ['sample',
+         'protein_expression'],
+        ['sample',
+         'portion',
+         'protein_expression']
+    ]
 
     case_to_methylation_value_paths = list_product(
         case_to_aliquot, aliquot_to_methylation_value_paths)
 
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-    case_to_file_paths += case_to_copy_number_paths
+    case_to_file_paths += case_to_copy_number_segment_paths
+    case_to_file_paths += case_to_copy_number_estimate_paths
     case_to_file_paths += case_to_methylation_value_paths
+    case_to_file_paths += case_to_slide_image_path
+    case_to_file_paths += case_to_protein_expression
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',
@@ -219,8 +275,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         super(ActiveGraphIndexBuilder, self).__init__(*args, **kwargs)
 
         # Omit entities from these projects
-        self.omitted_projects.add(('TARGET', 'ALL-P1'))
-        self.omitted_projects.add(('TARGET', 'ALL-P2'))
+        self.omitted_projects.add(('CCLE', 'CCLE_V2'))
         self.omitted_projects.add(('CCLE', 'ALL-P1'))
         self.omitted_projects.add(('CCLE', 'ACC'))
         self.omitted_projects.add(('CCLE', 'DLBC'))
@@ -271,12 +326,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
                                           'disease_type': p['disease_type']}
                         for p in projects}
 
-        for i in xrange(len(cases)):
-            project_id = cases[i]['project']['project_id']
-            cases[i]['project']['primary_site'] = projects_map[project_id]\
-                                                              ['primary_site']
-            cases[i]['project']['disease_type'] = projects_map[project_id]\
-                                                              ['disease_type']
+        for case in cases:
+            project_id = case['project']['project_id']
+            case['project']['primary_site'] = projects_map[project_id]['primary_site']
+            case['project']['disease_type'] = projects_map[project_id]['disease_type']
 
         return cases, files, annotations, projects
 
@@ -355,7 +408,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             f for f in self.get_parent_with_category(node, 'data_file')
             if not self.is_node_hidden(f)
         ]
-        input_file_docs = map(self.get_simple_file_doc, input_files)
+        input_file_docs = [self.get_simple_file_doc(f) for f in input_files]
 
         if input_file_docs:
             doc.setdefault('input_files', []).extend(input_file_docs)
@@ -367,7 +420,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             f for f in self.get_child_with_category(node, 'data_file')
             if not self.is_node_hidden(f)
         ]
-        output_file_docs = map(self.get_simple_file_doc, output_files)
+        output_file_docs = [self.get_simple_file_doc(f) for f in output_files]
 
         if output_file_docs:
             doc.setdefault('output_files', []).extend(output_file_docs)
@@ -475,7 +528,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Copy number paths
         cnv_paths = [
             reverse_and_skip_first_entry(path) for path in
-            list_product([['aliquot']], self.aliquot_to_copy_number_paths)
+            list_product([['aliquot']], self.aliquot_to_copy_number_segment_paths)
+        ]
+        
+        # GISTIC paths
+        gistic_paths = [
+            reverse_and_skip_first_entry(path) for path in
+            list_product([['aliquot']], self.aliquot_to_copy_number_estimate_paths)
         ]
 
         # Methylation paths
@@ -487,6 +546,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # Special case paths to be traversed to possible associated entities
         custom_paths = (
             cnv_paths
+            + gistic_paths
             + methylation_paths
         )
 

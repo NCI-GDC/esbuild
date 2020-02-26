@@ -1,23 +1,26 @@
 import os
-import sys
 import yaml
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from psqlgraph import PsqlGraphDriver
 from gdcdatamodel.models import Project, Program
 from argparse import ArgumentParser
 
+
 def parse_cmd_args():
     default_state_filename = 'project-program-release.yaml'
     parser = ArgumentParser()
-    parser.add_argument('which_data',
+    parser.add_argument(
+        'which_data',
         help="Which es instance we're setting states for",
         choices=['ACTIVE', 'LEGACY']
     )
-    parser.add_argument('--state_file', 
+    parser.add_argument(
+        '--state_file',
         help='File to load states from (default {}'.format(default_state_filename),
         default=default_state_filename
     )
-    parser.add_argument('--dry_run',
+    parser.add_argument(
+        '--dry_run',
         help="just run code, don't make any permanent changes",
         action='store_true'
     )
@@ -25,6 +28,7 @@ def parse_cmd_args():
     args = parser.parse_args()
     
     return args
+
 
 if __name__ == '__main__':
 
@@ -58,7 +62,7 @@ if __name__ == '__main__':
                     if len(data['PROJECTS']) != len(project_list):
                         for entry in data['PROJECTS']:
                             if entry not in project_names:
-                                log.warn('{} not found'.filter(entry))
+                                log.warning('{} not found'.format(entry))
 
                 else:
                     project_list = prog.projects
@@ -81,7 +85,7 @@ if __name__ == '__main__':
                             proj.props['released']
                         ))
             else:
-                log.info('Unable to find {}'.filter(program))
+                log.info('Unable to find {}'.format(program))
 
         if args.dry_run:
             session.rollback()

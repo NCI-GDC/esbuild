@@ -2,7 +2,7 @@ import calendar
 import os
 import time
 
-from cdisutils.log import get_logger
+from cdislogging import get_logger
 from elasticsearch import Elasticsearch, TransportError
 from gdcdatamodel.models.misc import FileReport
 from psqlgraph import PsqlGraphDriver
@@ -15,6 +15,9 @@ from gdcdatamodel.models import (
     FileMemberOfDataFormat, FileMemberOfExperimentalStrategy,
     FileSubmittedByCenter, FileGeneratedFromPlatform
 )
+
+from esbuild.utils import ES_CONFIG
+
 
 
 def user_access_type(logged_in, open):
@@ -93,10 +96,7 @@ class DownloadStatsIndexBuilder(object):
         if es:
             self.es = es
         else:
-            self.es = Elasticsearch(
-                hosts=[os.environ["ELASTICSEARCH_HOST"]],
-                http_auth=(os.environ.get("ES_USER", ""),
-                           os.environ.get("ES_PASSWORD", "")))
+            self.es = Elasticsearch(**ES_CONFIG)
 
         self.index_name = index_name
         self.doc_type = doc_type
@@ -313,7 +313,7 @@ class DownloadStatsIndexBuilder(object):
 
     def continent_breakdown(self, country_breakdown):
         res = []
-        for continent, countries in CONTINENTS.iteritems():
+        for continent, countries in CONTINENTS.items():
             size = sum([desc["size"] for desc in country_breakdown
                         if desc["country"] in countries])
             count = sum([desc["count"] for desc in country_breakdown
