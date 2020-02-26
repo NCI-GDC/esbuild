@@ -12,19 +12,29 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 
 """
 
-from addict import Dict
 from copy import deepcopy
-from gdcdatamodel import models  # noqa
-from psqlgraph import Node
 
-from ..common.mappings import (
-    ESMapper,
-    LONG,
-    STRING,
-)
+from addict import Dict
+from normalizer import normalize, load_normalizer, load_blacklist
+
+from esbuild.graph.common.mappings import ESMapper, STRING
 
 
 class ActiveESMapper(ESMapper):
+
+    @staticmethod
+    def get_blacklist():
+        blacklist = load_blacklist()
+        blacklist.extend(['case_submitter_id', 'entity_submitter_id'])
+
+        return blacklist
+
+    @staticmethod
+    def apply_normalizer(mapping):
+        blacklist = ActiveESMapper.get_blacklist()
+        normalizer, _ = load_normalizer()
+
+        return Dict(normalize(mapping, normalizer, blacklist))
 
     @staticmethod
     def multifield(name):
@@ -36,7 +46,12 @@ class ActiveESMapper(ESMapper):
     def index_settings():
         settings = super(ActiveESMapper, ActiveESMapper).index_settings()
 
+        # Load default normalizer
+        # FIXME: add support for different normalizers if needed in the future
+        _, definition = load_normalizer()
+
         settings['settings']['analysis'] = {
+            'normalizer': definition,
             "filter": {
                 "edge_ngram": {
                     "min_ngram": '1',
@@ -57,14 +72,14 @@ class ActiveESMapper(ESMapper):
                 "lowercase_keyword": {
                     "tokenizer": "keyword",
                     "filter": ["lowercase"],
-                }
-            }
+                },
+            },
         }
         return settings
 
     @staticmethod
     def update_no_overwrite(original, new):
-        for key, value in new.iteritems():
+        for key, value in new.items():
             if key not in original:
                 original[key] = value
 
@@ -119,17 +134,22 @@ class ActiveESMapper(ESMapper):
         if is_root:
             files = cls.add_file_autocomplete(files)
 
-        return files.to_dict()
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(files.to_dict())
+        )
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
         case = Dict(super(ActiveESMapper, ActiveESMapper)
                     .get_case_es_mapping(include_file, is_root))
+
         # Add autocomplete and copy_to fields
         if is_root:
             case = cls.add_case_autocomplete(case)
 
-        return case.to_dict()
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(case.to_dict())
+        )
 
     @classmethod
     def get_annotation_es_mapping(cls, include_file=True):
@@ -139,7 +159,9 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         annotation = cls.add_annotation_autocomplete(annotation)
 
-        return annotation.to_dict()
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(annotation.to_dict())
+        )
 
     @classmethod
     def get_project_es_mapping(cls):
@@ -149,7 +171,9 @@ class ActiveESMapper(ESMapper):
         # Add autocomplete and copy_to fields
         project = cls.add_project_autocomplete(project)
 
-        return project.to_dict()
+        return ActiveESMapper.apply_normalizer(
+            deepcopy(project.to_dict())
+        )
 
 
 get_file_es_mapping = ActiveESMapper.get_file_es_mapping

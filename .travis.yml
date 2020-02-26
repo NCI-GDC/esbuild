@@ -1,68 +1,36 @@
 language: python
 
 python:
-  - "2.7"
-
-node: 6
+  - "3.5"
+  - "3.6"
 
 sudo: true
 
-cache:
-  # pip: true  # We have overridden the default install step, caching manually
-  # ref: <https://docs.travis-ci.com/user/caching/#Arbitrary-directories>
-  - directories:
-      - /home/travis/virtualenv/python2.7.9/lib/python2.7/site-packages
-      - $HOME/.pip-cache
-  - apt
-
 env:
-  ES_HOST='localhost'
-  NODE_VERSION=4
-  ES_VERSION=5.1.1
-  NODE_VERSION=4
+  - ES_HOST='localhost' ES_VERSION=5.6.14
 
 addons:
   postgresql: '9.4'
-  apt:
-    packages:
-      - oracle-java8-installer
-
-before_install:
-  # Upgrade npm
-  - npm install -g npm@'>=4'
-
-  # bust only the the part of the cache that we are frequently
-  # changing
-  - pip uninstall --yes psqlgraph gdcdictionary gdcdatamodel || true
-
 
 install:
-  # Update nodejs
-  - rm -rf ~/.nvm
-  - git clone https://github.com/creationix/nvm.git ~/.nvm 
-  - (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`)
-  - source ~/.nvm/nvm.sh && nvm install $NODE_VERSION
-
-  # Update to java8
-  - sudo update-java-alternatives -s java-8-oracle
-  - export JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
-  - java -version
-
   # Install and start elasticsearch
   - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
   - sudo dpkg -i --force-confnew elasticsearch-${ES_VERSION}.deb
+  - sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install mapper-size
   - sudo service elasticsearch start
   
-  # Install elasticdump and other requirements
-  - npm install -g elasticdump
-  - pip install -r requirements.txt
-  - pip install -r dev-requirements.txt
-  - python setup.py develop
+  - pip install tox-travis
 
 before_script:
-  - pip freeze
-  - python tests/setup_test_database.py
   # Wait for elasticsearch to be up
   - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
+  - psql -U postgres -c "create user test with superuser password 'test'"
+  - psql -U postgres -c "create database automated_test with owner test"
+  - psql -U postgres -c "create user ro_test with password 'ro_test'"
 
-script: "PYTHONPATH=. py.test -vvv tests/"
+script: "tox"
+
+after_script:
+  - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
+  - artifacts --quiet upload --bucket gdc-travis-artifacts --target-paths "$TRAVIS_REPO_SLUG/$TRAVIS_BUILD_NUMBER/$TRAVIS_JOB_NUMBER/" tests/htmlcov/
+  - "echo Artifact link: https://gdc-travis-artifacts.osdc.io/${TRAVIS_REPO_SLUG}/${TRAVIS_BUILD_NUMBER}/${TRAVIS_JOB_NUMBER}"

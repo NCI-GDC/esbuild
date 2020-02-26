@@ -18,6 +18,7 @@ develop-eggs/
 dist/
 downloads/
 eggs/
+src/
 lib/
 lib64/
 parts/
@@ -26,6 +27,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.python-version
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -38,12 +40,14 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-htmlcov/
+.pytest_cache/
+*htmlcov/
 .tox/
 .coverage
 .cache
 nosetests.xml
 coverage.xml
+tests/.coverage*
 
 # Translations
 *.mo
@@ -60,6 +64,8 @@ target/
 
 # IDEs
 .idea/
+.vscode/
+
 
 # JS
 node_modules/
@@ -68,3 +74,5 @@ package.json
 
 # vim
 *.swp
+
+*.sq3

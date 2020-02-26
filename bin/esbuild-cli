@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+import json
+from argparse import ArgumentParser
+
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.gdc_elasticsearch import GDCElasticsearch
+from esbuild.utils import VersionedNodesDiffCollector
+
+
+def handle_reindex(args):
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
+    gdc_es.reindex(args.old_index, args.new_index, types=args.doc_types)
+
+
+def handle_pre_flight(args):
+    collector = VersionedNodesDiffCollector(project_ids=args.project_ids)
+    diffs = collector.collect_differences()
+
+    if args.out_file:
+        with open(args.out_file, 'w') as f:
+            json.dump(diffs, f, indent=2)
+    else:
+        print(json.dumps(diffs, indent=2))
+
+
+def get_parser():
+    parser = ArgumentParser()
+
+    subparser = parser.add_subparsers(title='subcommands')
+
+    reindex_sub = subparser.add_parser('reindex')
+    reindex_sub.add_argument(
+        '--old-index',
+        required=True,
+        help='The name or alias of an existing Elasticsearch index that needs '
+             'reindexing',
+    )
+    reindex_sub.add_argument(
+        '--new-index',
+        required=True,
+        help='The name of a destination Elasticsearch index'
+    )
+    reindex_sub.add_argument(
+        '--doc-types',
+        required=False,
+        nargs='*',
+        default=(),
+        help='Elasticsearch document types to reindex',
+    )
+    reindex_sub.set_defaults(func=handle_reindex)
+
+    preflight_sub = subparser.add_parser('pre-flight')
+    preflight_sub.add_argument(
+        '-p', '--project_ids',
+        nargs='+',
+        required=False,
+        help='Projects to run the pre-flight for',
+    )
+    preflight_sub.add_argument(
+        '-o', '--out-file',
+        metavar='FILE',
+        required=False,
+        help='Output file for the metadata differences.'
+    )
+    preflight_sub.set_defaults(func=handle_pre_flight)
+
+    # TODO: Add more params as needed.
+
+    return parser
+
+
+if __name__ == '__main__':
+    args = get_parser().parse_args()
+    args.func(args)

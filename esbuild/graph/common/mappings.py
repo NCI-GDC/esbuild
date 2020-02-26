@@ -12,6 +12,7 @@ from gdcdictionary import gdcdictionary
 from copy import deepcopy
 from psqlgraph import Node
 
+
 # These values specify the multiplicity of the relationship from
 # parent to child.
 ONE_TO_ONE = '__one_to_one__'
@@ -24,21 +25,17 @@ DATA_FILE_CATEGORIES = [
 # ======================================================================
 # Types
 
-STRING = {
-    'type': 'keyword',
-}
+STRING = Dict(type='keyword')
 
-LONG = {
-    'type': 'long',
-}
+LONG = Dict(type='long')
 
-INTEGER = {
-    'type': 'integer',
-}
+INTEGER = Dict(type='integer')
+
+FLOAT = Dict(type='float')
 
 
 def get_es_type(_type):
-    if long in _type or int in _type:
+    if int in _type:
         return 'long'
     elif float in _type:
         return 'double'
@@ -54,12 +51,19 @@ class ESMapper(object):
     # These are the types of data_file that will be treated as a file
     file_labels = ['file']
 
+    # Project keys not useful for the users. Will be omitted from esbuild output.
+    project_keys_to_hide = [
+        'release_requested', 'awg_review', 'is_legacy',
+        'in_review', 'submission_enabled', 'request_submission',
+    ]
+
     top_level_ids = [
         'sample',
         'portion',
         'analyte',
         'aliquot',
         'slide',
+        'diagnosis',
     ]
 
     flatten = [
@@ -121,9 +125,13 @@ class ESMapper(object):
 
         # Biospecimen subtree
         case_tree.sample.corr = (ONE_TO_MANY, 'samples')
+        case_tree.sample.analyte.corr = (ONE_TO_MANY, 'analytes')
+        case_tree.sample.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.aliquot.corr = (ONE_TO_MANY, 'aliquots')
         case_tree.sample.portion.corr = (ONE_TO_MANY, 'portions')
+        case_tree.sample.slide.corr = (ONE_TO_MANY, 'slides')
+        case_tree.sample.slide.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.analyte.corr = (ONE_TO_MANY, 'analytes')
         case_tree.sample.portion.analyte.annotation.corr = (ONE_TO_MANY, 'annotations')
         case_tree.sample.portion.analyte.aliquot.corr = (ONE_TO_MANY, 'aliquots')
@@ -138,6 +146,9 @@ class ESMapper(object):
         case_tree.demographic.corr = (ONE_TO_ONE, 'demographic')
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
+        case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.follow_up.corr = (ONE_TO_MANY, 'follow_ups')
+        case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, 'molecular_tests')
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
@@ -268,6 +279,7 @@ class ESMapper(object):
         header = Dict()
         header.dynamic = 'strict'
         header._all.enabled = False
+        header._size.enabled = True
         header._source.excludes = ["__comment__"]
         header._meta.descriptions = cls.get_descriptions()
         return header
@@ -290,14 +302,20 @@ class ESMapper(object):
             doc.update(cls.multifield('submitter_id'))
 
         # Add all properties to document
-        fields = properties.keys()
-        for field in fields:
-            _type = get_es_type(properties[field] or [])
+        for field, types in properties.items():
+            _type = get_es_type(types or [])
             # assign the type
             doc[field] = {'type': _type}
 
+        if source == 'project':
+            # Remove some fields from project document
+            for key in cls.project_keys_to_hide:
+                doc.pop(key)
+
         if source != 'project':
             doc.pop('project_id', None)
+            doc.pop('batch_id', None)
+            doc.pop('file_state', None)
 
         return doc
 
@@ -339,12 +357,13 @@ class ESMapper(object):
     def patch_project(doc):
         doc.pop('code')
 
+
     @classmethod
     def _walk_tree(cls, tree, mapping):
         for k, v in [(k, v) for k, v in tree.items() if k != 'corr']:
             corr, name = v['corr']
             if name not in mapping:
-                mapping[name] = {'properties': {}}
+                mapping[name] = Dict(properties=Dict())
             if k in cls.flatten:
                 mapping[name] = STRING
             elif k == 'annotation':
@@ -377,7 +396,6 @@ class ESMapper(object):
     @classmethod
     def get_file_es_mapping(cls, include_case=True, is_root=True):
         files = cls._get_header('file') if is_root else Dict()
-
         # Let top level properties be a union over properties from all
         # node types that this mapper considers a file
         files.properties = Dict({
@@ -385,13 +403,15 @@ class ESMapper(object):
             for node in Node.get_subclasses()
             if node.label in cls.file_labels
             for key, value in
-            cls.get_base_properties(node.label, include_id=False).iteritems()
+            cls.get_base_properties(node.label, include_id=False).items()
         })
 
         files.properties = cls._walk_tree(
             cls.get_file_tree(),
             files.properties
         )
+        if not include_case:
+            del files.properties.cases
 
         cls.flatten_data_type(files.properties)
 
@@ -440,7 +460,7 @@ class ESMapper(object):
                                                              is_root=False)
             files.properties.cases.type = 'nested'
 
-        return deepcopy(files.to_dict())
+        return Dict(deepcopy(files.to_dict()))
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
@@ -452,8 +472,18 @@ class ESMapper(object):
         )
         case.properties.days_to_index = LONG
 
+        if not include_file:
+            del case.properties.files
+
         # Remove case.samples.aliquots from mapping
         case.properties.samples.properties.pop('aliquots')
+
+        # Remove case.samples.slides from mapping (this is handled in
+        # reconstruct_biospecimen_paths in common.builder.py)
+        case.properties.samples.properties.pop('slides')
+
+        # Remove case.sample.analyte from mapping (see above)
+        case.properties.samples.properties.pop('analytes')
 
         # Patch project
         cls.patch_project(case.properties.project.properties)
@@ -469,12 +499,12 @@ class ESMapper(object):
         # Add pop whatever file is present and add correct files
         case.properties.pop('file', None)
         if include_file:
-            case.properties.files = cls.get_file_es_mapping(True, is_root=False)
+            case.properties.files = cls.get_file_es_mapping(include_case=False, is_root=False)
             case.properties.files.type = 'nested'
 
-        # Adjust file properties
-        case.properties.files.properties.pop('associated_entities', None)
-        case.properties.files.properties.pop('annotations', None)
+            # Adjust file properties
+            case.properties.files.properties.pop('associated_entities', None)
+            case.properties.files.properties.pop('annotations', None)
 
         # Summary
         summary = case.properties.summary.properties
@@ -492,7 +522,10 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        return deepcopy(case.to_dict())
+        # cigarettes_per_day to float
+        case.properties.exposures.properties.cigarettes_per_day = FLOAT
+
+        return Dict(deepcopy(case.to_dict()))
 
     @classmethod
     def annotation_body(cls, nested=True):
@@ -523,7 +556,7 @@ class ESMapper(object):
         annotation.properties.project.properties.program = {
             'properties': cls.get_base_properties('program')}
 
-        return deepcopy(annotation.to_dict())
+        return Dict(deepcopy(annotation.to_dict()))
 
     @classmethod
     def get_project_es_mapping(cls):
@@ -558,7 +591,7 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        return deepcopy(project.to_dict())
+        return Dict(deepcopy(project.to_dict()))
 
     @staticmethod
     def add_file_autocomplete(files):
