@@ -364,7 +364,7 @@ class GDCElasticsearch(object):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
+        :param int maxval: The maximum value of the progress bar
 
         """
         pbar = ProgressBar(
@@ -793,7 +793,7 @@ class GDCElasticsearch(object):
             reindex_body['source']['query'] = query
 
         # FIXME: Maybe want to do a more extensive param check, but this should
-        # cover our immediate use cases
+        #   cover our immediate use cases
         if types:
             types = types if isinstance(types, list) else [types]
             reindex_body['source']['type'] = types

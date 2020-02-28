@@ -74,8 +74,8 @@ def list_product(roots, subtrees):
 
 
 def subtree_paths_to_file(cls, paths=None, visited=None,
-                          categories={'data_file', 'analysis'},
-                          exclude_paths_through=set()):
+                          categories=None,
+                          exclude_paths_through=None):
     """Recurse through all child nodes in categories :param:`categories`
     and return all paths from :param:`cls` to destination child file
     nodes.
@@ -84,6 +84,11 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
     :param categories: The set of categories through which recursion is allowed
 
     """
+    if categories is None:
+        categories = {'data_file', 'analysis'}
+
+    if exclude_paths_through is None:
+        exclude_paths_through = set()
 
     visited = visited if visited is not None else []
     paths = paths if paths is not None else []
