@@ -14,7 +14,6 @@ from jsonpath_rw import parse
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 
-from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
     list_product,

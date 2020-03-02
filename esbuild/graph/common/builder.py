@@ -347,7 +347,7 @@ class GraphIndexBuilder(object):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        :param int maxval: The maximumum value of the progress bar
+        :param int maxval: The maximum value of the progress bar
 
         """
         maxval = maxval or 1  # prevent maxal of 0
