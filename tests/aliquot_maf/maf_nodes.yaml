@@ -62,7 +62,7 @@ nodes:
   - label: simple_somatic_mutation
     submitter_id: maf_vcf_pindel_0
   - label: somatic_annotation_workflow
-    submitter_id: maf_ann_mutect_0
+    submitter_id: maf_ann_pindel_0
     workflow_type: Pindel Annotation
   - label: annotated_somatic_mutation
     submitter_id: maf_ann_vcf_pindel_0
@@ -93,7 +93,7 @@ nodes:
   - label: simple_somatic_mutation
     submitter_id: maf_vcf_pindel_1
   - label: somatic_annotation_workflow
-    submitter_id: maf_ann_mutect_1
+    submitter_id: maf_ann_pindel_1
     workflow_type: Pindel Annotation
   - label: annotated_somatic_mutation
     submitter_id: maf_ann_vcf_pindel_1
