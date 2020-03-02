@@ -9,15 +9,18 @@ from jsonpath_rw import parse
         'masked_somatic_mutation': 2,
         'simple_somatic_mutation': 6,  # 2 from data.py and 4 from maf data
         'aggregated_somatic_mutation': 3,  # 1 from data.py and 2 from maf data
-        'annotated_somatic_mutation': 4}),
+        'annotated_somatic_mutation': 6,  # 2 from data.py and 4 from maf data
+    }),
     ('files', '[*].data_type.[*]', {
         'Masked Somatic Mutation': 2,
         'Aggregated Somatic Mutation': 3,  # 1 from data.py and 2 from maf data
-        'Annotated Somatic Mutation': 4}),
+        'Annotated Somatic Mutation': 6,
+    }),
     ('cases', '[*].files.[*].data_type.[*]', {
         'Masked Somatic Mutation': 2,
         'Aggregated Somatic Mutation': 3,
-        'Annotated Somatic Mutation': 4}),
+        'Annotated Somatic Mutation': 6,
+    }),
 ])
 def test_aliquot_level_maf_build_counts(maf_index, doc_type, path, expectations, pg_driver):
     results = parse(path).find(getattr(maf_index, doc_type))
