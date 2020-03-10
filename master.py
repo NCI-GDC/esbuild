@@ -9,7 +9,7 @@ from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG
 
-logger = get_logger('esbuild_master')
+logger = get_logger('esbuild_master', log_level='info')
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())

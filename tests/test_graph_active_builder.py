@@ -133,22 +133,30 @@ def test_selective_caching(init_indexd, ro_pg_driver):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
-    projects_subset = {'TCGA-BRCA', 'TCGA-LUAD'}
-    builder = ActiveGraphIndexBuilder(ro_pg_driver, init_indexd,
-                                      build_projects=projects_subset,
-                                      selective_caching=True)
-    builder.cache_database()
+    projects_subset = {'TCGA-BRCA', 'TCGA-DEV1'}
+    builder1 = ActiveGraphIndexBuilder(ro_pg_driver, init_indexd,
+                                       build_projects=projects_subset,
+                                       selective_caching=True)
+    builder1.cache_database()
 
-    built_projects = {n.project_id for n in builder.G.nodes()
+    built_projects = {n.project_id for n in builder1.G.nodes()
                       if 'project_id' in n.props}
     assert built_projects == projects_subset
+
+    builder2 = ActiveGraphIndexBuilder(ro_pg_driver, init_indexd, selective_caching=True)
+    builder2.cache_database()
+
+    all_projects = {n.project_id for n in builder2.G.nodes() if 'project_id' in n.props}
+
+    assert built_projects.issubset(all_projects)
+    assert built_projects != all_projects
 
 
 def test_awg_build(init_indexd, pg_driver):
     """
     Tests AWG build mode
     """
-    build_projects = {'TCGA-BRCA', 'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
+    build_projects = {'TCGA-LUAD', 'INTERNAL-AWG-ONE'}
     builder = ActiveGraphIndexBuilder(pg_driver, init_indexd, build_awg=True,
                                       build_projects=build_projects)
     builder.cache_database()
@@ -162,7 +170,7 @@ def test_awg_build(init_indexd, pg_driver):
     assert built_nodes == {
         'case': {get_node_id('submitted-awg-case'), get_node_id('processed-awg-case')},
         'project': {get_node_id('awg-one-project')},
-        'program': {get_node_id('internal-program'), get_node_id('program-tcga')}  # Why esbuild picks up all programs?
+        'program': {get_node_id('internal-program')},
     }
 
 

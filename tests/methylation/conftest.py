@@ -6,11 +6,11 @@ from tests.conftest import Index
 
 @pytest.fixture
 def maf_graph(generate_scenario):
-    generate_scenario('maf_scenario.yaml')
+    generate_scenario('methylation_array_scenario.yaml')
 
 
 @pytest.fixture
-def maf_index(pg_driver, init_indexd, maf_graph):
+def methylation_index(pg_driver, init_indexd, maf_graph):
     builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builder.cache_database()

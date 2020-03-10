@@ -19,9 +19,6 @@ tied to the relevant aliquots during cache_database
 
 """
 from cdislogging import get_logger
-
-import logging
-
 from gdcdatamodel.models import(
     ReadGroup
 )
@@ -35,8 +32,7 @@ from .mappings import (
 )
 
 
-log = get_logger("graph_active_index")
-log.setLevel(level=logging.INFO)
+log = get_logger("graph_active_index", log_level='info')
 
 
 def reverse_and_skip_first_entry(path):
@@ -208,6 +204,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     aliquot_to_methylation_value_paths = [
         ['submitted_methylation_beta_value',
          'methylation_liftover_workflow',
+         'methylation_beta_value'],
+        ['raw_methylation_array',
+         'methylation_array_harmonization_workflow',
          'methylation_beta_value'],
     ]
 

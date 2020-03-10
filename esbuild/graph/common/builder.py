@@ -9,7 +9,6 @@ graph index.
 """
 import hashlib
 import itertools
-import logging
 import random
 import re
 from collections import defaultdict
@@ -37,8 +36,7 @@ from esbuild.graph.common.mappings import (
     ONE_TO_ONE,
 )
 
-log = get_logger("graph_index")
-log.setLevel(level=logging.INFO)
+log = get_logger("graph_index", log_level='info')
 
 
 @lru_cache(maxsize=32)
@@ -1909,7 +1907,7 @@ class GraphIndexBuilder(object):
         3. it's not a project or it doesn't have a state defined on it
 
         When self.build_awg is set, the rules are different:
-        1. it's a project and it is 'awg_review' == True
+        1. project must be in self.build_projects
         2. it's a node with a 'state' that is a AWG state
         """
 
@@ -1918,8 +1916,7 @@ class GraphIndexBuilder(object):
             awg_states = {'live', 'submitted', 'processed', 'released'}
 
             if node.label == 'project':
-                return node.awg_review is True
-
+                return True
             # NOTE: this one is questionable
             elif 'state' not in node.__pg_properties__:
                 return True  # True or False?
@@ -2115,13 +2112,6 @@ class GraphIndexBuilder(object):
             # Load only node ids with relevant project_id's
             project_ids = ['-'.join(p) for p in self.build_projects]
             log.info('Getting {} from database'.format(project_ids))
-            # For AWG build, keep only awg_review == True project subset
-            if self.build_awg:
-                awg_projects = {
-                    '-'.join([p.programs[0].name, p.code]) for p in
-                    self.g.nodes(md.Project).props(awg_review=True)
-                }
-                project_ids = list(awg_projects.intersection(set(project_ids)))
 
             relevant_node_ids = {
                 nd.node_id for nd in
@@ -2134,7 +2124,7 @@ class GraphIndexBuilder(object):
 
             relevant_node_ids.update([p.node_id for p in relevant_projects])
 
-            # Query only relevant edges 
+            # Query only relevant edges
             query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
 
         else:
@@ -2158,7 +2148,8 @@ class GraphIndexBuilder(object):
         with self.g.session_scope() as sxn, sxn.no_autoflush:
             pbar = self.pbar('Caching Database: ', self.g.edges().count())
             # Cache graph to self.G
-            # NOTE: if build_awg or selective_caching are set, will only iterate over relevant edges
+            # NOTE: if build_awg or selective_caching are set, will only iterate
+            #   over relevant edges
             for e in self.iter_database_edges():
                 pbar.update(pbar.value+1)
                 triple = (e.src.label, e.label, e.dst.label)

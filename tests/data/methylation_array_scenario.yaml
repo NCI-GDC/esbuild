@@ -1,0 +1,76 @@
+nodes:
+  - label: case
+    submitter_id: meth_case_0
+
+  - label: sample
+    submitter_id: meth_sample_normal_0
+    sample_type: Normal
+  - label: portion
+    submitter_id: meth_portion_normal_0
+  - label: analyte
+    submitter_id: meth_analyte_normal_0
+  - label: aliquot
+    submitter_id: meth_aliquot_normal_0
+
+  - label: sample
+    submitter_id: meth_sample_tumor_0
+    sample_type: Tumor
+  - label: aliquot
+    submitter_id: meth_aliquot_tumor_0
+  - label: aliquot
+    submitter_id: meth_aliquot_tumor_1
+
+  - label: raw_methylation_array
+    submitter_id: rma_0
+  - label: raw_methylation_array
+    submitter_id: rma_1
+  - label: raw_methylation_array
+    submitter_id: rma_2
+
+  - label: methylation_array_harmonization_workflow
+    submitter_id: mahw_0
+  - label: methylation_array_harmonization_workflow
+    submitter_id: mahw_1
+
+  - label: methylation_beta_value
+    submitter_id: mbv_0
+  - label: methylation_beta_value
+    submitter_id: mbv_1
+
+edges:
+  - src: meth_case_0
+    dst: meth_sample_normal_0
+  - src: meth_sample_normal_0
+    dst: meth_portion_normal_0
+  - src: meth_portion_normal_0
+    dst: meth_analyte_normal_0
+  - src: meth_analyte_normal_0
+    dst: meth_aliquot_normal_0
+
+  - src: meth_case_0
+    dst: meth_sample_tumor_0
+  - src: meth_sample_tumor_0
+    dst: meth_aliquot_tumor_0
+  - src: meth_sample_tumor_0
+    dst: meth_aliquot_tumor_1
+
+  - src: meth_aliquot_normal_0
+    dst: rma_0
+  - src: meth_aliquot_tumor_0
+    dst: rma_1
+  - src: meth_aliquot_tumor_1
+    dst: rma_2
+
+  - src: rma_0
+    dst: mahw_0
+  - src: rma_1
+    dst: mahw_0
+  - src: rma_0
+    dst: mahw_1
+  - src: rma_2
+    dst: mahw_1
+
+  - src: mahw_0
+    dst: mbv_0
+  - src: mahw_1
+    dst: mbv_1
