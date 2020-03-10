@@ -8,6 +8,7 @@ import os
 import time
 from collections import namedtuple
 
+import yaml
 import psqlgraph
 import pytest
 from datadog import statsd
@@ -37,6 +38,7 @@ from tests import data, es_data
 Index = namedtuple('Index', 'cases, files, annotations, projects')
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
+DATA_DIR = os.path.join(TEST_DIR, 'data')
 
 PG_HOST = 'localhost'
 PG_USER = 'test'
@@ -405,3 +407,39 @@ def mocked_statsd(monkeypatch):
         pass
 
     monkeypatch.setattr(statsd, 'event', event_mock)
+
+
+@pytest.fixture
+def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
+    nodes = []
+
+    def _from_file(scenario):
+        path = os.path.join(DATA_DIR, scenario)
+
+        with open(path) as f:
+            nodes_meta = yaml.safe_load(f)
+
+        x_nodes = graph_factory.create_from_nodes_and_edges(
+            nodes=nodes_meta['nodes'],
+            edges=nodes_meta['edges'],
+            all_props=True,
+        )
+
+        for n in x_nodes:
+            n.acl = ['phs000178']
+
+        x_nodes, records = data.patch_test_data_get_indexd(x_nodes)
+        nodes.extend(x_nodes)
+        docs = create_indexd_documents(records)
+
+        case_nodes = [n for n in x_nodes if n.label == 'case']
+
+        with pg_driver.session_scope():
+            project = pg_driver.nodes(models.Project).props(code='BRCA').one()
+            project.cases.extend(case_nodes)
+
+        return x_nodes, docs
+
+    yield _from_file
+
+    cleanup_nodes(pg_driver, nodes)
