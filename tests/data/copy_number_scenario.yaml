@@ -1,0 +1,94 @@
+nodes:
+  # submitted genotyping arrays subtree nodes
+  - label: case
+    submitter_id: cn_case_1
+  - label: sample
+    submitter_id: cn_sample_1
+  - label: sample
+    submitter_id: cn_sample_2
+  - label: aliquot
+    submitter_id: cn_aliquot_1
+  - label: aliquot
+    submitter_id: cn_aliquot_2
+  - label: submitted_genotyping_array
+    submitter_id: cn_sga_1
+  - label: submitted_genotyping_array
+    submitter_id: cn_sga_2
+  - label: somatic_copy_number_workflow
+    submitter_id: cn_scn_wf_1
+  - label: copy_number_estimate
+    submitter_id: cn_cne_1
+  - label: copy_number_segment
+    submitter_id: cn_cns_1
+
+  # submitted aligned reads subtree nodes
+  - label: read_group
+    submitter_id: cn_rg_1
+  - label: read_group
+    submitter_id: cn_rg_2
+  - label: submitted_aligned_reads
+    submitter_id: cn_sar_1
+  - label: submitted_aligned_reads
+    submitter_id: cn_sar_2
+  - label: alignment_workflow
+    submitter_id: cn_awf_1
+  - label: alignment_workflow
+    submitter_id: cn_awf_2
+  - label: aligned_reads
+    submitter_id: cn_ar_1
+  - label: aligned_reads
+    submitter_id: cn_ar_2
+  - label: somatic_copy_number_workflow
+    submitter_id: cn_scn_wf_2
+  - label: copy_number_estimate
+    submitter_id: cn_cne_2
+  - label: copy_number_estimate
+    submitter_id: cn_cns_2
+
+edges:
+  # submitted genotyping array subtree links
+  - src: cn_case_1
+    dst: cn_sample_1
+  - src: cn_case_1
+    dst: cn_sample_2
+  - src: cn_sample_1
+    dst: cn_aliquot_1
+  - src: cn_sample_2
+    dst: cn_aliquot_2
+  - src: cn_aliquot_1
+    dst: cn_sga_1
+  - src: cn_aliquot_2
+    dst: cn_sga_2
+  - src: cn_sga_1
+    dst: cn_scn_wf_1
+  - src: cn_sga_2
+    dst: cn_scn_wf_1
+  - src: cn_scn_wf_1
+    dst: cn_cne_1
+  - src: cn_scn_wf_1
+    dst: cn_cns_1
+  # submitted aligned reads subtree links
+  - src: cn_aliquot_1
+    dst: cn_rg_1
+  - src: cn_aliquot_2
+    dst: cn_rg_2
+  - src: cn_rg_1
+    dst: cn_sar_1
+  - src: cn_rg_2
+    dst: cn_sar_2
+  - src: cn_sar_1
+    dst: cn_awf_1
+  - src: cn_sar_2
+    dst: cn_awf_2
+  - src: cn_awf_1
+    dst: cn_ar_1
+  - src: cn_awf_2
+    dst: cn_ar_2
+  - src: cn_ar_1
+    dst: cn_scn_wf_2
+  - src: cn_ar_2
+    dst: cn_scn_wf_2
+  - src: cn_scn_wf_2
+    dst: cn_cne_2
+  - src: cn_scn_wf_2
+    dst: cn_cns_2

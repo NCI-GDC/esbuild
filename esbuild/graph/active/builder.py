@@ -191,6 +191,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
          'copy_number_segment'],
+        ['submitted_genotyping_array',
+         'somatic_copy_number_workflow',
+         'copy_number_segment'],
     ]
     
     aliquot_to_copy_number_estimate_paths = [
@@ -198,6 +201,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
          'copy_number_liftover_workflow',
          'copy_number_segment',
          'copy_number_variation_workflow',
+         'copy_number_estimate'],
+        ['submitted_genotyping_array',
+         'somatic_copy_number_workflow',
          'copy_number_estimate'],
     ]
 

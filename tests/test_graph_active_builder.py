@@ -90,6 +90,10 @@ def inconsistent_slides(generate_scenario):
     generate_scenario('slide_two_cases_scenario.yaml')
 
 
+@pytest.fixture
+def gpas_copy_numbers(generate_scenario):
+    generate_scenario('copy_number_scenario.yaml')
+
 # ======================================================================
 # Tests
 
@@ -688,3 +692,24 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     # Make sure that correct entities got linked
     si2_entity_ids = [ae['entity_submitter_id'] for ae in si2_entities]
     assert 'slide_2' in si2_entity_ids
+
+
+def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numbers):
+    """
+    Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up
+    """
+
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+    with pg_driver.session_scope():
+        builder.cache_database()
+
+    cases, files, _, _ = builder.denormalize_all()
+
+    file_submitter_ids = {f.get('submitter_id') for f in files}
+
+    # 6 additional files: 2 CNE, 2 CNS, 2 ARs
+    expected_submitter_ids = {'cn_cne_1', 'cn_cne_2', 'cn_cns_1', 'cn_cns_2',
+                              'cn_ar_1', 'cn_ar_2'}
+    assert len(files) == N_FILES + 6
+    assert expected_submitter_ids.issubset(file_submitter_ids), file_submitter_ids
