@@ -510,8 +510,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     def get_file_associated_entities(self, node):
         """Returns a list of entities that are 'associated' with a file"""
 
-        entities = (super(ActiveGraphIndexBuilder, self)
-                    .get_file_associated_entities(node))
+        entities = super().get_file_associated_entities(node)
 
         # Add entities via read_group
         entities += [
