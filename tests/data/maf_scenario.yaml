@@ -1,0 +1,224 @@
+nodes:
+  - label: case
+    submitter_id: maf_case_0
+
+  - label: sample
+    submitter_id: maf_sample_normal_0
+    sample_type: Normal
+  - label: portion
+    submitter_id: maf_portion_normal_0
+  - label: analyte
+    submitter_id: maf_analyte_normal_0
+  - label: aliquot
+    submitter_id: maf_aliquot_normal_0
+  - label: read_group
+    submitter_id: maf_rg_normal_0
+  - label: submitted_aligned_reads
+    submitter_id: maf_sar_normal_0
+  - label: alignment_workflow
+    submitter_id: maf_align_normal_0
+  - label: aligned_reads
+    submitter_id: maf_ar_normal_0
+
+  - label: sample
+    submitter_id: maf_sample_tumor_0
+    sample_type: Tumor
+  - label: aliquot
+    submitter_id: maf_aliquot_tumor_0
+  - label: aliquot
+    submitter_id: maf_aliquot_tumor_1
+  - label: read_group
+    submitter_id: maf_rg_tumor_0
+  - label: read_group
+    submitter_id: maf_rg_tumor_1
+  - label: submitted_aligned_reads
+    submitter_id: maf_sar_tumor_0
+  - label: submitted_unaligned_reads
+    submitter_id: maf_sur_tumor_0
+  - label: alignment_workflow
+    submitter_id: maf_align_tumor_0
+  - label: alignment_workflow
+    submitter_id: maf_align_tumor_1
+  - label: aligned_reads
+    submitter_id: maf_ar_tumor_0
+  - label: aligned_reads
+    submitter_id: maf_ar_tumor_1
+
+  - label: somatic_mutation_calling_workflow
+    submitter_id: maf_vc_mutect_0
+    workflow_type: MuTect2
+  - label: simple_somatic_mutation
+    submitter_id: maf_vcf_mutect_0
+  - label: somatic_annotation_workflow
+    submitter_id: maf_ann_mutect_0
+    workflow_type: MuTect2 Annotation
+  - label: annotated_somatic_mutation
+    submitter_id: maf_ann_vcf_mutect_0
+    data_type: Annotated Somatic Mutation
+
+  - label: somatic_mutation_calling_workflow
+    submitter_id: maf_vc_pindel_0
+    workflow_type: Pindel
+  - label: simple_somatic_mutation
+    submitter_id: maf_vcf_pindel_0
+  - label: somatic_annotation_workflow
+    submitter_id: maf_ann_pindel_0
+    workflow_type: Pindel Annotation
+  - label: annotated_somatic_mutation
+    submitter_id: maf_ann_vcf_pindel_0
+    data_type: Annotated Somatic Mutation
+
+  - label: somatic_aggregation_workflow
+    submitter_id: maf_agg_0
+  - label: aggregated_somatic_mutation
+    submitter_id: maf_agg_vcf_0
+  - label: masked_somatic_mutation
+    submitter_id: maf_masked_vcf_0
+
+  - label: somatic_mutation_calling_workflow
+    submitter_id: maf_vc_mutect_1
+    workflow_type: MuTect2
+  - label: simple_somatic_mutation
+    submitter_id: maf_vcf_mutect_1
+  - label: somatic_annotation_workflow
+    submitter_id: maf_ann_mutect_1
+    workflow_type: MuTect2 Annotation
+  - label: annotated_somatic_mutation
+    submitter_id: maf_ann_vcf_mutect_1
+    data_type: Annotated Somatic Mutation
+
+  - label: somatic_mutation_calling_workflow
+    submitter_id: maf_vc_pindel_1
+    workflow_type: Pindel
+  - label: simple_somatic_mutation
+    submitter_id: maf_vcf_pindel_1
+  - label: somatic_annotation_workflow
+    submitter_id: maf_ann_pindel_1
+    workflow_type: Pindel Annotation
+  - label: annotated_somatic_mutation
+    submitter_id: maf_ann_vcf_pindel_1
+    data_type: Annotated Somatic Mutation
+
+  - label: somatic_aggregation_workflow
+    submitter_id: maf_agg_1
+  - label: aggregated_somatic_mutation
+    submitter_id: maf_agg_vcf_1
+  - label: masked_somatic_mutation
+    submitter_id: maf_masked_vcf_1
+
+edges:
+  # Normal Sample
+  - dst: maf_case_0
+    src: maf_sample_normal_0
+
+  # Normal Aliquot 1 Subtree
+  - dst: maf_sample_normal_0
+    src: maf_portion_normal_0
+  - dst: maf_portion_normal_0
+    src: maf_analyte_normal_0
+  - dst: maf_analyte_normal_0
+    src: maf_aliquot_normal_0
+  - dst: maf_aliquot_normal_0
+    src: maf_rg_normal_0
+  - dst: maf_rg_normal_0
+    src: maf_sar_normal_0
+  - dst: maf_sar_normal_0
+    src: maf_align_normal_0
+  - dst: maf_align_normal_0
+    src: maf_ar_normal_0
+
+  # Tumor Sample
+  - dst: maf_case_0
+    src: maf_sample_tumor_0
+
+  # Tumor Aliquot 1 Subtree
+  - dst: maf_sample_tumor_0
+    src: maf_aliquot_tumor_0
+  - dst: maf_aliquot_tumor_0
+    src: maf_rg_tumor_0
+  - dst: maf_rg_tumor_0
+    src: maf_sar_tumor_0
+  - dst: maf_sar_tumor_0
+    src: maf_align_tumor_0
+  - dst: maf_align_tumor_0
+    src: maf_ar_tumor_0
+
+  # Tumor Aliquot 2 Subtree
+  - dst: maf_sample_tumor_0
+    src: maf_aliquot_tumor_1
+  - dst: maf_aliquot_tumor_1
+    src: maf_rg_tumor_1
+  - dst: maf_rg_tumor_1
+    src: maf_sur_tumor_0
+  - dst: maf_sur_tumor_0
+    src: maf_align_tumor_1
+  - dst: maf_align_tumor_1
+    src: maf_ar_tumor_1
+
+  # Normal Aliquot + Tumor Aliquot 1 MuTect2 Variant
+  - dst: maf_ar_normal_0
+    src: maf_vc_mutect_0
+  - dst: maf_ar_tumor_0
+    src: maf_vc_mutect_0
+  - dst: maf_vc_mutect_0
+    src: maf_vcf_mutect_0
+  - dst: maf_vcf_mutect_0
+    src: maf_ann_mutect_0
+  - dst: maf_ann_mutect_0
+    src: maf_ann_vcf_mutect_0
+
+  # Normal Aliquot + Tumor Aliquot 1 Pindel Variant
+  - dst: maf_ar_normal_0
+    src: maf_vc_pindel_0
+  - dst: maf_ar_tumor_0
+    src: maf_vc_pindel_0
+  - dst: maf_vc_pindel_0
+    src: maf_vcf_pindel_0
+  - dst: maf_vcf_pindel_0
+    src: maf_ann_pindel_0
+  - dst: maf_ann_pindel_0
+    src: maf_ann_vcf_pindel_0
+
+  # Normal Aliquot + Tumor Aliquot 1 MAF aggregation
+  - dst: maf_ann_vcf_mutect_0
+    src: maf_agg_0
+  - dst: maf_ann_vcf_pindel_0
+    src: maf_agg_0
+  - dst: maf_agg_0
+    src: maf_agg_vcf_0
+  - dst: maf_agg_0
+    src: maf_masked_vcf_0
+
+  # Normal Aliquot + Tumor Aliquot 2 MuTect2 Variant
+  - dst: maf_ar_normal_0
+    src: maf_vc_mutect_1
+  - dst: maf_ar_tumor_1
+    src: maf_vc_mutect_1
+  - dst: maf_vc_mutect_1
+    src: maf_vcf_mutect_1
+  - dst: maf_vcf_mutect_1
+    src: maf_ann_mutect_1
+  - dst: maf_ann_mutect_1
+    src: maf_ann_vcf_mutect_1
+
+  # Normal Aliquot + Tumor Aliquot 2 Pindel Variant
+  - dst: maf_ar_normal_0
+    src: maf_vc_pindel_1
+  - dst: maf_ar_tumor_1
+    src: maf_vc_pindel_1
+  - dst: maf_vc_pindel_1
+    src: maf_vcf_pindel_1
+  - dst: maf_vcf_pindel_1
+    src: maf_ann_pindel_1
+  - dst: maf_ann_pindel_1
+    src: maf_ann_vcf_pindel_1
+
+  # Normal Aliquot + Tumor Aliquot 2 MAF aggregation
+  - dst: maf_ann_vcf_mutect_1
+    src: maf_agg_1
+  - dst: maf_ann_vcf_pindel_1
+    src: maf_agg_1
+  - dst: maf_agg_1
+    src: maf_agg_vcf_1
+  - dst: maf_agg_1
+    src: maf_masked_vcf_1

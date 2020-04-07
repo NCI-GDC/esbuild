@@ -138,6 +138,7 @@ NODES = [
         md.SomaticMutationCallingWorkflow,
         node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='released',
+        workflow_type='MuSE',
     ),
     fuzzed(
         md.SubmittedTangentCopyNumber,
@@ -349,7 +350,6 @@ NODES = [
     ),
     md.ReadGroup(
         node_id=get_node_id('read-group-1'),
-        RIN=6610844,
         adapter_name='j0o0ou',
         adapter_sequence='0ypboh',
         base_caller_name='7ycy5z',
@@ -443,7 +443,7 @@ NODES = [
         primary_diagnosis=u'Abdominal fibromatosis',
         prior_malignancy=u'no',
         progression_or_recurrence=u'unknown',
-        project_id=u'TCGA-LUAD',
+        project_id=u'TCGA-BRCA',
         site_of_resection_or_biopsy=u'Abdominal esophagus',
         submitter_id=u'TCGA-49-AARO_diagnosis',
         tissue_or_organ_of_origin=u'Abdominal esophagus',
@@ -947,6 +947,7 @@ NODES = [
         md.SomaticMutationCallingWorkflow,
         node_id=get_node_id('somatic_mutation_calling_workflow_1'),
         state='released',
+        workflow_type='SomaticSniper',
     ),
     fuzzed(
         md.SimpleSomaticMutation,

@@ -1,0 +1,39 @@
+nodes:
+  - label: case
+    submitter_id: case_1
+  - label: case
+    submitter_id: case_2
+  - label: sample
+    submitter_id: sample_1
+  - label: sample
+    submitter_id: sample_2
+  - label: portion
+    submitter_id: portion_1
+  - label: slide
+    submitter_id: slide_1
+  - label: slide
+    submitter_id: slide_2
+  - label: slide_image
+    submitter_id: slide_image_1
+  - label: slide_image
+    submitter_id: slide_image_2
+
+edges:
+  - src: case_1
+    dst: sample_1
+  - src: sample_1
+    dst: portion_1
+  - src: portion_1
+    dst: slide_1
+
+  - src: case_2
+    dst: sample_2
+  - src: sample_2
+    dst: slide_1
+
+  - src: sample_2
+    dst: slide_2
+  - src: slide_1
+    dst: slide_image_1
+  - src: slide_2
+    dst: slide_image_2

@@ -12,7 +12,6 @@ import datetime
 import json
 import os
 import re
-import resource
 import subprocess
 import time
 
@@ -21,7 +20,6 @@ from datadog import statsd
 from elasticsearch import (
     Elasticsearch,
     NotFoundError,
-    exceptions as es_exc,
     helpers,
 )
 from elasticsearch.exceptions import AuthorizationException
@@ -36,7 +34,7 @@ from esbuild.utils import (
 )
 
 # TODO: Play around with these values and find the sweet spot that
-# minimizes the loading time without crashing the ES cluster
+#   minimizes the loading time without crashing the ES cluster
 THREAD_COUNT = 16
 CHUNK_SIZE = 500
 MAX_CHUNK_BYTES = 104857600  # 100MB
@@ -112,7 +110,7 @@ class GDCElasticsearch(object):
             setattr(self, arg, kwargs.get(arg) or default)
 
         self.index_close_thresh = index_close_thresh
-        self.log = get_logger("gdc_elasticsearch")
+        self.log = get_logger("gdc_elasticsearch", log_level='info')
         self.log.info('Build arguments: {}'.format(kwargs))
         self.graph = kwargs.pop('pg_driver',
                                 PsqlGraphDriver(os.environ["PG_HOST"],
@@ -364,7 +362,7 @@ class GDCElasticsearch(object):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
-        "param int maxva': The maximumum value of the progress bar
+        :param int maxval: The maximum value of the progress bar
 
         """
         pbar = ProgressBar(
@@ -793,7 +791,7 @@ class GDCElasticsearch(object):
             reindex_body['source']['query'] = query
 
         # FIXME: Maybe want to do a more extensive param check, but this should
-        # cover our immediate use cases
+        #   cover our immediate use cases
         if types:
             types = types if isinstance(types, list) else [types]
             reindex_body['source']['type'] = types

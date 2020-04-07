@@ -8,6 +8,7 @@ import os
 import time
 from collections import namedtuple
 
+import yaml
 import psqlgraph
 import pytest
 from datadog import statsd
@@ -37,6 +38,7 @@ from tests import data, es_data
 Index = namedtuple('Index', 'cases, files, annotations, projects')
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
+DATA_DIR = os.path.join(TEST_DIR, 'data')
 
 PG_HOST = 'localhost'
 PG_USER = 'test'
@@ -107,33 +109,38 @@ def graph():
 
 
 @pytest.fixture
-def init_indexd(indexd_client):
-    # Insert indexd data:
-    for record in data.INDEXD:
-        record = dict(record)  # prevent data.INDEXD object mutation
-        did = record.pop('did')
-        md5 = record.pop('md5sum')
-        size = record.pop('file_size')
-        file_name = record.pop('file_name', None)
-        file_state = record.pop('file_state', 'validated')
-        acl = record.pop('acl')
-        urls = record.pop('urls')
-        # NOTE: 'file_state' is stored as 'state' in indexd.
-        # However, this is not important as esbuild does not pay attention to 'file_state'
-        # and it is removed from resulting elasticsearch documents. See PRTL-2109
-        urls_metadata = {
-            urls[0]: {'state': file_state}
-        }
-        indexd_client.create(
-            did=did,
-            acl=acl,
-            hashes={'md5': md5},
-            size=size,
-            file_name=file_name,
-            urls=urls,
-            metadata=record,
-            urls_metadata=urls_metadata,
-        )
+def create_indexd_documents(indexd_client):
+    def _inner(records):
+        docs = []
+        # Insert indexd data:
+        for record in records:
+            record = dict(record)
+            urls = record['urls']
+            # NOTE: 'file_state' is stored as 'state' in indexd.
+            # However, this is not important as esbuild does not pay attention to 'file_state'
+            # and it is removed from resulting elasticsearch documents. See PRTL-2109
+            urls_metadata = {
+                urls[0]: {'state': record.get('file_state', 'validated')}
+            }
+            doc = indexd_client.create(
+                did=record['did'],
+                acl=record['acl'],
+                hashes={'md5': record['md5sum']},
+                size=record['file_size'],
+                file_name=record.get('file_name', None),
+                urls=urls,
+                metadata=record,
+                urls_metadata=urls_metadata,
+            )
+            docs.append(doc)
+        return docs
+    return _inner
+
+
+@pytest.fixture
+def init_indexd(indexd_client, create_indexd_documents):
+
+    create_indexd_documents(data.INDEXD)
 
     return indexd_client
 
@@ -400,3 +407,39 @@ def mocked_statsd(monkeypatch):
         pass
 
     monkeypatch.setattr(statsd, 'event', event_mock)
+
+
+@pytest.fixture
+def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
+    nodes = []
+
+    def _from_file(scenario):
+        path = os.path.join(DATA_DIR, scenario)
+
+        with open(path) as f:
+            nodes_meta = yaml.safe_load(f)
+
+        x_nodes = graph_factory.create_from_nodes_and_edges(
+            nodes=nodes_meta['nodes'],
+            edges=nodes_meta['edges'],
+            all_props=True,
+        )
+
+        for n in x_nodes:
+            n.acl = ['phs000178']
+
+        x_nodes, records = data.patch_test_data_get_indexd(x_nodes)
+        nodes.extend(x_nodes)
+        docs = create_indexd_documents(records)
+
+        case_nodes = [n for n in x_nodes if n.label == 'case']
+
+        with pg_driver.session_scope():
+            project = pg_driver.nodes(models.Project).props(code='BRCA').one()
+            project.cases.extend(case_nodes)
+
+        return x_nodes, docs
+
+    yield _from_file
+
+    cleanup_nodes(pg_driver, nodes)

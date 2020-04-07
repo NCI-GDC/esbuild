@@ -19,9 +19,6 @@ tied to the relevant aliquots during cache_database
 
 """
 from cdislogging import get_logger
-
-import logging
-
 from gdcdatamodel.models import(
     ReadGroup
 )
@@ -35,8 +32,7 @@ from .mappings import (
 )
 
 
-log = get_logger("graph_active_index")
-log.setLevel(level=logging.INFO)
+log = get_logger("graph_active_index", log_level='info')
 
 
 def reverse_and_skip_first_entry(path):
@@ -74,8 +70,8 @@ def list_product(roots, subtrees):
 
 
 def subtree_paths_to_file(cls, paths=None, visited=None,
-                          categories={'data_file', 'analysis'},
-                          exclude_paths_through=set()):
+                          categories=None,
+                          exclude_paths_through=None):
     """Recurse through all child nodes in categories :param:`categories`
     and return all paths from :param:`cls` to destination child file
     nodes.
@@ -84,6 +80,11 @@ def subtree_paths_to_file(cls, paths=None, visited=None,
     :param categories: The set of categories through which recursion is allowed
 
     """
+    if categories is None:
+        categories = {'data_file', 'analysis'}
+
+    if exclude_paths_through is None:
+        exclude_paths_through = set()
 
     visited = visited if visited is not None else []
     paths = paths if paths is not None else []
@@ -190,6 +191,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['submitted_tangent_copy_number',
          'copy_number_liftover_workflow',
          'copy_number_segment'],
+        ['submitted_genotyping_array',
+         'somatic_copy_number_workflow',
+         'copy_number_segment'],
     ]
     
     aliquot_to_copy_number_estimate_paths = [
@@ -198,11 +202,17 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
          'copy_number_segment',
          'copy_number_variation_workflow',
          'copy_number_estimate'],
+        ['submitted_genotyping_array',
+         'somatic_copy_number_workflow',
+         'copy_number_estimate'],
     ]
 
     aliquot_to_methylation_value_paths = [
         ['submitted_methylation_beta_value',
          'methylation_liftover_workflow',
+         'methylation_beta_value'],
+        ['raw_methylation_array',
+         'methylation_array_harmonization_workflow',
          'methylation_beta_value'],
     ]
 
@@ -506,8 +516,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     def get_file_associated_entities(self, node):
         """Returns a list of entities that are 'associated' with a file"""
 
-        entities = (super(ActiveGraphIndexBuilder, self)
-                    .get_file_associated_entities(node))
+        entities = super().get_file_associated_entities(node)
 
         # Add entities via read_group
         entities += [
