@@ -85,6 +85,15 @@ def mappings():
     }
 
 
+@pytest.fixture
+def inconsistent_slides(generate_scenario):
+    generate_scenario('slide_two_cases_scenario.yaml')
+
+
+@pytest.fixture
+def gpas_copy_numbers(generate_scenario):
+    generate_scenario('copy_number_scenario.yaml')
+
 # ======================================================================
 # Tests
 
@@ -612,3 +621,95 @@ def test_sample_analyte_indexed(index):
     assert len(case_affected["aliquot_ids"]) == 1
     aliquot_ids = case_affected["aliquot_ids"]
     assert aliquot_ids[0] == get_node_id("tt-260-aliquot")
+
+
+def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slides):
+    """
+    Make sure that regardless of the order in which we cache Slide node relations
+    to cases, the caching still completes as expected.
+
+    Before the fix, there was an early return in the `_cache_entity_cases`,
+    which resulted in inconsistent caching, because the results depended on when
+    we'd run into the early return.
+
+    This makes sure that regardless of the order, we always cache entity cases,
+    except for the ones that are inconsistent
+    """
+
+    class MyBuilderA(ActiveGraphIndexBuilder):
+        def nodes_labeled(self, labels):
+            # always returns Slide nodes first
+            results = [n for n in super().nodes_labeled(labels)]
+            slides = [n for n in results if n.label == 'slide']
+            results = slides + [n for n in results if n.label != 'slide']
+            return results
+
+    class MyBuilderB(ActiveGraphIndexBuilder):
+        def nodes_labeled(self, labels):
+            # always returns Slide nodes last
+            results = [n for n in super().nodes_labeled(labels)]
+            slides = [n for n in results if n.label == 'slide']
+            results = [n for n in results if n.label != 'slide'] + slides
+            return results
+
+    builderA = MyBuilderA(pg_driver, init_indexd)
+    with pg_driver.session_scope():
+        builderA.cache_database()
+        labeled = builderA.nodes_labeled(builderA.possible_associated_entites)
+        assert labeled and all(n.label == 'slide' for n in labeled[:3])
+
+    builderB = MyBuilderB(pg_driver, init_indexd)
+    with pg_driver.session_scope():
+        builderB.cache_database()
+        labeled = builderB.nodes_labeled(builderB.possible_associated_entites)
+        assert labeled and all(n.label == 'slide' for n in labeled[-3:])
+
+    # Comparing that 2 maps are the same
+    assert builderA.entity_cases == builderB.entity_cases
+
+    cached_slide_ids = {n.submitter_id for n in builderA.entity_cases}
+
+    # Making sure that 'slide_1' wasn't picked up, since it's linked to 2 cases
+    assert 'slide_1' not in cached_slide_ids
+    assert 'slide_2' in cached_slide_ids
+    assert len(builderA.entity_cases) == 27
+
+    _, filesA, _, _ = builderA.denormalize_all()
+    slide_image_filesA = [f for f in filesA if f['type'] == 'slide_image']
+
+    assert len(slide_image_filesA) == 2
+
+    si1 = [f for f in slide_image_filesA if f['submitter_id'] == 'slide_image_1'][0]
+    si2 = [f for f in slide_image_filesA if f['submitter_id'] == 'slide_image_2'][0]
+
+    si1_entities = si1.get('associated_entities')
+    si2_entities = si2.get('associated_entities')
+
+    # Making sure that 'associated_entities' is populated where expected
+    assert not si1_entities, si1_entities
+    assert si2_entities, si2_entities
+
+    # Make sure that correct entities got linked
+    si2_entity_ids = [ae['entity_submitter_id'] for ae in si2_entities]
+    assert 'slide_2' in si2_entity_ids
+
+
+def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numbers):
+    """
+    Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up
+    """
+
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+    with pg_driver.session_scope():
+        builder.cache_database()
+
+    cases, files, _, _ = builder.denormalize_all()
+
+    file_submitter_ids = {f.get('submitter_id') for f in files}
+
+    # 6 additional files: 2 CNE, 2 CNS, 2 ARs
+    expected_submitter_ids = {'cn_cne_1', 'cn_cne_2', 'cn_cns_1', 'cn_cns_2',
+                              'cn_ar_1', 'cn_ar_2'}
+    assert len(files) == N_FILES + 6
+    assert expected_submitter_ids.issubset(file_submitter_ids), file_submitter_ids

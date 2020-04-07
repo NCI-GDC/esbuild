@@ -2223,14 +2223,16 @@ class GraphIndexBuilder(object):
         for e in entities:
             if e.label == "case":
                 # if the associated entity is a case, it's case is
-                # just itself. this is kindy of sketchy but w/e
+                # just itself. this is kind of sketchy but w/e
                 self.entity_cases[e] = e
                 continue
 
-            paths = (
-                self.truncate_path(path, e.label)
-                for path in  self.file_to_case_paths
-            )
+            paths = set()
+            for path in self.file_to_case_paths:
+                truncated = self.truncate_path(path, e.label)
+                if truncated:
+                    paths.add(tuple(truncated))
+
             cases = self.walk_paths(e, paths)
 
             if len(cases) > 1:
@@ -2239,7 +2241,7 @@ class GraphIndexBuilder(object):
                     '{}: Found {} cases'.format(e, len(cases)),
                     tags=["entity:{}".format(e)],
                 )
-                return
+                continue
 
             if len(cases) != 0:
                 self.entity_cases[e] = cases.pop()
