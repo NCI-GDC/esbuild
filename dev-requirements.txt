@@ -8,3 +8,5 @@ pytest-cov~=2.8.1
 -e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
 -e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
 -e git+https://github.com/NCI-GDC/indexd.git@2.3.0-alpha#egg=indexd
+pre-commit==1.21.0
+cfgv==2.0.1
