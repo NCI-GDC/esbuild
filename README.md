@@ -3,14 +3,25 @@
 Repository for building the GDC Elasticsearch indices.
 
 [![Build Status](https://travis-ci.com/NCI-GDC/esbuild.svg?token=LApTVTN34FyXpxo5zU44&branch=develop)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
+- [esbuild](#esbuild)
 - [Running](#running)
-- [Technologies](#technologies)
+- [Architecture](#architecture)
+  - [Build and Upload Process](#build-and-upload-process)
+  - [Builders and Mappers](#builders-and-mappers)
+    - [Mappers](#mappers)
+- [Trouble shooting](#trouble-shooting)
 - [Installation](#installation)
-- [Tests](#tests)
+  - [Pip](#pip)
+    - [Project Dependencies](#project-dependencies)
 - [Development](#development)
-- [Contributing](#contributing)
+  - [Tests](#tests)
+  - [Setup pre-commit hook to check for secrets](#setup-pre-commit-hook-to-check-for-secrets)
 - [Production](#production)
+- [Contributing](#contributing)
+
+
 
 # Running
 
@@ -53,9 +64,11 @@ In the meantime, the format is this:
                 - ALL-P2
             RELEASED: False
 ```
+
 This data is checked in in a yaml file (project-program-release.yaml) in the 
 bin directory of esbuild. It is deployed and can be edited on the esbuild 
 machine to change as need be.
+
 =======
 # Architecture
 
@@ -80,7 +93,7 @@ The index is uploaded to elasticsearch in the following steps:
 
 ## Builders and Mappers
 
-Esbuild consistes of a `builder` and a `mapper` for each index it
+Esbuild consists of a `builder` and a `mapper` for each index it
 produces (i.e. Legacy and Active).
 
 * The `mapper` produces the Elasticsearch mapping and contains basic traversals
@@ -183,14 +196,45 @@ If you are building to a local Elasticsearch installation, you will
 need to install it manually.  On OSX you can install Elasticsearch via
 `brew install elasticsearch`.
 
-# Tests
+# Development
+
+## Tests
 
 Tests can be found in `tests/` and can be run
 via [pytest](http://pytest.org/latest/getting-started.html).
 
+Or you can use [tox](https://tox.readthedocs.io/en/latest/) to run tests:
+
+```
+pip install tox
+tox
+```
+
 The test suite data is visualized in a PDF
 using [graphviz](http://www.graphviz.org/) if you have installed
 whenever the tests are run.
+
+## Setup pre-commit hook to check for secrets
+
+We use [pre-commit](https://pre-commit.com/) to setup pre-commit hooks for this repo.
+We use [detect-secrets](https://github.com/Yelp/detect-secrets) to search for secrets being committed into the repo. 
+
+To install the pre-commit hook, run
+```
+pre-commit install
+```
+
+To update the .secrets.baseline file run
+```
+detect-secrets scan --update .secrets.baseline
+git add .secrets.baseline
+```
+
+`.secrets.baseline` contains all the string that were caught by detect-secrets but are not stored in plain text. Audit the baseline to view the secrets . 
+
+```
+detect-secrets audit .secrets.baseline
+```
 
 # Production
 
