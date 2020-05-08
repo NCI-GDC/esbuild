@@ -1,22 +1,9 @@
-import time
-import uuid
-
 import pytest
 
-from tests import es_data
 from tests.data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
 from esbuild.graph.common.builder import get_namespaced_uuid, get_uuid_namespace
-
-
-def test_get_projects_list(test_index_data):
-    es, index_name = test_index_data
-    helper = ReleaseHelper(es)
-
-    projects = {d['project_id'] for d in es_data.project_docs}
-
-    assert projects == helper.get_project_ids(index_name)
-    assert projects == helper.get_project_ids_from_metadata(index_name)
+from esbuild.gdc_elasticsearch import get_index_names
 
 
 def validate_file_metadata(key, value):
@@ -79,7 +66,7 @@ def get_dict_paths(d, path_list=None, path='root'):
 
 def test_projects_deleted(es_after_deletion):
     es, index_name, projects_before, deleted_projects = es_after_deletion
-    helper = ReleaseHelper(es)
+    helper = ReleaseHelper(es, audit_index="build_metadata_test")
     expected_projects = {p for p in projects_before
                          if p not in deleted_projects}
     assert helper.get_project_ids(index_name) == expected_projects
@@ -87,16 +74,18 @@ def test_projects_deleted(es_after_deletion):
 
 def test_delete_project_docs(es_after_deletion):
     """ Check that correct docs are deleted """
-    es, index_name, _, deleted_projects = es_after_deletion
+    es, index_prefix, _, deleted_projects = es_after_deletion
 
     path_to_id = {'project': 'project_id',
                   'case': 'project.project_id',
                   'file': 'cases.project.project_id',
                   'annotation': 'project.project_id'}
 
+    index_names = get_index_names(index_prefix, path_to_id.keys())
+
     # Check files
     projects = set()
-    file_data = es.search(index=index_name, doc_type='file', size=10000)['hits']['hits']
+    file_data = es.search(index=index_names["file"], size=10000)['hits']['hits']
     for f in file_data:
         projects.update([c['project']['project_id'] for c in f['_source']['cases']])
     assert {p for p in projects if p in deleted_projects} == set()
@@ -108,31 +97,16 @@ def test_delete_project_docs(es_after_deletion):
         for step in path:
             return get_value_at_path(tree[path[0]], path[1:])
 
-    for dtype, path in path_to_id.items():
-        if dtype == 'file':
+    for index_type, path in path_to_id.items():
+        if index_type == 'file':
             continue
-        data = es.search(index=index_name, doc_type=dtype, size=10000)['hits']['hits']
+
+        data = es.search(index=index_names[index_type], size=10000)['hits']['hits']
         projects = set()
         for doc in data:
             project_id = get_value_at_path(doc['_source'], path.split('.'))
             projects.update(project_id)
         assert {x for x in projects if x in deleted_projects} == set()
-
-
-def test_update_metadata(es_after_deletion):
-    es, index_name, projects_before, deleted_projects = es_after_deletion
-    helper = ReleaseHelper(es)
-
-    helper.update_metadata(index_name)
-    time.sleep(2)
-
-    projects_after = helper.get_project_ids_from_metadata(index_name)
-
-    # Check that metadata is adjusted correctly
-    assert projects_after | set(deleted_projects) == projects_before
-    for project in deleted_projects:
-        assert project in projects_before
-        assert project not in projects_after
 
 
 @pytest.mark.parametrize("namespace, expectation", [

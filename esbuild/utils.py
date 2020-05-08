@@ -2,14 +2,18 @@ import os
 import subprocess
 import time
 from collections import deque
+from datetime import datetime
 from hashlib import md5
 from itertools import chain
+from functools import lru_cache
 from reprlib import repr
 from sys import getsizeof
+from typing import List
 
 import six
 from cdislogging import get_logger
 from dotenv import load_dotenv
+from elasticsearch import Elasticsearch
 from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
 from indexclient.client import IndexClient
@@ -269,149 +273,154 @@ class VersionedNodesDiffCollector(object):
 class ReleaseHelper:
     """
     Prepares previously stored index to be used in a next data release
-    """
 
-    def __init__(self, es):
+    Attributes:
+        es: Elatcisearch client instance
+        audit_index: destination index where to write audit events
+        audit: create audit documents or not
+        es5: c
+    """
+    metadata_doc_type = "build_metadata"
+
+    def __init__(self, es: Elasticsearch, audit_index: str, audit: bool = True, es5: bool = False):
         """
         Usage:
             - initialize the helper
             - run .prepare_index_to_build()
         """
         self.es = es
+        self.audit_index = audit_index
+        self.audit = audit
+        self.es5 = es5
         self.log = get_logger('utils_releasehelper')
 
-    def prepare_index_to_build(self, index_name, projects_to_build):
+    def delete_docs_from_index(self,
+                               index_name: str,
+                               index_type: str,
+                               projects_to_delete: List[str]):
         """
-        Prepares index :index_name to be populated with :projects_to_build
-        i.e. removes documents associated with :projects_to_build from :index_name
-        """
+        Removes ebsuild docs associated with selected projects from the index.
 
-        # If index does not exist, do nothing
-        if index_name not in self.es.indices.get_alias():
+        Args:
+            index_name: ES index to remove docs from
+            index_type: ES doc_type to remove docs from
+            projects_to_delete: list of project_ids
+        """
+        if projects_to_delete:
+            project_q = {"terms": {"project_id": projects_to_delete}}
+            case_or_annotation_q = {"terms": {"project.project_id": projects_to_delete}}
+            file_q = {
+                "nested": {
+                    "path": "cases",
+                    "query": {"terms": {"cases.project.project_id": projects_to_delete}},
+                }
+            }
+        else:
+            project_q = case_or_annotation_q = file_q = {"match_all": {}}
+
+        index_type_queries = {
+            "case": case_or_annotation_q,
+            "annotation": case_or_annotation_q,
+            "file": file_q,
+            "project": project_q
+        }
+
+        existing_indices = self.es.indices.get_alias()
+
+        q = index_type_queries[index_type]
+
+        if index_name not in existing_indices:
             return
 
-        # If index does exist, but it's empty, do nothing
-        if len(self.get_project_ids(index_name)) == 0:
+        try:
+            self.es.delete_by_query(index=index_name, doc_type=index_type, body={"query": q})
+        except:
+            self.log.exception(
+                "Unable to delete documents for projects: '{}' from: '{}'"
+                "".format(projects_to_delete, index_name)
+            )
+
+    def add_esbuild_log(self, index_prefix, action, project_ids, timestamp=None, **kwargs):
+        if not self.audit:
             return
 
-        # Remove data associated with projects that are to be build from index
-        self.delete_docs_from_index(index_name, projects_to_build)
+        # If audit index doesn't exist, create one
+        if not self.es.indices.exists(self.audit_index):
+            self.es.indices.create(index=self.audit_index)
+            self.es.indices.refresh(index=self.audit_index)
 
-        # Update build_metadata
-        self.update_metadata(index_name)
+        if timestamp is None:
+            timestamp = datetime.now()
 
-    def get_project_ids(self, index_name):
+        commit_hash = kwargs.get("commit_hash", self.get_commit_hash())
+
+        project_ids = project_ids or ["all"]
+
+        metadata_id = self.get_build_metadata_id(index_prefix, action, project_ids, commit_hash)
+
+        self.es.create(
+            index=self.audit_index,
+            doc_type=self.metadata_doc_type,
+            id=metadata_id,
+            body=dict(
+                index_prefix=index_prefix,
+                action=action,
+                projects=project_ids or ["all"],
+                commit_hash=commit_hash,
+                timestamp=timestamp,
+                **kwargs
+            ),
+        )
+
+    @classmethod
+    def get_build_metadata_id(cls, index_prefix, action, project_ids, commit_hash):
+        if not isinstance(project_ids, list):
+            project_ids = [str(project_ids)]
+
+        project_ids_string = ','.join(sorted(project_ids))
+        id_string = "-".join([index_prefix, action, project_ids_string, commit_hash])
+
+        md5hash = md5(id_string.encode("utf-8"))
+
+        return md5hash.hexdigest()
+
+    def get_project_ids(self, index_prefix):
         """
         Returns set of projects based on project documents in index
         """
         query = {
-            "query": {},
+            "query": {"match_all": {}},
             "stored_fields": "_id"
         }
-        res = self.es.search(index=index_name, doc_type='project',
-                             size=10000, body=query)['hits']['hits']
-        if res:
-            projects = set([project['_id'] for project in res])
+
+        project_index = index_prefix if self.es5 else index_prefix + "_project"
+
+        res = self.es.search(index=project_index, doc_type="project", size=10000, body=query)
+
+        hits = res['hits']['hits']
+        if hits:
+            projects = set([project['_id'] for project in hits])
         else:
             # Existing index did not contain any project docs
             projects = set()
         return projects
 
-    def get_project_ids_from_metadata(self, index_name):
-        """
-        Returns set of projects based on build_metadata
-        """
-
-        res = self.es.search(index=index_name, doc_type='build_metadata',
-                             size=10000)['hits']['hits']
-        projects = set()
-        for doc in res:
-            projects.update(set(doc['_source']['build_projects']))
-        return projects
-
-    def delete_docs_from_index(self, index_name, projects_to_delete):
-        """
-        Removes ebsuild docs associated with selected projects from the index
-        """
-        for doc_type in ['case', 'file', 'project', 'annotation']:
-            path_to_id = {'project': 'project_id',
-                          'case': 'project.project_id',
-                          'file': 'cases.project.project_id',
-                          'annotation': 'project.project_id'}
-            for project in projects_to_delete:
-                if doc_type == 'file':
-                    query = {
-                        "query": {
-                            "nested": {
-                                "path": "cases",
-                                "query": {
-                                    "bool": {
-                                        "must": [
-                                            {"match_phrase": {"cases.project.project_id": project}},
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                else:
-                    query = {
-                        "query": {
-                            "match_phrase": {
-                                path_to_id[doc_type]: project
-                            }
-                        }
-                    }
-                try:
-                    self.es.delete_by_query(index=index_name,
-                                            doc_type=doc_type, body=query)
-                except Exception as exception:
-                    self.log.exception('Unable to delete {} from {}, skipping'.format(
-                        doc_type, index_name))
-
-    def update_metadata(self, index_name):
-        """
-        Updates build_metadata doc after projects deletion
-        """
-        # Get new project list
-        projects_after = self.get_project_ids(index_name)
-
-        # Get new counts
-        counts = self.get_index_counts(index_name)
-
-        # Get commit hash
-        commit_hash = self.get_commit_hash()
-
-        # Update the metadata
-        metadata_after = {'build_projects': list(projects_after),
-                          'commit_hash': commit_hash,
-                          'counts': counts}
-        self.es.delete_by_query(index=index_name,
-                                doc_type='build_metadata', body={})
-
-        build_metadata_id = self.get_build_metadata_id(projects_after)
-        self.es.create(index=index_name, id=build_metadata_id,
-                       doc_type='build_metadata', body=metadata_after)
-        self.wait_for_es(index_name, 'build_metadata')
-
-    def get_index_counts(self, index_name):
-        counts = {}
-        for dtype in ['case', 'file', 'project', 'annotation']:
-            counts[dtype] = self.es.count(index=index_name, doc_type=dtype)['count']
-        return counts
-
-    def wait_for_es(self, index_name, doc_type, query={}, max_wait_sec=30):
+    def wait_for_es(self, index_name, query=None, max_wait_sec=30):
         """
         Wait for query to return non empty result
         """
+        if query is None:
+            query = {"match_all": {}}
+
         time_slept = 0
-        while not self.es.search(index=index_name, doc_type=doc_type, body=query)['hits']['hits']:
+        while not self.es.search(index=index_name, body=query)['hits']['hits']:
             time.sleep(1)
             time_slept += 1
             if time_slept > max_wait_sec:
                 break
 
     @staticmethod
+    @lru_cache(1)
     def get_commit_hash():
         git_dir = os.path.join(
             os.path.dirname(
@@ -425,13 +434,3 @@ class ReleaseHelper:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
         return commit_hash.decode('utf-8')
-
-    @staticmethod
-    def get_build_metadata_id(project_ids):
-        if not isinstance(project_ids, list):
-            project_ids = [str(project_ids)]
-
-        id_string = ','.join(sorted(project_ids))
-        md5hash = md5(id_string.encode('utf-8'))
-
-        return md5hash.hexdigest()

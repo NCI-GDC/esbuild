@@ -9,8 +9,8 @@ from esbuild.utils import VersionedNodesDiffCollector
 
 
 def handle_reindex(args):
-    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
-    gdc_es.reindex(args.old_index, args.new_index, types=args.doc_types)
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, indexd_client=None)
+    gdc_es.reindex(args.old_index, args.new_index, index_types=args.index_types, es5=args.es5)
 
 
 def handle_pre_flight(args):
@@ -42,11 +42,17 @@ def get_parser():
         help='The name of a destination Elasticsearch index'
     )
     reindex_sub.add_argument(
-        '--doc-types',
+        '--index-types',
         required=False,
         nargs='*',
         default=(),
         help='Elasticsearch document types to reindex',
+    )
+    reindex_sub.add_argument(
+        "--es5",
+        required=False,
+        action="store_true",
+        help="Reindex assuming an Elasticsearch5 backend",
     )
     reindex_sub.set_defaults(func=handle_reindex)
 

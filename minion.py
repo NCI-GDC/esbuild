@@ -53,6 +53,9 @@ def minion_argparser():
                         help='Skips writing to es',
                         action='store_true',
                         default=False)
+    parser.add_argument("--es5",
+                        help="Use Elasticsearch5 backend",
+                        action="store_true")
     return parser
 
 
@@ -63,7 +66,8 @@ def process_work(worker_id=None,
                  indexd_args=None,
                  skip_es=None,
                  save_doc_path=None,
-                 sleep_time=None):
+                 sleep_time=None,
+                 es5=False):
 
     running = True
     found_work = False
@@ -95,20 +99,27 @@ def process_work(worker_id=None,
         else:
             try:
                 # Compose and execute the command:
-                if work.get('build-type') == 'active':
+                build_type = work.get("build-type")
+                if build_type == 'active':
                     builder = ActiveGraphIndexBuilder
                     if work.get('build-awg'):
-                        index_base = 'awg_from_graph'
+                        default_alias = 'awg_from_graph'
                     else:
-                        index_base = 'gdc_from_graph'
+                        default_alias = 'gdc_from_graph'
+                elif build_type == "legacy":
+                    raise ValueError("Legacy support has been dropped")
                 else:
                     raise Exception('Unable to find/handle build-type {}: {}'.format(work.get('build-type'), work))
+
                 found_work = True
+
+                alias = work.get("alias", default_alias)
 
                 main(converter=builder,
                      indexd_args=indexd_args,
-                     index_base=index_base,
-                     work=work)
+                     index_alias=alias,
+                     work=work,
+                     es5=es5)
 
                 logger.info('-> Running {} build'.format(work.get('build-type')))
                 work['skip-es'] = work.get('skip-es', skip_es)
@@ -142,7 +153,9 @@ if __name__ == "__main__":
                 indexd_args=indexd_args,
                 skip_es=args.skip_es,
                 save_doc_path=args.save_doc_path,
-                sleep_time=TIMEDELTA)
+                sleep_time=TIMEDELTA,
+                es5=args.es5,
+            )
         )
         proc_info['status'] = "running"
         procs.append(proc_info)

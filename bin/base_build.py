@@ -27,6 +27,9 @@ def esbuild_argparser():
         '--index', help='Index name to upsert projects to. '
         'Must set when building subset of projects')
     parser.add_argument(
+        "--alias", help="Index alias to use for index swap",
+    )
+    parser.add_argument(
         '--replicas',
         help='Number of replicas to set when creating an index (default: 0)',
         type=int,
@@ -60,8 +63,9 @@ def esbuild_argparser():
 
 def main(converter=None,
          indexd_args=None,
-         index_base=None,
-         work=None):
+         index_alias=None,
+         work=None,
+         es5=False):
 
     indexd_client = IndexClient(**indexd_args)
 
@@ -78,14 +82,15 @@ def main(converter=None,
         converter_class=converter,
         build_projects=list(work.get('projects').split()),
         build_awg=work.get('build-awg'),
-        index_name=work.get('index'),
+        index_prefix=work.get('index'),
         index_replicas=work.get('replicas'),
         index_shards=work.get('shards'),
-        index_base=index_base,
+        index_alias_prefix=index_alias,
         skip_es=work.get('skip-es'),
         selective_caching=work.get('selective-caching'),
         cache_versioned=work.get('cache-versioned'),
         save_doc_path=work.get('save-doc-path'),
+        es5=es5,
     )
     gdc_es.go(roll_alias=not work.get('no-roll'),
               cleanup_indices=not work.get('no-cleanup'))

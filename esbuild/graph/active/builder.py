@@ -282,7 +282,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         file_to_read_group_paths.setdefault(path[-1], []).append(path[-2::-1])
 
     def __init__(self, *args, **kwargs):
-        super(ActiveGraphIndexBuilder, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Omit entities from these projects
         self.omitted_projects.add(('CCLE', 'CCLE_V2'))
@@ -328,13 +328,16 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         self.omitted_projects.add(('CCLE', 'KICH'))
 
     def denormalize_all(self):
-        cases, files, annotations, projects = (super(ActiveGraphIndexBuilder,
-                                                     self).denormalize_all())
+        cases, files, annotations, projects = super().denormalize_all()
 
         # Copy `primary_site` and `disease_type` from projects to cases.project:
-        projects_map = {p['project_id']: {'primary_site': p['primary_site'],
-                                          'disease_type': p['disease_type']}
-                        for p in projects}
+        projects_map = {
+            p['project_id']: {
+                'primary_site': p['primary_site'],
+                'disease_type': p['disease_type'],
+            }
+            for p in projects
+        }
 
         for case in cases:
             project_id = case['project']['project_id']
@@ -344,8 +347,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return cases, files, annotations, projects
 
     def denormalize_file(self, node, ptree):
-        doc = (super(ActiveGraphIndexBuilder, self)
-               .denormalize_file(node, ptree))
+        doc = super().denormalize_file(node, ptree)
 
         self.add_file_analysis(node, doc)
         self.add_file_downstream_analyses(node, doc)

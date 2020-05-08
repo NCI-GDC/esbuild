@@ -93,11 +93,13 @@ def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations
     builder = GDCElasticsearch(
         converter_class=ActiveGraphIndexBuilder,
         indexd_client=init_indexd,
-        index_base='gdc_es_test',
+        index_prefix='gdc_es_test',
+        index_alias_prefix="test_gdc_from_graph",
         index_close_thresh=4,
-        build_projects=['TCGA-BRCA'],
         pg_driver=pg_driver,
         cache_versioned=True,
+        build_projects=["TCGA-BRCA"],
+        es=es,
     )
     builder.go()
 
@@ -105,12 +107,15 @@ def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations
     nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
 
     source = INDEXD_METADATA_FIELDS + ['index_files']
-    res = es.search(index=builder.index_name, doc_type='file',
+    res = es.search(index="gdc_es_test_file",
                     body={'query': {'terms': {'submitter_id': ['ar_sar1',
                                                                'ar_sur1']}},
                           '_source': source})
 
-    assert len(es_expectations) == res['hits']['total']
+    total = res["hits"]["total"]
+
+    assert total["relation"] == "eq"
+    assert len(es_expectations) == total["value"]
 
     # If there were no versions, there are no differences to be detected
     if not params['make_versions']:

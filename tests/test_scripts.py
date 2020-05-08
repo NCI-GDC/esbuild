@@ -12,13 +12,6 @@ from subprocess import check_call
 import pytest
 
 
-@pytest.mark.parametrize('path', [
-    'build_download_stats_index.py',
-])
-def test_script_runs(path, init_indexd, pg_driver):
-    check_call([path])
-
-
 @pytest.mark.parametrize('posargs', [
     ['-h'],
     ['reindex', '-h'],
