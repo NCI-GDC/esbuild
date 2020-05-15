@@ -19,6 +19,7 @@ from gdcdatamodel.models.submission import TransactionSnapshot
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
 from requests import HTTPError
+from queueclient import DepotQueueClient, RabbitMQClient
 
 from esbuild.graph.common.builder import GraphIndexBuilder
 
@@ -63,8 +64,28 @@ def get_default_pg_driver():
 def get_default_index_client():
     return IndexClient(
         baseurl=os.getenv('INDEXD_HOST'),
-        auth=(os.getenv('INDEXD_USER'), os.getenv('INDEXD_PASS')),
+        auth=(None, None),  # Safe guard from potential updates
     )
+
+
+def get_queue_client(queue_type):
+    if queue_type == "depot":
+        return DepotQueueClient(
+            host=os.getenv("DEPOT_HOST", "depot.service.consul"),
+            port=os.getenv("DEPOT_PORT"),
+            queue_id=os.getenv("DEPOT_QUEUE_ID"),
+        )
+    elif queue_type == "rabbitmq":
+        return RabbitMQClient(
+            host=os.getenv("RABBITMQ_HOST", "rabbitmq.service.consul"),
+            port=int(os.getenv("RABBITMQ_PORT", 5672)),
+            queue_id=os.getenv("RABBITMQ_QUEUE_ID", "esbuild"),
+            username=os.getenv("RABBITMQ_USER", "guest"),
+            password=os.getenv("RABBITMQ_PASS", "guest"),
+            durable=True,
+        )
+
+    raise ValueError("Unsupported queue type: '{}'".format(queue_type))
 
 
 def get_total_size(obj, handlers={}):
