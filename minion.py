@@ -113,7 +113,7 @@ def process_work(worker_id=None,
 
                 found_work = True
 
-                alias = work.get("alias", default_alias)
+                alias = work.get("alias") or default_alias
 
                 main(converter=builder,
                      indexd_args=indexd_args,

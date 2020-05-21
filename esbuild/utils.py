@@ -278,7 +278,7 @@ class ReleaseHelper:
         es: Elatcisearch client instance
         audit_index: destination index where to write audit events
         audit: create audit documents or not
-        es5: c
+        es5: for Elasticsearch5 clusters index names are different and don't include doc_type
     """
     metadata_doc_type = "build_metadata"
 

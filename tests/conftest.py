@@ -304,34 +304,6 @@ def es_client():
 
 
 @pytest.fixture(scope='module')
-def test_index(es_client):
-    """Generate an index as a fixture for re-use between tests"""
-
-    index = 'test_index__'
-    docs = es_data.dummy_docs
-
-    cleanup_indices(es_client, [index])
-    es_client.indices.create(index=index, ignore=400)
-    for doc in docs:
-        es_client.index(
-            index=index,
-            id=doc['id'],
-            body=doc,
-            ignore=409,
-        )
-
-    while True:
-        count = es_client.count(index=index)['count']
-        if count == len(docs):
-            break
-        time.sleep(0.1)
-
-    yield es_client, index, docs
-
-    cleanup_indices(es_client, [index])
-
-
-@pytest.fixture(scope='module')
 def test_index_data(index_types, es_client):
     """Generate data index as a fixture for re-use between tests"""
 
@@ -340,7 +312,7 @@ def test_index_data(index_types, es_client):
 
     index_names = get_index_names(index_prefix, index_types)
 
-    cleanup_indices(es_client, list(index_names.values()))
+    cleanup_indices(es_client, index_names.values())
 
     # Create dummy esbuild docs
     for index_type in index_types:
@@ -380,7 +352,7 @@ def test_index_data(index_types, es_client):
 
     yield es_client, index_prefix
 
-    cleanup_indices(es_client, list(index_names.values()))
+    cleanup_indices(es_client, index_names.values())
 
 
 @pytest.fixture(scope='module')

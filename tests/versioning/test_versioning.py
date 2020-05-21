@@ -95,7 +95,6 @@ def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations
         indexd_client=init_indexd,
         index_prefix='gdc_es_test',
         index_alias_prefix="test_gdc_from_graph",
-        index_close_thresh=4,
         pg_driver=pg_driver,
         cache_versioned=True,
         build_projects=["TCGA-BRCA"],

@@ -1,9 +1,19 @@
 import pytest
 
+from tests import es_data
 from tests.data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
 from esbuild.graph.common.builder import get_namespaced_uuid, get_uuid_namespace
 from esbuild.gdc_elasticsearch import get_index_names
+
+
+def test_get_projects_list(test_index_data):
+    es, index_name = test_index_data
+    helper = ReleaseHelper(es, "foo")
+
+    projects = {d['project_id'] for d in es_data.project_docs}
+
+    assert projects == helper.get_project_ids(index_name)
 
 
 def validate_file_metadata(key, value):

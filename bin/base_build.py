@@ -92,5 +92,4 @@ def main(converter=None,
         save_doc_path=work.get('save-doc-path'),
         es5=es5,
     )
-    gdc_es.go(roll_alias=not work.get('no-roll'),
-              cleanup_indices=not work.get('no-cleanup'))
+    gdc_es.go(roll_alias=not work.get('no-roll'))

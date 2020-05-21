@@ -32,7 +32,6 @@ def make_gdc_es(pg_driver, es_client):
             indexd_client=indexd_client,
             index_prefix=kwargs.get("index_prefix", "gdc_es_test"),
             index_alias_prefix=kwargs.get("index_alias_prefix", "gdc_from_graph"),
-            index_close_thresh=4,
             pg_driver=pg_driver,
             **kwargs
         )
@@ -103,9 +102,8 @@ def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
     all_indices = get_all_indices(setup_test)
     expected_indices = set(gdces.index_names.values()) | {"build_metadata"}
 
-    assert len(all_indices) == len(expected_indices)
-
     assert set(all_indices) == expected_indices
+    assert len(all_indices) == len(expected_indices)
 
     # check that we esbuilt the index with the expected default settings
     for index in gdces.index_names.values():
@@ -159,25 +157,6 @@ def test_doesnt_delete_file_with_derived_files(
         assert node
         # verify the filename is correct
         assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"
-
-
-@pytest.mark.xfail(reason="Code being tested needs to be re-evaluated")
-@pytest.mark.parametrize('converter', [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder])
-def test_old_index_cleanup(setup_test, init_indexd, converter, make_gdc_es):
-    for i in range(5):
-        gdces = make_gdc_es(init_indexd, converter)
-        gdces.go()
-
-    # running the index build five times should delete index 1
-    actual_indices = set(get_all_indices(setup_test))
-    expected_indices = {"gdc_es_test_2", "gdc_es_test_3", "gdc_es_test_4",
-                        "gdc_es_test_5"}
-    assert actual_indices == expected_indices, actual_indices
-
-    # index 1 should be deleted, index 2 and 3 should be closed
-    for i in range(2, 4):
-        with pytest.raises(AuthorizationException):
-            setup_test.indices.stats('gdc_es_test_{}'.format(i))
 
 
 @pytest.mark.parametrize('replicas, shards', [(0, 1), (2, 6)])
@@ -310,12 +289,54 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
         raise AssertionError("No exception raised")
 
 
+@pytest.mark.usefixtures("setup_test")
 def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
     """
-    Make sure that no write attempts are made during ESBuild run
+    Make sure that no write attempts are made during ESBuild run and also that
+    correct indices/aliases were created
     """
+
+    # Making sure ES is empty
+    assert len(es_client.indices.get_alias()) == 0
+
     gdc_es = GDCElasticsearch(
         ActiveGraphIndexBuilder, init_indexd, es=es_client, pg_driver=ro_pg_driver,
         index_prefix="graph_from_readonly", index_alias_prefix="graph_alias",
     )
     gdc_es.go()
+
+    all_aliases = es_client.indices.get_alias()
+    graph_aliases = es_client.indices.get_alias("graph_from_*")
+
+    expected_names = gdc_es.index_names.values()
+
+    assert set(expected_names) <= all_aliases.keys(), all_aliases
+    assert "build_metadata" in all_aliases, all_aliases
+    assert graph_aliases.keys() == set(gdc_es.index_names.values())
+
+    for index_type, index_name in gdc_es.index_names.items():
+        index_info = all_aliases[index_name]
+        expected_alias = gdc_es.index_aliases[index_type]
+
+        assert expected_alias in index_info["aliases"], index_info
+
+
+@pytest.mark.usefixtures("setup_test")
+def test_build_index_no_alias(pg_driver, init_indexd, es_client):
+    """Make sure no alias was set if roll_alias was False"""
+
+    # Making sure ES is empty
+    assert len(es_client.indices.get_alias()) == 0
+
+    gdc_es = GDCElasticsearch(
+        ActiveGraphIndexBuilder, init_indexd, es=es_client, pg_driver=pg_driver,
+        index_prefix="graph_from_readonly", index_alias_prefix="graph_alias",
+    )
+    gdc_es.go(roll_alias=False)
+
+    graph_aliases = es_client.indices.get_alias("graph_from_*")
+
+    assert graph_aliases.keys() == set(gdc_es.index_names.values())
+
+    for index_name, index_info in graph_aliases.items():
+        assert index_info["aliases"] == {}

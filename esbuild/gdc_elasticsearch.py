@@ -16,7 +16,6 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from cdislogging import get_logger
 from datadog import statsd
-from gdcdatamodel.models import File
 from elasticsearch import (
     Elasticsearch,
     NotFoundError,
@@ -47,27 +46,6 @@ mapping_getters = {
     "file": "get_file_es_mapping",
     "project": "get_project_es_mapping",
 }
-
-
-def shouldnt_delete(node):
-    """In most cases, we delete any node that's marked
-    `to_delete`. However, if the node is a file, we don't, for two reasons:
-
-    1. We would lose the information about the alignment.
-
-    2. CGHub sometimes suppresses and then unsupresses files. In most
-    cases this is fine, but if a file has derived files, deleting and
-    recreating it will cause the relevant edge to be lost, which we
-    don't want.
-
-    This is a predicate to filter files with derived files so we don't
-    delete them.
-
-    """
-    if isinstance(node, File) and node.derived_files:
-        return True
-    else:
-        return False
 
 
 def get_esbuild_event_logger(index_prefix, projects):
@@ -141,16 +119,10 @@ class GDCElasticsearch(object):
         event_logger (callable): statsd event logger
         index_alias_prefix (str): destination index alias
         audit: create audit documents in ES or not
+        skip_es (bool): do not deploy indices to Elasticsearch
 
         FIXME: Should we just drop this?
         es5: upload to an Elasticsearch5 cluster
-
-        TODO: Look what was the intended purpose and get rid of logic if necessary
-        skip_es (bool):
-
-        TODO: drop support
-        index_close_thresh (int): we try to control the ES cluster size, by keeping
-            only X number of indices and deleting old ones. Set X by passing this param
     """
 
     def __init__(self,
@@ -168,19 +140,12 @@ class GDCElasticsearch(object):
                  save_doc_path: str = os.path.expanduser("~/esbuild_output"),
                  skip_es: bool = False,
                  index_alias_prefix: str = None,
-                 index_close_thresh: int = 5,
                  audit: bool = True,
                  es5: bool = False,
                  **kwargs):
-        """Walks the graph to produce elasticsearch json documents.
-
-        :param skip_es: whether to skip es index deployment
-
-        """
         self.converter_class = converter_class  # type: GraphIndexBuilder.__class__
         self.indexd_client = indexd_client
 
-        self.es = es
         self.graph = pg_driver or PsqlGraphDriver(os.environ["PG_HOST"],
                                                   os.environ["PG_USER"],
                                                   os.environ["PG_PASS"],
@@ -198,7 +163,6 @@ class GDCElasticsearch(object):
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
         self.skip_es = skip_es
 
-        self.index_close_thresh = index_close_thresh
         self.log = get_logger("gdc_elasticsearch", log_level='info')
         self.converter = None
 
@@ -209,11 +173,12 @@ class GDCElasticsearch(object):
         if self.skip_es:
             self.es = None
         else:
-            self.es = self.es or Elasticsearch(timeout=9999, **ES_CONFIG)
+            self.es = es or Elasticsearch(timeout=9999, **ES_CONFIG)
 
         self.index_names = None
         self.index_aliases = None
         self.es5 = es5
+        self.no_parallel_bulk = kwargs.get("no_parallel_bulk", False)
 
         if index_prefix:
             self.index_names = get_index_names(index_prefix, mapping_getters.keys(), es5)
@@ -324,7 +289,7 @@ class GDCElasticsearch(object):
         self.event_logger("Dump to LS", "Finished dumping to LS",
                           tags=["stage:dump", "status:succeeded"])
 
-    def go(self, roll_alias=True, cleanup_indices=True):
+    def go(self, roll_alias=True):
         if not self.index_prefix:
             raise ValueError("'index_prefix' is required")
 
@@ -355,18 +320,15 @@ class GDCElasticsearch(object):
         #   we always build all projects
         # self.converter.validate_docs(cases, files, annotations, projects)
 
-        self._prepare_indices()
-
         # Dump skipped nodes info into a file
         self.log_skipped_nodes(self.converter.skipped_nodes)
 
-        if not self.es:
-            self.release_helper.add_esbuild_log(
-                self.index_prefix, action="local dump", project_ids=self.build_projects,
-            )
+        if not self.es or self.skip_es:
             # Skip index upload and save the documents instead
             self._dump_locally(cases, files, annotations, projects)
             return
+
+        self._prepare_indices()
 
         self.log.info("Deploying new ES index with new docs")
 
@@ -379,8 +341,7 @@ class GDCElasticsearch(object):
         extra_tags = ["status:succeeded"]
 
         try:
-            self.deploy(cases, files, annotations, projects, roll_alias=roll_alias,
-                        cleanup_indices=cleanup_indices)
+            self.deploy(cases, files, annotations, projects, roll_alias=roll_alias)
         except Exception as exception:
             self.log.exception(
                 "Unable to deploy documents to {}: {}, saving to {}"
@@ -462,9 +423,8 @@ class GDCElasticsearch(object):
         else:
             self.log.info("Using existing doc_type mappings: '{}'".format(index_type))
 
-    def create_and_populate_index(self, index_type, docs, parallel_bulk=True,
-                                  thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
-                                  max_chunk_bytes=MAX_CHUNK_BYTES):
+    def create_and_populate_index(self, index_type, docs, thread_count=THREAD_COUNT,
+                                  chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
         """
         Create index and put mappings for a given index_type if it doesn't exist,
         otherwise proceed with document indexing
@@ -482,11 +442,9 @@ class GDCElasticsearch(object):
 
         self.log.info("Populating index %s" % index_name)
 
-        self.populate_index(index_type, docs, parallel_bulk, thread_count, chunk_size,
-                            max_chunk_bytes)
+        self.populate_index(index_type, docs, thread_count, chunk_size, max_chunk_bytes)
 
-    def populate_index(self, index_type, docs, parallel_bulk, thread_count,
-                       chunk_size, max_chunk_bytes):
+    def populate_index(self, index_type, docs, thread_count, chunk_size, max_chunk_bytes):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
@@ -494,7 +452,6 @@ class GDCElasticsearch(object):
         Args:
             index_type (str): The index_type to upload documents to
             docs (list): The documents to upload
-            parallel_bulk (bool): Use parallel_bulk for index upload or not
             thread_count (int): Number of threads to spawn during parallel bulk
                 index upload
             chunk_size (int): Number of actions to perform per bulk request
@@ -519,7 +476,16 @@ class GDCElasticsearch(object):
                 pbar.update(pbar.value + 1)
 
         actions = action_gen()
-        if parallel_bulk:
+        if self.no_parallel_bulk:
+            success, errors = helpers.bulk(
+                self.es,
+                actions,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            if errors:
+                self.log.error(errors)
+        else:
             batches = helpers.parallel_bulk(
                 self.es,
                 actions,
@@ -529,24 +495,16 @@ class GDCElasticsearch(object):
             )
             for batch in batches:
                 if not batch[0]:
-                    raise RuntimeError(json.dumps([
-                        doc for doc in batch[1]
-                        if doc['index']['status'] != 100
-                    ], indent=2))
-        else:
-            success, errors = helpers.bulk(
-                self.es,
-                actions,
-                chunk_size=chunk_size,
-                max_chunk_bytes=max_chunk_bytes,
-            )
-            if errors:
-                self.log.error(errors)
+                    raise RuntimeError(
+                        json.dumps([doc for doc in batch[1]
+                                    if doc['index']['status'] != 100], indent=2)
+                    )
+
         pbar.finish()
 
     def swap_index_alias(self, alias: str, new_index: str):
         """
-        Atomically switch the resolution of alias from old indices to new_index
+        Switch the resolution of alias from old indices to new_index
 
         Args:
             alias: alias that needs to be updated
@@ -589,8 +547,7 @@ class GDCElasticsearch(object):
 
         return self.es.indices.update_aliases({"actions": actions})
 
-    def deploy(self, case_docs, file_docs, ann_docs,
-               project_docs, roll_alias=True, cleanup_indices=True,
+    def deploy(self, case_docs, file_docs, ann_docs, project_docs, roll_alias=True,
                thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
                max_chunk_bytes=MAX_CHUNK_BYTES):
         """Create a new index with an name based on self.index_prefix, populate
@@ -600,10 +557,6 @@ class GDCElasticsearch(object):
 
         self.log.info("Deploying to index %s", self.index_prefix)
 
-        parallel_bulk = True
-        if getattr(self, "no_parallel_bulk", False):
-            parallel_bulk = False
-
         for index_type, index_docs in [("project", project_docs),
                                        ("annotation", ann_docs),
                                        ("file", file_docs),
@@ -612,7 +565,6 @@ class GDCElasticsearch(object):
             self.create_and_populate_index(
                 index_type,
                 index_docs,
-                parallel_bulk=parallel_bulk,
                 thread_count=thread_count,
                 chunk_size=chunk_size,
                 max_chunk_bytes=max_chunk_bytes,
@@ -638,7 +590,7 @@ class GDCElasticsearch(object):
 
         if not roll_alias:
             self.log.info("Skipping alias roll")
-            return self.index_names
+            return
 
         for index_type, index_alias in self.index_aliases.items():
             self.swap_index_alias(alias=index_alias,
