@@ -56,6 +56,9 @@ def minion_argparser():
     parser.add_argument("--es5",
                         help="Use Elasticsearch5 backend",
                         action="store_true")
+    parser.add_argument("--no-statsd",
+                        help="Do not send events to Datadog",
+                        action="store_true")
     return parser
 
 
@@ -67,7 +70,8 @@ def process_work(worker_id=None,
                  skip_es=None,
                  save_doc_path=None,
                  sleep_time=None,
-                 es5=False):
+                 es5=False,
+                 no_statsd=False):
 
     running = True
     found_work = False
@@ -119,7 +123,8 @@ def process_work(worker_id=None,
                      indexd_args=indexd_args,
                      index_alias=alias,
                      work=work,
-                     es5=es5)
+                     es5=es5,
+                     no_statsd=no_statsd)
 
                 logger.info('-> Running {} build'.format(work.get('build-type')))
                 work['skip-es'] = work.get('skip-es', skip_es)
@@ -155,6 +160,7 @@ if __name__ == "__main__":
                 save_doc_path=args.save_doc_path,
                 sleep_time=TIMEDELTA,
                 es5=args.es5,
+                no_statsd=args.no_statsd,
             )
         )
         proc_info['status'] = "running"

@@ -65,7 +65,8 @@ def main(converter=None,
          indexd_args=None,
          index_alias=None,
          work=None,
-         es5=False):
+         es5=False,
+         no_statsd=False):
 
     indexd_client = IndexClient(**indexd_args)
 
@@ -92,4 +93,4 @@ def main(converter=None,
         save_doc_path=work.get('save-doc-path'),
         es5=es5,
     )
-    gdc_es.go(roll_alias=not work.get('no-roll'))
+    gdc_es.go(roll_alias=not work.get('no-roll'), send_events=not no_statsd)

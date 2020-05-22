@@ -48,7 +48,11 @@ mapping_getters = {
 }
 
 
-def get_esbuild_event_logger(index_prefix, projects):
+def no_op(*_, **__):
+    pass
+
+
+def get_statsd_event_logger(index_prefix, projects):
     if not projects:
         projects = "all"
 
@@ -120,6 +124,8 @@ class GDCElasticsearch(object):
         index_alias_prefix (str): destination index alias
         audit: create audit documents in ES or not
         skip_es (bool): do not deploy indices to Elasticsearch
+        release_helper (ReleaseHelper): utility class that does index cleanup and
+            audit logging
 
         FIXME: Should we just drop this?
         es5: upload to an Elasticsearch5 cluster
@@ -168,7 +174,7 @@ class GDCElasticsearch(object):
 
         self.log.info('Build arguments: {}'.format(kwargs))
 
-        self.event_logger = None
+        self.event_logger = no_op
 
         if self.skip_es:
             self.es = None
@@ -289,14 +295,15 @@ class GDCElasticsearch(object):
         self.event_logger("Dump to LS", "Finished dumping to LS",
                           tags=["stage:dump", "status:succeeded"])
 
-    def go(self, roll_alias=True):
+    def go(self, roll_alias=True, send_events=True):
         if not self.index_prefix:
             raise ValueError("'index_prefix' is required")
 
         if roll_alias and not self.index_aliases:
             raise ValueError("'index_alias_prefix' is required")
 
-        self.event_logger = get_esbuild_event_logger(self.index_prefix, self.build_projects)
+        if send_events:
+            self.event_logger = get_statsd_event_logger(self.index_prefix, self.build_projects)
 
         versioned_files = self._cache_versioned_files()
 
