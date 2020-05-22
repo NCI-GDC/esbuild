@@ -46,7 +46,8 @@ def esbuild_argparser(parser=None):
                          type=int)
     es_args.add_argument('--build-type',
                          choices=['active', 'legacy'],
-                         help='Choose "active" or "legacy"')
+                         default="active",
+                         help='Choose "active" or "legacy" (defaults to "active")')
     es_args.add_argument('--split-by-program',
                          action='store_true',
                          help='If set, splits all projects into groups by program',
@@ -197,6 +198,7 @@ if __name__ == "__main__":
                                             split_by_program=args.split_by_program):
                     job_json = {
                         'index': args.index,
+                        "alias": args.alias,
                         'replicas': args.replicas,
                         'shards': args.shards,
                         'no-roll': args.no_roll,

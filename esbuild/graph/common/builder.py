@@ -352,7 +352,7 @@ class GraphIndexBuilder(object):
         pbar = ProgressBar(
             widgets=[title, Percentage(), ' ',
                      Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
-            maxval=maxval,
+            max_value=maxval,
         )
         pbar.update(0)
         return pbar

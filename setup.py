@@ -8,6 +8,5 @@ setup(
     packages=find_packages(exclude=('tests',)),
     scripts=[
         'bin/esbuild-cli',
-        'bin/build_download_stats_index.py',
-    ]
+    ],
 )
