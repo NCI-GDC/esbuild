@@ -1,10 +1,10 @@
+import argparse
 import os
 
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
 
-from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG, get_queue_client
 
@@ -16,9 +16,56 @@ config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 def esbuild_argparser():
     """
-    Esbuild argument parser
+    Returns argument parser for esbuild
     """
-    parser = base_parser()
+    parser = argparse.ArgumentParser(
+        description='Parameters to control esbuild runs',
+    )
+    parser.add_argument(
+        '--no-roll', action="store_true",
+        help='If passed, do not roll the alias and delete old indices')
+    parser.add_argument(
+        '--no-cleanup', action="store_true",
+        help='If passed, do not delete old indices')
+    parser.add_argument(
+        '--projects', nargs='*',
+        help='If set, builds only set of projects specified (space-separated)',
+        required=False)
+    parser.add_argument(
+        '--index',
+        help='Index name to upsert projects to. Must set when building subset of projects',
+    )
+    parser.add_argument(
+        "--alias", help="Index alias to use for index swap",
+    )
+    parser.add_argument(
+        '--replicas',
+        help='Number of replicas to set when creating an index (default: 0)',
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        '--shards',
+        help='Number of shards to set when creating an index (default: 1)',
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        '--selective-caching', action='store_true',
+        help='If set, only caches nodes for projects needed. '
+        'WARNING: Will skip nodes that do not have project_id',
+        default=False)
+    parser.add_argument(
+        '--build-awg', action='store_true',
+        help='If set, will build in AWG mode. '
+        'Will pick up only projects flagged as awg_review = true and '
+        'nodes that are part of these projects and are in any of allowed states',
+        default=False)
+    parser.add_argument(
+        '--cache-versioned',
+        action='store_true',
+        help='Collect differences for versioned unreleased files',
+    )
 
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
@@ -49,11 +96,9 @@ def esbuild_argparser():
         title="Backup flags", description="ES index backup using repository-s3",
     )
     backup_args.add_argument("--restore-from-snapshot",
-                             help="Name of a snapshot to restore index from",
-                             action="store_true")
+                             help="Name of a snapshot to restore index from")
     backup_args.add_argument("--store-to-snapshot",
-                             help="Name of a snapshot to store index to",
-                             action="store_true")
+                             help="Name of a snapshot to store index to")
     return parser
 
 
@@ -73,6 +118,7 @@ def split_projects(project_list, n, split_by_program=False):
     # Check input
     if not isinstance(n, int) or n < 1:
         raise ValueError('Number of parts should be positive integer. Got: {}'.format(n))
+
     if n > len(project_list):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
 
@@ -111,9 +157,7 @@ def backup_wrapper(snapshot_name, index_name, mode):
     """
     es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
 
-    # TODO: Not sure if this was intentional, but currently the wrapper doesn't
-    #   have any S3 credentials. This probably needs to be fixed once we configure
-    #   ES7 snapshot bucket
+    bucket = "esbuild-snapshots" if os.getenv("ES5") else "elasticsearch7-snapshots"
     backup_helper = BackupHelper(
         es_client,
         os.environ["S3_HOST"],
@@ -124,17 +168,24 @@ def backup_wrapper(snapshot_name, index_name, mode):
 
     if mode == 'backup':
         logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
-        backup_helper.store_snapshot('esbuild-snapshots',
-                                     snapshot_name, indices=[index_name],
-                                     wait_for_completion=True)
+        backup_helper.store_snapshot(
+            bucket,
+            snapshot_name,
+            indices=[index_name],
+            wait_for_completion=True,
+        )
         logger.info("Index {} saved".format(index_name))
     elif mode == 'restore':
         if index_name in es_client.indices.get_alias():
             raise Exception('Index {} already exists.'.format(index_name))
+
         logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
-        backup_helper.restore_from_snapshot('esbuild-snapshots',
-                                            snapshot_name, indices=[index_name],
-                                            wait_for_completion=True)
+        backup_helper.restore_from_snapshot(
+            bucket,
+            snapshot_name,
+            indices=[index_name],
+            wait_for_completion=True,
+        )
         logger.info("Index {} restored".format(index_name))
     else:
         raise Exception('Unknown mode: {}'.format(mode))
@@ -160,7 +211,7 @@ if __name__ == "__main__":
 
     if not args.index:
         logger.info("No 'index' was provided, no job will be scheduled")
-        exit(0)
+        exit(1)
 
     # Restore index from S3 snapshot repository
     if args.restore_from_snapshot:
@@ -192,7 +243,6 @@ if __name__ == "__main__":
             "shards": args.shards,
             "no-roll": args.no_roll,
             "no-cleanup": args.no_cleanup,
-            "skip-es": args.skip_es,
             "projects": ' '.join(group),
             "selective-caching": args.selective_caching,
             "build-awg": args.build_awg,

@@ -62,7 +62,7 @@ def get_gdc_elasticsearch(
         build_awg=payload.get("build-awg"),
         index_shards=payload.get("shards"),
         index_alias_prefix=alias,
-        selective_caching=payload.get(payload),
+        selective_caching=payload.get("selective-caching"),
         cache_versioned=payload.get("cache-versioned"),
         save_doc_path=save_doc_path,
         skip_es=skip_es,

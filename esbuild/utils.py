@@ -88,36 +88,6 @@ def get_queue_client(queue_type):
     raise ValueError("Unsupported queue type: '{}'".format(queue_type))
 
 
-def get_total_size(obj, handlers={}):
-    """ Returns the memory used (in bytes) of an object and all of its
-        nested objects. Handlers for special objects can be passed in
-        as long as they provide an iterator to loop over themselves.
-    """
-    dict_handler = lambda d: chain.from_iterable(d.items())
-    all_handlers = {tuple: iter,
-                    list: iter,
-                    deque: iter,
-                    dict: dict_handler,
-                    set: iter,
-                    frozenset: iter,
-                   }
-    all_handlers.update(handlers)
-    seen_objs = set()
-
-    def sizeof(obj):
-        size = 0
-        if id(obj) not in seen_objs:
-            seen_objs.add(id(obj))
-            size = getsizeof(obj, 0)
-            for type_name, handler in all_handlers.items():
-                if isinstance(obj, type_name):
-                    size += sum(map(sizeof, handler(obj)))
-                    break
-        return size
-
-    return sizeof(obj)
-
-
 # TODO: Refactor esbuild.graph.common.builder to use this method to extract IndexD properties
 def extract_indexd_metadata(doc, fields=None, getters=None):
     if fields is None:
