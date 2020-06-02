@@ -92,9 +92,7 @@ def esbuild_argparser():
                          nargs='*',
                          help='Set of projects to skip')
 
-    backup_args = parser.add_mutually_exclusive_group(
-        title="Backup flags", description="ES index backup using repository-s3",
-    )
+    backup_args = parser.add_mutually_exclusive_group()
     backup_args.add_argument("--restore-from-snapshot",
                              help="Name of a snapshot to restore index from")
     backup_args.add_argument("--store-to-snapshot",

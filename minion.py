@@ -79,6 +79,7 @@ def process_work(
     save_doc_path: str = None,
     sleep_time: int = 30,
     es5: bool = False,
+    no_statsd: bool = False,
 ) -> None:
     running = True
     found_work = False
@@ -120,7 +121,7 @@ def process_work(
 
             gdc_es.go(
                 roll_alias=not payload.get("no-roll"),
-                cleanup_indices=not payload.get("no-cleanup"),
+                send_events=not no_statsd,
             )
         except Exception as e:
             log.exception(str(e))
