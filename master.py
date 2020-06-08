@@ -93,6 +93,8 @@ def esbuild_argparser():
                          help='Set of projects to skip')
 
     backup_args = parser.add_mutually_exclusive_group()
+    backup_args.add_argument("--bucket",
+                             help="S3 bucket with ESBuild backups/snapshots")
     backup_args.add_argument("--restore-from-snapshot",
                              help="Name of a snapshot to restore index from")
     backup_args.add_argument("--store-to-snapshot",
@@ -149,13 +151,17 @@ def split_projects(project_list, n, split_by_program=False):
         return result
 
 
-def backup_wrapper(snapshot_name, index_name, mode):
+def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
     """
     Executes backup or restore procedure with BackupHelper
     """
     es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
 
-    bucket = "esbuild-snapshots" if os.getenv("ES5") else "elasticsearch7-snapshots"
+    bucket = s3_bucket or os.getenv("S3_BUCKET")
+
+    if not bucket:
+        raise ValueError("Snapshot bucket wasn't provided.")
+
     backup_helper = BackupHelper(
         es_client,
         os.environ["S3_HOST"],
@@ -192,9 +198,13 @@ def backup_wrapper(snapshot_name, index_name, mode):
 if __name__ == "__main__":
     args = parse_args()
 
+    if not args.index:
+        logger.info("No 'index' was provided, no job will be scheduled")
+        exit(1)
+
     # Backup args.index to S3 snapshot repository
     if args.store_to_snapshot:
-        backup_wrapper(args.store_to_snapshot, args.index, "backup")
+        backup_wrapper(args.store_to_snapshot, args.index, "backup", args.bucket)
         exit(0)
 
     # Get RabbitMQ queue client
@@ -207,13 +217,9 @@ if __name__ == "__main__":
         while payload:
             payload = queue_client.dequeue()
 
-    if not args.index:
-        logger.info("No 'index' was provided, no job will be scheduled")
-        exit(1)
-
     # Restore index from S3 snapshot repository
     if args.restore_from_snapshot:
-        backup_wrapper(args.restore_from_snapshot, args.index, "restore")
+        backup_wrapper(args.restore_from_snapshot, args.index, "restore", args.bucket)
 
     projects = args.projects
     if not projects:
