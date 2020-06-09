@@ -19,6 +19,7 @@ from gdcdatamodel.models.submission import TransactionSnapshot
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
 from requests import HTTPError
+from queueclient import DepotQueueClient, RabbitMQClient
 
 from esbuild.graph.common.builder import GraphIndexBuilder
 
@@ -63,38 +64,28 @@ def get_default_pg_driver():
 def get_default_index_client():
     return IndexClient(
         baseurl=os.getenv('INDEXD_HOST'),
-        auth=(os.getenv('INDEXD_USER'), os.getenv('INDEXD_PASS')),
+        auth=(None, None),  # Safe guard from potential updates
     )
 
 
-def get_total_size(obj, handlers={}):
-    """ Returns the memory used (in bytes) of an object and all of its
-        nested objects. Handlers for special objects can be passed in
-        as long as they provide an iterator to loop over themselves.
-    """
-    dict_handler = lambda d: chain.from_iterable(d.items())
-    all_handlers = {tuple: iter,
-                    list: iter,
-                    deque: iter,
-                    dict: dict_handler,
-                    set: iter,
-                    frozenset: iter,
-                   }
-    all_handlers.update(handlers)
-    seen_objs = set()
+def get_queue_client(queue_type):
+    if queue_type == "depot":
+        return DepotQueueClient(
+            host=os.getenv("DEPOT_HOST", "depot.service.consul"),
+            port=os.getenv("DEPOT_PORT"),
+            queue_id=os.getenv("DEPOT_QUEUE_ID"),
+        )
+    elif queue_type == "rabbitmq":
+        return RabbitMQClient(
+            host=os.getenv("RABBITMQ_HOST", "rabbitmq.service.consul"),
+            port=int(os.getenv("RABBITMQ_PORT", 5672)),
+            queue_id=os.getenv("RABBITMQ_QUEUE_ID", "esbuild"),
+            username=os.getenv("RABBITMQ_USER", "guest"),
+            password=os.getenv("RABBITMQ_PASS", "guest"),
+            durable=True,
+        )
 
-    def sizeof(obj):
-        size = 0
-        if id(obj) not in seen_objs:
-            seen_objs.add(id(obj))
-            size = getsizeof(obj, 0)
-            for type_name, handler in all_handlers.items():
-                if isinstance(obj, type_name):
-                    size += sum(map(sizeof, handler(obj)))
-                    break
-        return size
-
-    return sizeof(obj)
+    raise ValueError("Unsupported queue type: '{}'".format(queue_type))
 
 
 # TODO: Refactor esbuild.graph.common.builder to use this method to extract IndexD properties
