@@ -598,9 +598,9 @@ class ESMapper(object):
         """
         Adds file autocomplete fields
         """
-        files.properties.data_category.copy_to = 'file_autocomplete'
-        files.properties.data_type.copy_to = 'file_autocomplete'
-        files.properties.experimental_strategy.copy_to = 'file_autocomplete'
+        files.properties.data_category.copy_to = ['file_autocomplete']
+        files.properties.data_type.copy_to = ['file_autocomplete']
+        files.properties.experimental_strategy.copy_to = ['file_autocomplete']
         files.properties.file_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
         files.properties.file_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
         files.properties.file_autocomplete.fields.analyzed.type = 'text'
@@ -610,10 +610,10 @@ class ESMapper(object):
         files.properties.file_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         files.properties.file_autocomplete.fields.prefix.type = 'text'
         files.properties.file_autocomplete.type = 'keyword'
-        files.properties.file_id.copy_to = 'file_autocomplete'
-        files.properties.file_name.copy_to = 'file_autocomplete'
-        files.properties.md5sum.copy_to = 'file_autocomplete'
-        files.properties.submitter_id.copy_to = 'file_autocomplete'
+        files.properties.file_id.copy_to = ['file_autocomplete']
+        files.properties.file_name.copy_to = ['file_autocomplete']
+        files.properties.md5sum.copy_to = ['file_autocomplete']
+        files.properties.submitter_id.copy_to = ['file_autocomplete']
 
         return files
 
@@ -631,18 +631,18 @@ class ESMapper(object):
         case.properties.case_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         case.properties.case_autocomplete.fields.prefix.type = 'text'
         case.properties.case_autocomplete.type = 'keyword'
-        case.properties.case_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.portion_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.sample_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.case_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.portion_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.sample_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.submitter_id.copy_to = ['case_autocomplete']
 
         return case
 
@@ -651,7 +651,7 @@ class ESMapper(object):
         """
         Adds project autocomplete fields
         """
-        project.properties.primary_site.copy_to = 'project_autocomplete'
+        project.properties.primary_site.copy_to = ['project_autocomplete']
         project.properties.project_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
         project.properties.project_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
         project.properties.project_autocomplete.fields.analyzed.type = 'text'
@@ -661,9 +661,9 @@ class ESMapper(object):
         project.properties.project_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         project.properties.project_autocomplete.fields.prefix.type = 'text'
         project.properties.project_autocomplete.type = 'keyword'
-        project.properties.project_id.copy_to = 'project_autocomplete'
-        project.properties.disease_type.copy_to = 'project_autocomplete'
-        project.properties.name.copy_to = 'project_autocomplete'
+        project.properties.project_id.copy_to = ['project_autocomplete']
+        project.properties.disease_type.copy_to = ['project_autocomplete']
+        project.properties.name.copy_to = ['project_autocomplete']
 
         return project
 
@@ -681,6 +681,6 @@ class ESMapper(object):
         annotation.properties.annotation_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         annotation.properties.annotation_autocomplete.fields.prefix.type = 'text'
         annotation.properties.annotation_autocomplete.type = 'keyword'
-        annotation.properties.annotation_id.copy_to = 'annotation_autocomplete'
+        annotation.properties.annotation_id.copy_to = ['annotation_autocomplete']
 
         return annotation
