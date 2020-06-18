@@ -196,21 +196,31 @@ class ESMapper(object):
 
     @classmethod
     def get_prop_description(cls, label, prop):
-        """Look the description up from the ``term`` if it exists, else try
-        the jsonschema property description, else return None
+        """Get the description for a property from the dictionary.
 
+        Check for a description associated with the property's term or common
+        definition. Fall back on a description for the prop itself.
+
+        Args:
+            label (str): The label of the node type in the dictionary.
+            prop (str): The name of the property to look up.
+
+        Returns:
+            The retrieved description, or None if none is set.
         """
 
         definition = gdcdictionary.schema[label]['properties'].get(prop)
         if not definition:
             return None
 
-        term = definition.get('term', None)
+        for subfield in ['term', 'common']:
+            subdefinition = definition.get(subfield)
+            if isinstance(subdefinition, dict):
+                description = subdefinition.get('description')
+                if description is not None:
+                    return description
 
-        if not term or not isinstance(term, dict):
-            return definition.get('description', None)
-        else:
-            return term.get('description', None)
+        return definition.get('description')
 
     @classmethod
     def get_descriptions_from_tree(cls, tree, root_name, path=''):

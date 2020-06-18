@@ -128,6 +128,32 @@ def validate_mappings(mappings, doc_type):
     assert extra_paths == set([])
 
 
+@pytest.mark.parametrize(
+    'doc_type,field,substring',
+    [
+        ('annotation', 'annotations.analyte.project_id', 'Unique ID for any specific'),
+        ('annotation', 'annotations.annotation.submitter_id', 'project-specific'),
+        ('annotation', 'annotations.slide.section_location', 'Tissue source'),
+        ('case', 'cases.case.created_datetime', 'combination of date and time'),
+        ('case', 'cases.case.primary_site', 'the primary site of disease'),
+        ('case', 'cases.diagnoses.morphology', 'The third edition'),
+        ('case', 'cases.follow_ups.molecular_tests.intron', 'Intron number'),
+        ('case', 'cases.project.code', 'Project code'),
+        ('file', 'files.center.code', 'Numeric code for the center'),
+        ('file', 'files.file.md5sum', 'The 128-bit hash'),
+        ('project', 'projects.project.state', 'The possible states'),
+    ],
+)
+def test_mapping_descriptions(mappings, doc_type, field, substring):
+    """Spot-check the descriptions for some fields in the mappings.
+
+    Confirm some is present in those descriptions, based on what was in the dictionary
+    at the time this test was written.
+    """
+    description = mappings[doc_type]['_meta']['descriptions'].get(field)
+    assert description is not None and substring in description
+
+
 def test_get_file_metadata_from_indexd(index):
     """
     Test that file metadata fields are taken from indexd
