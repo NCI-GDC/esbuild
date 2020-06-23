@@ -1,5 +1,5 @@
 import pathlib
-from typing import Dict, IO, Union
+from typing import IO, Union
 
 import yaml
 
@@ -27,13 +27,6 @@ class MappingExporter:
     def __init__(self):
         self.mapper_cls = mappings.ActiveESMapper
 
-    def _write_yaml(self, contents: Dict, output: IO) -> None:
-        """Write a dictionary as YAML to a stream, formatted how we want it."""
-
-        # yaml.dump writes tuples as bizarre-looking tagged structures.
-        # yaml.safe_dump formats them as normal lists.
-        yaml.safe_dump(contents, output)
-
     def write_mapping(self, mapping_name: str, output: IO) -> None:
         """Write a specific mapping as YAML to a stream.
 
@@ -50,19 +43,19 @@ class MappingExporter:
         for key in self.MAPPING_KEYS_TO_OMIT:
             mapping.pop(key)
 
-        self._write_yaml(mapping.to_dict(), output)
+        yaml.safe_dump(mapping.to_dict(), output)
 
     def write_descriptions(self, output: IO) -> None:
         """Write the combined mapping description ``_meta`` as YAML to a stream."""
         descriptions = self.mapper_cls.get_descriptions()
         contents = {"_meta": {"descriptions": descriptions}}
-        self._write_yaml(contents, output)
+        yaml.safe_dump(contents, output)
 
     def write_settings(self, output: IO) -> None:
         """Write the common index settings as YAML to a stream."""
         settings = self.mapper_cls.index_settings()
         contents = settings["settings"]
-        self._write_yaml(contents, output)
+        yaml.safe_dump(contents, output)
 
     def export(self, output_dir: PathName) -> None:
         """Export mappings and settings files to the given directory.

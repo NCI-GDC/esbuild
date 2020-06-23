@@ -198,8 +198,8 @@ class ESMapper(object):
     def get_prop_description(cls, label, prop):
         """Get the description for a property from the dictionary.
 
-        Check for a description associated with the property's term or common
-        definition. Fall back on a description for the prop itself.
+        Check for a description associated with the property. If it does not have one,
+        attempt to use the description from the property's "common" data.
 
         Args:
             label (str): The label of the node type in the dictionary.
@@ -213,14 +213,12 @@ class ESMapper(object):
         if not definition:
             return None
 
-        for subfield in ['term', 'common']:
-            subdefinition = definition.get(subfield)
-            if isinstance(subdefinition, dict):
-                description = subdefinition.get('description')
-                if description is not None:
-                    return description
+        description = definition.get('description')
+        if description:
+            return description
 
-        return definition.get('description')
+        common_data = definition.get('common') or {}
+        return common_data.get('description')
 
     @classmethod
     def get_descriptions_from_tree(cls, tree, root_name, path=''):
