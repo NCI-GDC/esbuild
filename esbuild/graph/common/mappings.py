@@ -48,6 +48,9 @@ def get_es_type(_type):
 
 class ESMapper(object):
 
+    # The different types of indices supported by the mapper.
+    index_names = ["annotation", "case", "file", "project"]
+
     # These are the types of data_file that will be treated as a file
     file_labels = ['file']
 
@@ -400,6 +403,32 @@ class ESMapper(object):
 
     # ======================================================================
     # Mappings
+
+    @classmethod
+    def get_es_mapping(cls, index: str) -> Dict:
+        """Generate the mapping for the given Elasticsearch index.
+
+        Create a "root" mapping with top-level settings in addition to the mapping
+        properties, and include properties for all nested document types.
+
+        Args:
+            index: Name of the index for which to get the mapping (e.g., ``case``).
+
+        Returns:
+            An (ad)Dict containing the ES mapping.
+
+        Raises:
+            ValueError: The given index is not recognized.
+        """
+
+        # Given that the actual mapping functions have different signatures and depend
+        # on each other, wrapping them seems like the easiest way to provide a clean
+        # interface, even if the next line is pretty ugly.
+        mapping_func = getattr(cls, "get_{}_es_mapping".format(index), None)
+        if not mapping_func:
+            raise ValueError("No mapping exists for {} index".format(index))
+
+        return mapping_func()
 
     @classmethod
     def get_file_es_mapping(cls, include_case=True, is_root=True):
