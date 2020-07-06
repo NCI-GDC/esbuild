@@ -167,13 +167,13 @@ def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
         os.environ["S3_HOST"],
         os.environ["S3_ACCESS_KEY"],
         os.environ["S3_SECRET_KEY"],
-        'esbuild-backup',
+        bucket,
     )
 
     if mode == 'backup':
         logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
         backup_helper.store_snapshot(
-            bucket,
+            "esbuild-snapshots",
             snapshot_name,
             indices=[index_name],
             wait_for_completion=True,
@@ -185,7 +185,7 @@ def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
 
         logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
         backup_helper.restore_from_snapshot(
-            bucket,
+            "esbuild-snapshots",
             snapshot_name,
             indices=[index_name],
             wait_for_completion=True,
