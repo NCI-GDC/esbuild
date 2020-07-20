@@ -230,6 +230,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths = [
         ['biospecimen_supplement'],
         ['clinical_supplement'],
+        ["sample",
+         "pathology_report"],
     ]
 
     case_to_copy_number_segment_paths = list_product(

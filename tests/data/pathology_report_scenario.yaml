@@ -1,0 +1,21 @@
+nodes:
+  - label: case
+    submitter_id: pr_case_1
+  - label: sample
+    submitter_id: pr_sample_1
+  - label: pathology_report
+    submitter_id: pr_pathology_1
+  - label: sample
+    submitter_id: pr_sample_2
+  - label: pathology_report
+    submitter_id: pr_pathology_2
+
+edges:
+  - src: pr_sample_1
+    dst: pr_case_1
+  - src: pr_sample_2
+    dst: pr_case_1
+  - src: pr_pathology_1
+    dst: pr_sample_1
+  - src: pr_pathology_2
+    dst: pr_sample_2
