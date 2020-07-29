@@ -3,9 +3,15 @@
 import json
 from argparse import ArgumentParser
 
+from esbuild.export import mapping_exporter
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.utils import VersionedNodesDiffCollector
+
+
+def handle_mappings(args):
+    exporter = mapping_exporter.MappingExporter()
+    exporter.export(args.output_dir)
 
 
 def handle_reindex(args):
@@ -28,6 +34,15 @@ def get_parser():
     parser = ArgumentParser()
 
     subparser = parser.add_subparsers(title='subcommands')
+
+    mappings_sub = subparser.add_parser('mappings')
+    mappings_sub.add_argument(
+        '-o',
+        '--output-dir',
+        default='mappings',
+        help='Directory to which to write the new mappings (./mappings by default)',
+    )
+    mappings_sub.set_defaults(func=handle_mappings)
 
     reindex_sub = subparser.add_parser('reindex')
     reindex_sub.add_argument(
