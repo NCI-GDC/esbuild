@@ -43,7 +43,7 @@ INDEXD_METADATA_VALUE_GETTERS = {
 load_dotenv()
 
 ES_CONFIG = {
-    'hosts': [os.environ["ES_HOST"]],
+    'hosts': [os.getenv("ES_HOST", "localhost")],
     'port': os.getenv("ES_PORT", 9200),
     'use_ssl': os.getenv("ES_USE_SSL", "False").lower() == "true",
     'verify_certs': os.getenv("ES_VERIFY_CERTS", "False").lower() == "true",

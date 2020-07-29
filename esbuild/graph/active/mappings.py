@@ -54,7 +54,7 @@ class ActiveESMapper(ESMapper):
             'normalizer': definition,
             "filter": {
                 "edge_ngram": {
-                    "min_ngram": '1',
+                    "min_gram": '1',
                     "side": "front",
                     "type": "edge_ngram",
                     "max_gram": "20",
