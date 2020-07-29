@@ -16,7 +16,7 @@ class MappingExporter:
     MAPPING_FILENAME_FORMAT = "{index_name}.mapping.yaml"
     SETTINGS_FILENAME = "settings.yaml"
 
-    MAPPING_KEYS_TO_OMIT = ["_all", "_meta", "_source", "_size", "dynamic"]
+    MAPPING_KEYS_TO_OMIT = ["_meta", "_source", "_size", "dynamic"]
 
     def __init__(self):
         self.mapper_cls = mappings.ActiveESMapper
