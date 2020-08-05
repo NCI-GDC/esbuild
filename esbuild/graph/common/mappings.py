@@ -150,9 +150,9 @@ class ESMapper(object):
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
         case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.follow_up.corr = (ONE_TO_MANY, 'follow_ups')
         case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, 'molecular_tests')
-        case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
         return case_tree
@@ -378,7 +378,6 @@ class ESMapper(object):
                 mapping[name] = STRING
             elif k == 'annotation':
                 mapping.annotations = cls.annotation_body()
-                mapping.annotations.type = 'nested'
             else:
                 nested = (corr == ONE_TO_MANY)
                 mapping[name].properties.update(cls.get_base_properties(k))
@@ -486,9 +485,6 @@ class ESMapper(object):
         files.properties.access = STRING
         files.properties.acl = STRING
 
-        # Other file properties
-        files.properties.origin = STRING
-
         # Case
         files.properties.pop('case', None)
         if include_case:
@@ -506,7 +502,6 @@ class ESMapper(object):
             cls.get_case_tree(),
             cls.get_base_properties('case')
         )
-        case.properties.days_to_index = LONG
 
         if not include_file:
             del case.properties.files
@@ -572,7 +567,10 @@ class ESMapper(object):
         annotation.properties.entity_id = STRING
         annotation.properties.entity_submitter_id = STRING
         annotation.properties.update(cls.multifield('case_id'))
-        annotation.properties.pop('item_id', None)
+
+        if nested:
+            annotation.type = "nested"
+
         return annotation
 
     @classmethod

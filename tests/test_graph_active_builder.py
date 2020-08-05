@@ -94,8 +94,14 @@ def inconsistent_slides(generate_scenario):
 def gpas_copy_numbers(generate_scenario):
     generate_scenario('copy_number_scenario.yaml')
 
+
+@pytest.fixture
+def diagnosis_annotations(generate_scenario):
+    generate_scenario("diagnosis_annotation_scenario.yaml")
+
 # ======================================================================
 # Tests
+
 
 @pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
 def test_mapping_full(mappings, doc_type):
@@ -739,3 +745,24 @@ def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numb
                               'cn_ar_1', 'cn_ar_2'}
     assert len(files) == N_FILES + 6
     assert expected_submitter_ids.issubset(file_submitter_ids), file_submitter_ids
+
+
+@pytest.mark.usefixtures("diagnosis_annotations")
+def test_diagnosis_annotation_has_extra_data(pg_driver, init_indexd):
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+    with pg_driver.session_scope():
+        builder.cache_database()
+
+    cases, _, _, _ = builder.denormalize_all()
+
+    target_case = [c for c in cases if c["submitter_id"] == "da_case_1"][0]
+
+    assert len(target_case["diagnoses"]) == 1
+    assert len(target_case["diagnoses"][0]["annotations"]) == 1
+
+    diag_ann = target_case["diagnoses"][0]["annotations"][0]
+
+    # NOTE: SV-1753 validation
+    assert "entity_id" in diag_ann
+    assert "entity_submitter_id" in diag_ann

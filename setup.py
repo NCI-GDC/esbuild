@@ -28,8 +28,8 @@ setup(
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models",
         "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient",
         "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
-        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.3.0#egg=gdcmodels",
-        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.2#egg=normalizer",
+        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.4.0#egg=gdcmodels",
+        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer",
     ],
     scripts=[
         'bin/esbuild-cli',

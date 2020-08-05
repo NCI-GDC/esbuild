@@ -19,7 +19,7 @@ future==0.18.2            # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models  # via esbuild (setup.py), gdcdatamodel
 git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.0#egg=gdcdatamodel  # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.2.0#egg=gdcdictionary  # via esbuild (setup.py), gdcdatamodel
-git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.3.0#egg=gdcmodels  # via esbuild (setup.py), normalizer
+git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.4.0#egg=gdcmodels  # via esbuild (setup.py), normalizer
 gitdb2==4.0.2             # via gitpython
 gitdb==4.0.5              # via gitdb2
 gitpython==2.1.11         # via normalizer
@@ -29,7 +29,7 @@ importlib-metadata==1.7.0  # via jsonschema
 git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient  # via esbuild (setup.py)
 jsonschema==3.2.0         # via gdcdatamodel, gdcdictionary
 networkx==2.4             # via esbuild (setup.py)
-git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.2#egg=normalizer  # via esbuild (setup.py)
+git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer  # via esbuild (setup.py)
 pika==1.1.0               # via queueclient
 progressbar2==3.51.4      # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.0#egg=psqlgraph  # via esbuild (setup.py), gdcdatamodel
@@ -52,4 +52,3 @@ zipp==1.2.0               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
-
