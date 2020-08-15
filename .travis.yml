@@ -7,19 +7,24 @@ python:
 sudo: true
 
 env:
-  - ES_HOST='localhost' ES_VERSION=5.6.14
+  - ES_HOST='localhost' ES_VERSION="7.6.2"
 
 addons:
   postgresql: '9.4'
 
 install:
   # Install and start elasticsearch
-  - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}.deb
-  - sudo dpkg -i --force-confnew elasticsearch-${ES_VERSION}.deb
+  - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}-amd64.deb && sudo dpkg --force-confnew -i elasticsearch-${ES_VERSION}-amd64.deb
   - sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install mapper-size
+  - sudo sed -i 's/^-Xms.*/-Xms2g/' /etc/elasticsearch/jvm.options
+  - sudo sed -i 's/^-Xmx.*/-Xmx2g/' /etc/elasticsearch/jvm.options
+  - sudo chown -R elasticsearch:elasticsearch /etc/default/elasticsearch
   - sudo service elasticsearch start
-  
-  - pip install tox-travis
+
+  # Make sure we have a new enough virtualenv to get a version of pip that
+  # understands VCS URLs. Install virtualenv before running tox because
+  # tox-travis seems to break if we let tox upgrade it for us.
+  - pip install tox-travis 'virtualenv>=20.0.21' 'pip >= 20.1.1'
 
 before_script:
   # Wait for elasticsearch to be up

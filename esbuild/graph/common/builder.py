@@ -352,7 +352,7 @@ class GraphIndexBuilder(object):
         pbar = ProgressBar(
             widgets=[title, Percentage(), ' ',
                      Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
-            maxval=maxval,
+            max_value=maxval,
         )
         pbar.update(0)
         return pbar
@@ -397,7 +397,14 @@ class GraphIndexBuilder(object):
         """
 
         corr, plural = mapping[node.label]['corr']
-        subdoc = self._get_base_doc(node)
+
+        # NOTE: we need to add some extra properties for deeply nested annotation
+        #   documents.
+        if node.label == "annotation":
+            subdoc = self.denormalize_annotation(node)
+        else:
+            subdoc = self._get_base_doc(node)
+
         for child in tree[node]:
             child_corr, child_plural = mapping[node.label][child.label]['corr']
             if child_plural not in subdoc and child_corr == ONE_TO_ONE:
