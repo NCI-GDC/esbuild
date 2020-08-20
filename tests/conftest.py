@@ -30,6 +30,7 @@ from indexd_test_utils import (
 from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
 
 from esbuild.gdc_elasticsearch import get_index_names
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper
 from tests import data, es_data
 
@@ -431,3 +432,20 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
     yield _from_file
 
     cleanup_nodes(pg_driver, nodes)
+
+
+@pytest.fixture
+def scenario_index(pg_driver, init_indexd, generate_scenario):
+    def make_graph(filename):
+        generate_scenario(filename)
+
+        builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+        with pg_driver.session_scope():
+            builder.cache_database()
+
+        index = builder.denormalize_all()
+
+        return Index._make(index)
+
+    return make_graph

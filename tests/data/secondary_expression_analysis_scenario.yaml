@@ -1,0 +1,69 @@
+nodes:
+  - label: case
+    submitter_id: sea_case_0
+  - label: sample
+    submitter_id: sea_samp_0
+  - label: aliquot
+    submitter_id: sea_aliq_0
+  - label: read_group
+    submitter_id: sea_rg_0
+  - label: submitted_aligned_reads
+    submitter_id: sea_sar_0
+  - label: submitted_aligned_reads
+    submitter_id: sea_sar_1
+  - label: alignment_workflow
+    submitter_id: sea_awf_0
+  - label: aligned_reads
+    submitter_id: sea_ar_0
+  - label: rna_expression_workflow
+    submitter_id: sea_rna_wf_0
+  - label: gene_expression
+    submitter_id: sea_ge_0
+  - label: expression_analysis_workflow
+    submitter_id: sea_exp_wf_0
+  - label: secondary_expression_analysis
+    submitter_id: sea_secondary_exp_0
+    data_type: "Differential Gene Expression"
+
+  - label: rna_expression_workflow
+    submitter_id: sea_rna_wf_1
+  - label: gene_expression
+    submitter_id: sea_ge_1
+  - label: expression_analysis_workflow
+    submitter_id: sea_exp_wf_1
+  - label: secondary_expression_analysis
+    submitter_id: sea_secondary_exp_1
+    data_type: "Single Cell Analysis"
+
+edges:
+  - src: sea_samp_0
+    dst: sea_case_0
+  - src: sea_aliq_0
+    dst: sea_samp_0
+  - src: sea_rg_0
+    dst: sea_aliq_0
+  - src: sea_sar_0
+    dst: sea_rg_0
+  - src: sea_awf_0
+    dst: sea_sar_0
+  - src: sea_ar_0
+    dst: sea_awf_0
+  - src: sea_rna_wf_0
+    dst: sea_ar_0
+  - src: sea_ge_0
+    dst: sea_rna_wf_0
+  - src: sea_exp_wf_0
+    dst: sea_ge_0
+  - src: sea_secondary_exp_0
+    dst: sea_exp_wf_0
+
+  - src: sea_sar_1
+    dst: sea_rg_0
+  - src: sea_rna_wf_1
+    dst: sea_sar_1
+  - src: sea_ge_1
+    dst: sea_rna_wf_1
+  - src: sea_exp_wf_1
+    dst: sea_ge_1
+  - src: sea_secondary_exp_1
+    dst: sea_exp_wf_1
