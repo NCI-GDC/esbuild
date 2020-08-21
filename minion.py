@@ -84,7 +84,7 @@ def process_work(
     queue_client = get_queue_client(queue_type)
     pg_driver = get_default_pg_driver()
     indexd_client = get_default_index_client()
-    es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
+    es_client = Elasticsearch(**ES_CONFIG)
 
     log = get_logger('esbuild_minion_{}'.format(worker_id), log_level='info')
 

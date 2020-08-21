@@ -49,6 +49,7 @@ ES_CONFIG = {
     'verify_certs': os.getenv("ES_VERIFY_CERTS", "False").lower() == "true",
     'http_auth': (os.getenv("ES_USER", ""), os.getenv("ES_PASSWORD", "")),
     'ca_certs': os.getenv("CA_CERT_PATH", ""),
+    "timeout": os.getenv("ES_REQUEST_TIMEOUT", 9999),
 }
 
 

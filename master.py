@@ -155,7 +155,7 @@ def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
     """
     Executes backup or restore procedure with BackupHelper
     """
-    es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
+    es_client = Elasticsearch(**ES_CONFIG)
 
     bucket = s3_bucket or os.getenv("S3_BUCKET")
 

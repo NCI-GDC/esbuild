@@ -166,7 +166,7 @@ class GDCElasticsearch(object):
         if self.skip_es:
             self.es = None
         else:
-            self.es = es or Elasticsearch(timeout=9999, **ES_CONFIG)
+            self.es = es or Elasticsearch(**ES_CONFIG)
 
         self.index_names = None
         self.index_aliases = None
