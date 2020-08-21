@@ -31,7 +31,6 @@ def get_gdc_elasticsearch(
     payload: dict,
     save_doc_path: str = None,
     skip_es: bool = False,
-    es5: bool = False,
 ) -> GDCElasticsearch:
     """Parse and validate payload and return GDCElasticsearch instance"""
     build_type = payload.get("build-type")
@@ -66,7 +65,6 @@ def get_gdc_elasticsearch(
         cache_versioned=payload.get("cache-versioned"),
         save_doc_path=save_doc_path,
         skip_es=skip_es,
-        es5=es5,
     )
 
     return gdc_es
@@ -78,7 +76,6 @@ def process_work(
     skip_es: bool = False,
     save_doc_path: str = None,
     sleep_time: int = 30,
-    es5: bool = False,
     no_statsd: bool = False,
 ) -> None:
     running = True
@@ -113,7 +110,6 @@ def process_work(
                 payload,
                 save_doc_path=save_doc_path,
                 skip_es=skip_es,
-                es5=es5,
             )
 
             log.info("Running build-type 'active', build_awg '{}'".format(gdc_es.build_awg))
@@ -151,9 +147,6 @@ def minion_argparser():
                         help='Skips writing to es',
                         action='store_true',
                         default=False)
-    parser.add_argument("--es5",
-                        help="Use Elasticsearch5 backend",
-                        action="store_true")
     parser.add_argument("--no-statsd",
                         help="Do not send events to Datadog",
                         action="store_true")
@@ -177,7 +170,6 @@ if __name__ == "__main__":
                 skip_es=args.skip_es,
                 save_doc_path=args.save_doc_path,
                 sleep_time=TIMEDELTA,
-                es5=args.es5,
                 no_statsd=args.no_statsd,
             )
         )
