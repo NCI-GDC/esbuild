@@ -1,13 +1,10 @@
 import os
 import subprocess
 import time
-from collections import deque
 from datetime import datetime
 from hashlib import md5
-from itertools import chain
 from functools import lru_cache
 from reprlib import repr
-from sys import getsizeof
 from typing import List
 
 import six

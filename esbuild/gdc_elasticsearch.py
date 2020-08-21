@@ -392,20 +392,14 @@ class GDCElasticsearch(object):
         pbar.update(0)
         return pbar
 
-    def _create_index(self, index_name, index_type, index_settings, mappings):
+    def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
             self.log.info("Creating new index: '{}'".format(index_name))
-            self.es.indices.create(index=index_name, body=index_settings)
+            body = dict(mappings=mappings, **index_settings)
+            self.es.indices.create(index=index_name, body=body)
             self.es.indices.refresh(index=index_name)
         else:
             self.log.info("Using existing index: '{}'".format(index_name))
-
-        if not self.es.indices.exists_type(index_name, "_doc"):
-            self.log.info("Putting mappings for index_type: '{}'".format(index_type))
-
-            self.es.indices.put_mapping(index=index_name, body=mappings)
-        else:
-            self.log.info("Using existing index_type mappings: '{}'".format(index_type))
 
     def create_and_populate_index(self, index_type, docs, thread_count=THREAD_COUNT,
                                   chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
@@ -418,7 +412,7 @@ class GDCElasticsearch(object):
 
         index_settings = self.get_index_settings()
         mappings = getattr(self.converter.mapper, mapping_getter)()
-        self._create_index(index_name, index_type, index_settings, mappings.to_dict())
+        self._create_index(index_name, index_settings, mappings.to_dict())
 
         if not docs:
             self.log.warning("There're no documents for '{}' to populate".format(index_type))
@@ -647,12 +641,11 @@ class GDCElasticsearch(object):
 
         if not index_types:
             mappings = index_settings.pop("mappings", {})
-            self._create_index(new_index, "_doc", index_settings, mappings)
+            self._create_index(new_index, index_settings, mappings)
 
             return self._reindex_one(
                 old_index,
                 new_index,
-                index_type=None,
                 conflicts=conflicts,
                 query=query,
             )
@@ -669,12 +662,11 @@ class GDCElasticsearch(object):
             if not mappings:
                 mappings = getattr(ActiveESMapper, mapping_getters[index_type])()
 
-            self._create_index(index_name, index_type, index_settings, mappings.to_dict())
+            self._create_index(index_name, index_settings, mappings.to_dict())
 
             summary = self._reindex_one(
                 old_names[index_type],
                 index_name,
-                index_type,
                 conflicts,
                 query,
             )
@@ -683,15 +675,12 @@ class GDCElasticsearch(object):
 
         return summaries
 
-    def _reindex_one(self, old_index, new_index, index_type, conflicts, query):
+    def _reindex_one(self, old_index, new_index, conflicts, query):
         self.log.info("Start reindexing: '{}' ====> '{}'".format(old_index, new_index))
 
         source = {
             "index": old_index,
         }
-
-        if index_type:
-            source["type"] = index_type
 
         reindex_body = {
             "source": source,
