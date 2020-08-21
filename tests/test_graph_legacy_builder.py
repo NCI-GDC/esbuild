@@ -240,7 +240,7 @@ def test_annotation_case_submitter_id(pg_driver, init_indexd, custom_annotation)
 
 
 @pytest.mark.skip(reason='skipping failing legacy test')
-@pytest.mark.parametrize('doc_type,path,count', [
+@pytest.mark.parametrize('index_type,path,count', [
     ('cases', '[*].project.project_id', 1),
     ('cases', '[*].samples.[*].sample_id', 2),
     ('cases', '[*].samples.[*].portions.[*].portion_id', 3),
@@ -250,19 +250,19 @@ def test_annotation_case_submitter_id(pg_driver, init_indexd, custom_annotation)
     ('files', '[*].associated_entities', 6),
     ('annotations', '[*].annotation_id', 3),
 ])
-def test_path_count(index, doc_type, path, count):
-    results = parse(path).find(getattr(index, doc_type))
+def test_path_count(index, index_type, path, count):
+    results = parse(path).find(getattr(index, index_type))
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type,path', [
+@pytest.mark.parametrize('index_type,path', [
     ('cases', '[*].clinical'),
 ])
-def test_path_is_absent(index, doc_type, path):
-    assert not parse(path).find(getattr(index, doc_type))
+def test_path_is_absent(index, index_type, path):
+    assert not parse(path).find(getattr(index, index_type))
 
 
-@pytest.mark.parametrize('doc_type,path,expected,count', [
+@pytest.mark.parametrize('index_type,path,expected,count', [
     ('projects', '[*].summary.[*].data_categories.[*].file_count', [1], 3),
     ('projects', '[*].summary.[*].data_categories.[*].data_category', ['Raw sequencing data', 'Clinical', 'Biospecimen'], 3),
     ('cases', '[*].demographic.year_of_birth', [1951], 1),
@@ -274,8 +274,8 @@ def test_path_is_absent(index, doc_type, path):
     ('files', '[*].type.[*]', ['file', 'biospecimen_supplement', 'clinical_supplement', 'archive'], 8),
     ('files', '[*].metadata_files.[*].data_format', ['SRA XML', None], 5)
 ])
-def test_path_value_in(index, doc_type, path, expected, count, init_indexd):
-    results = parse(path).find(getattr(index, doc_type))
+def test_path_value_in(index, index_type, path, expected, count, init_indexd):
+    results = parse(path).find(getattr(index, index_type))
     assert len([r.value for r in results]) == count
     for actual in results:
         assert actual.value in expected

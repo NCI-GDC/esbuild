@@ -4,7 +4,7 @@ import pytest
 from jsonpath_rw import parse
 
 
-@pytest.mark.parametrize("doc_type, path, expectations", [
+@pytest.mark.parametrize("index_type, path, expectations", [
     ("files", "[*].type.[*]", {
         "methylation_beta_value": 3,  # 1 from data.py 2 from methylation_array_scenario.yaml
         "raw_methylation_array": 3,
@@ -22,8 +22,8 @@ from jsonpath_rw import parse
         "Raw Intensities": 3,
     }),
 ])
-def test_methylation_array_counts(methylation_index, doc_type, path, expectations):
-    results = parse(path).find(getattr(methylation_index, doc_type))
+def test_methylation_array_counts(methylation_index, index_type, path, expectations):
+    results = parse(path).find(getattr(methylation_index, index_type))
     counts = Counter(r.value for r in results)
 
     for value, count in expectations.items():

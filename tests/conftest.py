@@ -321,19 +321,14 @@ def test_index_data(index_types, es_client):
 
         es_client.indices.create(index=index_names[index_type], ignore=400,
                                  body=es_data.get_index_settings())
-        es_client.indices.put_mapping(
-            index=index_names[index_type],
-            doc_type=index_type,
-            body=mapping,
-            include_type_name=True,
-        )
+        es_client.indices.refresh(index=index_names[index_type])
+        es_client.indices.put_mapping(index=index_names[index_type], body=mapping)
 
         for doc in getattr(es_data, '{}_docs'.format(index_type)):
             doc_id = doc["project_id"] if index_type == "project" else None
 
             es_client.index(
                 index=index_names[index_type],
-                doc_type=index_type,
                 body=doc,
                 id=doc_id,
             )

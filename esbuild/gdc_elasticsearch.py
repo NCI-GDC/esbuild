@@ -75,22 +75,13 @@ def get_statsd_event_logger(index_prefix, projects):
 def get_index_names(
     index_prefix: str,
     index_types: Iterable[str],
-    es5: bool = False
 ) -> Dict[str, str]:
     """
     Return elasticsearch index names given an index_prefix.
 
-    When es5 is True, the index names will be the same for all index types, and
-    index_type will be ES5's doc_type.
-
     Since Elasticsearch7 does not support more than 1 doc_type per index, the
     index names will be in a format: <index_prefix>_<index_type>
     """
-    if es5:
-        return {
-            index_type: index_prefix for index_type in index_types
-        }
-
     return {
         index_type: "{}_{}".format(index_prefix, index_type)
         for index_type in index_types
@@ -126,9 +117,6 @@ class GDCElasticsearch(object):
         skip_es (bool): do not deploy indices to Elasticsearch
         release_helper (ReleaseHelper): utility class that does index cleanup and
             audit logging
-
-        FIXME: Should we just drop this?
-        es5: upload to an Elasticsearch5 cluster
     """
 
     def __init__(self,
@@ -147,7 +135,6 @@ class GDCElasticsearch(object):
                  skip_es: bool = False,
                  index_alias_prefix: str = None,
                  audit: bool = True,
-                 es5: bool = False,
                  **kwargs):
         self.converter_class = converter_class  # type: GraphIndexBuilder.__class__
         self.indexd_client = indexd_client
@@ -183,14 +170,13 @@ class GDCElasticsearch(object):
 
         self.index_names = None
         self.index_aliases = None
-        self.es5 = es5
         self.no_parallel_bulk = kwargs.get("no_parallel_bulk", False)
 
         if index_prefix:
-            self.index_names = get_index_names(index_prefix, mapping_getters.keys(), es5)
+            self.index_names = get_index_names(index_prefix, mapping_getters.keys())
 
         if index_alias_prefix:
-            self.index_aliases = get_index_names(index_alias_prefix, mapping_getters.keys(), es5)
+            self.index_aliases = get_index_names(index_alias_prefix, mapping_getters.keys())
 
         # where to save docs if they fail
         if os.path.exists(self.save_doc_path):
@@ -205,7 +191,7 @@ class GDCElasticsearch(object):
 
         # Used to clean up data in existing index
         self.release_helper = ReleaseHelper(self.es, audit_index="build_metadata",
-                                            audit=audit, es5=es5)
+                                            audit=audit)
 
     def save_docs(self, case_docs, file_docs, ann_docs, project_docs):
 
@@ -414,21 +400,12 @@ class GDCElasticsearch(object):
         else:
             self.log.info("Using existing index: '{}'".format(index_name))
 
-        if not self.es.indices.exists_type(index_name, index_type):
+        if not self.es.indices.exists_type(index_name, "_doc"):
             self.log.info("Putting mappings for index_type: '{}'".format(index_type))
 
-            additional_params = {}
-            if not self.es5:
-                additional_params["include_type_name"] = True
-
-            self.es.indices.put_mapping(
-                index=index_name,
-                doc_type=index_type,
-                body=mappings,
-                **additional_params
-            )
+            self.es.indices.put_mapping(index=index_name, body=mappings)
         else:
-            self.log.info("Using existing doc_type mappings: '{}'".format(index_type))
+            self.log.info("Using existing index_type mappings: '{}'".format(index_type))
 
     def create_and_populate_index(self, index_type, docs, thread_count=THREAD_COUNT,
                                   chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
@@ -473,7 +450,6 @@ class GDCElasticsearch(object):
             for doc in docs:
                 action = dict(
                     _index=index_name,
-                    _type=index_type,
                     _id=doc[id_field],
                     _source=doc,
                 )
@@ -639,8 +615,7 @@ class GDCElasticsearch(object):
                 index_types: Iterable[str] = None,
                 index_settings: dict = None,
                 query: dict = None,
-                conflicts: str = None,
-                es5: bool = False) -> dict:
+                conflicts: str = None) -> dict:
         """
         Perform reindex operation on an existing ``old_index``, create
         ``new_index`` with updated mappings and invoke ES reindex API. Wait for
@@ -657,7 +632,6 @@ class GDCElasticsearch(object):
                 limit the documents being reindexed
             conflicts: conflicts resolution strategy in case of indexing
                 collisions
-            es5: use Elasticsearch5 backend
 
         Returns:
             dict: reindex operation summary
@@ -683,8 +657,8 @@ class GDCElasticsearch(object):
                 query=query,
             )
 
-        old_names = get_index_names(old_index, mapping_getters.keys(), es5)
-        new_names = get_index_names(new_index, mapping_getters.keys(), es5)
+        old_names = get_index_names(old_index, mapping_getters.keys())
+        new_names = get_index_names(new_index, mapping_getters.keys())
 
         summaries = {}
         for index_type in index_types:

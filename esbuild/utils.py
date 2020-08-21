@@ -269,11 +269,9 @@ class ReleaseHelper:
         es: Elatcisearch client instance
         audit_index: destination index where to write audit events
         audit: create audit documents or not
-        es5: for Elasticsearch5 clusters index names are different and don't include doc_type
     """
-    metadata_doc_type = "build_metadata"
 
-    def __init__(self, es: Elasticsearch, audit_index: str, audit: bool = True, es5: bool = False):
+    def __init__(self, es: Elasticsearch, audit_index: str, audit: bool = True):
         """
         Usage:
             - initialize the helper
@@ -282,7 +280,6 @@ class ReleaseHelper:
         self.es = es
         self.audit_index = audit_index
         self.audit = audit
-        self.es5 = es5
         self.log = get_logger('utils_releasehelper')
 
     def delete_docs_from_index(self,
@@ -294,7 +291,7 @@ class ReleaseHelper:
 
         Args:
             index_name: ES index to remove docs from
-            index_type: ES doc_type to remove docs from
+            index_type: query to use when removing docs from index
             projects_to_delete: list of project_ids
         """
         if projects_to_delete:
@@ -324,7 +321,7 @@ class ReleaseHelper:
             return
 
         try:
-            self.es.delete_by_query(index=index_name, doc_type=index_type, body={"query": q})
+            self.es.delete_by_query(index=index_name, body={"query": q})
         except:
             self.log.exception(
                 "Unable to delete documents for projects: '{}' from: '{}'"
@@ -349,11 +346,10 @@ class ReleaseHelper:
 
         metadata_id = self.get_build_metadata_id(index_prefix, action, project_ids, commit_hash)
 
-        self.es.create(
+        self.es.index(
             index=self.audit_index,
-            doc_type=self.metadata_doc_type,
-            id=metadata_id,
             body=dict(
+                input_hash=metadata_id,
                 index_prefix=index_prefix,
                 action=action,
                 projects=project_ids or ["all"],
@@ -384,9 +380,9 @@ class ReleaseHelper:
             "stored_fields": "_id"
         }
 
-        project_index = index_prefix if self.es5 else index_prefix + "_project"
+        project_index = index_prefix + "_project"
 
-        res = self.es.search(index=project_index, doc_type="project", size=10000, body=query)
+        res = self.es.search(index=project_index, size=10000, body=query)
 
         hits = res['hits']['hits']
         if hits:
