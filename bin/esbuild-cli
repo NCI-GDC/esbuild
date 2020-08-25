@@ -6,7 +6,11 @@ from argparse import ArgumentParser
 from esbuild.export import mapping_exporter
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.utils import VersionedNodesDiffCollector
+from esbuild.utils import (
+    VersionedNodesDiffCollector,
+    force_merge_indices,
+    get_elasticsearch_client,
+)
 
 
 def handle_mappings(args):
@@ -28,6 +32,11 @@ def handle_pre_flight(args):
             json.dump(diffs, f, indent=2)
     else:
         print(json.dumps(diffs, indent=2))
+
+
+def handle_force_merge(args):
+    es = get_elasticsearch_client()
+    force_merge_indices(es, args.index_prefix, args.index_types)
 
 
 def get_parser():
@@ -63,6 +72,13 @@ def get_parser():
         default=(),
         help='Elasticsearch document types to reindex',
     )
+    reindex_sub.add_argument(
+        "--project-ids",
+        required=False,
+        nargs="+",
+        default=(),
+        help="List of space separated projects to reindex",
+    )
     reindex_sub.set_defaults(func=handle_reindex)
 
     preflight_sub = subparser.add_parser('pre-flight')
@@ -79,6 +95,19 @@ def get_parser():
         help='Output file for the metadata differences.'
     )
     preflight_sub.set_defaults(func=handle_pre_flight)
+
+    fm_sub = subparser.add_parser("force-merge")
+    fm_indices_group = fm_sub.add_mutually_exclusive_group()
+    fm_indices_group.add_argument(
+        "--index-prefix",
+        required=False,
+        help="ES index prefix (e.g. release_dr25_graph)",
+    )
+    fm_indices_group.add_argument(
+        "--index-names",
+        required=False,
+        help="ES index names to force merge",
+    )
 
     # TODO: Add more params as needed.
 

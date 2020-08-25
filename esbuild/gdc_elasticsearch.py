@@ -12,7 +12,7 @@ import datetime
 import json
 import os
 import time
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from cdislogging import get_logger
 from datadog import statsd
@@ -29,6 +29,7 @@ from esbuild.graph.common.builder import GraphIndexBuilder
 from esbuild.graph.active.mappings import ActiveESMapper
 from esbuild.utils import (
     ES_CONFIG,
+    get_index_names,
     ReleaseHelper,
     VersionedNodesDiffCollector,
 )
@@ -70,22 +71,6 @@ def get_statsd_event_logger(index_prefix, projects):
         )
 
     return statsd_event
-
-
-def get_index_names(
-    index_prefix: str,
-    index_types: Iterable[str],
-) -> Dict[str, str]:
-    """
-    Return elasticsearch index names given an index_prefix.
-
-    Since Elasticsearch7 does not support more than 1 doc_type per index, the
-    index names will be in a format: <index_prefix>_<index_type>
-    """
-    return {
-        index_type: "{}_{}".format(index_prefix, index_type)
-        for index_type in index_types
-    }
 
 
 class GDCElasticsearch(object):
@@ -607,6 +592,7 @@ class GDCElasticsearch(object):
                 old_index: str,
                 new_index: str,
                 index_types: Iterable[str] = None,
+                project_ids: List[str] = None,
                 index_settings: dict = None,
                 query: dict = None,
                 conflicts: str = None) -> dict:
@@ -622,6 +608,7 @@ class GDCElasticsearch(object):
                 are provided, the index_settings must also include "mappings"
             index_types: index types to reindex. If this is passed, then old_index
                 and new_index are treated as prefixes instead
+            project_ids: optional project_id list to limit reindexing
             query: optional query to be run against the original index to
                 limit the documents being reindexed
             conflicts: conflicts resolution strategy in case of indexing
@@ -663,6 +650,14 @@ class GDCElasticsearch(object):
                 mappings = getattr(ActiveESMapper, mapping_getters[index_type])()
 
             self._create_index(index_name, index_settings, mappings.to_dict())
+
+            if project_ids:
+                self.release_helper.delete_docs_from_index(
+                    index_name=index_name,
+                    index_type=index_type,
+                    projects_to_delete=project_ids,
+                )
+                query = self.release_helper.get_project_docs_query(index_type, project_ids)
 
             summary = self._reindex_one(
                 old_names[index_type],

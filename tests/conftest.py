@@ -29,9 +29,8 @@ from indexd_test_utils import (
 )
 from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
 
-from esbuild.gdc_elasticsearch import get_index_names
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.utils import ReleaseHelper
+from esbuild.utils import ReleaseHelper, get_index_names
 from tests import data, es_data
 
 # ======================================================================
