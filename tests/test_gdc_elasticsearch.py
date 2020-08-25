@@ -340,3 +340,45 @@ def test_build_index_no_alias(pg_driver, init_indexd, es_client):
 
     for index_name, index_info in graph_aliases.items():
         assert index_info["aliases"] == {}
+
+
+@pytest.mark.usefixtures("setup_test")
+def test_reindex_per_project(pg_driver, init_indexd, es_client):
+    gdc_es = GDCElasticsearch(
+        ActiveGraphIndexBuilder,
+        init_indexd,
+        es=es_client,
+        pg_driver=pg_driver,
+        index_prefix="reindex_test",
+    )
+    gdc_es.go(roll_alias=False)
+
+    es_client.index(
+        index="reindex_test_project",
+        body={"project_id": "GDC-MISC"},
+        id="GDC-MISC",
+    )
+    es_client.index(
+        index="reindex_test_case",
+        body={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-1"},
+        id="gdc-misc-case-1",
+    )
+    es_client.index(
+        index="reindex_test_case",
+        body={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-2"},
+        id="gdc-misc-case-2",
+    )
+    es_client.indices.refresh(["reindex_test_case", "reindex_test_project"])
+
+    gdc_es.reindex(
+        old_index="reindex_test",
+        new_index="gdc_misc",
+        project_ids=["GDC-MISC"],
+        index_types=["case", "project"],
+    )
+
+    case_results = es_client.search(index="gdc_misc_case")
+    project_results = es_client.search(index="gdc_misc_project")
+
+    assert case_results["hits"]["total"]["value"] == 2
+    assert project_results["hits"]["total"]["value"] == 1
