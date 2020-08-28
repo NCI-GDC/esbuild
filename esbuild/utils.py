@@ -5,7 +5,7 @@ from datetime import datetime
 from hashlib import md5
 from functools import lru_cache
 from reprlib import repr
-from typing import List
+from typing import List, Dict, Iterable, Optional
 
 import six
 from cdislogging import get_logger
@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from gdcdatamodel import models
 from gdcdatamodel.models.submission import TransactionSnapshot
+from gdcmodels import esutils
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
 from requests import HTTPError
@@ -84,6 +85,10 @@ def get_queue_client(queue_type):
         )
 
     raise ValueError("Unsupported queue type: '{}'".format(queue_type))
+
+
+def get_elasticsearch_client():
+    return Elasticsearch(**ES_CONFIG)
 
 
 # TODO: Refactor esbuild.graph.common.builder to use this method to extract IndexD properties
@@ -280,6 +285,44 @@ class ReleaseHelper:
         self.audit = audit
         self.log = get_logger('utils_releasehelper')
 
+    @classmethod
+    def get_project_docs_query(cls,
+                               index_type: str,
+                               project_ids: Optional[List[str]] = None) -> Dict:
+        """
+        Create a query that will return all documents from a given ``index_type``
+        for a given subset of ``project_ids``. If no ``project_ids`` were passed,
+        return all documents from the index
+
+        Args:
+            index_type: graph index type. must be one of ("annotation", "case",
+                "file", "project")
+            project_ids: optional list of project_ids
+        """
+        if not project_ids:
+            return {"match_all": {}}
+
+        project_q = {"terms": {"project_id": project_ids}}
+        case_or_annotation_q = {"terms": {"project.project_id": project_ids}}
+        file_q = {
+            "nested": {
+                "path": "cases",
+                "query": {"terms": {"cases.project.project_id": project_ids}}
+            }
+        }
+
+        index_type_queries = {
+            "annotation": case_or_annotation_q,
+            "case": case_or_annotation_q,
+            "file": file_q,
+            "project": project_q,
+        }
+
+        if index_type not in index_type_queries:
+            raise ValueError("Invalid index_type: '{}'".format(index_type))
+
+        return index_type_queries[index_type]
+
     def delete_docs_from_index(self,
                                index_name: str,
                                index_type: str,
@@ -292,28 +335,9 @@ class ReleaseHelper:
             index_type: query to use when removing docs from index
             projects_to_delete: list of project_ids
         """
-        if projects_to_delete:
-            project_q = {"terms": {"project_id": projects_to_delete}}
-            case_or_annotation_q = {"terms": {"project.project_id": projects_to_delete}}
-            file_q = {
-                "nested": {
-                    "path": "cases",
-                    "query": {"terms": {"cases.project.project_id": projects_to_delete}},
-                }
-            }
-        else:
-            project_q = case_or_annotation_q = file_q = {"match_all": {}}
-
-        index_type_queries = {
-            "case": case_or_annotation_q,
-            "annotation": case_or_annotation_q,
-            "file": file_q,
-            "project": project_q
-        }
-
         existing_indices = self.es.indices.get_alias()
 
-        q = index_type_queries[index_type]
+        q = self.get_project_docs_query(index_type, projects_to_delete)
 
         if index_name not in existing_indices:
             return
@@ -419,3 +443,32 @@ class ReleaseHelper:
             commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
 
         return commit_hash.decode('utf-8')
+
+
+def get_index_names(
+    index_prefix: str,
+    index_types: Iterable[str],
+) -> Dict[str, str]:
+    """
+    Return elasticsearch index names given an index_prefix.
+
+    Since Elasticsearch7 does not support more than 1 doc_type per index, the
+    index names will be in a format: <index_prefix>_<index_type>
+    """
+    return {
+        index_type: "{}_{}".format(index_prefix, index_type)
+        for index_type in index_types
+    }
+
+
+def force_merge_indices(es, index_prefix=None, index_names=()):
+    if not index_prefix and not index_names:
+        raise ValueError("index_prefix or index_name must be provided")
+
+    if index_prefix and index_names:
+        raise ValueError("index_prefix and index_name cannot be set at the same time")
+
+    if index_prefix:
+        index_names = get_index_names(index_prefix, ["file", "case", "project", "annotation"])
+
+    esutils.force_merge_elasticsearch_indices(es, index_names)
