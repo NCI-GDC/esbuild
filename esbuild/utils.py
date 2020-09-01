@@ -469,6 +469,7 @@ def force_merge_indices(es, index_prefix=None, index_names=()):
         raise ValueError("index_prefix and index_name cannot be set at the same time")
 
     if index_prefix:
-        index_names = get_index_names(index_prefix, ["file", "case", "project", "annotation"])
+        index_mappings = get_index_names(index_prefix, ["file", "case", "project", "annotation"])
+        index_names = list(index_mappings.values())
 
     esutils.force_merge_elasticsearch_indices(es, index_names)
