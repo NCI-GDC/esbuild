@@ -36,7 +36,7 @@ def handle_pre_flight(args):
 
 def handle_force_merge(args):
     es = get_elasticsearch_client()
-    force_merge_indices(es, args.index_prefix, args.index_types)
+    force_merge_indices(es, args.index_prefix, args.index_names)
 
 
 def get_parser():
@@ -108,6 +108,7 @@ def get_parser():
         required=False,
         help="ES index names to force merge",
     )
+    fm_sub.set_defaults(func=handle_force_merge)
 
     # TODO: Add more params as needed.
 
