@@ -20,7 +20,8 @@ def handle_mappings(args):
 
 def handle_reindex(args):
     gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, indexd_client=None)
-    gdc_es.reindex(args.old_index, args.new_index, index_types=args.index_types)
+    gdc_es.reindex(args.old_index, args.new_index, index_types=args.index_types,
+                   project_ids=args.project_ids)
 
 
 def handle_pre_flight(args):
