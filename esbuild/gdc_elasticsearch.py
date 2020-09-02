@@ -704,7 +704,7 @@ class GDCElasticsearch(object):
 
     def get_index_settings(self):
         """Get settings for a new index based on this instance's config."""
-        index_settings = self.converter.mapper.index_settings()
+        index_settings = self.converter_class.mapper.index_settings()
 
         actual_settings = index_settings.setdefault('settings', {})
 
