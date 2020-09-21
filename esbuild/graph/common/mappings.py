@@ -6,6 +6,7 @@ esbuild.graph.common.mappings
 Common definitions for building GDC Elasticsearch mappings
 
 """
+import functools
 
 from addict import Dict
 from gdcdictionary import gdcdictionary
@@ -35,10 +36,10 @@ FLOAT = Dict(type='float')
 
 
 def get_es_type(_type):
-    if int in _type:
-        return 'long'
-    elif float in _type:
+    if float in _type:
         return 'double'
+    elif int in _type:
+        return 'long'
     else:
         return 'keyword'
 

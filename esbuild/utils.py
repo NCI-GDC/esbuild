@@ -7,7 +7,6 @@ from functools import lru_cache
 from reprlib import repr
 from typing import List, Dict, Iterable, Optional
 
-import six
 from cdislogging import get_logger
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
@@ -112,10 +111,8 @@ class VersionedNodesDiffCollector(object):
     TARGET_NODE_STATES = ['validated', 'submitted']
 
     def __init__(self, project_ids=None, graph=None, indexd_client=None):
-        if isinstance(project_ids, six.text_type):
+        if isinstance(project_ids, str):
             self.project_ids = project_ids.split(',')
-        elif isinstance(project_ids, list):
-            self.project_ids = project_ids
         else:
             self.project_ids = project_ids
 

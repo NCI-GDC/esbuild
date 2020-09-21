@@ -20,7 +20,6 @@ setup(
         "progressbar2>=2.0,<4",
         "python-dotenv~=0.10.3",
         "requests~=2.7",
-        "six~=1.12",
         "SQLAlchemy==1.3.3",
         "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.0#egg=psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.2.0#egg=gdcdictionary",
