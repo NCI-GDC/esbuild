@@ -666,6 +666,12 @@ class ESMapper(object):
         case.properties.case_autocomplete.fields.prefix.type = 'text'
         case.properties.case_autocomplete.type = 'keyword'
         case.properties.case_id.copy_to = ['case_autocomplete']
+        case.properties.disease_type.copy_to = ['case_autocomplete']
+        case.properties.primary_site.copy_to = ['case_autocomplete']
+        case.properties.project.properties.disease_type.copy_to = ['case_autocomplete']
+        case.properties.project.properties.intended_release_date.copy_to = ['case_autocomplete']
+        case.properties.project.properties.primary_site.copy_to = ['case_autocomplete']
+        case.properties.project.properties.project_id.copy_to = ['case_autocomplete']
         case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = ['case_autocomplete']
         case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = ['case_autocomplete']
         case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = ['case_autocomplete']
