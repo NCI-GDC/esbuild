@@ -6,8 +6,6 @@ esbuild.graph.common.mappings
 Common definitions for building GDC Elasticsearch mappings
 
 """
-import functools
-
 from addict import Dict
 from gdcdictionary import gdcdictionary
 from copy import deepcopy
