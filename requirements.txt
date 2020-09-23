@@ -25,7 +25,7 @@ gitdb==4.0.5              # via gitdb2
 gitpython==2.1.11         # via normalizer
 graphviz==0.4.10          # via gdcdatamodel
 idna==2.10                # via requests
-importlib-metadata==1.7.0  # via jsonschema
+importlib-metadata==2.0.0  # via jsonschema
 git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient  # via esbuild (setup.py)
 jsonschema==3.2.0         # via gdcdatamodel, gdcdictionary
 networkx==2.4             # via esbuild (setup.py)

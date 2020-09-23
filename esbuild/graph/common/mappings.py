@@ -552,9 +552,6 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        # cigarettes_per_day to float
-        case.properties.exposures.properties.cigarettes_per_day = FLOAT
-
         return Dict(deepcopy(case.to_dict()))
 
     @classmethod
