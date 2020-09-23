@@ -254,18 +254,6 @@ def test_mapping_does_not_contain(mappings, mapping, path):
     assert len(parse(path).find(mappings[mapping])) == 0
 
 
-@pytest.mark.parametrize('mapping,path,field_type', [
-    ('file', 'properties.cases.properties.exposures.properties.cigarettes_per_day', 'float'),
-    ('case', 'properties.exposures.properties.cigarettes_per_day', 'float'),
-])
-def test_field_type(mappings, mapping, path, field_type):
-    submapping = mappings[mapping]
-    for step in path.split('.'):
-        submapping = submapping[step]
-
-    assert submapping['type'] == field_type
-
-
 @pytest.mark.parametrize('mapping,path,expected', [
     ('file', 'properties.downstream_analyses.type', ['nested']),
 ])
