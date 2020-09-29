@@ -6,7 +6,6 @@ esbuild.graph.common.mappings
 Common definitions for building GDC Elasticsearch mappings
 
 """
-
 from addict import Dict
 from gdcdictionary import gdcdictionary
 from copy import deepcopy
@@ -35,10 +34,10 @@ FLOAT = Dict(type='float')
 
 
 def get_es_type(_type):
-    if int in _type:
-        return 'long'
-    elif float in _type:
+    if float in _type:
         return 'double'
+    elif int in _type:
+        return 'long'
     else:
         return 'keyword'
 
@@ -552,9 +551,6 @@ class ESMapper(object):
         summary.data_categories.type = 'nested'
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
-
-        # cigarettes_per_day to float
-        case.properties.exposures.properties.cigarettes_per_day = FLOAT
 
         return Dict(deepcopy(case.to_dict()))
 
