@@ -19,7 +19,7 @@ future==0.18.2            # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models  # via esbuild (setup.py), gdcdatamodel
 git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.0#egg=gdcdatamodel  # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.2.0#egg=gdcdictionary  # via esbuild (setup.py), gdcdatamodel
-git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.6.0-alpha1#egg=gdcmodels  # via esbuild (setup.py), normalizer
+git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.6.0-alpha2#egg=gdcmodels  # via esbuild (setup.py), normalizer
 gitdb2==4.0.2             # via gitpython
 gitdb==4.0.5              # via gitdb2
 gitpython==2.1.11         # via normalizer
