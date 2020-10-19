@@ -6,11 +6,13 @@ esbuild.graph.common.mappings
 Common definitions for building GDC Elasticsearch mappings
 
 """
+
+from copy import deepcopy
+
 from addict import Dict
 from gdcdictionary import gdcdictionary
-from copy import deepcopy
+from gdcmodels import get_es_models
 from psqlgraph import Node
-
 
 # These values specify the multiplicity of the relationship from
 # parent to child.
@@ -185,13 +187,7 @@ class ESMapper(object):
 
     @staticmethod
     def index_settings():
-        return {
-            "settings": {
-                "mapping.nested_fields.limit": 150,
-                "index.mapping.total_fields.limit": 2000,
-                "index.max_result_window": 100000000,
-            }
-        }
+        return {"settings": get_es_models()['gdc_from_graph']['_settings']}
 
     # ======================================================================
     # Utility functions
