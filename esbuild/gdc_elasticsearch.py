@@ -11,9 +11,8 @@ Elasticsearch
 import datetime
 import json
 import os
-import re
-import subprocess
 import time
+from typing import Iterable, List, Optional, Tuple
 
 from cdislogging import get_logger
 from datadog import statsd
@@ -22,13 +21,15 @@ from elasticsearch import (
     NotFoundError,
     helpers,
 )
-from elasticsearch.exceptions import AuthorizationException
-from gdcdatamodel.models import File
+from indexclient.client import IndexClient
 from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import PsqlGraphDriver
 
+from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.active.mappings import ActiveESMapper
 from esbuild.utils import (
     ES_CONFIG,
+    get_index_names,
     ReleaseHelper,
     VersionedNodesDiffCollector,
 )
@@ -39,109 +40,128 @@ THREAD_COUNT = 16
 CHUNK_SIZE = 500
 MAX_CHUNK_BYTES = 104857600  # 100MB
 
-INDEX_PATTERN = '{base}_{n}'
+
+mapping_getters = {
+    "annotation": "get_annotation_es_mapping",
+    "case": "get_case_es_mapping",
+    "file": "get_file_es_mapping",
+    "project": "get_project_es_mapping",
+}
 
 
-def shouldnt_delete(node):
-    """In most cases, we delete any node that's marked
-    `to_delete`. However, if the node is a file, we don't, for two reasons:
+def no_op(*_, **__):
+    pass
 
-    1. We would lose the information about the alignment.
 
-    2. CGHub sometimes suppresses and then unsupresses files. In most
-    cases this is fine, but if a file has derived files, deleting and
-    recreating it will cause the relevant edge to be lost, which we
-    don't want.
+def get_statsd_event_logger(index_prefix, projects):
+    if not projects:
+        projects = "all"
 
-    This is a predicate to filter files with derived files so we don't
-    delete them.
+    projects_string = ", ".join(projects)
+    index_tag = "index_group:" + index_prefix
 
-    """
-    if isinstance(node, File) and node.derived_files:
-        return True
-    else:
-        return False
+    def statsd_event(title, text, tags, alert_type="info"):
+        final_text = text + " Projects: " + projects_string
+        statsd.event(
+            title,
+            final_text,
+            source_type_name="esbuild",
+            alert_type=alert_type,
+            tags=[index_tag] + tags,
+        )
+
+    return statsd_event
 
 
 class GDCElasticsearch(object):
 
     """
-    """
+    Walks the graph to produce elasticsearch json documents.
 
-    def __init__(self, converter_class, indexd_client, index_close_thresh=5,
-                 **kwargs):
-        """Walks the graph to produce elasticsearch json documents.
-
-        :param es: An instance of Elasticsearch class
-        :param converter_class: Class to use as a converter
-        :param indexd_client: indexclient.client.IndexClient() object
-        :param index_close_thresh: we try to control the ES cluster size, by
-            keeping only X number of indices and deleting old ones. Set X by
-            passing this param
-        :param index_base: base name template for resulting es index
-        :param index_name: if provided, will build index with this name ignoring index_base
-        :param index_replicas: number of replicas to set if creating an index
-        :param index_shards: number of shards to set if creating an index
-        :param build_projects: list of projects to build
-        :param selective_caching: cache only data relevant to build_projects to save time
+    Attributes:
+        converter_class (GraphIndexBuilder): builder class
+        indexd_client (indexclient.client.IndexClient): IndexD client instance
+        es (Elasticsearch): ES client
+        graph (psqlgraph.PsqlGraphDriver): db connection
+        index_prefix (str): prefix to use for a set of graph indices
+        build_projects (list): a list of projects to build
+        selective_caching (bool): cache only data relevant to build_projects to save time
             WARNING: Will skip all nodes that do not have project_id populated
             WARNING: Does heavy query before caching resulting in memory spike. Risk of
                      running out of memory if build_projects is a large enough list (number of
                      nodes in all buld_projects is large enough)
-        :param build_awg: whether to skip es index deployment
-        :param skip_es: whether to skip es index deployment
+        build_awg (bool): enable AWG specific logic
+        index_replicas (int): number of replicas to create when deploying index
+        index_shards (int): number of shards to allocate for a deployed index
+        cache_versioned (bool): enable looking up versioned files that haven't been
+            released yet
+        save_doc_path (str): dump documents to this location
+        event_logger (callable): statsd event logger
+        index_alias_prefix (str): destination index alias
+        audit: create audit documents in ES or not
+        skip_es (bool): do not deploy indices to Elasticsearch
+        release_helper (ReleaseHelper): utility class that does index cleanup and
+            audit logging
+    """
 
-        """
-        valid_kwargs = [
-            ('es', None),
-            ('index_base', "gdc_from_graph"),
-            ('index_name', None),
-            ('index_replicas', 0),
-            ('index_shards', 1),
-            ('build_projects', None),
-            ('selective_caching', False),
-            ('build_awg', False),
-            ('skip_es', False),
-            ('cache_versioned', False),
-            ('save_doc_path', os.path.expanduser('~/esbuild_output'))
-        ]
+    def __init__(self,
+                 converter_class: GraphIndexBuilder.__class__,
+                 indexd_client: Optional[IndexClient],
+                 es: Elasticsearch = None,
+                 pg_driver: PsqlGraphDriver = None,
+                 index_prefix: str = None,
+                 build_projects: List[str] = None,
+                 selective_caching: bool = False,
+                 build_awg: bool = False,
+                 index_replicas: int = 0,
+                 index_shards: int = 1,
+                 cache_versioned: bool = False,
+                 save_doc_path: str = os.path.expanduser("~/esbuild_output"),
+                 skip_es: bool = False,
+                 index_alias_prefix: str = None,
+                 audit: bool = True,
+                 **kwargs):
+        self.converter_class = converter_class  # type: GraphIndexBuilder.__class__
+        self.indexd_client = indexd_client
 
-        for arg, default in valid_kwargs:
-            setattr(self, arg, kwargs.get(arg) or default)
+        self.graph = pg_driver or PsqlGraphDriver(os.environ["PG_HOST"],
+                                                  os.environ["PG_USER"],
+                                                  os.environ["PG_PASS"],
+                                                  os.environ["PG_NAME"])
+        self.index_prefix = index_prefix
+        self.build_projects = build_projects
+        self.selective_caching = selective_caching
 
-        self.index_close_thresh = index_close_thresh
+        self.build_awg = build_awg
+
+        self.index_replicas = index_replicas
+        self.index_shards = index_shards
+        self.cache_versioned = cache_versioned
+
+        self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
+        self.skip_es = skip_es
+
         self.log = get_logger("gdc_elasticsearch", log_level='info')
+        self.converter = None
+
         self.log.info('Build arguments: {}'.format(kwargs))
-        self.graph = kwargs.pop('pg_driver',
-                                PsqlGraphDriver(os.environ["PG_HOST"],
-                                                os.environ["PG_USER"],
-                                                os.environ["PG_PASS"],
-                                                os.environ["PG_NAME"]))
 
-        versioned_files = None
-        if not self.build_awg and self.build_projects and self.cache_versioned:
-            vnc = VersionedNodesDiffCollector(self.build_projects, self.graph,
-                                              indexd_client)
-            versioned_files = vnc.run()
+        self.event_logger = no_op
 
-        self.converter = converter_class(self.graph,
-                                         indexd_client,
-                                         build_awg=self.build_awg,
-                                         build_projects=self.build_projects,
-                                         selective_caching=self.selective_caching,
-                                         versioned_files=versioned_files)
-        self.converter_class_name = converter_class.__class__.__name__
-
-        if not self.skip_es:
-            if not self.es:
-                # TODO sniff_on_start here?
-                self.es = Elasticsearch(timeout=9999, **ES_CONFIG)
-
-        else:
+        if self.skip_es:
             self.es = None
+        else:
+            self.es = es or Elasticsearch(**ES_CONFIG)
 
-        if self.index_name is None:
-            self.index_name = self.get_index_name()
+        self.index_names = None
+        self.index_aliases = None
+        self.no_parallel_bulk = kwargs.get("no_parallel_bulk", False)
+
+        if index_prefix:
+            self.index_names = get_index_names(index_prefix, mapping_getters.keys())
+
+        if index_alias_prefix:
+            self.index_aliases = get_index_names(index_alias_prefix, mapping_getters.keys())
 
         # where to save docs if they fail
         if os.path.exists(self.save_doc_path):
@@ -155,184 +175,168 @@ class GDCElasticsearch(object):
                 self.doc_output_dir = self.save_doc_path
 
         # Used to clean up data in existing index
-        self.release_helper = ReleaseHelper(self.es)
-
-    def save_doc(self, doc, file_name):
-        with open(file_name, 'w') as out_file:
-            json.dump(doc, out_file)
+        self.release_helper = ReleaseHelper(self.es, audit_index="build_metadata",
+                                            audit=audit)
 
     def save_docs(self, case_docs, file_docs, ann_docs, project_docs):
+
+        def _save_docs(docs, filename):
+            with open(filename, "w") as f:
+                json.dump(docs, f, indent=2)
+
         time_stamp = time.strftime("%Y%m%d_%H-%M-%S")
-        file_name = '{}/case_docs_{}.json'.format(self.doc_output_dir, time_stamp)
-        self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(case_docs, file_name)
+        for file_name, docs in [("case_docs", case_docs),
+                                ("file_docs", file_docs),
+                                ("ann_docs", ann_docs),
+                                ("project_docs", project_docs)]:
+            file_name = "{}/{}_{}.json".format(self.doc_output_dir, file_name, time_stamp)
+            self.log.info("Saving to {}".format(file_name))
+            _save_docs(docs, file_name)
 
-        file_name = '{}/file_docs_{}.json'.format(self.doc_output_dir, time_stamp)
-        self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(file_docs, file_name)
+    def _cache_versioned_files(self) -> Optional[dict]:
 
-        file_name = '{}/ann_docs_{}.json'.format(self.doc_output_dir, time_stamp)
-        self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(ann_docs, file_name)
+        if not self.cache_versioned or self.build_awg or not self.build_projects:
+            return None
 
-        file_name = '{}/project_docs_{}.json'.format(self.doc_output_dir, time_stamp)
-        self.log.info('Saving to {}'.format(file_name))
-        self.save_doc(project_docs, file_name)
+        vnc = VersionedNodesDiffCollector(self.build_projects, self.graph, self.indexd_client)
+        return vnc.run()
 
-    def go(self, roll_alias=True, cleanup_indices=True):
+    def _cache_database(self, converter: GraphIndexBuilder) -> Tuple[list, list, list, list]:
         with self.graph.session_scope() as session, session.no_autoflush:
             self.log.info("Caching database")
 
-            statsd.event(
-                "caching started",
-                "starting postgres caching",
-                source_type_name="esbuild",
-                alert_type="info",
-                tags=["es_index:{}".format(self.index_name), 'stage:caching'],
-            )
+            self.event_logger("Caching", "Started postgres caching.", tags=["stage:caching"])
 
-            start_time = datetime.datetime.now()
-            self.converter.cache_database()
+            cache_start_time = datetime.datetime.now()
+            converter.cache_database()
             cache_end_time = datetime.datetime.now()
 
-            self.log.info("ANALYSIS: Loaded data in %s",
-                          cache_end_time - start_time)
+            self.log.info("ANALYSIS: Loaded data in %s", cache_end_time - cache_start_time)
 
-            self.log.info("Denormalizing database into JSON docs")
+            self.event_logger("Denormalization", "Started denormalizing indices. ",
+                              tags=["stage:denormalization"])
 
-            statsd.event(
-                "denormalization started",
-                "starting denormalizing index: '{}'".format(self.index_name),
-                source_type_name="esbuild",
-                alert_type="info",
-                tags=["es_index:{}".format(self.index_name),
-                      'stage:denormalization'],
-            )
-            case_docs, file_docs, ann_docs, project_docs = self.converter.denormalize_all()
+            cases, files, annotations, projects = converter.denormalize_all()
 
-            # Make sure we're not committing anything
+            denom_end_time = datetime.datetime.now()
+
+            self.log.info("ANALYSIS: Denormalized data in %s", denom_end_time - cache_end_time)
+
             session.rollback()
 
-        denom_end_time = datetime.datetime.now()
-        self.log.info("ANALYSIS: Denormalized data in %s",
-                      denom_end_time - start_time)
+            self.log.info(
+                "ANALYSIS: %d case docs, %d file docs, %d annotation docs, %d project docs",
+                len(cases), len(files), len(annotations), len(projects),
+            )
+
+            return cases, files, annotations, projects
+
+    def _prepare_indices(self):
+        if self.build_projects:
+            projects_to_build = ','.join(self.build_projects)
+        else:
+            projects_to_build = 'all'
 
         self.log.info(
-            "ANALYSIS: %d case docs, "
-            "%d file docs, "
-            "%d annotation docs, "
-            "%d project docs",
-            len(case_docs),
-            len(file_docs),
-            len(ann_docs),
-            len(project_docs),
+            "ANALYSIS: Preparing ES index to be updated "
+            "with {} projects".format(projects_to_build)
         )
 
-        self.log.info("Validating docs produced")
-        statsd.event(
-            "validation started",
-            "starting validating index {}".format(self.index_name),
-            source_type_name="esbuild",
-            alert_type="info",
-            tags=["es_index:{}".format(self.index_name), 'stage:validation'],
+        self.event_logger("Indices preparation", "Started indices preparation.",
+                          tags=["stage:preparation"])
+
+        self.release_helper.add_esbuild_log(
+            self.index_prefix, action="index preparation", project_ids=self.build_projects,
         )
+
+        for index_type, index_name in self.index_names.items():
+            self.release_helper.delete_docs_from_index(
+                index_name,
+                index_type,
+                self.build_projects,
+            )
+
+    def _dump_locally(self, cases, files, annotations, projects):
+        self.log.info("Skipping ES index deploy and saving docs on local storage instead")
+
+        self.event_logger("Dump to LS", "Started dumping to LS", tags=["stage:dump"])
+
+        self.save_docs(cases, files, annotations, projects)
+
+        self.event_logger("Dump to LS", "Finished dumping to LS",
+                          tags=["stage:dump", "status:succeeded"])
+
+    def go(self, roll_alias=True, send_events=True):
+        if not self.index_prefix:
+            raise ValueError("'index_prefix' is required")
+
+        if roll_alias and not self.index_aliases:
+            raise ValueError("'index_alias_prefix' is required")
+
+        if send_events:
+            self.event_logger = get_statsd_event_logger(self.index_prefix, self.build_projects)
+
+        versioned_files = self._cache_versioned_files()
+
+        self.converter = self.converter_class(
+            self.graph,
+            self.indexd_client,
+            build_projects=self.build_projects,
+            build_awg=self.build_awg,
+            selective_caching=self.selective_caching,
+            versioned_files=versioned_files,
+        )
+
+        cases, files, annotations, projects = self._cache_database(self.converter)
+
+        self.log.info("Validating docs produced")
+
+        self.event_logger("Validation", "Started validation", tags=["stage:validation"])
 
         # TODO: Validation logic needs to be fixed, because some of the queries
         #   are invalid now. Seems like the assumption at some point was that
         #   we always build all projects
-        self.converter.validate_docs(case_docs, file_docs, ann_docs, project_docs)
-
-        # Prepare index (if it exists) to be augmented by new data
-        if self.index_name in self.es.indices.get_alias():
-            if self.build_projects:
-                projects_to_build = ','.join(self.build_projects)
-            else:
-                projects_to_build = 'all'
-
-            self.log.info(
-                "ANALYSIS: Preparing ES index to be updated "
-                "with {} projects".format(projects_to_build)
-            )
-            statsd.event(
-                "Index preparation started",
-                "starting index {} preparation".format(self.index_name),
-                source_type_name="esbuild",
-                alert_type="info",
-                tags=['es_index:{}'.format(self.index_name),
-                      'projects:{}'.format(projects_to_build),
-                      'stage:preparation'],
-            )
-            self.release_helper.prepare_index_to_build(self.index_name,
-                                                       self.build_projects)
+        # self.converter.validate_docs(cases, files, annotations, projects)
 
         # Dump skipped nodes info into a file
-        self.log_skipped_nodes()
+        self.log_skipped_nodes(self.converter.skipped_nodes)
 
-        if not self.es:
-            statsd.event(
-                'Dump to Local Storage',
-                'starting dumping index {} to local storage'.format(self.index_name),
-                alert_type='info',
-                tags=['es_index:{}'.format(self.index_name), 'stage:dump']
-            )
-            self.log.info('Skipping ES index deploy and saving docs on local '
-                          'storage instead')
+        if not self.es or self.skip_es:
             # Skip index upload and save the documents instead
-            self.save_docs(case_docs, file_docs, ann_docs,  project_docs)
-            statsd.event(
-                'Dump to Local Storage',
-                'finished dumping index {} to local storage'.format(self.index_name),
-                alert_type='info',
-                tags=['es_index:{}'.format(self.index_name), 'stage:dump',
-                      'status:succeeded']
-            )
+            self._dump_locally(cases, files, annotations, projects)
             return
 
-        self.log.info("Deploying new ES index with new docs and bumping alias")
-        statsd.event(
-            "ES Upload",
-            "starting uploading index {}".format(self.index_name),
-            source_type_name="esbuild",
-            alert_type="info",
-            tags=["es_index:{}".format(self.index_name),
-                  'stage:uploading'],
-        )
+        self._prepare_indices()
+
+        self.log.info("Deploying new ES index with new docs")
+
+        self.event_logger("ES Upload", "Uploading indices", tags=["stage:upload"])
 
         event = {
-            'text': "successfully built index {}".format(self.index_name),
-            'alert_type': 'info',
+            "text": "successfully built indices for '{}'".format(self.index_prefix),
+            "alert_type": "info",
         }
-        extra_tags = ['status:succeeded']
+        extra_tags = ["status:succeeded"]
 
         try:
-            self.deploy(
-                case_docs, file_docs, ann_docs, project_docs,
-                index_name=self.index_name, roll_alias=roll_alias,
-                cleanup_indices=cleanup_indices)
+            self.deploy(cases, files, annotations, projects, roll_alias=roll_alias)
         except Exception as exception:
             self.log.exception(
-                'Unable to deploy documents to {}: {}, saving to {}'
-                ''.format(self.index_name, exception,
+                "Unable to deploy documents to {}: {}, saving to {}"
+                "".format(self.index_prefix, exception,
                           self.doc_output_dir),
                 exc_info=True,
             )
-            event['text'] = 'index deploy failed: {}'.format(self.index_name)
-            event['alert_type'] = 'error'
-            extra_tags = ['status:failed']
-            self.save_docs(case_docs, file_docs, ann_docs, project_docs)
+            event["text"] = "index deploy failed: {}".format(self.index_prefix)
+            event["alert_type"] = "error"
+            extra_tags = ["status:failed"]
+            self.save_docs(cases, files, annotations, projects)
         finally:
-            statsd.event(
-                "esbuild finished",
-                source_type_name="esbuild",
-                tags=["es_index:{}".format(self.index_name), 'stage:finished'] + extra_tags,
-                **event
-            )
+            self.event_logger("ESBuild finished", tags=["stage:finished"] + extra_tags, **event)
 
-    def log_skipped_nodes(self):
+    def log_skipped_nodes(self, skipped_nodes):
         self.log.info("Logging skipped nodes to log file in `save_doc_path`")
-        self.log_into_file(self.converter.skipped_nodes,
-                           self.save_doc_path,
-                           'esbuild-skipped_nodes')
+        self.log_into_file(skipped_nodes, self.save_doc_path, 'esbuild-skipped_nodes')
 
     @staticmethod
     def log_into_file(entries, path, file_nametag):
@@ -358,7 +362,7 @@ class GDCElasticsearch(object):
             elif isinstance(entries, dict):
                 f.write(json.dumps(entries, indent=2))
 
-    def pbar(self, title, maxval):
+    def pbar(self, title, max_value):
         """Create and initialize a custom progressbar
 
         :param str title: The text of the progress bar
@@ -368,46 +372,82 @@ class GDCElasticsearch(object):
         pbar = ProgressBar(
             widgets=[title, Percentage(), ' ',
                      Bar(marker='#', left='[', right=']'), ' ', ETA(), ' '],
-            maxval=maxval,
+            max_value=max_value,
         )
         pbar.update(0)
         return pbar
 
-    def bulk_upload(self, index, doc_type, docs, thread_count=THREAD_COUNT,
-                    chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES,
-                    parallel_bulk=True):
+    def _create_index(self, index_name, index_settings, mappings):
+        if not self.es.indices.exists(index=index_name):
+            self.log.info("Creating new index: '{}'".format(index_name))
+            body = dict(mappings=mappings, **index_settings)
+            self.es.indices.create(index=index_name, body=body)
+            self.es.indices.refresh(index=index_name)
+        else:
+            self.log.info("Using existing index: '{}'".format(index_name))
+
+    def create_and_populate_index(self, index_type, docs, thread_count=THREAD_COUNT,
+                                  chunk_size=CHUNK_SIZE, max_chunk_bytes=MAX_CHUNK_BYTES):
+        """
+        Create index and put mappings for a given index_type if it doesn't exist,
+        otherwise proceed with document indexing
+        """
+        index_name = self.index_names[index_type]
+        mapping_getter = mapping_getters[index_type]
+
+        index_settings = self.get_index_settings()
+        mappings = getattr(self.converter.mapper, mapping_getter)()
+        self._create_index(index_name, index_settings, mappings.to_dict())
+
+        if not docs:
+            self.log.warning("There're no documents for '{}' to populate".format(index_type))
+            return
+
+        self.log.info("Populating index %s" % index_name)
+
+        self.populate_index(index_type, docs, thread_count, chunk_size, max_chunk_bytes)
+
+    def populate_index(self, index_type, docs, thread_count, chunk_size, max_chunk_bytes):
         """Chunk and upload docs to Elasticsearch.  This function will raise
         an exception of there were errors inserting any of the
         documents
 
-        :param str index: The index to upload documents to
-        :param str doc_type: The type of document to upload as
-        :param list docs: The documents to upload
-        :param thread_count: Number of threads to spawn during parallel bulk
-            index upload
-        :param chunk_size: Number of actions to perform per bulk request
-        :param max_chunk_bytes: Bulk request document size limit
-        :param parallel_bulk: Use parallel_bulk for index upload or not
+        Args:
+            index_type (str): The index_type to upload documents to
+            docs (list): The documents to upload
+            thread_count (int): Number of threads to spawn during parallel bulk
+                index upload
+            chunk_size (int): Number of actions to perform per bulk request
+            max_chunk_bytes (int): Bulk request document size limit
         """
 
-        if not docs:
-            return
-
-        pbar = self.pbar('{} upload '.format(doc_type), len(docs))
+        index_name = self.index_names[index_type]
+        id_field = index_type + "_id"
+        pbar = self.pbar("{} upload ".format(index_name), len(docs))
 
         def action_gen():
             for doc in docs:
                 action = dict(
-                    _index=index,
-                    _type=doc_type,
-                    _id=doc[doc_type+'_id'],
-                    _source=doc
+                    _index=index_name,
+                    _id=doc[id_field],
+                    _source=doc,
                 )
+
                 yield action
+
                 pbar.update(pbar.value + 1)
 
         actions = action_gen()
-        if parallel_bulk:
+        if self.no_parallel_bulk:
+            success, errors = helpers.bulk(
+                self.es,
+                actions,
+                chunk_size=chunk_size,
+                max_chunk_bytes=max_chunk_bytes,
+            )
+            if errors:
+                self.log.error(errors)
+        else:
             batches = helpers.parallel_bulk(
                 self.es,
                 actions,
@@ -417,305 +457,106 @@ class GDCElasticsearch(object):
             )
             for batch in batches:
                 if not batch[0]:
-                    raise RuntimeError(json.dumps([
-                        doc for doc in batch[1]
-                        if doc['index']['status'] != 100
-                    ], indent=2))
-        else:
-            success, errors = helpers.bulk(
-                self.es,
-                actions,
+                    raise RuntimeError(
+                        json.dumps([doc for doc in batch[1]
+                                    if doc['index']['status'] != 100], indent=2)
+                    )
+
+        pbar.finish()
+
+    def swap_index_alias(self, alias: str, new_index: str):
+        """
+        Switch the resolution of alias from old indices to new_index
+
+        Args:
+            alias: alias that needs to be updated
+            new_index: new index to be associated with the alias
+        """
+
+        self.drop_aliases(alias)
+
+        self.log.info("Adding new alias: '{}' for indices: '{}'".format(alias, new_index))
+
+        return self.es.indices.put_alias(index=new_index, name=alias)
+
+    def lookup_index_by_alias(self, alias):
+        """
+        Find a set of indices that an Elasticsearch alias is pointing to.
+
+        Returns:
+            list: a list of ES indices that have a given alias
+
+        """
+        try:
+            aliases = self.es.indices.get_alias(alias)
+        except NotFoundError:
+            return []
+
+        return list(aliases)
+
+    def drop_aliases(self, alias):
+        """Remove all index aliases for `alias`"""
+        indices = self.lookup_index_by_alias(alias)
+
+        if not indices:
+            return
+
+        actions = []
+        for index in indices:
+            actions.append({"remove": {"index": index, "alias": alias}})
+
+        self.log.info("Removing alias: '{}', for indices: '{}'".format(alias, indices))
+
+        return self.es.indices.update_aliases({"actions": actions})
+
+    def deploy(self, case_docs, file_docs, ann_docs, project_docs, roll_alias=True,
+               thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
+               max_chunk_bytes=MAX_CHUNK_BYTES):
+        """Create a new index with an name based on self.index_prefix, populate
+        it with :func create_and_populate_index:, atomically switch the alias to
+        point to the new index
+        """
+
+        self.log.info("Deploying to index %s", self.index_prefix)
+
+        for index_type, index_docs in [("project", project_docs),
+                                       ("annotation", ann_docs),
+                                       ("file", file_docs),
+                                       ("case", case_docs)]:
+
+            self.create_and_populate_index(
+                index_type,
+                index_docs,
+                thread_count=thread_count,
                 chunk_size=chunk_size,
                 max_chunk_bytes=max_chunk_bytes,
             )
-            if errors:
-                self.log.error(errors)
-        pbar.finish()
+            self.es.indices.refresh(index=self.index_names[index_type])
 
-    def put_mappings(self, index):
-        """Add mappings to index.
+        self.log.info("Deployed to index %s", self.index_prefix)
 
-        :param str index: The elasticsearch index
-        :returns: results of putting es mappings
-        """
-        return [
-            self.es.indices.put_mapping(
-                index=index,
-                doc_type="project",
-                body=self.converter.mapper.get_project_es_mapping().to_dict()
-            ),
-            self.es.indices.put_mapping(
-                index=index,
-                doc_type="file",
-                body=self.converter.mapper.get_file_es_mapping().to_dict()
-            ),
-            self.es.indices.put_mapping(
-                index=index,
-                doc_type="case",
-                body=self.converter.mapper.get_case_es_mapping().to_dict()
-            ),
-            self.es.indices.put_mapping(
-                index=index,
-                doc_type="annotation",
-                body=self.converter.mapper.get_annotation_es_mapping().to_dict()
-            ),
-        ]
+        # Create audit logs for this ESBuild run
+        self.release_helper.add_esbuild_log(
+            self.index_prefix,
+            action="upload index",
+            project_ids=self.build_projects,
+            index_aliases=self.index_aliases,
+            build_awg=self.build_awg,
+            counts={
+                "annotation": len(ann_docs),
+                "case": len(case_docs),
+                "file": len(file_docs),
+                "project": len(project_docs),
+            },
+        )
 
-    def index_populate(self, index, case_docs=[], file_docs=[],
-                       ann_docs=[], project_docs=[],
-                       thread_count=THREAD_COUNT,
-                       chunk_size=CHUNK_SIZE,
-                       max_chunk_bytes=MAX_CHUNK_BYTES):
-        self.bulk_upload(index, 'project', project_docs,
-                         thread_count=thread_count,
-                         chunk_size=chunk_size,
-                         max_chunk_bytes=max_chunk_bytes)
-        self.bulk_upload(index, 'annotation', ann_docs,
-                         thread_count=thread_count,
-                         chunk_size=chunk_size,
-                         max_chunk_bytes=max_chunk_bytes)
-        self.bulk_upload(index, 'case', case_docs,
-                         thread_count=thread_count,
-                         chunk_size=chunk_size,
-                         max_chunk_bytes=max_chunk_bytes)
-        self.bulk_upload(index, 'file', file_docs,
-                         thread_count=thread_count,
-                         chunk_size=chunk_size,
-                         max_chunk_bytes=max_chunk_bytes)
+        if not roll_alias:
+            self.log.info("Skipping alias roll")
+            return
 
-    def index_create_and_populate(self, index, case_docs=[],
-                                  file_docs=[], ann_docs=[], project_docs=[],
-                                  thread_count=THREAD_COUNT,
-                                  chunk_size=CHUNK_SIZE,
-                                  max_chunk_bytes=MAX_CHUNK_BYTES):
-        """Create a new index with name `index` and add given documents to it.
-        `case_docs` or `project_docs` are empty, the will be generated
-        automatically.
-
-        :param list case_docs: The case docs to upload.
-        :param list file_docs:
-            The file docs to upload. If case_docs is empty,
-            `file_docs` will be overwritten when case_docs are
-            produced.
-        :param list ann_docs:
-            The annotation docs to upload. If case_docs is empty,
-            `ann_docs` will be overwritten when case_docs are
-            produced.
-        :param list project_docs: The project docs to upload.
-
-        """
-
-        # Create index if it does not exist (otherwise, just add the data)
-        if index not in self.es.indices.get_alias():
-            self.log.info('Index %s not found, creating', index)
-            index_settings = self.get_index_settings()
-            self.es.indices.create(index=index, body=index_settings)
-            self.put_mappings(index)
-
-        if not case_docs:
-            self.log.warning("There were no case docs passed to populate with!")
-        if not project_docs:
-            self.log.warning("There were no case docs passed to populate with!")
-
-        self.log.info('Populating index %s', index)
-        self.index_populate(index, case_docs, file_docs, ann_docs,
-                            project_docs, thread_count=thread_count,
-                            chunk_size=chunk_size, max_chunk_bytes=max_chunk_bytes)
-
-    def swap_index(self, old_index, new_index):
-        """Atomically switch the resolution of `alias` from `old_index` to
-        `new_index`
-
-        :param str old_index: Old resolution
-        :param str new_index: New resolution. `alias` will point here.
-        :param str alias: Alias name to swap
-
-        """
-
-        self.es.indices.update_aliases({'actions': [
-            {'remove': {'index': old_index, 'alias': self.index_base}},
-            {'add': {'index': new_index, 'alias': self.index_base}}]})
-
-    def get_indices(self):
-        """Returns a list of open and closed index names"""
-
-        indices = None
-        if self.es:
-            indices = (
-                # Closed indices
-                list(self.es.cluster.state()['blocks'].get('indices', {}).keys()) +
-                # Open indices
-                list(self.es.indices.stats()['indices'].keys())
-            )
-        return indices
-
-    def get_index_numbers(self):
-        """Return the numbers of the current set of indices. So concretely if we
-        have gdc_from_graph_23, gdc_from_graph_24, and
-        gdc_from_graph_25, this will return [23, 24, 25].
-        """
-        numbers = []
-        indices = self.get_indices()
-        if indices:
-            indices = set(indices)
-            p = re.compile(INDEX_PATTERN.format(base=self.index_base, n='(\d+)')+'$')
-            matches = [p.match(index) for index in indices if p.match(index)]
-            numbers = sorted([int(m.group(1)) for m in matches])
-        return numbers
-
-    def lookup_index_by_alias(self):
-        """Find the index that an Elasticsearch alias is poiting to. Return
-        None if the index doesn't exist.
-
-        """
-        try:
-            index_names = list(self.es.indices.get_alias(self.index_base).keys())
-            if not index_names:
-                return None
-            return index_names[0]
-        except NotFoundError:
-            return None
-
-    def cleanup_old_indices(self, kept):
-        self.log.info("Deleting old indices")
-        numbers = self.get_index_numbers()
-        indices = [INDEX_PATTERN.format(base=self.index_base, n=n)
-                   for n in numbers]
-        if len(numbers) <= self.index_close_thresh:
-            self.log.info("less than 5 matching indices found, not deleting anything")
-            to_close = indices
-            to_delete = []
-        else:
-            to_delete = indices[0:-self.index_close_thresh]
-            to_close = indices[-self.index_close_thresh:]
-
-        self.log.info("Deleting indices %s", to_delete)
-        for index in to_delete:
-            self.log.info("Deleting %s", index)
-            self.es.indices.delete(index=index)
-            self.es.indices.refresh()
-        for index in to_close:
-            if index not in kept:
-                self.log.info("Closing %s", index)
-                try:
-                    self.es.indices.flush(index=index)
-                except AuthorizationException as e:
-                    # authorization exception will be raised if it's already closed
-                    if ('IndexClosedException' in str(e.error) or
-                            'index_closed_exception' in str(e.error)):
-                        self.log.info("%s is already closed" % index)
-                        continue
-                    else:
-                        self.log.exception("Failed to flush %s" % index,
-                                           exc_info=True)
-                except:
-                    self.log.exception("Can't flush index %s" % index,
-                                       exc_info=True)
-
-                try:
-                    self.es.indices.close(index=index)
-                except:
-                    self.log.exception("Can't close index %s" % index,
-                                       exc_info=True)
-
-    def get_index_name(self):
-        """Returns incremented index name"""
-        # TODO: Remove this and related code as well
-        current_numbers = self.get_index_numbers()
-        self.log.info("Currently deployed indices are %s", current_numbers)
-        if not current_numbers:
-            n = 1
-        else:
-            n = max(current_numbers) + 1
-        return INDEX_PATTERN.format(base=self.index_base, n=n)
-
-    def deploy(self, case_docs, file_docs, ann_docs,
-               project_docs, roll_alias=True, cleanup_indices=True,
-               thread_count=THREAD_COUNT, chunk_size=CHUNK_SIZE,
-               max_chunk_bytes=MAX_CHUNK_BYTES, index_name=None):
-        """Create a new index with an incremented name based on
-        self.index_base, populate it with :func
-        index_create_and_populate:, atomically switch the alias to
-        point to the new index, and delete anything older than the
-        last 5 versions of this index.
-
-        """
-
-        if not index_name:
-            raise ValueError(
-                "Please, provide index name. Automatic index version increment "
-                "has been deprecated."
-            )
-
-        self.log.info("Deploying to index %s", index_name)
-        self.index_create_and_populate(index_name, case_docs,
-                                       file_docs, ann_docs,
-                                       project_docs,
-                                       thread_count=thread_count,
-                                       chunk_size=chunk_size,
-                                       max_chunk_bytes=max_chunk_bytes)
-        self.log.info("Deployed to index %s", index_name)
-
-        # Add build metadata
-        doc_counts = {'case': len(case_docs), 'file': len(file_docs),
-                      'project': len(project_docs), 'annotation': len(ann_docs)}
-        git_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
-                               '.git')
-        try:
-            commit_hash = subprocess.check_output(['git',
-                                                   '--git-dir={}'.format(git_dir),
-                                                   'rev-parse', 'HEAD'])
-            commit_hash = commit_hash.decode('utf-8')
-        except Exception as err:
-            commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
-
-        project_ids = self.build_projects or ['ALL PROJECTS']
-        doc_id = ReleaseHelper.get_build_metadata_id(self.build_projects or 'ALL PROJECTS')
-
-        self.es.create(index=index_name, doc_type='build_metadata',
-                       id=doc_id,
-                       body={
-                           'commit_hash': commit_hash,
-                           'build_projects': project_ids,
-                           'counts': doc_counts
-                       })
-
-        if roll_alias:
-            # ensure all writes are visible
-            self.es.indices.refresh(index=index_name)
-
-            # sanity checks that there are the correct number of docs in the new index
-            msg = ('There appears to be the wrong number of {0} files. {1} != {2}')
-
-            file_count = self.es.count(index=index_name, doc_type="file")["count"]
-            case_count = self.es.count(index=index_name, doc_type="case")["count"]
-            ann_count = self.es.count(index=index_name, doc_type="annotation")["count"]
-            project_count = self.es.count(index=index_name, doc_type="project")["count"]
-
-            if file_count != len(file_docs):
-                self.log.warning(msg.format('file', file_count, len(file_docs)))
-
-            if case_count != len(case_docs):
-                self.log.warning(msg.format('case', case_count, len(case_docs)))
-
-            if ann_count != len(ann_docs):
-                self.log.warning(msg.format('annotation', ann_count, len(ann_docs)))
-
-            if project_count != len(project_docs):
-                self.log.warning(msg.format('project', project_count, len(project_docs)))
-
-            # Roll indices
-            self.log.info("Rolling alias and deleting old indices")
-            old_index = self.lookup_index_by_alias()
-            if old_index:
-                self.swap_index(old_index, index_name)
-            else:
-                self.es.indices.put_alias(index=index_name, name=self.index_base)
-            if cleanup_indices:
-                self.cleanup_old_indices([old_index, index_name])
-        else:
-            self.log.info("Skipping alias roll / old index deletion")
-        return index_name
+        for index_type, index_alias in self.index_aliases.items():
+            self.swap_index_alias(alias=index_alias,
+                                  new_index=self.index_names[index_type])
 
     def _wait_for_task_completion(self, task_id):
         """
@@ -747,25 +588,35 @@ class GDCElasticsearch(object):
 
         return summary
 
-    def reindex(self, old_index, new_index, types=None, index_settings=None,
-                query=None, conflicts=None):
+    def reindex(self,
+                old_index: str,
+                new_index: str,
+                index_types: Iterable[str] = None,
+                project_ids: List[str] = None,
+                index_settings: dict = None,
+                query: dict = None,
+                conflicts: str = None) -> dict:
         """
         Perform reindex operation on an existing ``old_index``, create
         ``new_index`` with updated mappings and invoke ES reindex API. Wait for
         reindexing to copmlete and return the summary
 
-        :param old_index: existing ES index
-        :param new_index: new ES index to be created
-        :param types: ES document types to reindex
-        :param index_settings: optional index settings and/or mappings
-        :param query: optional query to be run against the original index to
-            limit the documents being reindexed
-        :param conflicts: conflicts resolution strategy in case of indexing
-            collisions
-        :return: reindex operation summary
-        """
+        Args:
+            old_index: existing ES index
+            new_index: new ES index to be created
+            index_settings: optional index settings and/or mappings, when no index_types
+                are provided, the index_settings must also include "mappings"
+            index_types: index types to reindex. If this is passed, then old_index
+                and new_index are treated as prefixes instead
+            project_ids: optional project_id list to limit reindexing
+            query: optional query to be run against the original index to
+                limit the documents being reindexed
+            conflicts: conflicts resolution strategy in case of indexing
+                collisions
 
-        self.log.info("Start reindexing")
+        Returns:
+            dict: reindex operation summary
+        """
 
         if old_index == new_index:
             raise ValueError(
@@ -775,33 +626,67 @@ class GDCElasticsearch(object):
 
         index_settings = index_settings or self.get_index_settings()
 
+        if not index_types:
+            mappings = index_settings.pop("mappings", {})
+            self._create_index(new_index, index_settings, mappings)
+
+            return self._reindex_one(
+                old_index,
+                new_index,
+                conflicts=conflicts,
+                query=query,
+            )
+
+        old_names = get_index_names(old_index, mapping_getters.keys())
+        new_names = get_index_names(new_index, mapping_getters.keys())
+
+        summaries = {}
+        for index_type in index_types:
+            index_name = new_names[index_type]
+
+            mappings = index_settings.get("mappings", {}).get(index_type)
+
+            if not mappings:
+                mappings = getattr(ActiveESMapper, mapping_getters[index_type])()
+
+            self._create_index(index_name, index_settings, mappings.to_dict())
+
+            if project_ids:
+                self.release_helper.delete_docs_from_index(
+                    index_name=index_name,
+                    index_type=index_type,
+                    projects_to_delete=project_ids,
+                )
+                query = self.release_helper.get_project_docs_query(index_type, project_ids)
+
+            summary = self._reindex_one(
+                old_names[index_type],
+                index_name,
+                conflicts,
+                query,
+            )
+
+            summaries[index_type] = summary
+
+        return summaries
+
+    def _reindex_one(self, old_index, new_index, conflicts, query):
+        self.log.info("Start reindexing: '{}' ====> '{}'".format(old_index, new_index))
+
+        source = {
+            "index": old_index,
+        }
+
         reindex_body = {
-            'source': {
-                'index': old_index,
-            },
-            'dest': {
-                'index': new_index,
-            },
+            "source": source,
+            "dest": {"index": new_index},
         }
 
         if conflicts:
-            reindex_body['conflicts'] = conflicts
+            reindex_body["conflicts"] = conflicts
 
         if query:
-            reindex_body['source']['query'] = query
-
-        # FIXME: Maybe want to do a more extensive param check, but this should
-        #   cover our immediate use cases
-        if types:
-            types = types if isinstance(types, list) else [types]
-            reindex_body['source']['type'] = types
-
-        self.log.info("Creating new index: '{}'".format(new_index))
-
-        self.es.indices.create(index=new_index, body=index_settings)
-
-        if 'mappings' not in index_settings:
-            self.put_mappings(new_index)
+            reindex_body["source"]["query"] = query
 
         task_info = self.es.reindex(body=reindex_body, refresh=True,
                                     wait_for_completion=False)
@@ -819,7 +704,8 @@ class GDCElasticsearch(object):
 
     def get_index_settings(self):
         """Get settings for a new index based on this instance's config."""
-        index_settings = self.converter.mapper.index_settings()
+        index_settings = self.converter_class.mapper.index_settings()
+
         actual_settings = index_settings.setdefault('settings', {})
 
         if self.index_replicas is not None:

@@ -29,7 +29,8 @@ from indexd_test_utils import (
 )
 from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
 
-from esbuild.utils import ReleaseHelper
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.utils import ReleaseHelper, get_index_names
 from tests import data, es_data
 
 # ======================================================================
@@ -283,122 +284,104 @@ def cleanup_indices(es, indices=None):
 
     for index in indices:
         es.indices.delete(index, ignore=(404, 400))
-        es.indices.refresh()
+
+    es.indices.refresh()
+
+
+@pytest.fixture(scope="session")
+def index_types():
+    return ["annotation", "case", "file", "project"]
+
+
+@pytest.fixture(scope="session")
+def es_client():
+    es = Elasticsearch(
+        hosts=[ES_HOST],
+        port=ES_PORT,
+    )
+
+    return es
 
 
 @pytest.fixture(scope='module')
-def test_index():
-    """Generate an index as a fixture for re-use between tests"""
-
-    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
-    index = 'test_index__'
-    doc_type = 'test'
-    docs = es_data.dummy_docs
-
-    cleanup_indices(es_driver, [index])
-    es_driver.indices.create(index=index, ignore=400)
-    for doc in docs:
-        es_driver.index(
-            index=index,
-            id=doc['id'],
-            doc_type=doc_type,
-            body=doc,
-            ignore=409,
-        )
-
-    while True:
-        count = es_driver.count(index=index, doc_type=doc_type)['count']
-        if count == len(docs):
-            break
-        time.sleep(0.1)
-
-    yield es_driver, index, doc_type, docs
-
-    cleanup_indices(es_driver, [index])
-
-
-@pytest.fixture(scope='module')
-def test_index_data():
+def test_index_data(index_types, es_client):
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
-    es_driver = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
-    index = 'test_index_data__'
+    index_prefix = 'test_index_data'
 
-    cleanup_indices(es_driver, [index])
+    index_names = get_index_names(index_prefix, index_types)
 
-    # Create test index and put mappings
-    es_driver.indices.create(index=index, ignore=400,
-                             body=es_data.get_index_settings())
-
-    # Create dummy build_metadata documents
-    metadata_docs = es_data.build_metadata
-
-    for doc in metadata_docs:
-        es_driver.index(
-            index=index, doc_type='build_metadata', body=doc,
-            id=ReleaseHelper.get_build_metadata_id(doc['build_projects']))
+    cleanup_indices(es_client, index_names.values())
 
     # Create dummy esbuild docs
-    for dtype in ['case', 'file', 'project', 'annotation']:
-        mapping = es_data.get_mapping(dtype)
-        es_driver.indices.put_mapping(index=index, doc_type=dtype, body=mapping)
-        for doc in getattr(es_data, '{}_docs'.format(dtype)):
-            if dtype == 'project':
-                es_driver.index(index=index, doc_type=dtype, body=doc, id=doc['project_id'])
-            else:
-                es_driver.index(index=index, doc_type=dtype, body=doc)
+    for index_type in index_types:
+        mapping = es_data.get_mapping(index_type)
+
+        es_client.indices.create(index=index_names[index_type], ignore=400,
+                                 body=es_data.get_index_settings())
+        es_client.indices.refresh(index=index_names[index_type])
+        es_client.indices.put_mapping(index=index_names[index_type], body=mapping)
+
+        for doc in getattr(es_data, '{}_docs'.format(index_type)):
+            doc_id = doc["project_id"] if index_type == "project" else None
+
+            es_client.index(
+                index=index_names[index_type],
+                body=doc,
+                id=doc_id,
+            )
+
+    es_client.indices.refresh()
 
     # Make sure that docs are created:
-    for dtype, dcount in [['build_metadata', len(metadata_docs)],
-                          ['case', len(es_data.case_docs)],
-                          ['file', len(es_data.file_docs)],
-                          ['project', len(es_data.project_docs)],
-                          ['annotation', len(es_data.annotation_docs)]]:
+    for index_type, counts in [['case', len(es_data.case_docs)],
+                               ['file', len(es_data.file_docs)],
+                               ['project', len(es_data.project_docs)],
+                               ['annotation', len(es_data.annotation_docs)]]:
         while True:
-            count = es_driver.count(index=index, doc_type=dtype)['count']
-            if count == dcount:
+            count = es_client.count(index=index_names[index_type])['count']
+            if count == counts:
                 break
             time.sleep(0.1)
 
-    yield es_driver, index
+    yield es_client, index_prefix
 
-    cleanup_indices(es_driver, [index])
+    cleanup_indices(es_client, index_names.values())
 
 
 @pytest.fixture(scope='module')
-def es_after_deletion(test_index_data):
+def es_after_deletion(test_index_data, index_types):
     """
     Deletes some projects from the index but not updates the metadata,
     leaving build_metadata inconsistent purposefully
     """
-    es, index_name = test_index_data
-    helper = ReleaseHelper(es)
+    es, index_prefix = test_index_data
+    helper = ReleaseHelper(es, audit_index="build_metadata_test")
 
     # Will delete these projects' data
     projects_to_delete = ["TCGA-STAD", "FM-AD"]
 
     # Get project list before deletion
-    projects_before = helper.get_project_ids(index_name)
+    projects_before = helper.get_project_ids(index_prefix)
 
+    index_names = get_index_names(index_prefix, index_types)
     # Delete documents associated with selected projects from index
-    helper.delete_docs_from_index(index_name, projects_to_delete)
+    for index_type, index_name in index_names.items():
+        helper.delete_docs_from_index(index_name, index_type, projects_to_delete)
 
     es.indices.refresh()
-    # Wait for index to update
-    time.sleep(2)
-    return es, index_name, projects_before, projects_to_delete
+
+    return es, index_prefix, projects_before, projects_to_delete
 
 
 @pytest.fixture
-def setup_test(pg_driver):
-    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT)
+def setup_test(pg_driver, es_client):
+    cleanup_indices(es_client)
 
-    cleanup_indices(es)
+    yield es_client
 
-    yield es
-
-    cleanup_indices(es)
+    cleanup_indices(es_client)
 
 
 @pytest.fixture(autouse=True)
@@ -443,3 +426,20 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
     yield _from_file
 
     cleanup_nodes(pg_driver, nodes)
+
+
+@pytest.fixture
+def scenario_index(pg_driver, init_indexd, generate_scenario):
+    def make_graph(filename):
+        generate_scenario(filename)
+
+        builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+        with pg_driver.session_scope():
+            builder.cache_database()
+
+        index = builder.denormalize_all()
+
+        return Index._make(index)
+
+    return make_graph

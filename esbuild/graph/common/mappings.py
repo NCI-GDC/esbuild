@@ -7,11 +7,12 @@ Common definitions for building GDC Elasticsearch mappings
 
 """
 
+from copy import deepcopy
+
 from addict import Dict
 from gdcdictionary import gdcdictionary
-from copy import deepcopy
+from gdcmodels import get_es_models
 from psqlgraph import Node
-
 
 # These values specify the multiplicity of the relationship from
 # parent to child.
@@ -35,10 +36,10 @@ FLOAT = Dict(type='float')
 
 
 def get_es_type(_type):
-    if int in _type:
-        return 'long'
-    elif float in _type:
+    if float in _type:
         return 'double'
+    elif int in _type:
+        return 'long'
     else:
         return 'keyword'
 
@@ -47,6 +48,9 @@ def get_es_type(_type):
 # Index settings
 
 class ESMapper(object):
+
+    # The different types of indices supported by the mapper.
+    index_names = ["annotation", "case", "file", "project"]
 
     # These are the types of data_file that will be treated as a file
     file_labels = ['file']
@@ -147,9 +151,9 @@ class ESMapper(object):
         case_tree.exposure.corr = (ONE_TO_MANY, 'exposures')
         case_tree.diagnosis.corr = (ONE_TO_MANY, 'diagnoses')
         case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, 'annotations')
+        case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.follow_up.corr = (ONE_TO_MANY, 'follow_ups')
         case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, 'molecular_tests')
-        case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, 'treatments')
         case_tree.family_history.corr = (ONE_TO_MANY, 'family_histories')
 
         return case_tree
@@ -183,34 +187,36 @@ class ESMapper(object):
 
     @staticmethod
     def index_settings():
-        return {
-            "settings": {
-                "mapping.nested_fields.limit": 150,
-                "index.mapping.total_fields.limit": 2000,
-                "index.max_result_window": 100000000,
-            }
-        }
+        return {"settings": get_es_models()['gdc_from_graph']['_settings']}
 
     # ======================================================================
     # Utility functions
 
     @classmethod
     def get_prop_description(cls, label, prop):
-        """Look the description up from the ``term`` if it exists, else try
-        the jsonschema property description, else return None
+        """Get the description for a property from the dictionary.
 
+        Check for a description associated with the property. If it does not have one,
+        attempt to use the description from the property's "common" data.
+
+        Args:
+            label (str): The label of the node type in the dictionary.
+            prop (str): The name of the property to look up.
+
+        Returns:
+            The retrieved description, or None if none is set.
         """
 
         definition = gdcdictionary.schema[label]['properties'].get(prop)
         if not definition:
             return None
 
-        term = definition.get('term', None)
+        description = definition.get('description')
+        if description:
+            return description
 
-        if not term or not isinstance(term, dict):
-            return definition.get('description', None)
-        else:
-            return term.get('description', None)
+        common_data = definition.get('common') or {}
+        return common_data.get('description')
 
     @classmethod
     def get_descriptions_from_tree(cls, tree, root_name, path=''):
@@ -278,7 +284,6 @@ class ESMapper(object):
     def _get_header(cls, source):
         header = Dict()
         header.dynamic = 'strict'
-        header._all.enabled = False
         header._size.enabled = True
         header._source.excludes = ["__comment__"]
         header._meta.descriptions = cls.get_descriptions()
@@ -368,7 +373,6 @@ class ESMapper(object):
                 mapping[name] = STRING
             elif k == 'annotation':
                 mapping.annotations = cls.annotation_body()
-                mapping.annotations.type = 'nested'
             else:
                 nested = (corr == ONE_TO_MANY)
                 mapping[name].properties.update(cls.get_base_properties(k))
@@ -392,6 +396,32 @@ class ESMapper(object):
 
     # ======================================================================
     # Mappings
+
+    @classmethod
+    def get_es_mapping(cls, index: str) -> Dict:
+        """Generate the mapping for the given Elasticsearch index.
+
+        Create a "root" mapping with top-level settings in addition to the mapping
+        properties, and include properties for all nested document types.
+
+        Args:
+            index: Name of the index for which to get the mapping (e.g., ``case``).
+
+        Returns:
+            An (ad)Dict containing the ES mapping.
+
+        Raises:
+            ValueError: The given index is not recognized.
+        """
+
+        # Given that the actual mapping functions have different signatures and depend
+        # on each other, wrapping them seems like the easiest way to provide a clean
+        # interface, even if the next line is pretty ugly.
+        mapping_func = getattr(cls, "get_{}_es_mapping".format(index), None)
+        if not mapping_func:
+            raise ValueError("No mapping exists for {} index".format(index))
+
+        return mapping_func()
 
     @classmethod
     def get_file_es_mapping(cls, include_case=True, is_root=True):
@@ -450,9 +480,6 @@ class ESMapper(object):
         files.properties.access = STRING
         files.properties.acl = STRING
 
-        # Other file properties
-        files.properties.origin = STRING
-
         # Case
         files.properties.pop('case', None)
         if include_case:
@@ -470,7 +497,6 @@ class ESMapper(object):
             cls.get_case_tree(),
             cls.get_base_properties('case')
         )
-        case.properties.days_to_index = LONG
 
         if not include_file:
             del case.properties.files
@@ -522,9 +548,6 @@ class ESMapper(object):
         summary.data_categories.properties.data_category = STRING
         summary.data_categories.properties.file_count = LONG
 
-        # cigarettes_per_day to float
-        case.properties.exposures.properties.cigarettes_per_day = FLOAT
-
         return Dict(deepcopy(case.to_dict()))
 
     @classmethod
@@ -536,7 +559,10 @@ class ESMapper(object):
         annotation.properties.entity_id = STRING
         annotation.properties.entity_submitter_id = STRING
         annotation.properties.update(cls.multifield('case_id'))
-        annotation.properties.pop('item_id', None)
+
+        if nested:
+            annotation.type = "nested"
+
         return annotation
 
     @classmethod
@@ -598,9 +624,9 @@ class ESMapper(object):
         """
         Adds file autocomplete fields
         """
-        files.properties.data_category.copy_to = 'file_autocomplete'
-        files.properties.data_type.copy_to = 'file_autocomplete'
-        files.properties.experimental_strategy.copy_to = 'file_autocomplete'
+        files.properties.data_category.copy_to = ['file_autocomplete']
+        files.properties.data_type.copy_to = ['file_autocomplete']
+        files.properties.experimental_strategy.copy_to = ['file_autocomplete']
         files.properties.file_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
         files.properties.file_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
         files.properties.file_autocomplete.fields.analyzed.type = 'text'
@@ -610,10 +636,10 @@ class ESMapper(object):
         files.properties.file_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         files.properties.file_autocomplete.fields.prefix.type = 'text'
         files.properties.file_autocomplete.type = 'keyword'
-        files.properties.file_id.copy_to = 'file_autocomplete'
-        files.properties.file_name.copy_to = 'file_autocomplete'
-        files.properties.md5sum.copy_to = 'file_autocomplete'
-        files.properties.submitter_id.copy_to = 'file_autocomplete'
+        files.properties.file_id.copy_to = ['file_autocomplete']
+        files.properties.file_name.copy_to = ['file_autocomplete']
+        files.properties.md5sum.copy_to = ['file_autocomplete']
+        files.properties.submitter_id.copy_to = ['file_autocomplete']
 
         return files
 
@@ -631,18 +657,24 @@ class ESMapper(object):
         case.properties.case_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         case.properties.case_autocomplete.fields.prefix.type = 'text'
         case.properties.case_autocomplete.type = 'keyword'
-        case.properties.case_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.portion_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.portions.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.sample_id.copy_to = 'case_autocomplete'
-        case.properties.samples.properties.submitter_id.copy_to = 'case_autocomplete'
-        case.properties.submitter_id.copy_to = 'case_autocomplete'
+        case.properties.case_id.copy_to = ['case_autocomplete']
+        case.properties.disease_type.copy_to = ['case_autocomplete']
+        case.properties.primary_site.copy_to = ['case_autocomplete']
+        case.properties.project.properties.disease_type.copy_to = ['case_autocomplete']
+        case.properties.project.properties.intended_release_date.copy_to = ['case_autocomplete']
+        case.properties.project.properties.primary_site.copy_to = ['case_autocomplete']
+        case.properties.project.properties.project_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.portion_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.portions.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.sample_id.copy_to = ['case_autocomplete']
+        case.properties.samples.properties.submitter_id.copy_to = ['case_autocomplete']
+        case.properties.submitter_id.copy_to = ['case_autocomplete']
 
         return case
 
@@ -651,7 +683,7 @@ class ESMapper(object):
         """
         Adds project autocomplete fields
         """
-        project.properties.primary_site.copy_to = 'project_autocomplete'
+        project.properties.primary_site.copy_to = ['project_autocomplete']
         project.properties.project_autocomplete.fields.analyzed.analyzer = 'autocomplete_analyzed'
         project.properties.project_autocomplete.fields.analyzed.search_analyzer = 'lowercase_keyword'
         project.properties.project_autocomplete.fields.analyzed.type = 'text'
@@ -661,9 +693,9 @@ class ESMapper(object):
         project.properties.project_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         project.properties.project_autocomplete.fields.prefix.type = 'text'
         project.properties.project_autocomplete.type = 'keyword'
-        project.properties.project_id.copy_to = 'project_autocomplete'
-        project.properties.disease_type.copy_to = 'project_autocomplete'
-        project.properties.name.copy_to = 'project_autocomplete'
+        project.properties.project_id.copy_to = ['project_autocomplete']
+        project.properties.disease_type.copy_to = ['project_autocomplete']
+        project.properties.name.copy_to = ['project_autocomplete']
 
         return project
 
@@ -681,6 +713,6 @@ class ESMapper(object):
         annotation.properties.annotation_autocomplete.fields.prefix.search_analyzer = 'lowercase_keyword'
         annotation.properties.annotation_autocomplete.fields.prefix.type = 'text'
         annotation.properties.annotation_autocomplete.type = 'keyword'
-        annotation.properties.annotation_id.copy_to = 'annotation_autocomplete'
+        annotation.properties.annotation_id.copy_to = ['annotation_autocomplete']
 
         return annotation

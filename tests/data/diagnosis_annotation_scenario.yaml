@@ -1,0 +1,16 @@
+nodes:
+  - label: case
+    submitter_id: da_case_1
+  - label: diagnosis
+    submitter_id: da_diag_1
+  - label: annotation
+    submitter_id: da_ann_1
+    state: released
+    classification: Notification
+    status: Approved
+
+edges:
+  - src: da_diag_1
+    dst: da_case_1
+  - src: da_ann_1
+    dst: da_diag_1

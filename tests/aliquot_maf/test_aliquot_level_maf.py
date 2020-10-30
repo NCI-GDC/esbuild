@@ -4,7 +4,7 @@ import pytest
 from jsonpath_rw import parse
 
 
-@pytest.mark.parametrize('doc_type, path, expectations', [
+@pytest.mark.parametrize('index_type, path, expectations', [
     ('files', '[*].type.[*]', {
         'masked_somatic_mutation': 2,
         'simple_somatic_mutation': 6,  # 2 from data.py and 4 from maf data
@@ -22,8 +22,8 @@ from jsonpath_rw import parse
         'Annotated Somatic Mutation': 6,
     }),
 ])
-def test_aliquot_level_maf_build_counts(maf_index, doc_type, path, expectations, pg_driver):
-    results = parse(path).find(getattr(maf_index, doc_type))
+def test_aliquot_level_maf_build_counts(maf_index, index_type, path, expectations, pg_driver):
+    results = parse(path).find(getattr(maf_index, index_type))
 
     counts = Counter(r.value for r in results)
     for value, count in expectations.items():

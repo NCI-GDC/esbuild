@@ -113,7 +113,7 @@ def get_index_settings():
     return ESMapper.index_settings()
 
 
-def get_mapping(doc_type):
-    mapping = getattr(ESMapper, 'get_{}_es_mapping'.format(doc_type))()
+def get_mapping(index_type):
+    mapping = getattr(ESMapper, 'get_{}_es_mapping'.format(index_type))()
     mapping.pop('_all', None)
     return mapping

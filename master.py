@@ -1,13 +1,12 @@
+import argparse
 import os
 
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
-from queueclient.depot import DepotQueueClient
 
-from bin.base_build import esbuild_argparser as base_parser
 from esbuild.export.s3_repository import BackupHelper
-from esbuild.utils import ES_CONFIG
+from esbuild.utils import ES_CONFIG, get_queue_client
 
 logger = get_logger('esbuild_master', log_level='info')
 
@@ -15,66 +14,98 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
 
 
-def esbuild_argparser(parser=None):
+def esbuild_argparser():
     """
-    Esbuild argument parser
+    Returns argument parser for esbuild
     """
-    if not parser:
-        parser = base_parser()
-
-    depot_args = parser.add_argument_group(title='Depot server arguments',
-                                           description='Depot server address '
-                                           'and queue_id to listen to')
-    depot_args.add_argument('--depot-host',
-                            default='depot.service.consul',
-                            help='Depot server host')
-    depot_args.add_argument('--depot-port',
-                            type=int,
-                            default=80,
-                            help='Depot server port')
-    depot_args.add_argument('--queue-id', type=str,
-                            help='Depot queue id. Has to be a UUID string')
-    depot_args.add_argument('--queue-clear',
-                            help='Clears esbuild queue',
-                            action='store_true',
-                            default=False)
+    parser = argparse.ArgumentParser(
+        description='Parameters to control esbuild runs',
+    )
+    parser.add_argument(
+        '--no-roll', action="store_true",
+        help='If passed, do not roll the alias and delete old indices')
+    parser.add_argument(
+        '--no-cleanup', action="store_true",
+        help='If passed, do not delete old indices')
+    parser.add_argument(
+        '--projects', nargs='*',
+        help='If set, builds only set of projects specified (space-separated)',
+        required=False)
+    parser.add_argument(
+        '--index',
+        help='Index name to upsert projects to. Must set when building subset of projects',
+    )
+    parser.add_argument(
+        "--alias", help="Index alias to use for index swap",
+    )
+    parser.add_argument(
+        '--replicas',
+        help='Number of replicas to set when creating an index (default: 0)',
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
+        '--shards',
+        help='Number of shards to set when creating an index (default: 1)',
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        '--selective-caching', action='store_true',
+        help='If set, only caches nodes for projects needed. '
+        'WARNING: Will skip nodes that do not have project_id',
+        default=False)
+    parser.add_argument(
+        '--build-awg', action='store_true',
+        help='If set, will build in AWG mode. '
+        'Will pick up only projects flagged as awg_review = true and '
+        'nodes that are part of these projects and are in any of allowed states',
+        default=False)
+    parser.add_argument(
+        '--cache-versioned',
+        action='store_true',
+        help='Collect differences for versioned unreleased files',
+    )
 
     es_args = parser.add_argument_group(title='Esbuild arguments',
                                         description='Esbuild related settings')
+    es_args.add_argument("--queue-type",
+                         choices=["depot", "rabbitmq"],
+                         default="rabbitmq",
+                         help="Type of queue backend to use for scheduling"
+                              "(defaults to 'rabbitmq'")
+    es_args.add_argument("--queue-clear",
+                         help="Clear current job queue",
+                         action="store_true")
     es_args.add_argument('--num-jobs',
-                         help='How many jobs to create',
-                         type=int)
+                         help='How many jobs to create (defaults to 1)',
+                         type=int,
+                         default=1)
     es_args.add_argument('--build-type',
                          choices=['active', 'legacy'],
-                         help='Choose "active" or "legacy"')
+                         default="active",
+                         help='Choose "active" or "legacy" (defaults to "active")')
     es_args.add_argument('--split-by-program',
                          action='store_true',
-                         help='If set, splits all projects into groups by program',
-                         default=False)
+                         help='If set, splits all projects into groups by program')
     es_args.add_argument('--skip-projects',
                          nargs='*',
                          help='Set of projects to skip')
 
-    backup_args = parser.add_argument_group(title='Backup arguments',
-                                            description='ES index backup using repository-s3')
-    backup_args.add_argument('--restore-from-snapshot',
-                             help='Name of a snapshot to restore index from')
-    backup_args.add_argument('--store-to-snapshot',
-                             help='Name of a snapshot to store index to')
+    backup_args = parser.add_mutually_exclusive_group()
+    backup_args.add_argument("--bucket",
+                             help="S3 bucket with ESBuild backups/snapshots")
+    backup_args.add_argument("--restore-from-snapshot",
+                             help="Name of a snapshot to restore index from")
+    backup_args.add_argument("--store-to-snapshot",
+                             help="Name of a snapshot to store index to")
     return parser
 
 
 def parse_args():
     """ Parses arguments, checks for sanity """
 
-    args = esbuild_argparser(base_parser()).parse_args()
-    if not any([args.queue_clear, args.store_to_snapshot,
-                args.restore_from_snapshot]):
-        if (any([args.index, args.num_jobs, args.build_type]) and
-                not all([args.index, args.num_jobs, args.build_type])):
-            raise Exception('Provide esbuild arguments to delegate jobs.\n'
-                            'Run `python master.py -h` for more info')
-
+    args = esbuild_argparser().parse_args()
     return args
 
 
@@ -87,6 +118,7 @@ def split_projects(project_list, n, split_by_program=False):
     # Check input
     if not isinstance(n, int) or n < 1:
         raise ValueError('Number of parts should be positive integer. Got: {}'.format(n))
+
     if n > len(project_list):
         raise ValueError('Can not split list to {} > len(list) parts'.format(n))
 
@@ -119,33 +151,45 @@ def split_projects(project_list, n, split_by_program=False):
         return result
 
 
-def backup_wrapper(snapshot_name, index_name, mode):
+def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
     """
     Executes backup or restore procedure with BackupHelper
     """
-    es_client = Elasticsearch(timeout=9999, **ES_CONFIG)
+    es_client = Elasticsearch(**ES_CONFIG)
+
+    bucket = s3_bucket or os.getenv("S3_BUCKET")
+
+    if not bucket:
+        raise ValueError("Snapshot bucket wasn't provided.")
 
     backup_helper = BackupHelper(
         es_client,
         os.environ["S3_HOST"],
         os.environ["S3_ACCESS_KEY"],
         os.environ["S3_SECRET_KEY"],
-        'esbuild-backup',
+        bucket,
     )
 
     if mode == 'backup':
         logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
-        backup_helper.store_snapshot('esbuild-snapshots',
-                                     snapshot_name, indices=[index_name],
-                                     wait_for_completion=True)
+        backup_helper.store_snapshot(
+            "esbuild-snapshots",
+            snapshot_name,
+            indices=[index_name],
+            wait_for_completion=True,
+        )
         logger.info("Index {} saved".format(index_name))
     elif mode == 'restore':
         if index_name in es_client.indices.get_alias():
             raise Exception('Index {} already exists.'.format(index_name))
+
         logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
-        backup_helper.restore_from_snapshot('esbuild-snapshots',
-                                            snapshot_name, indices=[index_name],
-                                            wait_for_completion=True)
+        backup_helper.restore_from_snapshot(
+            "esbuild-snapshots",
+            snapshot_name,
+            indices=[index_name],
+            wait_for_completion=True,
+        )
         logger.info("Index {} restored".format(index_name))
     else:
         raise Exception('Unknown mode: {}'.format(mode))
@@ -154,59 +198,60 @@ def backup_wrapper(snapshot_name, index_name, mode):
 if __name__ == "__main__":
     args = parse_args()
 
+    if not args.index:
+        logger.info("No 'index' was provided, no job will be scheduled")
+        exit(1)
+
+    # Backup args.index to S3 snapshot repository
     if args.store_to_snapshot:
-        # Backup args.index to S3 snapshot repository
-        backup_wrapper(args.store_to_snapshot, args.index, 'backup')
-    else:
+        backup_wrapper(args.store_to_snapshot, args.index, "backup", args.bucket)
+        exit(0)
 
-        # Restore index from S3 snapshot repository
-        if args.restore_from_snapshot:
-            backup_wrapper(args.restore_from_snapshot, args.index, 'restore')
+    # Get RabbitMQ queue client
+    queue_client = get_queue_client(args.queue_type)
 
-        # Delegate esbuild jobs to depot queue
-        if args.queue_id:
-            depot = DepotQueueClient(
-                args.queue_id,
-                host=args.depot_host,
-                port=args.depot_port,
-            )
-            if args.queue_clear:
-                logger.info(depot.clear())
-            else:
-                if not args.num_jobs:
-                    raise Exception('--num-jobs not provided')
-                if not args.index:
-                    raise Exception('--index not provided')
-                if not args.build_type:
-                    raise Exception('--build-type not provided')
+    # Cleanup the queue
+    if args.queue_clear:
+        payload = queue_client.dequeue()
 
-                if args.projects is None:
-                    projects = config['{}_projects'.format(args.build_type)]
-                else:
-                    projects = args.projects
+        while payload:
+            payload = queue_client.dequeue()
 
-                # Skip some projects, if skip-projects argument is set
-                if args.skip_projects:
-                    projects = [p for p in projects if p not in args.skip_projects]
+    # Restore index from S3 snapshot repository
+    if args.restore_from_snapshot:
+        backup_wrapper(args.restore_from_snapshot, args.index, "restore", args.bucket)
 
-                logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
-                            .format(args.build_type.upper(), args.num_jobs, args.index))
+    projects = args.projects
+    if not projects:
+        logger.info(
+            "No 'projects' have been provided, defaulting to '{}' projects from config"
+            "".format(args.build_type)
+        )
+        projects = config["{}_projects"].format(args.build_type)
 
-                # Delegate a job for each project group:
-                for group in split_projects(projects, args.num_jobs,
-                                            split_by_program=args.split_by_program):
-                    job_json = {
-                        'index': args.index,
-                        'replicas': args.replicas,
-                        'shards': args.shards,
-                        'no-roll': args.no_roll,
-                        'no-cleanup': args.no_cleanup,
-                        'skip-es': args.skip_es,
-                        'projects': ' '.join(group),
-                        'selective-caching': args.selective_caching,
-                        'build-awg': args.build_awg,
-                        'build-type': args.build_type,
-                        'cache-versioned': args.cache_versioned,
-                    }
-                    logger.info('Adding work: {}'.format(job_json))
-                    depot.enqueue(msg=job_json)
+    # Skip some projects, if skip-projects argument is set
+    if args.skip_projects:
+        logger.info("Skipping projects: {}".format(args.skip_projects))
+        projects = [p for p in projects if p not in args.skip_projects]
+
+    logger.info("\n\n\tDelegating {} build with {} jobs\n\tES index: {}"
+                .format(args.build_type.upper(), args.num_jobs, args.index))
+
+    # Delegate a job for each project group:
+    for group in split_projects(projects, args.num_jobs,
+                                split_by_program=args.split_by_program):
+        job_json = {
+            "index": args.index,
+            "alias": args.alias,
+            "replicas": args.replicas,
+            "shards": args.shards,
+            "no-roll": args.no_roll,
+            "no-cleanup": args.no_cleanup,
+            "projects": ' '.join(group),
+            "selective-caching": args.selective_caching,
+            "build-awg": args.build_awg,
+            "build-type": args.build_type,
+            "cache-versioned": args.cache_versioned,
+        }
+        logger.info("Adding work: {}".format(job_json))
+        queue_client.enqueue(msg=job_json)

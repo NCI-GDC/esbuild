@@ -3,14 +3,25 @@
 import json
 from argparse import ArgumentParser
 
+from esbuild.export import mapping_exporter
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.utils import VersionedNodesDiffCollector
+from esbuild.utils import (
+    VersionedNodesDiffCollector,
+    force_merge_indices,
+    get_elasticsearch_client,
+)
+
+
+def handle_mappings(args):
+    exporter = mapping_exporter.MappingExporter()
+    exporter.export(args.output_dir)
 
 
 def handle_reindex(args):
-    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, None)
-    gdc_es.reindex(args.old_index, args.new_index, types=args.doc_types)
+    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, indexd_client=None)
+    gdc_es.reindex(args.old_index, args.new_index, index_types=args.index_types,
+                   project_ids=args.project_ids)
 
 
 def handle_pre_flight(args):
@@ -24,10 +35,24 @@ def handle_pre_flight(args):
         print(json.dumps(diffs, indent=2))
 
 
+def handle_force_merge(args):
+    es = get_elasticsearch_client()
+    force_merge_indices(es, args.index_prefix, args.index_names)
+
+
 def get_parser():
     parser = ArgumentParser()
 
     subparser = parser.add_subparsers(title='subcommands')
+
+    mappings_sub = subparser.add_parser('mappings')
+    mappings_sub.add_argument(
+        '-o',
+        '--output-dir',
+        default='mappings',
+        help='Directory to which to write the new mappings (./mappings by default)',
+    )
+    mappings_sub.set_defaults(func=handle_mappings)
 
     reindex_sub = subparser.add_parser('reindex')
     reindex_sub.add_argument(
@@ -42,11 +67,18 @@ def get_parser():
         help='The name of a destination Elasticsearch index'
     )
     reindex_sub.add_argument(
-        '--doc-types',
+        '--index-types',
         required=False,
         nargs='*',
         default=(),
         help='Elasticsearch document types to reindex',
+    )
+    reindex_sub.add_argument(
+        "--project-ids",
+        required=False,
+        nargs="+",
+        default=(),
+        help="List of space separated projects to reindex",
     )
     reindex_sub.set_defaults(func=handle_reindex)
 
@@ -64,6 +96,20 @@ def get_parser():
         help='Output file for the metadata differences.'
     )
     preflight_sub.set_defaults(func=handle_pre_flight)
+
+    fm_sub = subparser.add_parser("force-merge")
+    fm_indices_group = fm_sub.add_mutually_exclusive_group()
+    fm_indices_group.add_argument(
+        "--index-prefix",
+        required=False,
+        help="ES index prefix (e.g. release_dr25_graph)",
+    )
+    fm_indices_group.add_argument(
+        "--index-names",
+        required=False,
+        help="ES index names to force merge",
+    )
+    fm_sub.set_defaults(func=handle_force_merge)
 
     # TODO: Add more params as needed.
 

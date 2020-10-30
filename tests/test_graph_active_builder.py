@@ -94,20 +94,26 @@ def inconsistent_slides(generate_scenario):
 def gpas_copy_numbers(generate_scenario):
     generate_scenario('copy_number_scenario.yaml')
 
+
+@pytest.fixture
+def diagnosis_annotations(generate_scenario):
+    generate_scenario("diagnosis_annotation_scenario.yaml")
+
 # ======================================================================
 # Tests
 
-@pytest.mark.parametrize('doc_type', ['project', 'case', 'file', 'annotation'])
-def test_mapping_full(mappings, doc_type):
+
+@pytest.mark.parametrize('index_type', ['project', 'case', 'file', 'annotation'])
+def test_mapping_full(mappings, index_type):
     """ Compare mappings defined in mappings.py to gdc-models """
-    validate_mappings(mappings, doc_type)
+    validate_mappings(mappings, index_type)
 
 
-def validate_mappings(mappings, doc_type):
+def validate_mappings(mappings, index_type):
     """ Asserts that set of expected by gdc-models paths is equal
     to the mappings' paths set """
-    es_mapping = mappings[doc_type]['properties']
-    true_mapping = get_es_models()['gdc_from_graph'][doc_type]['_mapping']['properties']
+    es_mapping = mappings[index_type]['properties']
+    true_mapping = get_es_models()['gdc_from_graph'][index_type]['_mapping']['properties']
 
     es_paths = get_dict_paths(es_mapping)[0]
     true_paths = get_dict_paths(true_mapping)[0]
@@ -116,16 +122,42 @@ def validate_mappings(mappings, doc_type):
     extra_paths = set(es_paths) - set(true_paths)
 
     if missing_paths:
-        pprint({'doc_type': doc_type, 'missing_paths': missing_paths})
+        pprint({'index_type': index_type, 'missing_paths': missing_paths})
 
     if extra_paths:
-        pprint({'doc_type': doc_type, 'extra_paths': extra_paths})
+        pprint({'index_type': index_type, 'extra_paths': extra_paths})
 
     # Set of missing paths must be empty:
     assert missing_paths == set([])
 
     # Set of extra paths must be emty:
     assert extra_paths == set([])
+
+
+@pytest.mark.parametrize(
+    'index_type,field,substring',
+    [
+        ('annotation', 'annotations.analyte.project_id', 'Unique ID for any specific'),
+        ('annotation', 'annotations.annotation.submitter_id', 'project-specific'),
+        ('annotation', 'annotations.slide.section_location', 'Tissue source'),
+        ('case', 'cases.case.created_datetime', 'combination of date and time'),
+        ('case', 'cases.case.primary_site', 'the primary site of disease'),
+        ('case', 'cases.diagnoses.morphology', 'The third edition'),
+        ('case', 'cases.follow_ups.molecular_tests.intron', 'Intron number'),
+        ('case', 'cases.project.code', 'Project code'),
+        ('file', 'files.center.code', 'Numeric code for the center'),
+        ('file', 'files.file.md5sum', 'The 128-bit hash'),
+        ('project', 'projects.project.state', 'The possible states'),
+    ],
+)
+def test_mapping_descriptions(mappings, index_type, field, substring):
+    """Spot-check the descriptions for some fields in the mappings.
+
+    Confirm some is present in those descriptions, based on what was in the dictionary
+    at the time this test was written.
+    """
+    description = mappings[index_type]['_meta']['descriptions'].get(field)
+    assert description is not None and substring in description
 
 
 def test_get_file_metadata_from_indexd(index):
@@ -222,18 +254,6 @@ def test_mapping_does_not_contain(mappings, mapping, path):
     assert len(parse(path).find(mappings[mapping])) == 0
 
 
-@pytest.mark.parametrize('mapping,path,field_type', [
-    ('file', 'properties.cases.properties.exposures.properties.cigarettes_per_day', 'float'),
-    ('case', 'properties.exposures.properties.cigarettes_per_day', 'float'),
-])
-def test_field_type(mappings, mapping, path, field_type):
-    submapping = mappings[mapping]
-    for step in path.split('.'):
-        submapping = submapping[step]
-
-    assert submapping['type'] == field_type
-
-
 @pytest.mark.parametrize('mapping,path,expected', [
     ('file', 'properties.downstream_analyses.type', ['nested']),
 ])
@@ -282,14 +302,14 @@ def test_case_to_file_paths_is_absent(path):
     assert path not in ActiveGraphIndexBuilder.case_to_file_paths
 
 
-@pytest.mark.parametrize('doc_type,path', [
+@pytest.mark.parametrize('index_type,path', [
     ('cases', '[*].clinical'),
     ('cases', '[*].files.[*].file_state'),
     ('files', '[*].file_state'),
     ('annotations', '[*].creator'),
 ])
-def test_path_is_absent(index, doc_type, path):
-    assert not parse(path).find(getattr(index, doc_type))
+def test_path_is_absent(index, index_type, path):
+    assert not parse(path).find(getattr(index, index_type))
 
 
 @pytest.mark.parametrize('path', [
@@ -313,7 +333,7 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ] in ActiveGraphIndexBuilder.case_to_file_paths
 
 
-@pytest.mark.parametrize('doc_type,path,count', [
+@pytest.mark.parametrize('index_type,path,count', [
     ('projects', '[*].primary_site', 2),
     ('projects', '[*].disease_type', 2),
     ('cases', '[*].primary_site', 5),
@@ -338,19 +358,19 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     ('annotations', '[*].annotation_id', 3),
     ('files', '[*].associated_entities.[*].entity_type', N_FILES + 3),
 ])
-def test_path_count(index, doc_type, path, count):
-    results = parse(path).find(getattr(index, doc_type))
+def test_path_count(index, index_type, path, count):
+    results = parse(path).find(getattr(index, index_type))
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type, count', [('annotations', 3), ('projects', 2),
-                                             ('cases', 5), ('files', N_FILES)])
-def test_basic_counts(index, doc_type, count):
-    data = getattr(index, doc_type)
+@pytest.mark.parametrize('index_type, count', [('annotations', 3), ('projects', 2),
+                                               ('cases', 5), ('files', N_FILES)])
+def test_basic_counts(index, index_type, count):
+    data = getattr(index, index_type)
     assert len(data) == count
 
 
-@pytest.mark.parametrize('doc_type,path,count,expected', [
+@pytest.mark.parametrize('index_type,path,count,expected', [
     ('projects', '[*].name', 2, {'Breast Invasive Carcinoma',
                                  'Made up active project'}),
     ('projects', '[*].summary.[*].data_categories.[*].file_count', 9,
@@ -409,14 +429,14 @@ def test_basic_counts(index, doc_type, count):
                'protein_expression', 'copy_number_estimate',
                'structural_variation'}),
 ])
-def test_path_value_set_equals(index, doc_type, path, expected, count):
-    results = parse(path).find(getattr(index, doc_type))
+def test_path_value_set_equals(index, index_type, path, expected, count):
+    results = parse(path).find(getattr(index, index_type))
     actual = {r.value for r in results}
     assert actual == expected
     assert len(results) == count
 
 
-@pytest.mark.parametrize('doc_type,path,cls,node_ids', [
+@pytest.mark.parametrize('index_type,path,cls,node_ids', [
     ('files', '[*].file_id', md.Aliquot,
      [get_node_id('aliquot-derived-from-unreleased-sample')]),
     ('cases', '[*].case_id', md.Case, [get_node_id('released-case-in-unreleased-project')]),
@@ -425,26 +445,26 @@ def test_path_value_set_equals(index, doc_type, path, expected, count):
      [get_node_id('unreleased-annotation')])
 ])
 def test_unreleased_nodes_not_indexed(
-        pg_driver, index, doc_type, path, cls, node_ids):
+        pg_driver, index, index_type, path, cls, node_ids):
     with pg_driver.session_scope():
         for node_id in node_ids:
             node = pg_driver.nodes(cls).ids(node_id).one()
             assert node.state in ['submitted', 'released']
 
-    results = parse(path).find(getattr(index, doc_type))
+    results = parse(path).find(getattr(index, index_type))
     result_set = {r.value for r in results}
 
     assert len(result_set.intersection(set(node_ids))) == 0
 
 
-@pytest.mark.parametrize('doc_type,path,count,expected', [
+@pytest.mark.parametrize('index_type,path,count,expected', [
     ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
                                          'Prostate Adenocarcinoma',
                                          'Rectum Adenocarcinoma'}),
     ('projects', '[*].primary_site', 2, {'Breast', 'Prostate', 'Rectum'}),
     ])
-def test_path_value_set_equals_set(index, doc_type, path, expected, count):
-    results = parse(path).find(getattr(index, doc_type))
+def test_path_value_set_equals_set(index, index_type, path, expected, count):
+    results = parse(path).find(getattr(index, index_type))
     # reduce the dimensionality because we only really care about the
     # existing values here and the count
     actual = reduce(set.union, map(lambda x: set(x.value), results))
@@ -713,3 +733,24 @@ def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numb
                               'cn_ar_1', 'cn_ar_2'}
     assert len(files) == N_FILES + 6
     assert expected_submitter_ids.issubset(file_submitter_ids), file_submitter_ids
+
+
+@pytest.mark.usefixtures("diagnosis_annotations")
+def test_diagnosis_annotation_has_extra_data(pg_driver, init_indexd):
+    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+
+    with pg_driver.session_scope():
+        builder.cache_database()
+
+    cases, _, _, _ = builder.denormalize_all()
+
+    target_case = [c for c in cases if c["submitter_id"] == "da_case_1"][0]
+
+    assert len(target_case["diagnoses"]) == 1
+    assert len(target_case["diagnoses"][0]["annotations"]) == 1
+
+    diag_ann = target_case["diagnoses"][0]["annotations"][0]
+
+    # NOTE: SV-1753 validation
+    assert "entity_id" in diag_ann
+    assert "entity_submitter_id" in diag_ann
