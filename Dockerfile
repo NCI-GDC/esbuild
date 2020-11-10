@@ -7,8 +7,8 @@ FROM ${registry}/ncigdc/python37-builder:${base_version} as build
 
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-COPY requirements.txt /sheepdog/requirements.txt
-WORKDIR /sheepdog
+COPY requirements.txt /app/requirements.txt
+WORKDIR /app
 RUN --mount=type=ssh pip install --no-deps -r requirements.txt
 
 COPY . .
