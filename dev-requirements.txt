@@ -7,9 +7,9 @@
 -e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient  # via -r dev-requirements.in, indexd
 -e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient  # via -r dev-requirements.in, indexd
 -e git+ssh://git@github.com/NCI-GDC/indexd.git@2.5.0#egg=indexd  # via -r dev-requirements.in
-attrs==20.2.0             # via -c requirements.txt, jsonschema, pytest
+attrs==20.3.0             # via -c requirements.txt, jsonschema, pytest
 cdislogging==1.0.0        # via -c requirements.txt, indexd
-certifi==2020.6.20        # via -c requirements.txt, requests
+certifi==2020.11.8        # via -c requirements.txt, requests
 chardet==3.0.4            # via -c requirements.txt, requests
 click==7.1.2              # via flask
 coverage==5.3             # via pytest-cov
@@ -26,7 +26,7 @@ jsonpath-rw==1.4.0        # via -r dev-requirements.in
 jsonschema==3.2.0         # via -c requirements.txt, indexd
 markupsafe==1.1.1         # via jinja2
 mock==3.0.5               # via -r dev-requirements.in
-more-itertools==8.5.0     # via pytest
+more-itertools==8.6.0     # via pytest
 ordered-set==4.0.2        # via deepdiff
 packaging==20.4           # via pytest
 pathlib2==2.3.5           # via pytest
@@ -39,11 +39,11 @@ pyrsistent==0.17.3        # via -c requirements.txt, jsonschema
 pytest-cov==2.10.1        # via -r dev-requirements.in
 pytest==5.4.3             # via -r dev-requirements.in, pytest-cov
 python-dateutil==2.8.0    # via -r dev-requirements.in
-requests==2.24.0          # via -c requirements.txt, doiclient, dosclient, indexclient
+requests==2.25.0          # via -c requirements.txt, doiclient, dosclient, indexclient
 six==1.15.0               # via -c requirements.txt, jsonpath-rw, jsonschema, mock, packaging, pathlib2, python-dateutil, sqlalchemy-utils
 sqlalchemy-utils==0.36.3  # via indexd
 sqlalchemy==1.3.3         # via -c requirements.txt, indexd, sqlalchemy-utils
-urllib3==1.25.10          # via -c requirements.txt, requests
+urllib3==1.26.2           # via -c requirements.txt, requests
 wcwidth==0.2.5            # via pytest
 werkzeug==0.16.1          # via flask, indexd
 zipp==1.2.0               # via -c requirements.txt, importlib-metadata
