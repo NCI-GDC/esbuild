@@ -17,7 +17,7 @@ dictdiffer==0.8.1         # via esbuild (setup.py)
 elasticsearch==7.10.0     # via esbuild (setup.py), gdcmodels
 future==0.18.2            # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models  # via esbuild (setup.py), gdcdatamodel
-git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.0#egg=gdcdatamodel  # via esbuild (setup.py)
+git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.3#egg=gdcdatamodel  # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.2.0#egg=gdcdictionary  # via esbuild (setup.py), gdcdatamodel
 git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.7.0#egg=gdcmodels  # via esbuild (setup.py), normalizer
 gitdb2==4.0.2             # via gitpython
@@ -32,7 +32,7 @@ networkx==2.4             # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer  # via esbuild (setup.py)
 pika==1.1.0               # via queueclient
 progressbar2==3.53.1      # via esbuild (setup.py)
-git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.0#egg=psqlgraph  # via esbuild (setup.py), gdcdatamodel
+git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.2#egg=psqlgraph  # via esbuild (setup.py), gdcdatamodel
 psycopg2==2.8.6           # via psqlgraph
 pyrsistent==0.17.3        # via jsonschema
 python-dotenv==0.10.5     # via esbuild (setup.py)
