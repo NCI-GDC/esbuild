@@ -33,7 +33,7 @@ before_script:
   - psql -U postgres -c "create database automated_test with owner test"
   - psql -U postgres -c "create user ro_test with password 'ro_test'"
 
-script: "tox -vv"
+script: "tox"
 
 after_script:
   - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
