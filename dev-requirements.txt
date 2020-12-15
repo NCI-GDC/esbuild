@@ -33,7 +33,7 @@ pathlib2==2.3.5           # via pytest
 pluggy==0.13.1            # via pytest
 ply==3.11                 # via jsonpath-rw
 psycopg2==2.8.6           # via -c requirements.txt, indexd
-py==1.9.0                 # via pytest
+py==1.10.0                 # via pytest
 pyparsing==2.4.7          # via packaging
 pyrsistent==0.17.3        # via -c requirements.txt, jsonschema
 pytest-cov==2.10.1        # via -r dev-requirements.in
