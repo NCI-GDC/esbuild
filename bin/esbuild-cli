@@ -47,7 +47,6 @@ def get_parser():
 
     mappings_sub = subparser.add_parser(
         'mappings',
-        description=mapping_exporter.MappingExporter.__doc__,
         help=mapping_exporter.MappingExporter.__doc__
     )
     mappings_sub.add_argument(
@@ -60,7 +59,6 @@ def get_parser():
 
     reindex_sub = subparser.add_parser(
         'reindex',
-        description=GDCElasticsearch.reindex.__doc__,
         help=GDCElasticsearch.reindex.__doc__
     )
     reindex_sub.add_argument(
@@ -92,7 +90,6 @@ def get_parser():
 
     preflight_sub = subparser.add_parser(
         'pre-flight',
-        description=VersionedNodesDiffCollector.__doc__,
         help=VersionedNodesDiffCollector.__doc__
     )
     preflight_sub.add_argument(
@@ -111,7 +108,6 @@ def get_parser():
 
     fm_sub = subparser.add_parser(
         "force-merge",
-        description=force_merge_indices.__doc__,
         help=force_merge_indices.__doc__
     )
     fm_indices_group = fm_sub.add_mutually_exclusive_group()
