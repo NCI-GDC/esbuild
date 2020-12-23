@@ -45,7 +45,10 @@ def get_parser():
 
     subparser = parser.add_subparsers(title='subcommands')
 
-    mappings_sub = subparser.add_parser('mappings')
+    mappings_sub = subparser.add_parser(
+        'mappings',
+        help=mapping_exporter.MappingExporter.__doc__
+    )
     mappings_sub.add_argument(
         '-o',
         '--output-dir',
@@ -54,7 +57,10 @@ def get_parser():
     )
     mappings_sub.set_defaults(func=handle_mappings)
 
-    reindex_sub = subparser.add_parser('reindex')
+    reindex_sub = subparser.add_parser(
+        'reindex',
+        help=GDCElasticsearch.reindex.__doc__
+    )
     reindex_sub.add_argument(
         '--old-index',
         required=True,
@@ -82,7 +88,10 @@ def get_parser():
     )
     reindex_sub.set_defaults(func=handle_reindex)
 
-    preflight_sub = subparser.add_parser('pre-flight')
+    preflight_sub = subparser.add_parser(
+        'pre-flight',
+        help=VersionedNodesDiffCollector.__doc__
+    )
     preflight_sub.add_argument(
         '-p', '--project_ids',
         nargs='+',
@@ -97,7 +106,10 @@ def get_parser():
     )
     preflight_sub.set_defaults(func=handle_pre_flight)
 
-    fm_sub = subparser.add_parser("force-merge")
+    fm_sub = subparser.add_parser(
+        "force-merge",
+        help=force_merge_indices.__doc__
+    )
     fm_indices_group = fm_sub.add_mutually_exclusive_group()
     fm_indices_group.add_argument(
         "--index-prefix",
@@ -118,4 +130,7 @@ def get_parser():
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except AttributeError:
+        get_parser().print_help()

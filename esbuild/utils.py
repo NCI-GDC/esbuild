@@ -108,6 +108,10 @@ def extract_indexd_metadata(doc, fields=None, getters=None):
 
 
 class VersionedNodesDiffCollector(object):
+    """pre-processing step to identify files that haven't been yet released,
+        but have old versions
+
+    """
     TARGET_NODE_STATES = ['validated', 'submitted']
 
     def __init__(self, project_ids=None, graph=None, indexd_client=None):
@@ -459,6 +463,16 @@ def get_index_names(
 
 
 def force_merge_indices(es, index_prefix=None, index_names=()):
+    """ Force-merging the graph indices down to a single segment
+
+    Args:
+        es: Elasticsearch client
+        index_prefix: index name prefix
+        index_names: index names
+
+    Returns:
+
+    """
     if not index_prefix and not index_names:
         raise ValueError("index_prefix or index_name must be provided")
 
