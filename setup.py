@@ -2,7 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="esbuild",
-    version="1.5.1",
+    use_scm_version={"local_scheme": "dirty-tag", "write_to": "esbuild/_version.py"},
+    setup_requires=["setuptools_scm"],
     description="Repository for building the GDC Elasticsearch indices.",
     license="Apache",
     packages=find_packages(exclude=('tests',)),
