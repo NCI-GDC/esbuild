@@ -76,3 +76,4 @@ package.json
 *.swp
 
 *.sq3
+esbuild/_version.py
