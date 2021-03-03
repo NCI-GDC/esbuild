@@ -2,7 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="esbuild",
-    version="1.5.1",
+    use_scm_version={"local_scheme": "dirty-tag", "write_to": "esbuild/_version.py"},
+    setup_requires=["setuptools_scm"],
     description="Repository for building the GDC Elasticsearch indices.",
     license="Apache",
     packages=find_packages(exclude=('tests',)),
@@ -21,13 +22,13 @@ setup(
         "python-dotenv~=0.10.3",
         "requests~=2.7",
         "SQLAlchemy==1.3.3",
-        "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.0#egg=psqlgraph",
+        "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.0.2#egg=psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.2.0#egg=gdcdictionary",
-        "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.0#egg=gdcdatamodel",
+        "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.0.3#egg=gdcdatamodel",
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models",
         "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient",
         "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
-        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.6.0-alpha2#egg=gdcmodels",
+        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.7.0-rc.2#egg=gdcmodels",
         "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer",
     ],
     scripts=[

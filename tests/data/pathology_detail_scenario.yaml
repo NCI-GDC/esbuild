@@ -1,0 +1,25 @@
+nodes:
+  - label: case
+    submitter_id: pd_case_1
+  - label: diagnosis
+    submitter_id: pd_diagnosis_1
+  - label: pathology_detail
+    submitter_id: pd_pathology_1
+  - label: clinical_supplement
+    submitter_id: pd_clinical_1
+  - label: diagnosis
+    submitter_id: pd_diagnosis_2
+  - label: pathology_detail
+    submitter_id: pd_pathology_2
+
+edges:
+  - src: pd_diagnosis_1
+    dst: pd_case_1
+  - src: pd_diagnosis_2
+    dst: pd_case_1
+  - src: pd_pathology_1
+    dst: pd_diagnosis_1
+  - src: pd_pathology_2
+    dst: pd_diagnosis_2
+  - src: pd_clinical_1
+    dst: pd_case_1
