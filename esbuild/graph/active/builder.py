@@ -214,6 +214,9 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ['raw_methylation_array',
          'methylation_array_harmonization_workflow',
          'methylation_beta_value'],
+        ['raw_methylation_array',
+         'methylation_array_harmonization_workflow',
+         'masked_methylation_array'],
     ]
 
     # added for slide_image by joe, 3/18

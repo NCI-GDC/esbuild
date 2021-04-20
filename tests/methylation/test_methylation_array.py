@@ -8,10 +8,12 @@ from jsonpath_rw import parse
     ("files", "[*].type.[*]", {
         "methylation_beta_value": 3,  # 1 from data.py 2 from methylation_array_scenario.yaml
         "raw_methylation_array": 3,
+        "masked_methylation_array": 4,
     }),
     ("files", "[*].data_type.[*]", {
         "Methylation Beta Value": 3,
         "Raw Intensities": 3,
+        "Masked Intensities": 4,
     }),
     ("files", "[*].submitter_id.[*]", {
         'mbv_0': 1,
@@ -20,6 +22,7 @@ from jsonpath_rw import parse
     ('cases', '[*].files.[*].data_type.[*]', {
         'Methylation Beta Value': 3,
         "Raw Intensities": 3,
+        "Masked Intensities": 4,
     }),
 ])
 def test_methylation_array_counts(methylation_index, index_type, path, expectations):

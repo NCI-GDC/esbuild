@@ -27,6 +27,15 @@ nodes:
   - label: raw_methylation_array
     submitter_id: rma_2
 
+  - label: masked_methylation_array
+    submitter_id: mma_0
+  - label: masked_methylation_array
+    submitter_id: mma_1
+  - label: masked_methylation_array
+    submitter_id: mma_2
+  - label: masked_methylation_array
+    submitter_id: mma_3
+
   - label: methylation_array_harmonization_workflow
     submitter_id: mahw_0
   - label: methylation_array_harmonization_workflow
@@ -74,3 +83,12 @@ edges:
     dst: mbv_0
   - src: mahw_1
     dst: mbv_1
+
+  - src: mahw_0
+    dst: mma_0
+  - src: mahw_0
+    dst: mma_1
+  - src: mahw_1
+    dst: mma_2
+  - src: mahw_1
+    dst: mma_3
