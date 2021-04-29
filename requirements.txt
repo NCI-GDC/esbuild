@@ -34,7 +34,7 @@ elasticsearch==7.10.1
     #   gdcmodels
 future==0.18.2
     # via esbuild (setup.py)
-git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.4.0#egg=gdc_ng_models
+git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2-rc.5#egg=gdc_ng_models
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
