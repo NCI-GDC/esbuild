@@ -19,6 +19,10 @@ from jsonpath_rw import parse
         'mbv_0': 1,
         'mbv_1': 1,
     }),
+    ("files", "[*].channel.[*]", {
+        'Red': 2,
+        'Green': 2,
+    }),
     ('cases', '[*].files.[*].data_type.[*]', {
         "Masked Intensities": 4,
         'Methylation Beta Value': 3,

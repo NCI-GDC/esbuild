@@ -29,12 +29,16 @@ nodes:
 
   - label: masked_methylation_array
     submitter_id: mma_0
+    channel: Red
   - label: masked_methylation_array
     submitter_id: mma_1
+    channel: Green
   - label: masked_methylation_array
     submitter_id: mma_2
+    channel: Red
   - label: masked_methylation_array
     submitter_id: mma_3
+    channel: Green
 
   - label: methylation_array_harmonization_workflow
     submitter_id: mahw_0
