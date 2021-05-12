@@ -20,7 +20,7 @@ from jsonpath_rw import parse
         'mbv_1': 1,
     }),
     ("files", "[*].channel.[*]", {
-        'Red': 2,
+        'Red': 5,   # 3 raw_methylation_array + 2 masked_methylation_array
         'Green': 2,
     }),
     ('cases', '[*].files.[*].data_type.[*]', {

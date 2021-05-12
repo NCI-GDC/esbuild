@@ -22,10 +22,13 @@ nodes:
 
   - label: raw_methylation_array
     submitter_id: rma_0
+    channel: Red
   - label: raw_methylation_array
     submitter_id: rma_1
+    channel: Red
   - label: raw_methylation_array
     submitter_id: rma_2
+    channel: Red
 
   - label: masked_methylation_array
     submitter_id: mma_0
