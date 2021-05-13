@@ -19,18 +19,12 @@ tied to the relevant aliquots during cache_database
 
 """
 from cdislogging import get_logger
-from gdcdatamodel.models import(
-    ReadGroup
-)
+from gdcdatamodel.models import ReadGroup
 
 from ..common import validators
-from ..common.builder import (
-    GraphIndexBuilder,
-)
+from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.active.mappings import ActiveESMapper
 
-from .mappings import (
-    ActiveESMapper,
-)
 
 log = get_logger("graph_active_index", log_level='info')
 
@@ -255,6 +249,14 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         case_to_aliquot, [["raw_methylation_array"]]
     )
 
+    case_to_masked_methylation_array_paths = list_product(
+        case_to_aliquot, [[
+            'raw_methylation_array',
+            'methylation_array_harmonization_workflow',
+            'masked_methylation_array'
+        ]]
+    )
+
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
     case_to_file_paths += case_to_copy_number_segment_paths
     case_to_file_paths += case_to_copy_number_estimate_paths
@@ -262,6 +264,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += case_to_slide_image_path
     case_to_file_paths += case_to_protein_expression
     case_to_file_paths += case_to_raw_methylation_array_paths
+    case_to_file_paths += case_to_masked_methylation_array_paths
 
     file_labels = GraphIndexBuilder.node_labels_by_category([
         'data_file',
