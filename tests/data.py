@@ -412,12 +412,9 @@ NODES = [
         state='released',
         alcohol_history='Unknown',
         alcohol_intensity='Unknown',
-        bmi=-1,
         cigarettes_per_day=10.3,
-        height=-1,
         project_id=u'TCGA-BRCA',
         submitter_id=u'TCGA-49-AARO_exposure',
-        weight=-1,
         years_smoked=-1
     ),
     md.FamilyHistory(
@@ -448,7 +445,6 @@ NODES = [
         submitter_id=u'TCGA-49-AARO_diagnosis',
         tissue_or_organ_of_origin=u'Abdominal esophagus',
         tumor_grade=u'GB',
-        tumor_stage=u'stage iiia',
     ),
     md.Treatment(
         node_id=get_node_id('treatment-1'),
@@ -560,7 +556,7 @@ NODES = [
         state='released',
         submitter_id='TCGA-AR-A1AR',
         primary_site='Breast',
-        disease_type='Breast Invasive Carcinoma'
+        disease_type='Blood Vessel Tumors'
     ),
     md.Case(
         node_id=get_node_id('unsubmitted-case'),
@@ -575,7 +571,7 @@ NODES = [
         state='released',
         submitter_id='TCGA-AR-A2AR',
         primary_site='Breast',
-        disease_type='Breast Invasive Carcinoma'
+        disease_type='Blood Vessel Tumors'
     ),
     md.Case(
         # released case in unreleased project
@@ -583,7 +579,7 @@ NODES = [
         project_id='INTERNAL-DEV1',
         state='released',
         submitter_id='INTERNAL-DEV-CASE-0001',
-        primary_site="Bone",
+        primary_site="Bones, joints and articular cartilage of limbs",
         disease_type="Miscellaneous Bone Tumors",
     ),
     md.Case(
@@ -592,7 +588,7 @@ NODES = [
         project_id='INTERNAL-AWG-ONE',
         state='submitted',
         submitter_id='INTERNAL-AWG-ONE-CASE-0001',
-        primary_site="Bone",
+        primary_site="Bones, joints and articular cartilage of limbs",
         disease_type="Miscellaneous Bone Tumors",
     ),
     md.Case(
@@ -601,7 +597,7 @@ NODES = [
         project_id='INTERNAL-AWG-ONE',
         state='processed',
         submitter_id='INTERNAL-AWG-ONE-CASE-0002',
-        primary_site="Bone",
+        primary_site="Bones, joints and articular cartilage of limbs",
         disease_type="Miscellaneous Bone Tumors",
     ),
     md.Case(
@@ -610,8 +606,8 @@ NODES = [
         project_id='TCGA-FAKE_ACTIVE',
         state='released',
         submitter_id='fake_submitter_1',
-        primary_site='Prostate',
-        disease_type='Prostate Adenocarcinoma'
+        primary_site='Prostate gland',
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Case(
         # second fake case in fake active project
@@ -620,7 +616,7 @@ NODES = [
         state='released',
         submitter_id='fake_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Case(
         # unreleased case in a released project
@@ -629,7 +625,7 @@ NODES = [
         state='submitted',
         submitter_id='unreleased_case_submitter_1',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Case(
         # TT-1044 blocking release
@@ -638,7 +634,7 @@ NODES = [
         state='submitted',
         submitter_id='unreleased_case_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Case(
         # TT-1044 blocking release
@@ -647,7 +643,7 @@ NODES = [
         state='submitted',
         submitter_id='unreleased_case_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Portion(
         node_id=get_node_id('portion-01'),
@@ -1218,7 +1214,7 @@ NODES = [
         state='released',
         submitter_id='released_case_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Annotation(
         node_id=get_node_id('withdrew-consent-annotation'),
@@ -1236,7 +1232,7 @@ NODES = [
         state='released',
         submitter_id='released_case_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Annotation(
         node_id=get_node_id('released-rescinded-annotation'),
@@ -1254,7 +1250,7 @@ NODES = [
         state='released',
         submitter_id='released_case_submitter_2',
         primary_site='Rectum',
-        disease_type='Rectum Adenocarcinoma'
+        disease_type='Adenomas and Adenocarcinomas'
     ),
     md.Sample(
         node_id=get_node_id("tt-260-sample"),

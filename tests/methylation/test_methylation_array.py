@@ -6,10 +6,12 @@ from jsonpath_rw import parse
 
 @pytest.mark.parametrize("index_type, path, expectations", [
     ("files", "[*].type.[*]", {
+        "masked_methylation_array": 4,
         "methylation_beta_value": 3,  # 1 from data.py 2 from methylation_array_scenario.yaml
         "raw_methylation_array": 3,
     }),
     ("files", "[*].data_type.[*]", {
+        "Masked Intensities": 4,
         "Methylation Beta Value": 3,
         "Raw Intensities": 3,
     }),
@@ -17,7 +19,12 @@ from jsonpath_rw import parse
         'mbv_0': 1,
         'mbv_1': 1,
     }),
+    ("files", "[*].channel.[*]", {
+        'Red': 5,   # 3 raw_methylation_array + 2 masked_methylation_array
+        'Green': 2,
+    }),
     ('cases', '[*].files.[*].data_type.[*]', {
+        "Masked Intensities": 4,
         'Methylation Beta Value': 3,
         "Raw Intensities": 3,
     }),
