@@ -35,6 +35,7 @@ from esbuild.graph.common.mappings import (
     ONE_TO_MANY,
     ONE_TO_ONE,
 )
+from esbuild.graph.common import validators
 
 log = get_logger("graph_index", log_level='info')
 
@@ -524,7 +525,7 @@ class GraphIndexBuilder(object):
         """
         return {
             node for node in nodes
-            if not self.is_node_hidden(node)
+            if not validators.is_node_hidden(node)
         }
 
     def get_case_files(self, node):
@@ -1320,7 +1321,7 @@ class GraphIndexBuilder(object):
         # filter files
         files = {
             f for f in files
-            if not self.is_node_hidden(f)
+            if not validators.is_node_hidden(f)
         }
 
         log.info('Got {} files from {} cases'.format(
@@ -1989,21 +1990,6 @@ class GraphIndexBuilder(object):
             return False
 
         return True
-
-    def is_node_hidden(self, node):
-        """Return True if the node should be traversed (and therefore must
-        remain in the cache) but should not appear in any documents
-
-        """
-
-        # Hide all submitted_* node types from indices
-        if node.label.startswith('submitted_'):
-            return True
-
-        if node.label == 'archive':
-            return True
-
-        return False
 
     @staticmethod
     def truncate_path(path, label):

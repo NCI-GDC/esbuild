@@ -21,6 +21,7 @@ tied to the relevant aliquots during cache_database
 from cdislogging import get_logger
 from gdcdatamodel.models import ReadGroup
 
+from ..common import validators
 from esbuild.graph.common.builder import GraphIndexBuilder
 from esbuild.graph.active.mappings import ActiveESMapper
 
@@ -427,7 +428,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         input_files = [
             f for f in self.get_parent_with_category(node, 'data_file')
-            if not self.is_node_hidden(f)
+            if not validators.is_node_hidden(f)
         ]
         input_file_docs = [self.get_simple_file_doc(f) for f in input_files]
 
@@ -439,7 +440,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         output_files = [
             f for f in self.get_child_with_category(node, 'data_file')
-            if not self.is_node_hidden(f)
+            if not validators.is_node_hidden(f)
         ]
         output_file_docs = [self.get_simple_file_doc(f) for f in output_files]
 
