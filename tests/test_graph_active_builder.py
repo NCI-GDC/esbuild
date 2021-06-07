@@ -400,10 +400,9 @@ def test_basic_counts(index, index_type, count):
      1, {'Colorectal Cancer'}),
     ('cases', '[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id',
      2, {get_node_id('read-group-1'), get_node_id('read-group-2')}),
-    ('cases', '[*].disease_type', 5, {'Breast Invasive Carcinoma',
-                                      'Prostate Adenocarcinoma',
-                                      'Rectum Adenocarcinoma'}),
-    ('cases', '[*].primary_site', 5, {'Breast', 'Prostate', 'Rectum'}),
+    ('cases', '[*].disease_type', 5, {'Blood Vessel Tumors',
+                                      'Adenomas and Adenocarcinomas'}),
+    ('cases', '[*].primary_site', 5, {'Breast', 'Prostate gland', 'Rectum'}),
     ('files', '[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id',
      1, {get_node_id('read-group-qc-1')}),
     ('files', '[*].index_files.[*].file_name',
@@ -458,10 +457,10 @@ def test_unreleased_nodes_not_indexed(
 
 
 @pytest.mark.parametrize('index_type,path,count,expected', [
-    ('projects', '[*].disease_type', 2, {'Breast Invasive Carcinoma',
-                                         'Prostate Adenocarcinoma',
-                                         'Rectum Adenocarcinoma'}),
-    ('projects', '[*].primary_site', 2, {'Breast', 'Prostate', 'Rectum'}),
+    ('projects', '[*].disease_type', 2, {
+        'Blood Vessel Tumors', 'Adenomas and Adenocarcinomas'
+    }),
+    ('projects', '[*].primary_site', 2, {'Breast', 'Prostate gland', 'Rectum'}),
     ])
 def test_path_value_set_equals_set(index, index_type, path, expected, count):
     results = parse(path).find(getattr(index, index_type))
