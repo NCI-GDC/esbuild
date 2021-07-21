@@ -4,16 +4,6 @@
 #
 #    pip-compile dev-requirements.in
 #
--e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
-    # via
-    #   -r dev-requirements.in
-    #   indexd
--e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
-    # via
-    #   -r dev-requirements.in
-    #   indexd
--e git+ssh://git@github.com/NCI-GDC/indexd.git@2.5.0#egg=indexd
-    # via -r dev-requirements.in
 attrs==20.3.0
     # via
     #   -c requirements.txt
@@ -41,6 +31,14 @@ decorator==4.4.2
     #   jsonpath-rw
 deepdiff==4.3.2
     # via -r dev-requirements.in
+git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
+    # via
+    #   -r dev-requirements.in
+    #   indexd
+git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
+    # via
+    #   -r dev-requirements.in
+    #   indexd
 flask==1.1.2
     # via indexd
 future==0.18.2
@@ -57,10 +55,12 @@ importlib-metadata==2.1.1
     #   jsonschema
     #   pluggy
     #   pytest
-git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient
+git+https://github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient
     # via
     #   -c requirements.txt
     #   indexd
+git+https://git@github.com/NCI-GDC/indexd.git@2.8.0#egg=indexd
+    # via -r dev-requirements.in
 itsdangerous==1.1.0
     # via flask
 jinja2==2.11.2
