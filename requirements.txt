@@ -44,7 +44,7 @@ git+https://github.com/NCI-GDC/gdcdictionary.git@2.4.0#egg=gdcdictionary
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
-git+ssh://git@github.com/NCI-GDC/gdc-models.git@feat/dev-807-boveri-mappings#egg=gdcmodels
+git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.8.1-rc.2#egg=gdcmodels
     # via
     #   esbuild (setup.py)
     #   normalizer
