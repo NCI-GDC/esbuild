@@ -81,7 +81,7 @@ ordered-set==4.0.2
     # via deepdiff
 packaging==20.8
     # via pytest
-pathlib2==2.3.5
+pathlib2==2.3.6
     # via pytest
 pluggy==0.13.1
     # via pytest
