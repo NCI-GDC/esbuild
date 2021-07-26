@@ -76,12 +76,14 @@ markupsafe==1.1.1
 mock==3.0.5
     # via -r dev-requirements.in
 more-itertools==8.6.0
-    # via pytest
+    # via
+    #   -c requirements.txt
+    #   pytest
 ordered-set==4.0.2
     # via deepdiff
 packaging==20.8
     # via pytest
-pathlib2==2.3.6
+pathlib2==2.3.5
     # via pytest
 pluggy==0.13.1
     # via pytest
