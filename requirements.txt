@@ -66,6 +66,8 @@ jsonschema==3.2.0
     # via
     #   gdcdatamodel
     #   gdcdictionary
+limits==1.5.1
+    # via python-logstash-async
 networkx==2.4
     # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer
@@ -80,9 +82,13 @@ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.3.0#egg=psqlgraph
     #   gdcdatamodel
 psycopg2==2.8.6
     # via psqlgraph
+pylogbeat==1.0.4
+    # via python-logstash-async
 pyrsistent==0.17.3
     # via jsonschema
 python-dotenv==0.10.5
+    # via esbuild (setup.py)
+python-logstash-async==2.3.0
     # via esbuild (setup.py)
 python-utils==2.4.0
     # via progressbar2
@@ -100,6 +106,7 @@ requests==2.25.1
     #   datadog
     #   esbuild (setup.py)
     #   indexclient
+    #   python-logstash-async
     #   queueclient
 rstr==2.2.6
     # via psqlgraph
@@ -109,8 +116,10 @@ six==1.15.0
     # via
     #   gdcmodels
     #   jsonschema
+    #   limits
     #   progressbar2
     #   psqlgraph
+    #   pylogbeat
     #   python-utils
 smmap==3.0.4
     # via gitdb

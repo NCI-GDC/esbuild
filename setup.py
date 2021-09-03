@@ -20,6 +20,7 @@ setup(
         "networkx<=2.4",
         "progressbar2>=2.0,<4",
         "python-dotenv~=0.10.3",
+        "python-logstash-async~=2.3.0",
         "requests~=2.7",
         "SQLAlchemy==1.3.3",
         "typing_extensions~=3.10",

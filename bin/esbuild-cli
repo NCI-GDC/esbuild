@@ -4,7 +4,7 @@ import argparse
 import json
 
 import datadog
-from esbuild import utils, reindexing, gdc_elasticsearch
+from esbuild import utils, reindexing, gdc_elasticsearch, logging
 from esbuild.export import mapping_exporter
 from concurrent import futures
 
@@ -23,7 +23,7 @@ def handle_reindex(args):
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
         progress_manager = reindexing.TaskProgressManager(task_factory, event_logger)
         reindexer = reindexing.Reindexer(
-            es, helper, progress_manager, event_logger, executor
+            es, helper, progress_manager, event_logger, executor, logging.logger
         )
 
         reindexer.reindex(
