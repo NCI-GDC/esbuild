@@ -12,7 +12,7 @@
     # via
     #   -r dev-requirements.in
     #   indexd
--e git+ssh://git@github.com/NCI-GDC/indexd.git@2.5.0#egg=indexd
+-e git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
     # via -r dev-requirements.in
 attrs==20.3.0
     # via
@@ -57,10 +57,6 @@ importlib-metadata==2.1.1
     #   jsonschema
     #   pluggy
     #   pytest
-git+ssh://git@github.com/NCI-GDC/indexclient.git@2.0.0#egg=indexclient
-    # via
-    #   -c requirements.txt
-    #   indexd
 itsdangerous==1.1.0
     # via flask
 jinja2==2.11.2
@@ -112,7 +108,6 @@ requests==2.25.1
     #   -c requirements.txt
     #   doiclient
     #   dosclient
-    #   indexclient
 six==1.15.0
     # via
     #   -c requirements.txt
@@ -143,6 +138,5 @@ zipp==1.2.0
     # via
     #   -c requirements.txt
     #   importlib-metadata
-
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
