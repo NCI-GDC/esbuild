@@ -227,7 +227,7 @@ if __name__ == "__main__":
             "No 'projects' have been provided, defaulting to '{}' projects from config"
             "".format(args.build_type)
         )
-        projects = config["{}_projects".format(args.build_type)]
+        projects = config["{}_projects"].format(args.build_type)
 
     # Skip some projects, if skip-projects argument is set
     if args.skip_projects:

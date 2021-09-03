@@ -10,4 +10,4 @@ python-dateutil<2.8.1,>=2.1
 # below is indexd and its dependencies
 -e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
 -e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
--e git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
+-e git+ssh://git@github.com/NCI-GDC/indexd.git@2.5.0#egg=indexd
