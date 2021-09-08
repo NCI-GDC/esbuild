@@ -76,7 +76,7 @@ def esbuild_argparser():
         help="A path to a yaml configruation file for overriding default configurations.",
         type=str,
     )
-    projects = parser.add_mutually_exclusive_group(required=True)
+    projects = parser.add_mutually_exclusive_group()
     projects.add_argument(
         "--project-group",
         help="The name for the specific group of projects from the configuration "
@@ -288,11 +288,6 @@ if __name__ == "__main__":
     # Restore index from S3 snapshot repository
     if args.restore_from_snapshot:
         backup_wrapper(args.restore_from_snapshot, args.index, "restore", args.bucket)
-
-    if args.projects and args.project_group:
-        raise Exception(
-            "Cannot provide both a project group as well as list of projects."
-        )
 
     projects = args.projects
     if not projects:
