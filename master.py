@@ -30,12 +30,7 @@ def esbuild_argparser():
     parser.add_argument(
         "--no-cleanup", action="store_true", help="If passed, do not delete old indices"
     )
-    parser.add_argument(
-        "--projects",
-        nargs="*",
-        help="If set, builds only set of projects specified (space-separated). Cannot be used with the project-group argument.",
-        required=False,
-    )
+
     parser.add_argument(
         "--index",
         help="Index name to upsert projects to. Must set when building subset of projects",
@@ -81,13 +76,20 @@ def esbuild_argparser():
         help="A path to a yaml configruation file for overriding default configurations.",
         type=str,
     )
-    parser.add_argument(
+    projects = parser.add_mutually_exclusive_group(required=True)
+    projects.add_argument(
         "--project-group",
         help="The name for the specific group of projects from the configuration "
         "file to be built. Defaults to the complete 'active' or 'legacy' list of "
         "projects based on the build-type argument. Cannot be used with the "
         "projects argument.",
         type=str,
+    )
+    projects.add_argument(
+        "--projects",
+        nargs="*",
+        help="If set, builds only set of projects specified (space-separated). Cannot "
+        "be used with the project-group argument.",
     )
 
     es_args = parser.add_argument_group(
@@ -237,7 +239,7 @@ def load_user_configuration(path: Optional[str]) -> dict:
         return {}
 
     if not os.path.exists(path):
-        raise Exception(
+        raise FileNotFoundError(
             "The provided configuration file does not exist: {}".format(path)
         )
 
