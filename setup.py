@@ -22,7 +22,6 @@ setup(
         "python-dotenv~=0.10.3",
         "requests~=2.7",
         "SQLAlchemy==1.3.3",
-        "typing_extensions~=3.10",
         "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.3.0#egg=psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.4.0#egg=gdcdictionary",
         "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.4.0#egg=gdcdatamodel",

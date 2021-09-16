@@ -6,8 +6,6 @@ import uuid
 from concurrent import futures
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Sequence, Tuple, Union
 
-from typing_extensions import Literal
-
 import datadog
 import elasticsearch
 import progressbar
@@ -83,7 +81,7 @@ class Arguments(NamedTuple):
     project_ids: Sequence[str]
     conflicts: str
     query: Optional[dict]
-    source: Optional[Union[Sequence[str], Dict[str, Any], Literal[True]]]
+    source: Optional[Union[Sequence[str], Dict[str, Any], bool]]
     script_text: Optional[str]
     script_language: Optional[str]
     run_id: uuid.UUID
@@ -290,7 +288,7 @@ class Reindexer:
         self,
         old_index: str,
         new_index: str,
-        index_types: Sequence[Literal["case", "file", "annotation", "project"]],
+        index_types: Sequence[str],
     ) -> Iterable[IndexPair]:
         if not index_types:
             return (IndexPair(old_index, new_index),)
@@ -410,15 +408,13 @@ class Reindexer:
         self,
         old_index: str,
         new_index: str,
-        index_types: Sequence[Literal["case", "file", "annotation", "project"]] = (),
+        index_types: Sequence[str] = (),
         project_ids: Sequence[str] = (),
-        conflicts: Literal["abort", "proceed"] = "abort",
-        source: Optional[Union[Sequence[str], Literal[True]]] = None,
+        conflicts: str = "abort",
+        source: Optional[Union[Sequence[str], bool]] = None,
         query: Optional[str] = None,
         script: Optional[str] = None,
-        script_language: Optional[
-            Literal["painless", "expression", "mustache", "java"]
-        ] = None,
+        script_language: Optional[str] = None,
     ):
         """Starts the Elasticsearch reindex process which moves the data from
         an existing index into a different (new or existing) index. If the new
