@@ -5,7 +5,7 @@ from datetime import datetime
 from hashlib import md5
 from functools import lru_cache
 from reprlib import repr
-from typing import List, Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional
 
 from cdislogging import get_logger
 from dotenv import load_dotenv
@@ -289,7 +289,7 @@ class ReleaseHelper:
     @classmethod
     def get_project_docs_query(cls,
                                index_type: str,
-                               project_ids: Optional[List[str]] = None) -> Dict:
+                               project_ids: Optional[Iterable[str]] = None) -> Dict:
         """
         Create a query that will return all documents from a given ``index_type``
         for a given subset of ``project_ids``. If no ``project_ids`` were passed,
@@ -303,9 +303,10 @@ class ReleaseHelper:
         if not project_ids:
             return {"match_all": {}}
 
-        project_q = {"terms": {"project_id": project_ids}}
-        case_or_annotation_q = {"terms": {"project.project_id": project_ids}}
-        file_q = {
+        project_ids = tuple(project_ids)
+        project_q: dict = {"terms": {"project_id": project_ids}}
+        case_or_annotation_q: dict = {"terms": {"project.project_id": project_ids}}
+        file_q: dict = {
             "nested": {
                 "path": "cases",
                 "query": {"terms": {"cases.project.project_id": project_ids}}
@@ -327,7 +328,7 @@ class ReleaseHelper:
     def delete_docs_from_index(self,
                                index_name: str,
                                index_type: str,
-                               projects_to_delete: List[str]):
+                               projects_to_delete: Iterable[str]):
         """
         Removes ebsuild docs associated with selected projects from the index.
 
@@ -347,8 +348,8 @@ class ReleaseHelper:
             self.es.delete_by_query(index=index_name, body={"query": q})
         except:
             self.log.exception(
-                "Unable to delete documents for projects: '{}' from: '{}'"
-                "".format(projects_to_delete, index_name)
+                "Unable to delete documents for projects: [{}] from: '{}'"
+                "".format(", ".join(projects_to_delete), index_name)
             )
 
     def add_esbuild_log(self, index_prefix, action, project_ids, timestamp=None, **kwargs):

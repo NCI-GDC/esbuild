@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
-from argparse import ArgumentParser
 
+import datadog
+from esbuild import utils, reindexing, gdc_elasticsearch
 from esbuild.export import mapping_exporter
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.utils import (
-    VersionedNodesDiffCollector,
-    force_merge_indices,
-    get_elasticsearch_client,
-)
+from concurrent import futures
 
 
 def handle_mappings(args):
@@ -19,65 +15,83 @@ def handle_mappings(args):
 
 
 def handle_reindex(args):
-    gdc_es = GDCElasticsearch(ActiveGraphIndexBuilder, indexd_client=None)
-    gdc_es.reindex(args.old_index, args.new_index, index_types=args.index_types,
-                   project_ids=args.project_ids)
+    es = utils.get_elasticsearch_client()
+    helper = utils.ReleaseHelper(es, "build_metadata", True)
+    event_logger = reindexing.EventLogger(datadog.statsd)
+
+    with futures.ThreadPoolExecutor() as executor:
+        task_factory = gdc_elasticsearch.TaskFactory(es, executor)
+        progress_manager = reindexing.TaskProgressManager(task_factory, event_logger)
+        reindexer = reindexing.Reindexer(
+            es, helper, progress_manager, event_logger, executor
+        )
+
+        reindexer.reindex(
+            old_index=args.old_index,
+            new_index=args.new_index,
+            index_types=args.index_types,
+            project_ids=args.project_ids,
+            conflicts=args.conflicts,
+            query=args.query,
+            script=args.script,
+            script_language=args.script_language,
+        )
 
 
 def handle_pre_flight(args):
-    collector = VersionedNodesDiffCollector(project_ids=args.project_ids)
+    collector = utils.VersionedNodesDiffCollector(project_ids=args.project_ids)
     diffs = collector.collect_differences()
 
     if args.out_file:
-        with open(args.out_file, 'w') as f:
+        with open(args.out_file, "w") as f:
             json.dump(diffs, f, indent=2)
     else:
         print(json.dumps(diffs, indent=2))
 
 
 def handle_force_merge(args):
-    es = get_elasticsearch_client()
-    force_merge_indices(es, args.index_prefix, args.index_names)
+    es = utils.get_elasticsearch_client()
+    utils.force_merge_indices(es, args.index_prefix, args.index_names)
 
 
 def get_parser():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-    subparser = parser.add_subparsers(title='subcommands')
+    subparser = parser.add_subparsers(title="subcommands")
 
+    # MAPPINGS
     mappings_sub = subparser.add_parser(
-        'mappings',
-        help=mapping_exporter.MappingExporter.__doc__
+        "mappings", help=mapping_exporter.MappingExporter.__doc__
     )
     mappings_sub.add_argument(
-        '-o',
-        '--output-dir',
-        default='mappings',
-        help='Directory to which to write the new mappings (./mappings by default)',
+        "-o",
+        "--output-dir",
+        default="mappings",
+        help="Directory to which to write the new mappings (./mappings by default)",
     )
     mappings_sub.set_defaults(func=handle_mappings)
 
+    # REINDEX
     reindex_sub = subparser.add_parser(
-        'reindex',
-        help=GDCElasticsearch.reindex.__doc__
+        "reindex", help="A command for calling Elasticsearch's reindex API."
     )
     reindex_sub.add_argument(
-        '--old-index',
+        "--old-index",
         required=True,
-        help='The name or alias of an existing Elasticsearch index that needs '
-             'reindexing',
+        help="The name or alias of an existing Elasticsearch index that needs "
+        "reindexing",
     )
     reindex_sub.add_argument(
-        '--new-index',
+        "--new-index",
         required=True,
-        help='The name of a destination Elasticsearch index'
+        help="The name of a destination Elasticsearch index",
     )
     reindex_sub.add_argument(
-        '--index-types',
+        "--index-types",
         required=False,
-        nargs='*',
+        nargs="*",
         default=(),
-        help='Elasticsearch document types to reindex',
+        help="Elasticsearch document types to reindex",
     )
     reindex_sub.add_argument(
         "--project-ids",
@@ -86,30 +100,52 @@ def get_parser():
         default=(),
         help="List of space separated projects to reindex",
     )
+    reindex_sub.add_argument(
+         "--conflicts",
+        required=False,
+        default="abort",
+        choices=("proceed", "abort"),
+        help="Set to proceed to continue reindexing even if there are conflicts. Defaults to abort.",
+    )
+    reindex_sub.add_argument(
+        "--query",
+        required=False,
+        help="A file containing a query to determine what is pulled from the source index.",
+    )
+    reindex_sub.add_argument(
+        "--script",
+        required=False,
+        help="A file containing a script to be run during the execution of the reindexing process.",
+    )
+    reindex_sub.add_argument(
+        "--script-language",
+        required=False,
+        help="The language of the script that was provided if any.",
+    )
     reindex_sub.set_defaults(func=handle_reindex)
 
+    # PRE-FLIGHT
     preflight_sub = subparser.add_parser(
-        'pre-flight',
-        help=VersionedNodesDiffCollector.__doc__
+        "pre-flight", help=utils.VersionedNodesDiffCollector.__doc__
     )
     preflight_sub.add_argument(
-        '-p', '--project_ids',
-        nargs='+',
+        "-p",
+        "--project_ids",
+        nargs="+",
         required=False,
-        help='Projects to run the pre-flight for',
+        help="Projects to run the pre-flight for",
     )
     preflight_sub.add_argument(
-        '-o', '--out-file',
-        metavar='FILE',
+        "-o",
+        "--out-file",
+        metavar="FILE",
         required=False,
-        help='Output file for the metadata differences.'
+        help="Output file for the metadata differences.",
     )
     preflight_sub.set_defaults(func=handle_pre_flight)
 
-    fm_sub = subparser.add_parser(
-        "force-merge",
-        help=force_merge_indices.__doc__
-    )
+    # FORCE-MERGE
+    fm_sub = subparser.add_parser("force-merge", help=utils.force_merge_indices.__doc__)
     fm_indices_group = fm_sub.add_mutually_exclusive_group()
     fm_indices_group.add_argument(
         "--index-prefix",
@@ -128,7 +164,7 @@ def get_parser():
     return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_parser().parse_args()
     try:
         args.func(args)
