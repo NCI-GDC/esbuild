@@ -124,6 +124,7 @@ class GDCElasticsearch(object):
                      running out of memory if build_projects is a large enough list (number of
                      nodes in all buld_projects is large enough)
         build_awg (bool): enable AWG specific logic
+        gencode_version (str): gencode_version to be built
         index_replicas (int): number of replicas to create when deploying index
         index_shards (int): number of shards to allocate for a deployed index
         cache_versioned (bool): enable looking up versioned files that haven't been
@@ -141,10 +142,12 @@ class GDCElasticsearch(object):
         self,
         converter_class: Type[builder.GraphIndexBuilder],
         indexd_client: Optional[client.IndexClient],
+        gencode_version: str,
         es: Optional[elasticsearch.Elasticsearch] = None,
         pg_driver: Optional[psqlgraph.PsqlGraphDriver] = None,
         index_prefix: Optional[str] = None,
         build_projects: Optional[List[str]] = None,
+        # since we are setting default in master.py, why are we duplicating them here
         selective_caching: bool = False,
         build_awg: bool = False,
         index_replicas: int = 0,
@@ -169,6 +172,7 @@ class GDCElasticsearch(object):
         self.index_prefix = index_prefix
         self.build_projects = build_projects
         self.selective_caching = selective_caching
+        self.gencode_version = gencode_version
 
         self.build_awg = build_awg
 
@@ -359,6 +363,7 @@ class GDCElasticsearch(object):
             build_awg=self.build_awg,
             selective_caching=self.selective_caching,
             versioned_files=versioned_files,
+            gencode_version=self.gencode_version,
         )
 
         cases, files, annotations, projects = self._cache_database(self.converter)

@@ -15,6 +15,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
 from functools import lru_cache
+from typing import Dict
 from uuid import uuid5, UUID
 
 import networkx as nx
@@ -196,6 +197,20 @@ class GraphIndexBuilder(object):
 
         # Versioned files that haven't been released yet
         self.versioned_files = kwargs.pop('versioned_files', None)
+
+        # Assuming we have some generated data files in 'v22' and some in 'v36'
+        # This will become obsolete when we finish upgrading to 'v36'
+        requested_gencode_version = kwargs.pop('gencode_version', 'all')
+        if requested_gencode_version == 'all':
+            requested_gencode_version = ['v22', 'v36']
+        else:
+            requested_gencode_version = [requested_gencode_version]
+        self.allowed_gencode_versions = ['neutral'].extend(requested_gencode_version)
+        # only keep the desired versions of the supplied versioned_files
+        if self.versioned_files:
+            self.versioned_files = [
+                file for file in self.versioned_files if self.check_gencode_version(file)
+            ]
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
@@ -833,6 +848,10 @@ class GraphIndexBuilder(object):
 
         return doc
 
+    def check_gencode_version(self, doc: Dict) -> bool:
+        gencode_ver = doc['metadata'].get('gencode_version')
+        return gencode_ver in self.allowed_gencode_versions
+
     def add_file_metadata_from_indexd(self, node):
         """
         Reads file metadata from indexd and sets it to node
@@ -859,9 +878,22 @@ class GraphIndexBuilder(object):
                         tags=["indexd", node.label]
                     )
                 return node
+            if not self.check_gencode_version(record.to_json()):
+                self.error(
+                    title="indexd data with wrong gencode_version, ignoring",
+                    text=f"node_type: {node.label} node_id: {node.node_id}",
+                    tags=["indexd", node.label]
+                )
+                self.file_metadata[node.node_id] = {'error': 'wrong gencode_version'}
+                return node
+
             record = record.to_json()
             # Cache indexd record
             self.file_metadata[node.node_id] = record
+
+        # for to_delete nodes and nodes with wrong gencode_version
+        if record.get('error'):
+            return node
 
         # Set node file metadata attributes according to indexd record
         for key in self.data_file_indexd_fields:
@@ -1422,6 +1454,7 @@ class GraphIndexBuilder(object):
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
+            # I think an == [], which leads to ann_docs == {}
             for a in an:
                 if a['annotation_id'] not in ann_docs:
                     ann_docs[a['annotation_id']] = a
