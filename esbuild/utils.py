@@ -29,12 +29,13 @@ def get_file_state(doc):
     return state
 
 
-INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ['file_id']
+INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ['file_id', 'gencode_version']
 INDEXD_METADATA_VALUE_GETTERS = {
     'file_id': lambda doc: doc.did,
     'md5sum': lambda doc: doc.hashes['md5'],
     'file_size': lambda doc: doc.size,
     'file_state': get_file_state,
+    'gencode_version': lambda doc: doc.metadata['gencode_version']
 }
 
 load_dotenv()

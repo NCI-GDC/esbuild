@@ -200,16 +200,17 @@ class GraphIndexBuilder(object):
 
         # Assuming we have some generated data files in 'v22' and some in 'v36'
         # This will become obsolete when we finish upgrading to 'v36'
+        self.allowed_gencode_versions = ['neutral']
         requested_gencode_version = kwargs.pop('gencode_version', 'all')
         if requested_gencode_version == 'all':
-            requested_gencode_version = ['v22', 'v36']
+            self.allowed_gencode_versions.extend(['v22', 'v36'])
         else:
-            requested_gencode_version = [requested_gencode_version]
-        self.allowed_gencode_versions = ['neutral'].extend(requested_gencode_version)
+            self.allowed_gencode_versions.append(requested_gencode_version)
         # only keep the desired versions of the supplied versioned_files
         if self.versioned_files:
             self.versioned_files = [
-                file for file in self.versioned_files if self.check_gencode_version(file)
+                file for file in self.versioned_files.values()
+                if file['gencode_version'] in self.allowed_gencode_versions
             ]
 
         # Set all optional arguments as attributes:
