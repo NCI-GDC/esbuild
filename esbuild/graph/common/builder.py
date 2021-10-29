@@ -200,18 +200,9 @@ class GraphIndexBuilder(object):
 
         # Assuming we have some generated data files in 'v22' and some in 'v36'
         # This will become obsolete when we finish upgrading to 'v36'
-        self.allowed_gencode_versions = ['neutral']
         requested_gencode_version = kwargs.pop('gencode_version', 'all')
-        if requested_gencode_version == 'all':
-            self.allowed_gencode_versions.extend(['v22', 'v36'])
-        else:
-            self.allowed_gencode_versions.append(requested_gencode_version)
-        # only keep the desired versions of the supplied versioned_files
-        if self.versioned_files:
-            self.versioned_files = [
-                file for file in self.versioned_files.values()
-                if file['gencode_version'] in self.allowed_gencode_versions
-            ]
+        if requested_gencode_version != 'all':
+            self.allowed_gencode_versions = ['neutral', requested_gencode_version]
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
@@ -849,9 +840,12 @@ class GraphIndexBuilder(object):
 
         return doc
 
-    def check_gencode_version(self, doc: Dict) -> bool:
-        gencode_ver = doc['metadata'].get('gencode_version')
-        return gencode_ver in self.allowed_gencode_versions
+    def check_gencode_version(self, is_node_submittable: bool, doc: Dict) -> bool:
+        if not hasattr(self, 'allowed_gencode_versions') or is_node_submittable:
+            return True
+        else:
+            gencode_ver = doc.get('metadata', {}).get('gencode_version', None)
+            return gencode_ver in self.allowed_gencode_versions
 
     def add_file_metadata_from_indexd(self, node):
         """
@@ -869,6 +863,7 @@ class GraphIndexBuilder(object):
         # If not found, get it from indexd
         if not record:
             record = self.indexd.get(node.node_id)
+
             if not record:
                 if node.sysan.get('to_delete'):
                     self.file_metadata[node.node_id] = {'error': 'to_delete file'}
@@ -879,13 +874,17 @@ class GraphIndexBuilder(object):
                         tags=["indexd", node.label]
                     )
                 return node
-            if not self.check_gencode_version(record.to_json()):
+
+            is_node_submittable = node._dictionary.get("submittable", False)
+            if not self.check_gencode_version(is_node_submittable, record.to_json()):
                 self.error(
                     title="indexd data with wrong gencode_version, ignoring",
                     text=f"node_type: {node.label} node_id: {node.node_id}",
                     tags=["indexd", node.label]
                 )
-                self.file_metadata[node.node_id] = {'error': 'wrong gencode_version'}
+                self.file_metadata[node.node_id] = {
+                    'error': 'wrong gencode_version for generated data files'
+                }
                 return node
 
             record = record.to_json()
