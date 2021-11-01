@@ -535,12 +535,6 @@ class GraphIndexBuilder(object):
             if not validators.is_node_hidden(node)
         }
 
-    def remove_error_files(self, unfiltered_files):
-        return {
-            file for file in unfiltered_files
-            if 'error' not in self.file_metadata[file.node_id]
-        }
-
     def get_case_files(self, node):
         """Return a list of file nodes by walking out from case"""
 
@@ -548,7 +542,6 @@ class GraphIndexBuilder(object):
         # Set file metadata fields from indexd as node properties
         files = (self.add_file_metadata_from_indexd(f) for f in files)
 
-        files = self.remove_error_files(unfiltered_files=files)
         files = self.remove_bam_index_files(files)
         files = self.remove_hidden_nodes(files)
 
