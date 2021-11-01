@@ -203,6 +203,17 @@ class GraphIndexBuilder(object):
         requested_gencode_version = kwargs.pop('gencode_version', 'all')
         if requested_gencode_version != 'all':
             self.allowed_gencode_versions = ['neutral', requested_gencode_version]
+            if self.versioned_files:
+                removed_file_ids = set()
+                docs = self.indexd.bulk_request(dids=set(self.versioned_files.keys()))
+                for doc in docs:
+                    if doc.metadata['gencode_version'] not in self.allowed_gencode_versions:
+                        del self.versioned_files[doc.did]
+                        removed_file_ids.add(doc.did)
+                log.debug(
+                    f"{len(removed_file_ids)} files removed from versioned_files:",
+                    f"{removed_file_ids}"
+                )
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes

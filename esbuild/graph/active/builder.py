@@ -361,7 +361,6 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return {
             file for file in unfiltered_files
             if 'error' not in self.file_metadata.get(file.node_id, {})
-            or (self.versioned_files and file.node_id in self.versioned_files)
         }
 
     def denormalize_file(self, node, ptree):
