@@ -446,3 +446,21 @@ def test_reindex_per_project(
 
     assert case_results["hits"]["total"]["value"] == 2
     assert project_results["hits"]["total"]["value"] == 1
+
+
+@pytest.mark.usefixtures('apply_gencode_to_indexd')
+def test_es_with_gencode(setup_test, init_indexd, make_gdc_es):
+    es = setup_test
+    gdc_es = make_gdc_es(
+        indexd_client=init_indexd,
+        converter=ActiveGraphIndexBuilder,
+        gencode_version='v36',
+    )
+    gdc_es.go()
+
+    all_indices = get_all_indices(setup_test)
+    expected_indices = set(gdc_es.index_names.values()) | {"build_metadata"}
+    assert set(all_indices) == expected_indices
+
+    file_index = gdc_es.index_names["file"]
+    assert not es.exists(index=file_index, id=get_node_id('aggregated-somatic-mutation-1'))

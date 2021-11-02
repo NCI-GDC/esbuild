@@ -215,26 +215,11 @@ def test_awg_build(init_indexd, pg_driver):
     }
 
 
-@pytest.fixture
-def indexd_with_gencode(init_indexd, pg_driver):
-    gencode_versions = [
-        [get_node_id('aggregated-somatic-mutation-1'), 'v22'],
-        [get_node_id('methyl-beta-value'), 'v36'],
-        [get_node_id('genie-struct-var-released'), 'v36'],
-    ]
-    with pg_driver.session_scope():
-        for node_id, gencode in gencode_versions:
-            doc = init_indexd.get(node_id)
-            doc.metadata['gencode_version'] = gencode
-            doc.patch()
-    return gencode_versions
-
-
 @pytest.mark.parametrize(
     'gencode,expected_number',
     [['v22', 13], ['v36', 14], ['all', 15],]
 )
-@pytest.mark.usefixtures('indexd_with_gencode')
+@pytest.mark.usefixtures('apply_gencode_to_indexd')
 def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
@@ -248,7 +233,7 @@ def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
     assert len(index_docs[1]) == expected_number
 
 
-@pytest.mark.usefixtures('indexd_with_gencode')
+@pytest.mark.usefixtures('apply_gencode_to_indexd')
 @pytest.mark.parametrize('gencode,expected', [['v36', False],['v22', True]])
 def test_is_file_indexed_for_gencode(init_indexd, pg_driver, gencode, expected):
     builder = ActiveGraphIndexBuilder(

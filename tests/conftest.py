@@ -148,6 +148,21 @@ def init_indexd(indexd_client, create_indexd_documents):
     return indexd_client
 
 
+@pytest.fixture
+def apply_gencode_to_indexd(init_indexd, pg_driver):
+    gencode_versions = [
+        [data.get_node_id('aggregated-somatic-mutation-1'), 'v22'],
+        [data.get_node_id('methyl-beta-value'), 'v36'],
+        [data.get_node_id('genie-struct-var-released'), 'v36'],
+    ]
+    with pg_driver.session_scope():
+        for node_id, gencode in gencode_versions:
+            doc = init_indexd.get(node_id)
+            doc.metadata['gencode_version'] = gencode
+            doc.patch()
+    return gencode_versions
+
+
 class TestError(Exception):
     """Monkeypatch exception for testinting exception handling"""
     pass
