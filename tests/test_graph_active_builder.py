@@ -231,21 +231,37 @@ def indexd_with_gencode(init_indexd, pg_driver):
 
 
 @pytest.mark.parametrize(
-    'gencode_version, expected_number',
-    [['v22', 13], ['v36', 14], ['all', 15]]
+    'gencode,expected_number',
+    [['v22', 13], ['v36', 14], ['all', 15],]
 )
 @pytest.mark.usefixtures('indexd_with_gencode')
-def test_gencode_version(init_indexd, pg_driver, gencode_version, expected_number):
+def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
         indexd_client=init_indexd,
         build_projects={'TCGA-BRCA'},
-        gencode_version=gencode_version,
+        gencode_version=gencode,
     )
     builder.cache_database()
 
-    cases, files, annotations, projects = builder.denormalize_all()
-    assert len(files) == expected_number
+    index_docs = builder.denormalize_all()
+    assert len(index_docs[1]) == expected_number
+
+
+@pytest.mark.usefixtures('indexd_with_gencode')
+@pytest.mark.parametrize('gencode,expected', [['v36', False],['v22', True]])
+def test_is_file_indexed_for_gencode(init_indexd, pg_driver, gencode, expected):
+    builder = ActiveGraphIndexBuilder(
+        psqlgraph_driver=pg_driver,
+        indexd_client=init_indexd,
+        build_projects={'TCGA-BRCA'},
+        gencode_version=gencode,
+    )
+    builder.cache_database()
+
+    with pg_driver.session_scope():
+        node = pg_driver.nodes().get(get_node_id('aggregated-somatic-mutation-1'))
+        assert builder.is_file_indexed(node) is expected
 
 
 def test_include_switch():

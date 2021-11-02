@@ -886,6 +886,7 @@ class GraphIndexBuilder(object):
                         "node_type: {} node_id: {}".format(node.label, node.node_id),
                         tags=["indexd", node.label]
                     )
+                    self.file_metadata[node.node_id] = {'error': 'no indexd record'}
                 return node
 
             is_node_submittable = node._dictionary.get("submittable", False)
@@ -1856,15 +1857,21 @@ class GraphIndexBuilder(object):
 
         """
 
-        if self.versioned_files and node.node_id in self.versioned_files:
-            return True
-
         # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
 
+        if self.versioned_files and node.node_id in self.versioned_files:
+            return True
+
         # Add file metadata to the node
         node = self.add_file_metadata_from_indexd(node)
+
+        # remove file node with wrong gencode_version
+        # TODO: should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
+        if self.file_metadata[node.node_id] == ENTRY_FOR_WRONG_GENCODE_FILE:
+            log.info(f"File not indexed: {self.file_metadata[node.node_id]['error']}", node)
+            return False
 
         # Remove files with no acl entries
         if len(node.acl) == 0:
