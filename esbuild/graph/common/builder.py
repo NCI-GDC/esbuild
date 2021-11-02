@@ -40,6 +40,9 @@ from esbuild.graph.common import validators
 
 log = get_logger("graph_index", log_level='info')
 
+ENTRY_FOR_WRONG_GENCODE_FILE = {
+    'error': 'wrong gencode_version for generated data files'
+}
 
 @lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):
@@ -204,15 +207,14 @@ class GraphIndexBuilder(object):
         if requested_gencode_version != 'all':
             self.allowed_gencode_versions = ['neutral', requested_gencode_version]
             if self.versioned_files:
-                removed_file_ids = set()
                 docs = self.indexd.bulk_request(dids=set(self.versioned_files.keys()))
                 for doc in docs:
                     if doc.metadata['gencode_version'] not in self.allowed_gencode_versions:
                         del self.versioned_files[doc.did]
-                        removed_file_ids.add(doc.did)
+                        self.file_metadata[doc.did] = ENTRY_FOR_WRONG_GENCODE_FILE
                 log.debug(
-                    f"{len(removed_file_ids)} files removed from versioned_files:",
-                    f"{removed_file_ids}"
+                    f"{len(self.file_metadata)} files removed from versioned_files:",
+                    f"{sorted(self.file_metadata.keys())}"
                 )
 
         # Set all optional arguments as attributes:
@@ -893,9 +895,7 @@ class GraphIndexBuilder(object):
                     text=f"node_type: {node.label} node_id: {node.node_id}",
                     tags=["indexd", node.label]
                 )
-                self.file_metadata[node.node_id] = {
-                    'error': 'wrong gencode_version for generated data files'
-                }
+                self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE_FILE
                 return node
 
             record = record.to_json()

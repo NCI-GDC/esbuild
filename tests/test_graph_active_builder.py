@@ -215,6 +215,39 @@ def test_awg_build(init_indexd, pg_driver):
     }
 
 
+@pytest.fixture
+def indexd_with_gencode(init_indexd, pg_driver):
+    gencode_versions = [
+        [get_node_id('aggregated-somatic-mutation-1'), 'v22'],
+        [get_node_id('methyl-beta-value'), 'v36'],
+        [get_node_id('genie-struct-var-released'), 'v36'],
+    ]
+    with pg_driver.session_scope():
+        for node_id, gencode in gencode_versions:
+            doc = init_indexd.get(node_id)
+            doc.metadata['gencode_version'] = gencode
+            doc.patch()
+    return gencode_versions
+
+
+@pytest.mark.parametrize(
+    'gencode_version, expected_number',
+    [['v22', 13], ['v36', 14], ['all', 15]]
+)
+@pytest.mark.usefixtures('indexd_with_gencode')
+def test_gencode_version(init_indexd, pg_driver, gencode_version, expected_number):
+    builder = ActiveGraphIndexBuilder(
+        psqlgraph_driver=pg_driver,
+        indexd_client=init_indexd,
+        build_projects={'TCGA-BRCA'},
+        gencode_version=gencode_version,
+    )
+    builder.cache_database()
+
+    cases, files, annotations, projects = builder.denormalize_all()
+    assert len(files) == expected_number
+
+
 def test_include_switch():
     mapper = ActiveGraphIndexBuilder.mapper
 
