@@ -1870,7 +1870,7 @@ class GraphIndexBuilder(object):
         # remove file node with wrong gencode_version
         # TODO: should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
         if self.file_metadata[node.node_id] == ENTRY_FOR_WRONG_GENCODE_FILE:
-            log.info(f"File not indexed: {self.file_metadata[node.node_id]['error']}", node)
+            log.info(f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['error']}")
             return False
 
         # Remove files with no acl entries
