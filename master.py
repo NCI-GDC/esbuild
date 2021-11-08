@@ -78,7 +78,7 @@ def esbuild_argparser():
     )
     parser.add_argument(
         "--gencode-version",
-        help="set desired gencode_version for indexing, 'natural' nodes are always included."
+        help="set desired gencode_version for indexing, 'neutral' nodes are always included."
         "if not set, all available nodes will be included. ",
         type=str,
         default='all',
