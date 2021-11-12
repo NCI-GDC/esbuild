@@ -40,6 +40,7 @@ from esbuild.graph.common import validators
 
 log = get_logger("graph_index", log_level='info')
 
+AVAILABLE_GENCODE_VERSIONS = frozenset(['neutral', 'v22', 'v36'])
 ENTRY_FOR_WRONG_GENCODE_FILE = {
     'error': 'wrong gencode_version for generated data files'
 }
@@ -199,23 +200,9 @@ class GraphIndexBuilder(object):
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
         # Versioned files that haven't been released yet
-        self.versioned_files = kwargs.pop('versioned_files', None)
+        self.versioned_files = kwargs.pop('versioned_files', {})
 
-        # Assuming we have some generated data files in 'v22' and some in 'v36'
-        # This will become obsolete when we finish upgrading to 'v36'
-        requested_gencode_version = kwargs.pop('gencode_version', 'all')
-        if requested_gencode_version != 'all':
-            self.allowed_gencode_versions = ['neutral', requested_gencode_version]
-            if self.versioned_files:
-                docs = self.indexd.bulk_request(dids=set(self.versioned_files.keys()))
-                for doc in docs:
-                    if doc.metadata['gencode_version'] not in self.allowed_gencode_versions:
-                        del self.versioned_files[doc.did]
-                        self.file_metadata[doc.did] = ENTRY_FOR_WRONG_GENCODE_FILE
-                log.debug(
-                    f"{len(self.file_metadata)} files removed from versioned_files:",
-                    f"{sorted(self.file_metadata.keys())}"
-                )
+        self.allowed_gencode_versions = kwargs.pop('allowed_gencode_versions', AVAILABLE_GENCODE_VERSIONS)
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
@@ -467,9 +454,7 @@ class GraphIndexBuilder(object):
         """
 
         base = {}
-        old_props = {}
-        if self.versioned_files and node.node_id in self.versioned_files:
-            old_props = self.versioned_files[node.node_id]
+        old_props = self.versioned_files.get(node.node_id, {})
 
         if include_id and node.label in self.file_labels:
             base.update({'file_id': old_props.get('file_id') or node.node_id})
@@ -853,7 +838,8 @@ class GraphIndexBuilder(object):
 
         return doc
 
-    def check_gencode_version(self, is_node_submittable: bool, doc: Dict) -> bool:
+    def check_gencode_version(self, node: Node, doc: Dict) -> bool:
+        is_node_submittable = node._dictionary.get("submittable", False)
         if not hasattr(self, 'allowed_gencode_versions') or is_node_submittable:
             return True
         else:
@@ -865,7 +851,7 @@ class GraphIndexBuilder(object):
         Reads file metadata from indexd and sets it to node
         """
 
-        if self.versioned_files and node.node_id in self.versioned_files:
+        if node.node_id in self.versioned_files:
             for key, value in self.versioned_files[node.node_id].items():
                 setattr(node, key, value)
             return node
@@ -889,8 +875,7 @@ class GraphIndexBuilder(object):
                     self.file_metadata[node.node_id] = {'error': 'no indexd record'}
                 return node
 
-            is_node_submittable = node._dictionary.get("submittable", False)
-            if not self.check_gencode_version(is_node_submittable, record.to_json()):
+            if not self.check_gencode_version(node, record.to_json()):
                 self.error(
                     title="indexd data with wrong gencode_version, ignoring",
                     text=f"node_type: {node.label} node_id: {node.node_id}",
@@ -1861,7 +1846,7 @@ class GraphIndexBuilder(object):
         if node.label not in self.file_labels:
             return True
 
-        if self.versioned_files and node.node_id in self.versioned_files:
+        if node.node_id in self.versioned_files:
             return True
 
         # Add file metadata to the node
@@ -1996,7 +1981,7 @@ class GraphIndexBuilder(object):
             elif node.state in released_states and \
                     node.label != 'annotation':
                 return True
-            elif self.versioned_files and node.node_id in self.versioned_files:
+            elif node.node_id in self.versioned_files:
                 return True
 
             if node.label == 'annotation' and \

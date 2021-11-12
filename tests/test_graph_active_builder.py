@@ -217,7 +217,7 @@ def test_awg_build(init_indexd, pg_driver):
 
 @pytest.mark.parametrize(
     'gencode,expected_number',
-    [['v22', 13], ['v36', 14], ['all', 15],]
+    [['v22', 13], ['v36', 14], ]
 )
 @pytest.mark.usefixtures('apply_gencode_to_indexd')
 def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
@@ -225,7 +225,7 @@ def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
         psqlgraph_driver=pg_driver,
         indexd_client=init_indexd,
         build_projects={'TCGA-BRCA'},
-        gencode_version=gencode,
+        allowed_gencode_versions=frozenset(['netural', gencode]),
     )
     builder.cache_database()
 
@@ -240,7 +240,7 @@ def test_is_file_indexed_for_gencode(init_indexd, pg_driver, gencode, expected):
         psqlgraph_driver=pg_driver,
         indexd_client=init_indexd,
         build_projects={'TCGA-BRCA'},
-        gencode_version=gencode,
+        allowed_gencode_versions=frozenset(['netural', gencode]),
     )
     builder.cache_database()
 

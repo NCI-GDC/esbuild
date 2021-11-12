@@ -172,7 +172,10 @@ class GDCElasticsearch(object):
         self.index_prefix = index_prefix
         self.build_projects = build_projects
         self.selective_caching = selective_caching
-        self.gencode_version = gencode_version
+
+        self.allowed_gencode_versions = builder.AVAILABLE_GENCODE_VERSIONS
+        if gencode_version != 'all':
+            self.allowed_gencode_versions = frozenset(['neutral', gencode_version])
 
         self.build_awg = build_awg
 
@@ -243,15 +246,18 @@ class GDCElasticsearch(object):
             self.log.info("Saving to {}".format(file_name))
             _save_docs(docs, file_name)
 
-    def _cache_versioned_files(self) -> Optional[dict]:
+    def _cache_versioned_files(self) -> dict:
 
         if not self.cache_versioned or self.build_awg or not self.build_projects:
-            return None
+            return {}
 
         vnc = utils.VersionedNodesDiffCollector(
-            self.build_projects, self.graph, self.indexd_client
+            project_ids=self.build_projects,
+            graph=self.graph,
+            indexd_client=self.indexd_client,
+            allowed_gencode_versions=self.allowed_gencode_versions,
         )
-        return vnc.run()
+        return vnc.collect_differences()
 
     def _cache_database(
         self, converter: builder.GraphIndexBuilder
@@ -363,7 +369,7 @@ class GDCElasticsearch(object):
             build_awg=self.build_awg,
             selective_caching=self.selective_caching,
             versioned_files=versioned_files,
-            gencode_version=self.gencode_version,
+            allowed_gencode_versions=self.allowed_gencode_versions,
         )
 
         cases, files, annotations, projects = self._cache_database(self.converter)
