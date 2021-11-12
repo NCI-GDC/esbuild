@@ -202,7 +202,13 @@ class GraphIndexBuilder(object):
         # Versioned files that haven't been released yet
         self.versioned_files = kwargs.pop('versioned_files', {})
 
-        self.allowed_gencode_versions = kwargs.pop('allowed_gencode_versions', AVAILABLE_GENCODE_VERSIONS)
+        self.allowed_gencode_versions = kwargs.pop(
+            'allowed_gencode_versions', AVAILABLE_GENCODE_VERSIONS
+        )
+        if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
+            raise NotImplementedError(
+                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+            )
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes

@@ -176,6 +176,10 @@ class GDCElasticsearch(object):
         self.allowed_gencode_versions = builder.AVAILABLE_GENCODE_VERSIONS
         if gencode_version != 'all':
             self.allowed_gencode_versions = frozenset(['neutral', gencode_version])
+            if not self.allowed_gencode_versions.issubset(builder.AVAILABLE_GENCODE_VERSIONS):
+                raise NotImplementedError(
+                    f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                )
 
         self.build_awg = build_awg
 

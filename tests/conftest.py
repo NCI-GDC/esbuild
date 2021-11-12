@@ -123,8 +123,8 @@ def create_indexd_documents(indexd_client):
             urls_metadata = {
                 urls[0]: {'state': record.get('file_state', 'validated')}
             }
-            if 'gencode_version' not in record:
-                record['gencode_version'] = 'neutral'
+            if "gencode_version" not in record:
+                record["gencode_version"] = "neutral"
             doc = indexd_client.create(
                 did=record['did'],
                 acl=record['acl'],
@@ -149,18 +149,17 @@ def init_indexd(indexd_client, create_indexd_documents):
 
 
 @pytest.fixture
-def apply_gencode_to_indexd(init_indexd, pg_driver):
+def apply_gencode_to_indexd(init_indexd):
     gencode_versions = [
         [data.get_node_id('aggregated-somatic-mutation-1'), 'v22'],
         [data.get_node_id('methyl-beta-value'), 'v36'],
         [data.get_node_id('genie-struct-var-released'), 'v36'],
     ]
-    with pg_driver.session_scope():
-        for node_id, gencode in gencode_versions:
-            doc = init_indexd.get(node_id)
-            doc.metadata['gencode_version'] = gencode
-            doc.patch()
-    return gencode_versions
+    for node_id, gencode in gencode_versions:
+        doc = init_indexd.get(node_id)
+        doc.metadata['gencode_version'] = gencode
+        doc.patch()
+    return init_indexd
 
 
 class TestError(Exception):

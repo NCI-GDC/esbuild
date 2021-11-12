@@ -216,16 +216,14 @@ def test_awg_build(init_indexd, pg_driver):
 
 
 @pytest.mark.parametrize(
-    'gencode,expected_number',
-    [['v22', 13], ['v36', 14], ]
+    'gencode,expected_number', [['v22', 13], ['v36', 14], ]
 )
-@pytest.mark.usefixtures('apply_gencode_to_indexd')
-def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
+def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
-        indexd_client=init_indexd,
+        indexd_client=apply_gencode_to_indexd,
         build_projects={'TCGA-BRCA'},
-        allowed_gencode_versions=frozenset(['netural', gencode]),
+        allowed_gencode_versions=frozenset(['neutral', gencode]),
     )
     builder.cache_database()
 
@@ -233,14 +231,13 @@ def test_gencode_version(init_indexd, pg_driver, gencode, expected_number):
     assert len(index_docs[1]) == expected_number
 
 
-@pytest.mark.usefixtures('apply_gencode_to_indexd')
 @pytest.mark.parametrize('gencode,expected', [['v36', False],['v22', True]])
-def test_is_file_indexed_for_gencode(init_indexd, pg_driver, gencode, expected):
+def test_is_file_indexed_for_gencode(apply_gencode_to_indexd, pg_driver, gencode, expected):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
-        indexd_client=init_indexd,
+        indexd_client=apply_gencode_to_indexd,
         build_projects={'TCGA-BRCA'},
-        allowed_gencode_versions=frozenset(['netural', gencode]),
+        allowed_gencode_versions=frozenset(['neutral', gencode]),
     )
     builder.cache_database()
 
