@@ -123,8 +123,6 @@ def create_indexd_documents(indexd_client):
             urls_metadata = {
                 urls[0]: {'state': record.get('file_state', 'validated')}
             }
-            if "gencode_version" not in record:
-                record["gencode_version"] = "neutral"
             doc = indexd_client.create(
                 did=record['did'],
                 acl=record['acl'],

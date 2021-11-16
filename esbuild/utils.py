@@ -189,7 +189,7 @@ class VersionedNodesDiffCollector(object):
                            if v.version and v.metadata.get('release_number')],
                           key=lambda x: int(x.version))[-1]
 
-        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
+        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version", "neutral")
 
         # Get primary url ('type' should be 'cleversafe')
         primary_urls = {url: meta

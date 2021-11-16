@@ -147,7 +147,7 @@ class GDCElasticsearch(object):
         index_prefix: Optional[str] = None,
         build_projects: Optional[List[str]] = None,
         # since we are setting default in master.py, why are we duplicating them here
-        gencode_version: Optional[str] = 'all',
+        gencode_version: Optional[str] = "all",
         selective_caching: bool = False,
         build_awg: bool = False,
         index_replicas: int = 0,

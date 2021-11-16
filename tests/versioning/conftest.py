@@ -30,12 +30,11 @@ def create_indexd_for_node(client, node, version, release, baseid):
         'urls': list(urls_metadata.keys()),
         'urls_metadata': urls_metadata,
         'acl': ['phs000178'],
-        'metadata': {'gencode_version': 'neutral'}
     }
     if version:
         json_doc['version'] = version
     if release:
-        json_doc['metadata'].update({'release_number': release})
+        json_doc['metadata'] = {'release_number': release}
     if baseid:
         json_doc['baseid'] = baseid
 

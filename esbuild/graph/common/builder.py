@@ -849,7 +849,7 @@ class GraphIndexBuilder(object):
         if not hasattr(self, "allowed_gencode_versions") or is_node_submittable:
             return True
         else:
-            gencode_ver = doc.get("metadata", {}).get("gencode_version", None)
+            gencode_ver = doc.get("metadata", {}).get("gencode_version", "neutral")
             return gencode_ver in self.allowed_gencode_versions
 
     def add_file_metadata_from_indexd(self, node):
