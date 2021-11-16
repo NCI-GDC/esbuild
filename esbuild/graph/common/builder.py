@@ -1457,7 +1457,7 @@ class GraphIndexBuilder(object):
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
-            # I think an == [], which leads to ann_docs == {}
+            # TODO: refactor the logic for `an` as denormalize_case returns []
             for a in an:
                 if a['annotation_id'] not in ann_docs:
                     ann_docs[a['annotation_id']] = a

@@ -453,7 +453,7 @@ def test_es_with_gencode(pg_driver, setup_test, apply_gencode_to_indexd, make_gd
     gdc_es = make_gdc_es(
         indexd_client=apply_gencode_to_indexd,
         converter=ActiveGraphIndexBuilder,
-        gencode_version='v22',
+        gencode_version="v22",
     )
     gdc_es.go()
 
