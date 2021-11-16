@@ -40,9 +40,9 @@ from esbuild.graph.common import validators
 
 log = get_logger("graph_index", log_level='info')
 
-AVAILABLE_GENCODE_VERSIONS = frozenset(['neutral', 'v22', 'v36'])
+AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 ENTRY_FOR_WRONG_GENCODE_FILE = {
-    'error': 'wrong gencode_version for generated data files'
+    "error": "wrong gencode_version for generated data files"
 }
 
 @lru_cache(maxsize=32)
@@ -203,7 +203,7 @@ class GraphIndexBuilder(object):
         self.versioned_files = kwargs.pop('versioned_files', {})
 
         self.allowed_gencode_versions = kwargs.pop(
-            'allowed_gencode_versions', AVAILABLE_GENCODE_VERSIONS
+            "allowed_gencode_versions", AVAILABLE_GENCODE_VERSIONS
         )
         if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
             raise NotImplementedError(
@@ -846,10 +846,10 @@ class GraphIndexBuilder(object):
 
     def check_gencode_version(self, node: Node, doc: Dict) -> bool:
         is_node_submittable = node._dictionary.get("submittable", False)
-        if not hasattr(self, 'allowed_gencode_versions') or is_node_submittable:
+        if not hasattr(self, "allowed_gencode_versions") or is_node_submittable:
             return True
         else:
-            gencode_ver = doc.get('metadata', {}).get('gencode_version', None)
+            gencode_ver = doc.get("metadata", {}).get("gencode_version", None)
             return gencode_ver in self.allowed_gencode_versions
 
     def add_file_metadata_from_indexd(self, node):
@@ -878,7 +878,7 @@ class GraphIndexBuilder(object):
                         "node_type: {} node_id: {}".format(node.label, node.node_id),
                         tags=["indexd", node.label]
                     )
-                    self.file_metadata[node.node_id] = {'error': 'no indexd record'}
+                    self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
 
             if not self.check_gencode_version(node, record.to_json()):
@@ -895,7 +895,7 @@ class GraphIndexBuilder(object):
             self.file_metadata[node.node_id] = record
 
         # for to_delete nodes and nodes with wrong gencode_version
-        if record.get('error'):
+        if record.get("error"):
             return node
 
         # Set node file metadata attributes according to indexd record

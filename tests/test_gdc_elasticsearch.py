@@ -448,7 +448,7 @@ def test_reindex_per_project(
     assert project_results["hits"]["total"]["value"] == 1
 
 
-@pytest.mark.usefixtures('apply_gencode_to_indexd')
+@pytest.mark.usefixtures("apply_gencode_to_indexd")
 def test_es_with_gencode(pg_driver, setup_test, init_indexd, make_gdc_es):
     es = setup_test
     gdc_es = make_gdc_es(

@@ -189,7 +189,7 @@ class VersionedNodesDiffCollector(object):
                            if v.version and v.metadata.get('release_number')],
                           key=lambda x: int(x.version))[-1]
 
-        gencode_of_latest_released = getattr(released, 'metadata', {}).get('gencode_version')
+        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
 
         # Get primary url ('type' should be 'cleversafe')
         primary_urls = {url: meta
@@ -202,8 +202,8 @@ class VersionedNodesDiffCollector(object):
         _, meta = primary_urls.popitem()
 
         old_props = {
-            'file_state': meta['state'],
-            'gencode_version': gencode_of_latest_released,
+            "file_state": meta['state'],
+            "gencode_version": gencode_of_latest_released,
         }
 
         indexd_meta = extract_indexd_metadata(released)
@@ -252,7 +252,7 @@ class VersionedNodesDiffCollector(object):
         indexd_props = self.get_props_from_indexd(versions, node.node_id)
 
         # omit nodes with undesired gencode_versions
-        gencode_from_indexd = indexd_props.pop('gencode_version')
+        gencode_from_indexd = indexd_props.pop("gencode_version")
         if gencode_from_indexd not in self.allowed_gencode_versions:
             self.logger.debug(
                 f"Found old version of {node.node_id}, omitting it due to"

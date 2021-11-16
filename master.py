@@ -81,8 +81,8 @@ def esbuild_argparser():
         help="set desired gencode_version for indexing, 'neutral' nodes are always included."
         "if not set, all available nodes will be included. ",
         type=str,
-        default='all',
-        choices=['v22', 'v36', 'all']
+        default="all",
+        choices=["v22", "v36", "all"]
     )
 
     projects = parser.add_mutually_exclusive_group()

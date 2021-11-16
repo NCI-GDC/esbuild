@@ -20,7 +20,7 @@ def assert_metadata(latest, diff):
 def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test,
                                indexd_client):
     cacher = VersionedNodesDiffCollector(
-        project_ids=['TCGA-BRCA'],
+        project_ids=["TCGA-BRCA"],
         graph=pg_driver,
         indexd_client=indexd_client,
         allowed_gencode_versions=AVAILABLE_GENCODE_VERSIONS,

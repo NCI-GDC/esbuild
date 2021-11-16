@@ -216,14 +216,14 @@ def test_awg_build(init_indexd, pg_driver):
 
 
 @pytest.mark.parametrize(
-    'gencode,expected_number', [['v22', 17], ['v36', 18], ]
+    "gencode,expected_number", [["v22", 17], ["v36", 18], ]
 )
 def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
         indexd_client=apply_gencode_to_indexd,
-        build_projects={'TCGA-BRCA'},
-        allowed_gencode_versions=frozenset(['neutral', gencode]),
+        build_projects={"TCGA-BRCA"},
+        allowed_gencode_versions=frozenset(["neutral", gencode]),
     )
     builder.cache_database()
 
