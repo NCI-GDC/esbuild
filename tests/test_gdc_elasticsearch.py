@@ -9,8 +9,8 @@ import json
 from unittest import mock
 
 import pytest
-
 import elasticsearch
+
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active import builder
@@ -449,12 +449,12 @@ def test_reindex_per_project(
 
 
 @pytest.mark.usefixtures('apply_gencode_to_indexd')
-def test_es_with_gencode(setup_test, init_indexd, make_gdc_es):
+def test_es_with_gencode(pg_driver, setup_test, init_indexd, make_gdc_es):
     es = setup_test
     gdc_es = make_gdc_es(
         indexd_client=init_indexd,
         converter=ActiveGraphIndexBuilder,
-        gencode_version='v36',
+        gencode_version='v22',
     )
     gdc_es.go()
 
@@ -463,4 +463,6 @@ def test_es_with_gencode(setup_test, init_indexd, make_gdc_es):
     assert set(all_indices) == expected_indices
 
     file_index = gdc_es.index_names["file"]
-    assert not es.exists(index=file_index, id=get_node_id('aggregated-somatic-mutation-1'))
+    with pg_driver.session_scope():
+        sea_0 = pg_driver.nodes().props(submitter_id="gv_secondary_exp_1").one()
+        assert not es.exists(index=file_index, id=sea_0.node_id)

@@ -216,7 +216,7 @@ def test_awg_build(init_indexd, pg_driver):
 
 
 @pytest.mark.parametrize(
-    'gencode,expected_number', [['v22', 13], ['v36', 14], ]
+    'gencode,expected_number', [['v22', 17], ['v36', 18], ]
 )
 def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
@@ -230,20 +230,10 @@ def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_n
     index_docs = builder.denormalize_all()
     assert len(index_docs[1]) == expected_number
 
-
-@pytest.mark.parametrize('gencode,expected', [['v36', False],['v22', True]])
-def test_is_file_indexed_for_gencode(apply_gencode_to_indexd, pg_driver, gencode, expected):
-    builder = ActiveGraphIndexBuilder(
-        psqlgraph_driver=pg_driver,
-        indexd_client=apply_gencode_to_indexd,
-        build_projects={'TCGA-BRCA'},
-        allowed_gencode_versions=frozenset(['neutral', gencode]),
-    )
-    builder.cache_database()
-
-    with pg_driver.session_scope():
-        node = pg_driver.nodes().get(get_node_id('aggregated-somatic-mutation-1'))
-        assert builder.is_file_indexed(node) is expected
+    submitter_ids = [file.get("submitter_id") for file in index_docs[1]]
+    include_v36 = (gencode == "v36")
+    for v36_submitter_id in ["gv_ge_1", "gv_secondary_exp_1"]:
+        assert (v36_submitter_id in submitter_ids) is include_v36
 
 
 def test_include_switch():
