@@ -5,7 +5,7 @@ from datetime import datetime
 from hashlib import md5
 from functools import lru_cache
 from reprlib import repr
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, FrozenSet
 
 from cdislogging import get_logger
 from dotenv import load_dotenv
@@ -114,7 +114,7 @@ class VersionedNodesDiffCollector(object):
     """
     TARGET_NODE_STATES = ['validated', 'submitted']
 
-    def __init__(self, project_ids=None, graph=None, indexd_client=None):
+    def __init__(self, allowed_gencode_versions: FrozenSet[str], project_ids=None, graph=None, indexd_client=None):
         if isinstance(project_ids, str):
             self.project_ids = project_ids.split(',')
         else:
@@ -122,6 +122,7 @@ class VersionedNodesDiffCollector(object):
 
         self.g = graph or get_default_pg_driver()
         self.i = indexd_client or get_default_index_client()
+        self.allowed_gencode_versions = allowed_gencode_versions
         self.diffs = {}
         self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
 
@@ -188,6 +189,8 @@ class VersionedNodesDiffCollector(object):
                            if v.version and v.metadata.get('release_number')],
                           key=lambda x: int(x.version))[-1]
 
+        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
+
         # Get primary url ('type' should be 'cleversafe')
         primary_urls = {url: meta
                         for url, meta in released.urls_metadata.items()
@@ -199,7 +202,8 @@ class VersionedNodesDiffCollector(object):
         _, meta = primary_urls.popitem()
 
         old_props = {
-            'file_state': meta['state'],
+            "file_state": meta['state'],
+            "gencode_version": gencode_of_latest_released,
         }
 
         indexd_meta = extract_indexd_metadata(released)
@@ -246,14 +250,19 @@ class VersionedNodesDiffCollector(object):
 
         # Lookup differences in IndexD
         indexd_props = self.get_props_from_indexd(versions, node.node_id)
+        gencode_from_indexd = indexd_props.pop("gencode_version")
 
-        # Prioritize IndexD metadata over Graph metadata
-        transaction_props.update(indexd_props)
-
-        return transaction_props
-
-    def run(self):
-        return self.collect_differences()
+        is_node_submittable = node._dictionary.get("submittable", False)
+        if is_node_submittable or gencode_from_indexd in self.allowed_gencode_versions:
+            # Prioritize IndexD metadata over Graph metadata
+            transaction_props.update(indexd_props)
+            return transaction_props
+        else:  # harmonized file with wrong or none gencode_version
+            self.logger.debug(
+                f"Found old version of {node.node_id}, omitting it due to"
+                f"undesired gencode_version: {gencode_from_indexd}"
+            )
+            return {}
 
     def collect_differences(self):
         for node in self.iter_nodes():

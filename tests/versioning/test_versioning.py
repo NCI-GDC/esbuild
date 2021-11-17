@@ -1,6 +1,7 @@
 from gdcdatamodel.models.submission import TransactionSnapshot
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
+from esbuild.graph.common.builder import AVAILABLE_GENCODE_VERSIONS
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import (
     VersionedNodesDiffCollector,
@@ -19,8 +20,12 @@ def assert_metadata(latest, diff):
 def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test,
                                indexd_client):
     cacher = VersionedNodesDiffCollector(
-        project_ids=['TCGA-BRCA'], graph=pg_driver, indexd_client=indexd_client)
-    diffs = cacher.run()
+        project_ids=["TCGA-BRCA"],
+        graph=pg_driver,
+        indexd_client=indexd_client,
+        allowed_gencode_versions=AVAILABLE_GENCODE_VERSIONS,
+    )
+    diffs = cacher.collect_differences()
 
     _, expected_diffs, expected_docs, params = versioned_reads_setup
 

@@ -9,8 +9,8 @@ import json
 from unittest import mock
 
 import pytest
-
 import elasticsearch
+
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active import builder
@@ -446,3 +446,22 @@ def test_reindex_per_project(
 
     assert case_results["hits"]["total"]["value"] == 2
     assert project_results["hits"]["total"]["value"] == 1
+
+
+def test_es_with_gencode(pg_driver, setup_test, apply_gencode_to_indexd, make_gdc_es):
+    es = setup_test
+    gdc_es = make_gdc_es(
+        indexd_client=apply_gencode_to_indexd,
+        converter=ActiveGraphIndexBuilder,
+        gencode_version="v22",
+    )
+    gdc_es.go()
+
+    all_indices = get_all_indices(setup_test)
+    expected_indices = set(gdc_es.index_names.values()) | {"build_metadata"}
+    assert set(all_indices) == expected_indices
+
+    file_index = gdc_es.index_names["file"]
+    with pg_driver.session_scope():
+        sea_0 = pg_driver.nodes().props(submitter_id="gv_secondary_exp_1").one()
+        assert not es.exists(index=file_index, id=sea_0.node_id)

@@ -15,6 +15,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
 from functools import lru_cache
+from typing import Dict
 from uuid import uuid5, UUID
 
 import networkx as nx
@@ -39,6 +40,10 @@ from esbuild.graph.common import validators
 
 log = get_logger("graph_index", log_level='info')
 
+AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
+ENTRY_FOR_WRONG_GENCODE_FILE = {
+    "error": "wrong gencode_version for generated data files"
+}
 
 @lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):
@@ -195,7 +200,16 @@ class GraphIndexBuilder(object):
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
         # Versioned files that haven't been released yet
-        self.versioned_files = kwargs.pop('versioned_files', None)
+        self.versioned_files = kwargs.pop('versioned_files', {})
+
+        self.allowed_gencode_versions = kwargs.pop(
+            "allowed_gencode_versions", AVAILABLE_GENCODE_VERSIONS
+        )
+        if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
+            raise NotImplementedError(
+                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"The available gencode_versions are {AVAILABLE_GENCODE_VERSIONS}"
+            )
 
         # Set all optional arguments as attributes:
         # NOTE: Selective caching only works when all the non-project nodes
@@ -447,9 +461,7 @@ class GraphIndexBuilder(object):
         """
 
         base = {}
-        old_props = {}
-        if self.versioned_files and node.node_id in self.versioned_files:
-            old_props = self.versioned_files[node.node_id]
+        old_props = self.versioned_files.get(node.node_id, {})
 
         if include_id and node.label in self.file_labels:
             base.update({'file_id': old_props.get('file_id') or node.node_id})
@@ -833,12 +845,20 @@ class GraphIndexBuilder(object):
 
         return doc
 
+    def has_allowed_gencode_version(self, node: Node, doc: Dict) -> bool:
+        # submittable nodes should always be included
+        if node._dictionary.get("submittable", False):
+            return True
+
+        gencode_ver = doc.get("metadata", {}).get("gencode_version")
+        return gencode_ver in self.allowed_gencode_versions
+
     def add_file_metadata_from_indexd(self, node):
         """
         Reads file metadata from indexd and sets it to node
         """
 
-        if self.versioned_files and node.node_id in self.versioned_files:
+        if node.node_id in self.versioned_files:
             for key, value in self.versioned_files[node.node_id].items():
                 setattr(node, key, value)
             return node
@@ -849,6 +869,7 @@ class GraphIndexBuilder(object):
         # If not found, get it from indexd
         if not record:
             record = self.indexd.get(node.node_id)
+
             if not record:
                 if node.sysan.get('to_delete'):
                     self.file_metadata[node.node_id] = {'error': 'to_delete file'}
@@ -858,10 +879,25 @@ class GraphIndexBuilder(object):
                         "node_type: {} node_id: {}".format(node.label, node.node_id),
                         tags=["indexd", node.label]
                     )
+                    self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
+
+            if not self.has_allowed_gencode_version(node, record.to_json()):
+                self.error(
+                    title="indexd data with wrong gencode_version, ignoring",
+                    text=f"node_type: {node.label} node_id: {node.node_id}",
+                    tags=["indexd", node.label]
+                )
+                self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE_FILE
+                return node
+
             record = record.to_json()
             # Cache indexd record
             self.file_metadata[node.node_id] = record
+
+        # for to_delete nodes and nodes with wrong gencode_version
+        if "error" in record:
+            return node
 
         # Set node file metadata attributes according to indexd record
         for key in self.data_file_indexd_fields:
@@ -1422,6 +1458,7 @@ class GraphIndexBuilder(object):
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
+            # TODO: [DEV-957] refactor the logic for `an` as denormalize_case returns []
             for a in an:
                 if a['annotation_id'] not in ann_docs:
                     ann_docs[a['annotation_id']] = a
@@ -1812,15 +1849,21 @@ class GraphIndexBuilder(object):
 
         """
 
-        if self.versioned_files and node.node_id in self.versioned_files:
-            return True
-
         # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
 
+        if node.node_id in self.versioned_files:
+            return True
+
         # Add file metadata to the node
         node = self.add_file_metadata_from_indexd(node)
+
+        # remove file node with wrong gencode_version
+        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
+        if self.file_metadata[node.node_id] == ENTRY_FOR_WRONG_GENCODE_FILE:
+            log.info(f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['error']}")
+            return False
 
         # Remove files with no acl entries
         if len(node.acl) == 0:
@@ -1945,7 +1988,7 @@ class GraphIndexBuilder(object):
             elif node.state in released_states and \
                     node.label != 'annotation':
                 return True
-            elif self.versioned_files and node.node_id in self.versioned_files:
+            elif node.node_id in self.versioned_files:
                 return True
 
             if node.label == 'annotation' and \

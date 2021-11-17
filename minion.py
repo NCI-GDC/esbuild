@@ -65,6 +65,7 @@ def get_gdc_elasticsearch(
         cache_versioned=payload.get("cache-versioned"),
         save_doc_path=save_doc_path,
         skip_es=skip_es,
+        gencode_version=payload.get("gencode-version"),
     )
 
     return gdc_es

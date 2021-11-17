@@ -76,6 +76,15 @@ def esbuild_argparser():
         help="A path to a yaml configruation file for overriding default configurations.",
         type=str,
     )
+    parser.add_argument(
+        "--gencode-version",
+        help="set desired gencode_version for indexing, 'neutral' nodes are always included."
+        "if not set, all available nodes will be included. ",
+        type=str,
+        default="all",
+        choices=["v22", "v36", "all"]
+    )
+
     projects = parser.add_mutually_exclusive_group()
     projects.add_argument(
         "--project-group",
@@ -325,6 +334,7 @@ if __name__ == "__main__":
             "build-awg": args.build_awg,
             "build-type": args.build_type,
             "cache-versioned": args.cache_versioned,
+            "gencode-version": args.gencode_version,
         }
         logger.info("Adding work: {}".format(job_json))
         queue_client.enqueue(msg=job_json)

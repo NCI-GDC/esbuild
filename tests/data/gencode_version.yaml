@@ -1,0 +1,59 @@
+nodes:
+  - label: case
+    submitter_id: gv_case_0
+  - label: sample
+    submitter_id: gv_samp_0
+  - label: aliquot
+    submitter_id: gv_aliq_0
+  - label: read_group
+    submitter_id: gv_rg_0
+  - label: submitted_aligned_reads
+    submitter_id: gv_sar_0
+  - label: alignment_workflow
+    submitter_id: gv_awf_0
+  - label: aligned_reads
+    submitter_id: gv_ar_0
+  - label: rna_expression_workflow
+    submitter_id: gv_rna_wf_0
+
+  - label: gene_expression
+    submitter_id: gv_ge_0
+
+  - label: gene_expression
+    submitter_id: gv_ge_1
+  - label: expression_analysis_workflow
+    submitter_id: gv_exp_wf_1
+  - label: secondary_expression_analysis
+    submitter_id: gv_secondary_exp_1
+
+  - label: gene_expression
+    submitter_id: gv_ge_2
+
+edges:
+  - src: gv_samp_0
+    dst: gv_case_0
+  - src: gv_aliq_0
+    dst: gv_samp_0
+  - src: gv_rg_0
+    dst: gv_aliq_0
+  - src: gv_sar_0
+    dst: gv_rg_0
+  - src: gv_awf_0
+    dst: gv_sar_0
+  - src: gv_ar_0
+    dst: gv_awf_0
+  - src: gv_rna_wf_0
+    dst: gv_ar_0
+
+  - src: gv_ge_0
+    dst: gv_rna_wf_0
+
+  - src: gv_ge_1
+    dst: gv_rna_wf_0
+  - src: gv_exp_wf_1
+    dst: gv_ge_1
+  - src: gv_secondary_exp_1
+    dst: gv_exp_wf_1
+
+  - src: gv_ge_2
+    dst: gv_rna_wf_0

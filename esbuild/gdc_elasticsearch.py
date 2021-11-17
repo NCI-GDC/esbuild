@@ -124,6 +124,7 @@ class GDCElasticsearch(object):
                      running out of memory if build_projects is a large enough list (number of
                      nodes in all buld_projects is large enough)
         build_awg (bool): enable AWG specific logic
+        gencode_version (str): gencode_version to be built
         index_replicas (int): number of replicas to create when deploying index
         index_shards (int): number of shards to allocate for a deployed index
         cache_versioned (bool): enable looking up versioned files that haven't been
@@ -145,6 +146,8 @@ class GDCElasticsearch(object):
         pg_driver: Optional[psqlgraph.PsqlGraphDriver] = None,
         index_prefix: Optional[str] = None,
         build_projects: Optional[List[str]] = None,
+        # since we are setting default in master.py, why are we duplicating them here
+        gencode_version: Optional[str] = "all",
         selective_caching: bool = False,
         build_awg: bool = False,
         index_replicas: int = 0,
@@ -169,6 +172,17 @@ class GDCElasticsearch(object):
         self.index_prefix = index_prefix
         self.build_projects = build_projects
         self.selective_caching = selective_caching
+
+        self.allowed_gencode_versions = (
+            builder.AVAILABLE_GENCODE_VERSIONS
+            if gencode_version == "all"
+            else frozenset(["neutral", gencode_version])
+        )
+        if not self.allowed_gencode_versions.issubset(builder.AVAILABLE_GENCODE_VERSIONS):
+            raise NotImplementedError(
+                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"The available gencode_versions are {builder.AVAILABLE_GENCODE_VERSIONS}"
+            )
 
         self.build_awg = build_awg
 
@@ -239,15 +253,18 @@ class GDCElasticsearch(object):
             self.log.info("Saving to {}".format(file_name))
             _save_docs(docs, file_name)
 
-    def _cache_versioned_files(self) -> Optional[dict]:
+    def _cache_versioned_files(self) -> dict:
 
         if not self.cache_versioned or self.build_awg or not self.build_projects:
-            return None
+            return {}
 
         vnc = utils.VersionedNodesDiffCollector(
-            self.build_projects, self.graph, self.indexd_client
+            project_ids=self.build_projects,
+            graph=self.graph,
+            indexd_client=self.indexd_client,
+            allowed_gencode_versions=self.allowed_gencode_versions,
         )
-        return vnc.run()
+        return vnc.collect_differences()
 
     def _cache_database(
         self, converter: builder.GraphIndexBuilder
@@ -359,6 +376,7 @@ class GDCElasticsearch(object):
             build_awg=self.build_awg,
             selective_caching=self.selective_caching,
             versioned_files=versioned_files,
+            allowed_gencode_versions=self.allowed_gencode_versions,
         )
 
         cases, files, annotations, projects = self._cache_database(self.converter)

@@ -356,6 +356,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         return cases, files, annotations, projects
 
+    def get_case_files(self, node):
+        unfiltered_files = super().get_case_files(node)
+        return {
+            file for file in unfiltered_files
+            if 'error' not in self.file_metadata.get(file.node_id, {})
+        }
+
     def denormalize_file(self, node, ptree):
         doc = super().denormalize_file(node, ptree)
 
