@@ -26,6 +26,9 @@ nodes:
   - label: secondary_expression_analysis
     submitter_id: gv_secondary_exp_1
 
+  - label: gene_expression
+    submitter_id: gv_ge_2
+
 edges:
   - src: gv_samp_0
     dst: gv_case_0
@@ -51,3 +54,6 @@ edges:
     dst: gv_ge_1
   - src: gv_secondary_exp_1
     dst: gv_exp_wf_1
+
+  - src: gv_ge_2
+    dst: gv_rna_wf_0

@@ -208,6 +208,7 @@ class GraphIndexBuilder(object):
         if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
             raise NotImplementedError(
                 f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"The available gencode_versions are {AVAILABLE_GENCODE_VERSIONS}"
             )
 
         # Set all optional arguments as attributes:
@@ -844,13 +845,13 @@ class GraphIndexBuilder(object):
 
         return doc
 
-    def check_gencode_version(self, node: Node, doc: Dict) -> bool:
-        is_node_submittable = node._dictionary.get("submittable", False)
-        if not hasattr(self, "allowed_gencode_versions") or is_node_submittable:
+    def has_allowed_gencode_version(self, node: Node, doc: Dict) -> bool:
+        # submittable nodes should always be included
+        if node._dictionary.get("submittable", False):
             return True
-        else:
-            gencode_ver = doc.get("metadata", {}).get("gencode_version", "neutral")
-            return gencode_ver in self.allowed_gencode_versions
+
+        gencode_ver = doc.get("metadata", {}).get("gencode_version")
+        return gencode_ver in self.allowed_gencode_versions
 
     def add_file_metadata_from_indexd(self, node):
         """
@@ -881,7 +882,7 @@ class GraphIndexBuilder(object):
                     self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
 
-            if not self.check_gencode_version(node, record.to_json()):
+            if not self.has_allowed_gencode_version(node, record.to_json()):
                 self.error(
                     title="indexd data with wrong gencode_version, ignoring",
                     text=f"node_type: {node.label} node_id: {node.node_id}",

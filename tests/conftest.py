@@ -123,6 +123,8 @@ def create_indexd_documents(indexd_client):
             urls_metadata = {
                 urls[0]: {'state': record.get('file_state', 'validated')}
             }
+            if "gencode_version" not in record:
+                record["gencode_version"] = "neutral"
             doc = indexd_client.create(
                 did=record['did'],
                 acl=record['acl'],
@@ -455,12 +457,12 @@ def apply_gencode_to_indexd(pg_driver, init_indexd, gencode_version_graph):
     gencode_versions = [
         ["gv_ge_0", "v22"],
         ["gv_ge_1", "v36"],
+        ["gv_ge_2", None],
     ]
     with pg_driver.session_scope():
         for submitter_id, gencode in gencode_versions:
             node = pg_driver.nodes(models.GeneExpression).props(submitter_id=submitter_id).one()
-            node_id = node.node_id
-            doc = init_indexd.get(node_id)
+            doc = init_indexd.get(node.node_id)
             doc.metadata["gencode_version"] = gencode
             doc.patch()
     return init_indexd

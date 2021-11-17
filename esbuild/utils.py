@@ -189,7 +189,7 @@ class VersionedNodesDiffCollector(object):
                            if v.version and v.metadata.get('release_number')],
                           key=lambda x: int(x.version))[-1]
 
-        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version", "neutral")
+        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
 
         # Get primary url ('type' should be 'cleversafe')
         primary_urls = {url: meta
@@ -250,20 +250,19 @@ class VersionedNodesDiffCollector(object):
 
         # Lookup differences in IndexD
         indexd_props = self.get_props_from_indexd(versions, node.node_id)
-
-        # omit nodes with undesired gencode_versions
         gencode_from_indexd = indexd_props.pop("gencode_version")
-        if gencode_from_indexd not in self.allowed_gencode_versions:
+
+        is_node_submittable = node._dictionary.get("submittable", False)
+        if is_node_submittable or gencode_from_indexd in self.allowed_gencode_versions:
+            # Prioritize IndexD metadata over Graph metadata
+            transaction_props.update(indexd_props)
+            return transaction_props
+        else:  # harmonized file with wrong or none gencode_version
             self.logger.debug(
                 f"Found old version of {node.node_id}, omitting it due to"
                 f"undesired gencode_version: {gencode_from_indexd}"
             )
             return {}
-
-        # Prioritize IndexD metadata over Graph metadata
-        transaction_props.update(indexd_props)
-
-        return transaction_props
 
     def collect_differences(self):
         for node in self.iter_nodes():
