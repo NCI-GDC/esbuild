@@ -173,13 +173,16 @@ class GDCElasticsearch(object):
         self.build_projects = build_projects
         self.selective_caching = selective_caching
 
-        self.allowed_gencode_versions = builder.AVAILABLE_GENCODE_VERSIONS
-        if gencode_version != "all":
-            self.allowed_gencode_versions = frozenset(["neutral", gencode_version])
-            if not self.allowed_gencode_versions.issubset(builder.AVAILABLE_GENCODE_VERSIONS):
-                raise NotImplementedError(
-                    f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
-                )
+        self.allowed_gencode_versions = (
+            builder.AVAILABLE_GENCODE_VERSIONS
+            if gencode_version == "all"
+            else frozenset(["neutral", gencode_version])
+        )
+        if not self.allowed_gencode_versions.issubset(builder.AVAILABLE_GENCODE_VERSIONS):
+            raise NotImplementedError(
+                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"The available gencode_versions are {builder.AVAILABLE_GENCODE_VERSIONS}"
+            )
 
         self.build_awg = build_awg
 

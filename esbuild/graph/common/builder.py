@@ -896,7 +896,7 @@ class GraphIndexBuilder(object):
             self.file_metadata[node.node_id] = record
 
         # for to_delete nodes and nodes with wrong gencode_version
-        if record.get("error"):
+        if "error" in record:
             return node
 
         # Set node file metadata attributes according to indexd record
@@ -1458,7 +1458,7 @@ class GraphIndexBuilder(object):
         for n in cases:
             pa, fi, an = self.denormalize_case(n)
             case_docs.append(pa)
-            # TODO: refactor the logic for `an` as denormalize_case returns []
+            # TODO: [DEV-957] refactor the logic for `an` as denormalize_case returns []
             for a in an:
                 if a['annotation_id'] not in ann_docs:
                     ann_docs[a['annotation_id']] = a
@@ -1860,7 +1860,7 @@ class GraphIndexBuilder(object):
         node = self.add_file_metadata_from_indexd(node)
 
         # remove file node with wrong gencode_version
-        # TODO: should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
+        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
         if self.file_metadata[node.node_id] == ENTRY_FOR_WRONG_GENCODE_FILE:
             log.info(f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['error']}")
             return False
