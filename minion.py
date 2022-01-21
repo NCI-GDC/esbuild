@@ -17,11 +17,11 @@ from esbuild.utils import (
 )
 
 
-logger = get_logger('esbuild_minion', log_level='info')
+logger = get_logger("esbuild_minion", log_level="info")
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, 'config.yml'), 'r').read())
+config = yaml.safe_load(open(os.path.join(root_dir, "config.yml"), "r").read())
 
-TIMEDELTA = config['timedelta']
+TIMEDELTA = config["timedelta"]
 
 
 def get_gdc_elasticsearch(
@@ -74,6 +74,7 @@ def get_gdc_elasticsearch(
 def process_work(
     worker_id: int,
     queue_type: str,
+    queue_id: str,
     skip_es: bool = False,
     save_doc_path: str = None,
     sleep_time: int = 30,
@@ -82,12 +83,12 @@ def process_work(
     running = True
     found_work = False
 
-    queue_client = get_queue_client(queue_type)
+    queue_client = get_queue_client(queue_type, queue_id)
     pg_driver = get_default_pg_driver()
     indexd_client = get_default_index_client()
     es_client = Elasticsearch(**ES_CONFIG)
 
-    log = get_logger('esbuild_minion_{}'.format(worker_id), log_level='info')
+    log = get_logger("esbuild_minion_{}".format(worker_id), log_level="info")
 
     while running:
         payload = queue_client.dequeue()  # type: dict
@@ -113,7 +114,9 @@ def process_work(
                 skip_es=skip_es,
             )
 
-            log.info("Running build-type 'active', build_awg '{}'".format(gdc_es.build_awg))
+            log.info(
+                "Running build-type 'active', build_awg '{}'".format(gdc_es.build_awg)
+            )
             log.info("Payload: {}".format(payload))
 
             gdc_es.go(
@@ -130,27 +133,34 @@ def minion_argparser():
     """Parses run arguments for esbuild minion"""
 
     parser = argparse.ArgumentParser(
-        description='Parses esbuild job parameters',
+        description="Parses esbuild job parameters",
     )
-    parser.add_argument("--queue-type",
-                        choices=["depot", "rabbitmq"],
-                        default="rabbitmq",
-                        help="Type of queue backend to use for scheduling"
-                             "(defaults to 'rabbitmq'")
-    parser.add_argument('--num_procs',
-                        help='How many processes minion will run to process depot entries',
-                        default=4,
-                        type=int)
-    parser.add_argument('--save_doc_path',
-                        help='Where to save docs (if necessary)',
-                        default='/var/log/esbuild')
-    parser.add_argument('--skip_es',
-                        help='Skips writing to es',
-                        action='store_true',
-                        default=False)
-    parser.add_argument("--no-statsd",
-                        help="Do not send events to Datadog",
-                        action="store_true")
+    parser.add_argument(
+        "--queue-type",
+        choices=["depot", "rabbitmq"],
+        default="rabbitmq",
+        help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
+    )
+    parser.add_argument(
+        "--queue-id", type=str, default="esbuild", help="Name of queue to bind to"
+    )
+    parser.add_argument(
+        "--num_procs",
+        help="How many processes minion will run to process depot entries",
+        default=4,
+        type=int,
+    )
+    parser.add_argument(
+        "--save_doc_path",
+        help="Where to save docs (if necessary)",
+        default="/var/log/esbuild",
+    )
+    parser.add_argument(
+        "--skip_es", help="Skips writing to es", action="store_true", default=False
+    )
+    parser.add_argument(
+        "--no-statsd", help="Do not send events to Datadog", action="store_true"
+    )
     return parser
 
 
@@ -163,20 +173,21 @@ if __name__ == "__main__":
         logger.info("Creating process {}".format(i))
         proc_info = dict(id=i)
 
-        proc_info['process'] = Process(
+        proc_info["process"] = Process(
             target=process_work,
             kwargs=dict(
                 worker_id=i,
                 queue_type=args.queue_type,
+                queue_id=args.queue_id,
                 skip_es=args.skip_es,
                 save_doc_path=args.save_doc_path,
                 sleep_time=TIMEDELTA,
                 no_statsd=args.no_statsd,
-            )
+            ),
         )
-        proc_info['status'] = "running"
+        proc_info["status"] = "running"
         procs.append(proc_info)
-        proc_info['process'].start()
+        proc_info["process"].start()
 
     for proc in procs:
-        proc['process'].join()
+        proc["process"].join()

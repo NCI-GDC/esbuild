@@ -82,7 +82,7 @@ def esbuild_argparser():
         "if not set, all available nodes will be included. ",
         type=str,
         default="all",
-        choices=["v22", "v36", "all"]
+        choices=["v22", "v36", "all"],
     )
 
     projects = parser.add_mutually_exclusive_group()
@@ -109,6 +109,9 @@ def esbuild_argparser():
         choices=["depot", "rabbitmq"],
         default="rabbitmq",
         help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
+    )
+    es_args.add_argument(
+        "--queue-id", type=str, default="esbuild", help="Name of queue to bind to"
     )
     es_args.add_argument(
         "--queue-clear", help="Clear current job queue", action="store_true"
@@ -285,7 +288,7 @@ if __name__ == "__main__":
     user_config = load_user_configuration(args.config)
 
     # Get RabbitMQ queue client
-    queue_client = get_queue_client(args.queue_type)
+    queue_client = get_queue_client(args.queue_type, args.queue_id)
 
     # Cleanup the queue
     if args.queue_clear:
