@@ -89,6 +89,9 @@ def process_work(
     es_client = Elasticsearch(**ES_CONFIG)
 
     log = get_logger("esbuild_minion_{}".format(worker_id), log_level="info")
+    logger.info(
+        f"Initializing queue client on worker_id: {worker_id} to connect to queue_id: {queue_client.queue_id}"
+    )
 
     while running:
         payload = queue_client.dequeue()  # type: dict

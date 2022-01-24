@@ -289,6 +289,9 @@ if __name__ == "__main__":
 
     # Get RabbitMQ queue client
     queue_client = get_queue_client(args.queue_type, args.queue_id)
+    logger.info(
+        f"Initializing queue client to connect to queue_id: {queue_client.queue_id}"
+    )
 
     # Cleanup the queue
     if args.queue_clear:
