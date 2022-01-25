@@ -144,9 +144,7 @@ def minion_argparser():
         default="rabbitmq",
         help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
     )
-    parser.add_argument(
-        "--queue-id", type=str, default="esbuild", help="Name of queue to bind to"
-    )
+    parser.add_argument("--queue-id", type=str, help="Name of queue to bind to")
     parser.add_argument(
         "--num_procs",
         help="How many processes minion will run to process depot entries",

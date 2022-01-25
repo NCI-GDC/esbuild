@@ -110,9 +110,7 @@ def esbuild_argparser():
         default="rabbitmq",
         help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
     )
-    es_args.add_argument(
-        "--queue-id", type=str, default="esbuild", help="Name of queue to bind to"
-    )
+    es_args.add_argument("--queue-id", type=str, help="Name of queue to bind to")
     es_args.add_argument(
         "--queue-clear", help="Clear current job queue", action="store_true"
     )
