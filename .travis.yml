@@ -25,6 +25,9 @@ before_install:
   - sudo cp travis/postgresql.conf /etc/postgresql/13/main/postgresql.conf
   - sudo cp travis/pg_hba.conf /etc/postgresql/13/main/pg_hba.conf
   - sudo pg_ctlcluster 13 main restart
+  # There seems to already be nodes created in this directory on startup, which
+  # is interfering with starting our installed es version.
+  - sudo rm -rf /var/lib/elasticsearch
 
 install:
   # Install and start elasticsearch
