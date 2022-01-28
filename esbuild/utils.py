@@ -24,60 +24,60 @@ from esbuild.graph.common.builder import GraphIndexBuilder
 def get_file_state(doc):
     state = None
     for url, meta in doc.urls_metadata.items():
-        if meta.get('type') == GraphIndexBuilder.INDEXD_URL_TYPE:
-            state = state or meta.get('state')
+        if meta.get("type") == GraphIndexBuilder.INDEXD_URL_TYPE:
+            state = state or meta.get("state")
     return state
 
 
-INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ['file_id']
+INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ["file_id"]
 INDEXD_METADATA_VALUE_GETTERS = {
-    'file_id': lambda doc: doc.did,
-    'md5sum': lambda doc: doc.hashes['md5'],
-    'file_size': lambda doc: doc.size,
-    'file_state': get_file_state,
+    "file_id": lambda doc: doc.did,
+    "md5sum": lambda doc: doc.hashes["md5"],
+    "file_size": lambda doc: doc.size,
+    "file_state": get_file_state,
 }
 
 load_dotenv()
 
 ES_CONFIG = {
-    'hosts': [os.getenv("ES_HOST", "localhost")],
-    'port': os.getenv("ES_PORT", 9200),
-    'use_ssl': os.getenv("ES_USE_SSL", "False").lower() == "true",
-    'verify_certs': os.getenv("ES_VERIFY_CERTS", "False").lower() == "true",
-    'http_auth': (os.getenv("ES_USER", ""), os.getenv("ES_PASSWORD", "")),
-    'ca_certs': os.getenv("CA_CERT_PATH", ""),
+    "hosts": [os.getenv("ES_HOST", "localhost")],
+    "port": os.getenv("ES_PORT", 9200),
+    "use_ssl": os.getenv("ES_USE_SSL", "False").lower() == "true",
+    "verify_certs": os.getenv("ES_VERIFY_CERTS", "False").lower() == "true",
+    "http_auth": (os.getenv("ES_USER", ""), os.getenv("ES_PASSWORD", "")),
+    "ca_certs": os.getenv("CA_CERT_PATH", ""),
     "timeout": os.getenv("ES_REQUEST_TIMEOUT", 9999),
 }
 
 
 def get_default_pg_driver():
     return PsqlGraphDriver(
-        user=os.getenv('PG_USER'),
-        host=os.getenv('PG_HOST'),
-        password=os.getenv('PG_PASS'),
-        database=os.getenv('PG_NAME'),
+        user=os.getenv("PG_USER"),
+        host=os.getenv("PG_HOST"),
+        password=os.getenv("PG_PASS"),
+        database=os.getenv("PG_NAME"),
     )
 
 
 def get_default_index_client():
     return IndexClient(
-        baseurl=os.getenv('INDEXD_HOST'),
+        baseurl=os.getenv("INDEXD_HOST"),
         auth=(None, None),  # Safe guard from potential updates
     )
 
 
-def get_queue_client(queue_type):
+def get_queue_client(queue_type, queue_id=None):
     if queue_type == "depot":
         return DepotQueueClient(
             host=os.getenv("DEPOT_HOST", "depot.service.consul"),
             port=os.getenv("DEPOT_PORT"),
-            queue_id=os.getenv("DEPOT_QUEUE_ID"),
+            queue_id=queue_id or os.getenv("DEPOT_QUEUE_ID", "esbuild"),
         )
     elif queue_type == "rabbitmq":
         return RabbitMQClient(
             host=os.getenv("RABBITMQ_HOST", "rabbitmq.service.consul"),
             port=int(os.getenv("RABBITMQ_PORT", 5672)),
-            queue_id=os.getenv("RABBITMQ_QUEUE_ID", "esbuild"),
+            queue_id=queue_id or os.getenv("RABBITMQ_QUEUE_ID", "esbuild"),
             username=os.getenv("RABBITMQ_USER", "guest"),
             password=os.getenv("RABBITMQ_PASS", "guest"),
             durable=True,
@@ -109,14 +109,21 @@ def extract_indexd_metadata(doc, fields=None, getters=None):
 
 class VersionedNodesDiffCollector(object):
     """pre-processing step to identify files that haven't been yet released,
-        but have old versions
+    but have old versions
 
     """
-    TARGET_NODE_STATES = ['validated', 'submitted']
 
-    def __init__(self, allowed_gencode_versions: FrozenSet[str], project_ids=None, graph=None, indexd_client=None):
+    TARGET_NODE_STATES = ["validated", "submitted"]
+
+    def __init__(
+        self,
+        allowed_gencode_versions: FrozenSet[str],
+        project_ids=None,
+        graph=None,
+        indexd_client=None,
+    ):
         if isinstance(project_ids, str):
-            self.project_ids = project_ids.split(',')
+            self.project_ids = project_ids.split(",")
         else:
             self.project_ids = project_ids
 
@@ -124,23 +131,25 @@ class VersionedNodesDiffCollector(object):
         self.i = indexd_client or get_default_index_client()
         self.allowed_gencode_versions = allowed_gencode_versions
         self.diffs = {}
-        self.logger = get_logger(__name__ + '.' + self.__class__.__name__)
+        self.logger = get_logger(__name__ + "." + self.__class__.__name__)
 
     def query_nodes(self):
         with self.g.session_scope():
-            q = self.g.nodes() \
-                .prop_in('state', self.TARGET_NODE_STATES) \
-                .filter(models.Node._props.has_key('file_name'))
+            q = (
+                self.g.nodes()
+                .prop_in("state", self.TARGET_NODE_STATES)
+                .filter(models.Node._props.has_key("file_name"))
+            )
 
             if self.project_ids and isinstance(self.project_ids, list):
-                q = q.prop_in('project_id', self.project_ids)
+                q = q.prop_in("project_id", self.project_ids)
 
             nodes = q.yield_per(1000).enable_eagerloads(False)
             for n in nodes:
                 yield n
 
-    def iter_nodes(self, strategy='query'):
-        if strategy == 'query':
+    def iter_nodes(self, strategy="query"):
+        if strategy == "query":
             return self.query_nodes()
         else:
             raise NotImplementedError(
@@ -149,10 +158,15 @@ class VersionedNodesDiffCollector(object):
 
     def get_props_from_snapshot(self, node_id, action):
         with self.g.session_scope():
-            ts = self.g.nodes(TransactionSnapshot).filter(
-                TransactionSnapshot.id == node_id,
-                TransactionSnapshot.action == action,
-            ).order_by(TransactionSnapshot.transaction_id.desc()).first()
+            ts = (
+                self.g.nodes(TransactionSnapshot)
+                .filter(
+                    TransactionSnapshot.id == node_id,
+                    TransactionSnapshot.action == action,
+                )
+                .order_by(TransactionSnapshot.transaction_id.desc())
+                .first()
+            )
 
             if not ts:
                 return {}
@@ -169,8 +183,7 @@ class VersionedNodesDiffCollector(object):
     def get_props_from_indexd(self, versions, latest_id):
         # get only unreleased files
         unreleased_all = [
-            v for v in versions
-            if not (v.version and v.metadata.get('release_number'))
+            v for v in versions if not (v.version and v.metadata.get("release_number"))
         ]
 
         if len(unreleased_all) > 1:
@@ -180,21 +193,24 @@ class VersionedNodesDiffCollector(object):
             extra = [v for v in unreleased_all if v.did != latest_id]
 
             for e in extra:
-                self.logger.debug(
-                    "Extra unreleased IndexD doc: '{}'".format(e.did)
-                )
+                self.logger.debug("Extra unreleased IndexD doc: '{}'".format(e.did))
 
         # Get latest released
-        released = sorted([v for v in versions
-                           if v.version and v.metadata.get('release_number')],
-                          key=lambda x: int(x.version))[-1]
+        released = sorted(
+            [v for v in versions if v.version and v.metadata.get("release_number")],
+            key=lambda x: int(x.version),
+        )[-1]
 
-        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
+        gencode_of_latest_released = getattr(released, "metadata", {}).get(
+            "gencode_version"
+        )
 
         # Get primary url ('type' should be 'cleversafe')
-        primary_urls = {url: meta
-                        for url, meta in released.urls_metadata.items()
-                        if meta.get('type') == 'cleversafe'}
+        primary_urls = {
+            url: meta
+            for url, meta in released.urls_metadata.items()
+            if meta.get("type") == "cleversafe"
+        }
 
         if len(primary_urls) > 1:
             raise ValueError("Multiple primary urls for doc")
@@ -202,7 +218,7 @@ class VersionedNodesDiffCollector(object):
         _, meta = primary_urls.popitem()
 
         old_props = {
-            "file_state": meta['state'],
+            "file_state": meta["state"],
             "gencode_version": gencode_of_latest_released,
         }
 
@@ -218,15 +234,20 @@ class VersionedNodesDiffCollector(object):
                 versions = self.i.list_versions(node.node_id)
             except HTTPError as e:
                 if e.response and e.response.status_code != 404:
-                    self.logger.error("Error while making request to IndexD: {}. Retrying".format(str(e)))
+                    self.logger.error(
+                        "Error while making request to IndexD: {}. Retrying".format(
+                            str(e)
+                        )
+                    )
                     time.sleep(5)
                     continue
                 # Return an empty list if record doesn't exist
                 return []
             return versions
 
-        self.logger.debug("IndexD is being weird with: {} '{}'".format(
-            node.project_id, node))
+        self.logger.debug(
+            "IndexD is being weird with: {} '{}'".format(node.project_id, node)
+        )
         # Return an empty list if unable to query IndexD
         return []
 
@@ -235,8 +256,7 @@ class VersionedNodesDiffCollector(object):
         Given a Node, collect old properties from TransactionSnapshot and IndexD
         """
         # Lookup TransactionSnapshot with 'version' action
-        transaction_props = self.get_props_from_snapshot(node.node_id,
-                                                         'version')
+        transaction_props = self.get_props_from_snapshot(node.node_id, "version")
 
         # This will mean that the given node never created a new file version
         if not transaction_props:
@@ -269,8 +289,9 @@ class VersionedNodesDiffCollector(object):
             node_diff = self.get_old_props(node)
             if node_diff:
                 self.diffs[node.node_id] = node_diff
-                self.logger.debug("Found old version of: {} '{}'".format(
-                    node.project_id, node))
+                self.logger.debug(
+                    "Found old version of: {} '{}'".format(node.project_id, node)
+                )
         return self.diffs
 
 
@@ -293,12 +314,12 @@ class ReleaseHelper:
         self.es = es
         self.audit_index = audit_index
         self.audit = audit
-        self.log = get_logger('utils_releasehelper')
+        self.log = get_logger("utils_releasehelper")
 
     @classmethod
-    def get_project_docs_query(cls,
-                               index_type: str,
-                               project_ids: Optional[Iterable[str]] = None) -> Dict:
+    def get_project_docs_query(
+        cls, index_type: str, project_ids: Optional[Iterable[str]] = None
+    ) -> Dict:
         """
         Create a query that will return all documents from a given ``index_type``
         for a given subset of ``project_ids``. If no ``project_ids`` were passed,
@@ -318,7 +339,7 @@ class ReleaseHelper:
         file_q: dict = {
             "nested": {
                 "path": "cases",
-                "query": {"terms": {"cases.project.project_id": project_ids}}
+                "query": {"terms": {"cases.project.project_id": project_ids}},
             }
         }
 
@@ -334,10 +355,9 @@ class ReleaseHelper:
 
         return index_type_queries[index_type]
 
-    def delete_docs_from_index(self,
-                               index_name: str,
-                               index_type: str,
-                               projects_to_delete: Iterable[str]):
+    def delete_docs_from_index(
+        self, index_name: str, index_type: str, projects_to_delete: Iterable[str]
+    ):
         """
         Removes ebsuild docs associated with selected projects from the index.
 
@@ -361,7 +381,9 @@ class ReleaseHelper:
                 "".format(", ".join(projects_to_delete), index_name)
             )
 
-    def add_esbuild_log(self, index_prefix, action, project_ids, timestamp=None, **kwargs):
+    def add_esbuild_log(
+        self, index_prefix, action, project_ids, timestamp=None, **kwargs
+    ):
         if not self.audit:
             return
 
@@ -377,7 +399,9 @@ class ReleaseHelper:
 
         project_ids = project_ids or ["all"]
 
-        metadata_id = self.get_build_metadata_id(index_prefix, action, project_ids, commit_hash)
+        metadata_id = self.get_build_metadata_id(
+            index_prefix, action, project_ids, commit_hash
+        )
 
         self.es.index(
             index=self.audit_index,
@@ -388,7 +412,7 @@ class ReleaseHelper:
                 projects=project_ids or ["all"],
                 commit_hash=commit_hash,
                 timestamp=timestamp,
-                **kwargs
+                **kwargs,
             ),
         )
 
@@ -397,7 +421,7 @@ class ReleaseHelper:
         if not isinstance(project_ids, list):
             project_ids = [str(project_ids)]
 
-        project_ids_string = ','.join(sorted(project_ids))
+        project_ids_string = ",".join(sorted(project_ids))
         id_string = "-".join([index_prefix, action, project_ids_string, commit_hash])
 
         md5hash = md5(id_string.encode("utf-8"))
@@ -408,18 +432,15 @@ class ReleaseHelper:
         """
         Returns set of projects based on project documents in index
         """
-        query = {
-            "query": {"match_all": {}},
-            "stored_fields": "_id"
-        }
+        query = {"query": {"match_all": {}}, "stored_fields": "_id"}
 
         project_index = index_prefix + "_project"
 
         res = self.es.search(index=project_index, size=10000, body=query)
 
-        hits = res['hits']['hits']
+        hits = res["hits"]["hits"]
         if hits:
-            projects = set([project['_id'] for project in hits])
+            projects = set([project["_id"] for project in hits])
         else:
             # Existing index did not contain any project docs
             projects = set()
@@ -433,7 +454,7 @@ class ReleaseHelper:
             query = {"match_all": {}}
 
         time_slept = 0
-        while not self.es.search(index=index_name, body=query)['hits']['hits']:
+        while not self.es.search(index=index_name, body=query)["hits"]["hits"]:
             time.sleep(1)
             time_slept += 1
             if time_slept > max_wait_sec:
@@ -443,17 +464,16 @@ class ReleaseHelper:
     @lru_cache(1)
     def get_commit_hash():
         git_dir = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.realpath(__file__))), '.git')
+            os.path.dirname(os.path.dirname(os.path.realpath(__file__))), ".git"
+        )
         try:
-            commit_hash = subprocess.check_output(['git',
-                                                   '--git-dir={}'.format(git_dir),
-                                                   'rev-parse', 'HEAD'])
+            commit_hash = subprocess.check_output(
+                ["git", "--git-dir={}".format(git_dir), "rev-parse", "HEAD"]
+            )
         except Exception as err:
-            commit_hash = 'unable to parse commit hash: {}'.format(repr(err))
+            commit_hash = "unable to parse commit hash: {}".format(repr(err))
 
-        return commit_hash.decode('utf-8')
+        return commit_hash.decode("utf-8")
 
 
 def get_index_names(
@@ -473,7 +493,7 @@ def get_index_names(
 
 
 def force_merge_indices(es, index_prefix=None, index_names=()):
-    """ Force-merging the graph indices down to a single segment
+    """Force-merging the graph indices down to a single segment
 
     Args:
         es: Elasticsearch client
@@ -490,7 +510,9 @@ def force_merge_indices(es, index_prefix=None, index_names=()):
         raise ValueError("index_prefix and index_name cannot be set at the same time")
 
     if index_prefix:
-        index_mappings = get_index_names(index_prefix, ["file", "case", "project", "annotation"])
+        index_mappings = get_index_names(
+            index_prefix, ["file", "case", "project", "annotation"]
+        )
         index_names = list(index_mappings.values())
 
     esutils.force_merge_elasticsearch_indices(es, index_names)
