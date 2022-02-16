@@ -15,35 +15,31 @@ from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
 from functools import lru_cache
-from typing import Dict
-from uuid import uuid5, UUID
+from typing import Any, List, Optional
+from uuid import UUID, uuid5
 
 import networkx as nx
+import psqlgraph
 from cdislogging import get_logger
-from gdcdatamodel import models as md
 from datadog import statsd
-from progressbar import (
-    ProgressBar,
-    Percentage,
-    Bar,
-    ETA,
-)
-from psqlgraph import Node, Edge
-from sqlalchemy.orm import joinedload
-
-from esbuild.graph.common.mappings import (
-    ESMapper,
-    ONE_TO_MANY,
-    ONE_TO_ONE,
-)
 from esbuild.graph.common import validators
+from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
+from gdcdatamodel import models as md
+from indexclient import client
+from progressbar import ETA, Bar, Percentage, ProgressBar
+from psqlgraph import Edge, Node
+from sqlalchemy.orm import joinedload
 
 log = get_logger("graph_index", log_level='info')
 
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
-ENTRY_FOR_WRONG_GENCODE_FILE = {
-    "error": "wrong gencode_version for generated data files"
+FILE_MISSING_GENCODE = {
+    "error": "no gencode_version for generated data files"
 }
+ENTRY_FOR_WRONG_GENCODE = {
+    "ignore": "wrong gencode_version for generated data files"
+}
+
 
 @lru_cache(maxsize=32)
 def dfs_to_parent(node, target='case'):
@@ -54,6 +50,15 @@ def dfs_to_parent(node, target='case'):
         if found:
             return found
     return None
+
+
+def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
+    if not doc:
+        return None
+
+    gencode_version = doc.to_json().get("metadata", {}).get("gencode_version")
+    
+    return gencode_version
 
 
 class GraphIndexBuilder(object):
@@ -191,11 +196,18 @@ class GraphIndexBuilder(object):
         ]
     ]
 
-    def __init__(self, psqlgraph_driver, indexd_client, **kwargs):
+    def __init__(
+        self,
+        psqlgraph_driver: psqlgraph.PsqlGraphDriver,
+        indexd_client: client.IndexClient,
+        index_prefix: Optional[str] = "",
+        **kwargs: Any
+    ) -> None:
         """Walks the graph to produce elasticsearch json documents.
 
         """
         self.indexd = indexd_client
+        self.index_prefix = index_prefix
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
@@ -336,8 +348,11 @@ class GraphIndexBuilder(object):
             '.tbi',
         }
 
-    def warning(self, title, text, tags=[], *args, **kwargs):
-        log.warning("{}: {}".format(title, text))
+    def warning(self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs) -> None:
+        tags = tags or []
+        tags.append(f"index_group:{self.index_prefix}")
+
+        log.warning(f"{title}: {text}")
         statsd.event(
             title,
             text,
@@ -346,8 +361,11 @@ class GraphIndexBuilder(object):
             tags=tags,
         )
 
-    def error(self, title, text, tags=[], *args, **kwargs):
-        log.error("{}: {}".format(title, text))
+    def error(self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs):
+        tags = tags or []
+        tags.append(f"index_group:{self.index_prefix}")
+
+        log.error(f"{title}: {text}")
         statsd.event(
             title,
             text,
@@ -845,13 +863,12 @@ class GraphIndexBuilder(object):
 
         return doc
 
-    def has_allowed_gencode_version(self, node: Node, doc: Dict) -> bool:
+    def has_allowed_gencode_version(self, node: Node, gencode_version: Optional[str]) -> bool:
         # submittable nodes should always be included
         if node._dictionary.get("submittable", False):
             return True
 
-        gencode_ver = doc.get("metadata", {}).get("gencode_version")
-        return gencode_ver in self.allowed_gencode_versions
+        return gencode_version in self.allowed_gencode_versions
 
     def add_file_metadata_from_indexd(self, node):
         """
@@ -869,26 +886,31 @@ class GraphIndexBuilder(object):
         # If not found, get it from indexd
         if not record:
             record = self.indexd.get(node.node_id)
+            gencode_version = _get_gencode_version(record)
 
             if not record:
                 if node.sysan.get('to_delete'):
                     self.file_metadata[node.node_id] = {'error': 'to_delete file'}
                 else:
-                    self.error(
+                    self.warning(
                         "No indexd data found for {}, ignoring".format(node),
                         "node_type: {} node_id: {}".format(node.label, node.node_id),
-                        tags=["indexd", node.label]
+                        tags=[f"node:{node.label}"]
                     )
                     self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
 
-            if not self.has_allowed_gencode_version(node, record.to_json()):
-                self.error(
-                    title="indexd data with wrong gencode_version, ignoring",
+            if not gencode_version:
+                self.warning(
+                    title="indexd data with no gencode_version found, ignoring",
                     text=f"node_type: {node.label} node_id: {node.node_id}",
-                    tags=["indexd", node.label]
+                    tags=[f"node:{node.label}"]
                 )
-                self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE_FILE
+                self.file_metadata[node.node_id] = FILE_MISSING_GENCODE
+                return node
+
+            if not self.has_allowed_gencode_version(node, gencode_version):
+                self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE
                 return node
 
             record = record.to_json()
@@ -896,7 +918,7 @@ class GraphIndexBuilder(object):
             self.file_metadata[node.node_id] = record
 
         # for to_delete nodes and nodes with wrong gencode_version
-        if "error" in record:
+        if "error" in record or "ignore" in record:
             return node
 
         # Set node file metadata attributes according to indexd record
@@ -1861,8 +1883,8 @@ class GraphIndexBuilder(object):
 
         # remove file node with wrong gencode_version
         # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
-        if self.file_metadata[node.node_id] == ENTRY_FOR_WRONG_GENCODE_FILE:
-            log.info(f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['error']}")
+        if "ignore" in self.file_metadata[node.node_id]:
+            log.info(f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['ignore']}")
             return False
 
         # Remove files with no acl entries
