@@ -377,6 +377,7 @@ class GDCElasticsearch(object):
             selective_caching=self.selective_caching,
             versioned_files=versioned_files,
             allowed_gencode_versions=self.allowed_gencode_versions,
+            index_prefix=self.index_prefix,
         )
 
         cases, files, annotations, projects = self._cache_database(self.converter)

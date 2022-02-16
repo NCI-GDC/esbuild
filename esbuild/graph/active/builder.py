@@ -27,6 +27,7 @@ from esbuild.graph.active.mappings import ActiveESMapper
 
 
 log = get_logger("graph_active_index", log_level='info')
+FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 
 def reverse_and_skip_first_entry(path):
@@ -357,11 +358,13 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return cases, files, annotations, projects
 
     def get_case_files(self, node):
+        def file_filter(file) -> bool:
+            metadata = self.file_metadata.get(file.node_id, {})
+
+            return not FILTERED_FILE_STATUSES.intersection(metadata)
+
         unfiltered_files = super().get_case_files(node)
-        return {
-            file for file in unfiltered_files
-            if 'error' not in self.file_metadata.get(file.node_id, {})
-        }
+        return set(filter(file_filter, unfiltered_files))
 
     def denormalize_file(self, node, ptree):
         doc = super().denormalize_file(node, ptree)
