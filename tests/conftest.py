@@ -460,9 +460,18 @@ def apply_gencode_to_indexd(pg_driver, init_indexd, gencode_version_graph):
         ["gv_ge_2", None],
     ]
     with pg_driver.session_scope():
+        # remove gencode_version for all clinical_supplement to test submittable files
+        cs_nodes = pg_driver.nodes(models.ClinicalSupplement).all()
+        cs_docs = init_indexd.bulk_request(dids=[n.node_id for n in cs_nodes])
+        for cs_doc in cs_docs:
+            cs_doc.metadata["gencode_version"] = None
+            cs_doc.patch()
+
+        # apply specified gencode_version to GeneExpression to test pick up by gencode
         for submitter_id, gencode in gencode_versions:
             node = pg_driver.nodes(models.GeneExpression).props(submitter_id=submitter_id).one()
             doc = init_indexd.get(node.node_id)
             doc.metadata["gencode_version"] = gencode
             doc.patch()
+
     return init_indexd
