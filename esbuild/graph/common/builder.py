@@ -886,7 +886,6 @@ class GraphIndexBuilder(object):
         # If not found, get it from indexd
         if not record:
             record = self.indexd.get(node.node_id)
-            gencode_version = _get_gencode_version(record)
 
             if not record:
                 if node.sysan.get('to_delete'):
@@ -900,18 +899,19 @@ class GraphIndexBuilder(object):
                     self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
 
-            if not gencode_version:
-                self.warning(
-                    title="indexd data with no gencode_version found, ignoring",
-                    text=f"node_type: {node.label} node_id: {node.node_id}",
-                    tags=[f"node:{node.label}"]
-                )
-                self.file_metadata[node.node_id] = FILE_MISSING_GENCODE
-                return node
-
+            gencode_version = _get_gencode_version(record)
             if not self.has_allowed_gencode_version(node, gencode_version):
-                self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE
-                return node
+                if gencode_version:
+                    self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE
+                    return node
+                else:
+                    self.warning(
+                        title="indexd data with no gencode_version found, ignoring",
+                        text=f"node_type: {node.label} node_id: {node.node_id}",
+                        tags=[f"node:{node.label}"]
+                    )
+                    self.file_metadata[node.node_id] = FILE_MISSING_GENCODE
+                    return node
 
             record = record.to_json()
             # Cache indexd record
