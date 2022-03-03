@@ -1,15 +1,25 @@
 import argparse
-import logging
+import datetime
 import json
-from cdislogging import get_logger
-from elasticsearch import Elasticsearch
-from elasticsearch.helpers import scan
-from pprint import pformat
-from deepdiff import DeepDiff
-from dictdiffer import diff
+import logging
+import pprint
 
-log = get_logger('compare_indices')
-log.setLevel(level=logging.INFO)
+import deepdiff
+import elasticsearch
+from dictdiffer import diff
+from elasticsearch import helpers
+from pythonjsonlogger import jsonlogger
+
+root_logger = logging.getLogger()
+logHandler = logging.FileHandler(filename=f'/var/log/esbuild/master-{datetime.datetime.now()}.ndjson')
+formatter = jsonlogger.JsonFormatter()
+
+logHandler.setFormatter(formatter)
+
+root_logger.addHandler(logHandler)
+root_logger.setLevel(logging.INFO)
+
+logger = root_logger.getChild("esbuild")
 
 IGNORE_KEYS = (
     'updated_datetime',  # This might change when node is touched
@@ -45,7 +55,7 @@ class DataTester:
 
     def run(self):
         test_type = self.args.test_type
-        log.info('\n\nRunning {} test'.format(test_type.upper()))
+        logger.info('\n\nRunning {} test'.format(test_type.upper()))
         getattr(self, test_type)()
 
     def compare_counts(self):
@@ -64,17 +74,17 @@ class DataTester:
             f.write('\n[{}:{}]\n[{}] counts'.format(self.args.es_host,
                                                     self.args.es_port,
                                                     self.args.true_index))
-            f.write(pformat(true_counts) + '\n')
+            f.write(pprint.pformat(true_counts) + '\n')
             f.write('_' * 80 + '\n')
             # Test index counts
             f.write('\n[{}:{}]\n[{}] counts\n'.format(self.args.es_host,
                                                       self.args.es_port,
                                                       self.args.test_index))
-            f.write(pformat(test_counts) + '\n')
+            f.write(pprint.pformat(test_counts) + '\n')
             f.write('_' * 80 + '\n')
             f.write('Mismatches found:\n')
-            mismatches = DeepDiff(true_counts, test_counts)
-            f.write(pformat(mismatches) + '\n')
+            mismatches = deepdiff.DeepDiff(true_counts, test_counts)
+            f.write(pprint.pformat(mismatches) + '\n')
             f.write('_' * 80 + '\n')
 
         return mismatches == {}
@@ -85,18 +95,18 @@ class DataTester:
         true_counts = self.get_counts(self.es_worker, self.args.true_index)
         sizes = {k: v['counts']['total'] for k, v in true_counts.items()}
 
-        log.info(
+        logger.info(
             'Running full comparison of {} and {} indices:'.format(
                 self.args.true_index, self.args.test_index
             )
         )
         if IGNORE_KEYS:
-            log.warning('Ignoring {} fields'.format(', '.join(IGNORE_KEYS)))
+            logger.warning('Ignoring {} fields'.format(', '.join(IGNORE_KEYS)))
 
         # For each doctype, iterate over entire index and compare
         result = {d: {} for d in self.doc_types}
         for doc_type in self.doc_types:
-            log.info('Comparing {}s:'.format(doc_type))
+            logger.info('Comparing {}s:'.format(doc_type))
             true_docs = self.es_worker.get_es_iterator(self.es_worker.es,
                                                        self.args.true_index,
                                                        doc_type)
@@ -107,7 +117,7 @@ class DataTester:
                     test_doc = self.es_worker.es.get(index=self.args.test_index,
                                                      doc_type=doc_type, id=doc['_id'])
                 except:
-                    log.warning('{} {} was not found in {}, skipping'
+                    logger.warning('{} {} was not found in {}, skipping'
                                 .format(doc_type, doc['_id'], self.args.test_index))
                     continue
 
@@ -122,7 +132,7 @@ class DataTester:
 
                 result[doc_type][doc['_id']] = is_correct
                 if doc_count % 100 == 0:
-                    log.info('progress: {}/{}'.format(doc_count, sizes[doc_type]))
+                    logger.info('progress: {}/{}'.format(doc_count, sizes[doc_type]))
 
         report_file = 'compared_{}_vs_{}.json'.format(self.args.true_index,
                                                       self.args.test_index)
@@ -248,7 +258,7 @@ class ESWorker:
 
         self.parser = self.add_es_args(self.parser)
         self.args = self.parser.parse_args()
-        self.es = Elasticsearch(
+        self.es = elasticsearch.Elasticsearch(
             host=self.args.es_host, port=self.args.es_port,
             http_auth=(self.args.es_user, self.args.es_pass),
             timeout=30, max_retries=10, retry_on_timeout=True
@@ -321,7 +331,7 @@ class ESWorker:
     @staticmethod
     def get_es_iterator(es, index_name, doc_type, query={}):
         """ Returns full index document iterator """
-        doc_iterator = scan(es,
+        doc_iterator = helpers.scan(es,
                             index=index_name,
                             doc_type=doc_type,
                             scroll='2m',

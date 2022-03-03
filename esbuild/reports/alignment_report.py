@@ -1,4 +1,4 @@
-from cdislogging import get_logger
+import logging
 from consulate import Consul
 from datetime import datetime
 from datetime import timedelta
@@ -65,7 +65,7 @@ class AlignmentReporter(object):
         self.mailserver = mailserver
         self.toaddrs = toaddrs
         self._aligned = None
-        self.log = get_logger("alignment_report")
+        self.log = logging.getLogger(__name__)
 
     @property
     def totals(self):

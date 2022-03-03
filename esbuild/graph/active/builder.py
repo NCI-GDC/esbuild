@@ -18,7 +18,7 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
-from cdislogging import get_logger
+import logging
 from gdcdatamodel.models import ReadGroup
 
 from ..common import validators
@@ -26,7 +26,7 @@ from esbuild.graph.common.builder import GraphIndexBuilder
 from esbuild.graph.active.mappings import ActiveESMapper
 
 
-log = get_logger("graph_active_index", log_level='info')
+log = logging.getLogger(__name__)
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 

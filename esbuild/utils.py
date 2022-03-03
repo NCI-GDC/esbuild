@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import time
@@ -7,7 +8,6 @@ from functools import lru_cache
 from reprlib import repr
 from typing import Dict, Iterable, Optional, FrozenSet
 
-from cdislogging import get_logger
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from gdcdatamodel import models
@@ -131,7 +131,7 @@ class VersionedNodesDiffCollector(object):
         self.i = indexd_client or get_default_index_client()
         self.allowed_gencode_versions = allowed_gencode_versions
         self.diffs = {}
-        self.logger = get_logger(__name__ + "." + self.__class__.__name__)
+        self.logger = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
     def query_nodes(self):
         with self.g.session_scope():

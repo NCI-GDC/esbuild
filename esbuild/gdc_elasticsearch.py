@@ -9,12 +9,12 @@ Elasticsearch
 """
 import datetime
 import json
+import logging
 import os
 import time
 from concurrent import futures
 from typing import Iterable, List, NamedTuple, Optional, Tuple, Type
 
-import cdislogging
 from indexclient import client
 
 import datadog
@@ -193,7 +193,7 @@ class GDCElasticsearch(object):
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
         self.skip_es = skip_es
 
-        self.log = cdislogging.get_logger("gdc_elasticsearch", log_level="info")
+        self.log = logging.getLogger(__name__)
         self.converter = None
 
         self.log.info("Build arguments: {}".format(kwargs))

@@ -9,6 +9,7 @@ graph index.
 """
 import hashlib
 import itertools
+import logging
 import random
 import re
 from collections import defaultdict
@@ -20,7 +21,6 @@ from uuid import UUID, uuid5
 
 import networkx as nx
 import psqlgraph
-from cdislogging import get_logger
 from datadog import statsd
 from esbuild.graph.common import validators
 from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
@@ -30,7 +30,7 @@ from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node
 from sqlalchemy.orm import joinedload
 
-log = get_logger("graph_index", log_level='info')
+log = logging.getLogger(__name__)
 
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 FILE_MISSING_GENCODE = {
@@ -351,6 +351,7 @@ class GraphIndexBuilder(object):
     def warning(self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs) -> None:
         tags = tags or []
         tags.append(f"index_group:{self.index_prefix}")
+        tags.append(f"projects:{';'.join(self.projects)}")
 
         log.warning(f"{title}: {text}")
         statsd.event(
@@ -364,6 +365,7 @@ class GraphIndexBuilder(object):
     def error(self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs):
         tags = tags or []
         tags.append(f"index_group:{self.index_prefix}")
+        tags.append(f"projects:{';'.join(self.projects)}")
 
         log.error(f"{title}: {text}")
         statsd.event(
@@ -1586,6 +1588,7 @@ class GraphIndexBuilder(object):
                     ann_to_case[annotation.node_id] = case
 
         docs = []
+        annotation_failed = False
 
         for annotation in annotations:
             try:
@@ -1624,11 +1627,11 @@ class GraphIndexBuilder(object):
                 docs.append(doc)
 
             except Exception as e:
-                self.error(
-                    'denormalize_annotations',
-                    '{} encountered an error: {}'.format(annotation, e)
-                )
-                continue
+                annotation_failed = True
+                log.warning(f"failed to denomalize annotation: {annotation.node_id}", exc_info=e)
+
+        if annotation_failed:
+            self.warning("Annotations failed to be denormalized. Check logs for further details.")
 
         return docs
 

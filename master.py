@@ -1,15 +1,26 @@
 import argparse
+import datetime
+import logging
 import os
 from typing import Any, Iterable, Optional
 
+import elasticsearch
 import yaml
-from cdislogging import get_logger
-from elasticsearch import Elasticsearch
+from pythonjsonlogger import jsonlogger
 
-from esbuild.export.s3_repository import BackupHelper
-from esbuild.utils import ES_CONFIG, get_queue_client
+from esbuild import utils
+from esbuild.export import s3_repository
 
-logger = get_logger("esbuild_master", log_level="info")
+root_logger = logging.getLogger()
+logHandler = logging.FileHandler(filename=f'/var/log/esbuild/master-{datetime.datetime.now()}.ndjson')
+formatter = jsonlogger.JsonFormatter()
+
+logHandler.setFormatter(formatter)
+
+root_logger.addHandler(logHandler)
+root_logger.setLevel(logging.INFO)
+
+logger = root_logger.getChild("esbuild")
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, "config.yml"), "r").read())
@@ -204,14 +215,14 @@ def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
     """
     Executes backup or restore procedure with BackupHelper
     """
-    es_client = Elasticsearch(**ES_CONFIG)
+    es_client = elasticsearch.Elasticsearch(**utils.ES_CONFIG)
 
     bucket = s3_bucket or os.getenv("S3_BUCKET")
 
     if not bucket:
         raise ValueError("Snapshot bucket wasn't provided.")
 
-    backup_helper = BackupHelper(
+    backup_helper = s3_repository.BackupHelper(
         es_client,
         os.environ["S3_HOST"],
         os.environ["S3_ACCESS_KEY"],
@@ -286,7 +297,7 @@ if __name__ == "__main__":
     user_config = load_user_configuration(args.config)
 
     # Get RabbitMQ queue client
-    queue_client = get_queue_client(args.queue_type, args.queue_id)
+    queue_client = utils.get_queue_client(args.queue_type, args.queue_id)
     logger.info(
         f"Initializing queue client to connect to queue_id: {queue_client.queue_id}"
     )

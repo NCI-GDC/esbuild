@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 
 import argparse
+import datetime
 import json
+import logging
+from concurrent import futures
 
 import datadog
-from esbuild import utils, reindexing, gdc_elasticsearch
+from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.export import mapping_exporter
-from concurrent import futures
+from pythonjsonlogger import jsonlogger
+
+root_logger = logging.getLogger()
+logHandler = logging.FileHandler(filename=f'/var/log/esbuild/esbuild-cli-{datetime.datetime.now()}.ndjson')
+formatter = jsonlogger.JsonFormatter()
+
+logHandler.setFormatter(formatter)
+
+root_logger.addHandler(logHandler)
+root_logger.setLevel(logging.INFO)
+
+logger = root_logger.getChild("esbuild")
 
 
 def handle_mappings(args):

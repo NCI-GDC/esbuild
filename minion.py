@@ -1,23 +1,28 @@
 import argparse
+import datetime
+import logging
+import multiprocessing
 import os
 import time
-from multiprocessing import Process
 
+import elasticsearch
 import yaml
-from cdislogging import get_logger
-from elasticsearch import Elasticsearch
+from pythonjsonlogger import jsonlogger
 
-from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.utils import (
-    ES_CONFIG,
-    get_default_index_client,
-    get_default_pg_driver,
-    get_queue_client,
-)
+from esbuild import gdc_elasticsearch, utils
+from esbuild.graph.active import builder
 
+root_logger = logging.getLogger()
+logHandler = logging.FileHandler(filename=f'/var/log/esbuild/minion-{datetime.datetime.now()}.ndjson')
+formatter = jsonlogger.JsonFormatter()
 
-logger = get_logger("esbuild_minion", log_level="info")
+logHandler.setFormatter(formatter)
+
+root_logger.addHandler(logHandler)
+root_logger.setLevel(logging.INFO)
+
+logger = root_logger.getChild("esbuild")
+
 root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, "config.yml"), "r").read())
 
@@ -27,11 +32,11 @@ TIMEDELTA = config["timedelta"]
 def get_gdc_elasticsearch(
     indexd_client,
     pg_driver,
-    es_client: Elasticsearch,
+    es_client: elasticsearch.Elasticsearch,
     payload: dict,
     save_doc_path: str = None,
     skip_es: bool = False,
-) -> GDCElasticsearch:
+) -> gdc_elasticsearch.GDCElasticsearch:
     """Parse and validate payload and return GDCElasticsearch instance"""
     build_type = payload.get("build-type")
 
@@ -50,8 +55,8 @@ def get_gdc_elasticsearch(
 
     alias = payload.get("alias") or default_alias
 
-    gdc_es = GDCElasticsearch(
-        converter_class=ActiveGraphIndexBuilder,
+    gdc_es = gdc_elasticsearch.GDCElasticsearch(
+        converter_class=builder.ActiveGraphIndexBuilder,
         indexd_client=indexd_client,
         pg_driver=pg_driver,
         es=es_client,
@@ -83,12 +88,11 @@ def process_work(
     running = True
     found_work = False
 
-    queue_client = get_queue_client(queue_type, queue_id)
-    pg_driver = get_default_pg_driver()
-    indexd_client = get_default_index_client()
-    es_client = Elasticsearch(**ES_CONFIG)
+    queue_client = utils.get_queue_client(queue_type, queue_id)
+    pg_driver = utils.get_default_pg_driver()
+    indexd_client = utils.get_default_index_client()
+    es_client = elasticsearch.Elasticsearch(**utils.ES_CONFIG)
 
-    log = get_logger("esbuild_minion_{}".format(worker_id), log_level="info")
     logger.info(
         f"Initializing queue client on worker_id: {worker_id} to connect to queue_id: {queue_client.queue_id}"
     )
@@ -98,10 +102,10 @@ def process_work(
 
         if not payload:
             if found_work:
-                log.info("No work found, exiting")
+                logger.info("No work found, exiting")
                 break
 
-            log.info("No work found, waiting")
+            logger.info("No work found, waiting")
             time.sleep(sleep_time)
             continue
 
@@ -117,17 +121,17 @@ def process_work(
                 skip_es=skip_es,
             )
 
-            log.info(
+            logger.info(
                 "Running build-type 'active', build_awg '{}'".format(gdc_es.build_awg)
             )
-            log.info("Payload: {}".format(payload))
+            logger.info("Payload: {}".format(payload))
 
             gdc_es.go(
                 roll_alias=not payload.get("no-roll"),
                 send_events=not no_statsd,
             )
         except Exception as e:
-            log.exception(str(e))
+            logger.exception(str(e))
 
         time.sleep(sleep_time)
 
@@ -174,7 +178,7 @@ if __name__ == "__main__":
         logger.info("Creating process {}".format(i))
         proc_info = dict(id=i)
 
-        proc_info["process"] = Process(
+        proc_info["process"] = multiprocessing.Process(
             target=process_work,
             kwargs=dict(
                 worker_id=i,

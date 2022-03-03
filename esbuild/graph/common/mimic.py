@@ -7,10 +7,10 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
-from cdislogging import get_logger
+import logging
 from collections.abc import Iterable
 
-log = get_logger(__name__, log_level='info')
+log = logging.getLogger(__name__)
 
 
 class CommonMimic(object):
