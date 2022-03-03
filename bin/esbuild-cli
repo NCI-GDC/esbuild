@@ -39,7 +39,10 @@ def handle_reindex(args):
 
 
 def handle_pre_flight(args):
-    collector = utils.VersionedNodesDiffCollector(project_ids=args.project_ids)
+    gencode_versions = utils.get_all_gencode_versions(args.gencode_version)
+    collector = utils.VersionedNodesDiffCollector(
+        project_ids=args.project_ids, allowed_gencode_versions=gencode_versions
+    )
     diffs = collector.collect_differences()
 
     if args.out_file:
@@ -101,7 +104,7 @@ def get_parser():
         help="List of space separated projects to reindex",
     )
     reindex_sub.add_argument(
-         "--conflicts",
+        "--conflicts",
         required=False,
         default="abort",
         choices=("proceed", "abort"),
@@ -134,6 +137,14 @@ def get_parser():
         nargs="+",
         required=False,
         help="Projects to run the pre-flight for",
+    )
+    preflight_sub.add_argument(
+        "--gencode-version",
+        help="set desired gencode_version for indexing, 'neutral' nodes are always included."
+        "if not set, all available nodes will be included. ",
+        type=str,
+        default="all",
+        choices=["v22", "v36", "all"],
     )
     preflight_sub.add_argument(
         "-o",
