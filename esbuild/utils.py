@@ -314,7 +314,7 @@ class ReleaseHelper:
         self.es = es
         self.audit_index = audit_index
         self.audit = audit
-        self.log = get_logger("utils_releasehelper")
+        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     @classmethod
     def get_project_docs_query(
