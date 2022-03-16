@@ -38,8 +38,16 @@ def handle_reindex(args):
         )
 
 
-def handle_pre_flight(args):
-    collector = utils.VersionedNodesDiffCollector(project_ids=args.project_ids)
+def handle_pre_flight(args: argparse.Namespace) -> None:
+    """Handle the pre-flight command.
+
+    This function collects differences between corresponding new and old version
+    of files and documents their differences in the specified output file.
+    """
+    gencode_versions = utils.get_all_gencode_versions(args.gencode_version)
+    collector = utils.VersionedNodesDiffCollector(
+        project_ids=args.project_ids, allowed_gencode_versions=gencode_versions
+    )
     diffs = collector.collect_differences()
 
     if args.out_file:
@@ -54,7 +62,8 @@ def handle_force_merge(args):
     utils.force_merge_indices(es, args.index_prefix, args.index_names)
 
 
-def get_parser():
+def get_parser() -> argparse.ArgumentParser:
+    """Build and return the ArgumentParser for esbuild-cli."""
     parser = argparse.ArgumentParser()
 
     subparser = parser.add_subparsers(title="subcommands")
@@ -101,7 +110,7 @@ def get_parser():
         help="List of space separated projects to reindex",
     )
     reindex_sub.add_argument(
-         "--conflicts",
+        "--conflicts",
         required=False,
         default="abort",
         choices=("proceed", "abort"),
@@ -134,6 +143,14 @@ def get_parser():
         nargs="+",
         required=False,
         help="Projects to run the pre-flight for",
+    )
+    preflight_sub.add_argument(
+        "--gencode-version",
+        help="Set desired gencode_version for indexing, 'neutral' nodes are always included. "
+        "If not set, all available nodes will be included.",
+        type=str,
+        default="all",
+        choices=["v22", "v36", "all"],
     )
     preflight_sub.add_argument(
         "-o",

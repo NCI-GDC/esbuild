@@ -18,6 +18,7 @@ from psqlgraph import PsqlGraphDriver
 from requests import HTTPError
 from queueclient import DepotQueueClient, RabbitMQClient
 
+from esbuild.graph.common import builder
 from esbuild.graph.common.builder import GraphIndexBuilder
 
 
@@ -516,3 +517,20 @@ def force_merge_indices(es, index_prefix=None, index_names=()):
         index_names = list(index_mappings.values())
 
     esutils.force_merge_elasticsearch_indices(es, index_names)
+
+
+def get_all_gencode_versions(gencode_version: str) -> FrozenSet[str]:
+    """Map specified gencode version to all allowed gencode versions"""
+    gencode_versions = (
+        builder.AVAILABLE_GENCODE_VERSIONS
+        if gencode_version == "all"
+        else frozenset(["neutral", gencode_version])
+    )
+
+    if not gencode_versions.issubset(builder.AVAILABLE_GENCODE_VERSIONS):
+        raise NotImplementedError(
+            f"{gencode_versions} is not a valid gencode_version requirement. "
+            f"The available gencode_versions are {builder.AVAILABLE_GENCODE_VERSIONS}"
+        )
+
+    return gencode_versions
