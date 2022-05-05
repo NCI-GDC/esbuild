@@ -249,7 +249,7 @@ class ESWorker:
         self.parser = self.add_es_args(self.parser)
         self.args = self.parser.parse_args()
         self.es = Elasticsearch(
-            host=self.args.es_host, port=self.args.es_port,
+            f"https://{self.args.es_host}:{self.args.es_port}/",
             http_auth=(self.args.es_user, self.args.es_pass),
             timeout=30, max_retries=10, retry_on_timeout=True
         )
