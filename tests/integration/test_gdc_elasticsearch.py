@@ -17,9 +17,9 @@ from esbuild.graph.active import builder
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from gdcdatamodel.models import Demographic, File
-from tests import data
-from tests.conftest import cleanup_nodes, get_all_indices
-from tests.data import get_node_id
+from tests.integration import data
+from tests.integration.conftest import cleanup_nodes, get_all_indices
+from tests.integration.data import get_node_id
 
 GRAPH_INDEX_DOC_TYPES = ["project", "case", "annotation", "file"]
 

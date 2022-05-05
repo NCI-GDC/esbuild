@@ -12,9 +12,9 @@ from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from tests.conftest import Index, raise_test_error, cleanup_nodes
-from tests.data import fuzzed, get_node_id
-from tests.test_utils import validate_file_metadata
+from tests.integration.conftest import Index, raise_test_error, cleanup_nodes
+from tests.integration.data import fuzzed, get_node_id
+from tests.integration.test_utils import validate_file_metadata
 
 
 def build_index(graph, indexd_client):

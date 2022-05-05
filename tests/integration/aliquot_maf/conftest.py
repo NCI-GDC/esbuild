@@ -1,7 +1,7 @@
 import pytest
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from tests.conftest import Index
+from tests.integration.conftest import Index
 
 
 @pytest.fixture

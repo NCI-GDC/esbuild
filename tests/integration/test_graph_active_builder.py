@@ -20,9 +20,9 @@ from esbuild.graph.active.builder import (
     subtree_paths_to_file,
 )
 from esbuild.graph.common.builder import GraphIndexBuilder
-from tests.test_utils import get_dict_paths, validate_file_metadata
-from tests.data import get_node_id
-from tests.conftest import raise_test_error, Index
+from tests.integration.test_utils import get_dict_paths, validate_file_metadata
+from tests.integration.data import get_node_id
+from tests.integration.conftest import raise_test_error, Index
 
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories

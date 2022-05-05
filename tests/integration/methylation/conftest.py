@@ -6,7 +6,7 @@ from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
 
-from tests.conftest import Index
+from tests.integration.conftest import Index
 
 
 @pytest.fixture

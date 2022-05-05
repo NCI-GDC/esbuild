@@ -2,8 +2,8 @@ import pytest
 from addict import Dict
 from gdcdatamodel.models.submission import TransactionLog, TransactionSnapshot
 
-from tests.conftest import cleanup_nodes
-from tests.data import get_node_id
+from tests.integration.conftest import cleanup_nodes
+from tests.integration.data import get_node_id
 
 
 def is_file(node):
