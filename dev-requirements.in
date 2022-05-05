@@ -1,6 +1,5 @@
 -c requirements.txt
 
-deepdiff~=4.0
 jsonpath-rw~=1.4
 mock~=3.0
 pytest~=5.3
