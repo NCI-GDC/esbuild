@@ -62,15 +62,13 @@ class DataTester:
         with open(report_file, 'w') as f:
             f.write('\n\n[Comparing counts]\n')
             f.write('_' * 80 + '\n')
-            f.write('\n[{}:{}]\n[{}] counts'.format(self.args.es_host,
-                                                    self.args.es_port,
-                                                    self.args.true_index))
+            f.write(f"\n[{self.es_worker.es}]\n[{self.args.true_index}] counts\n")
+
             f.write(pformat(true_counts) + '\n')
             f.write('_' * 80 + '\n')
             # Test index counts
-            f.write('\n[{}:{}]\n[{}] counts\n'.format(self.args.es_host,
-                                                      self.args.es_port,
-                                                      self.args.test_index))
+            f.write(f"\n[{self.es_worker.es}]\n[{self.args.true_index}] counts\n")
+
             f.write(pformat(test_counts) + '\n')
             f.write('_' * 80 + '\n')
             f.write('Mismatches found:\n')
