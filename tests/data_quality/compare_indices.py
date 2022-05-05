@@ -2,11 +2,12 @@ import argparse
 import logging
 import json
 from cdislogging import get_logger
-from elasticsearch import Elasticsearch
 from elasticsearch.helpers import scan
 from pprint import pformat
 from deepdiff import DeepDiff
 from dictdiffer import diff
+
+from esbuild.utils import get_elasticsearch_client
 
 log = get_logger('compare_indices')
 log.setLevel(level=logging.INFO)
@@ -27,7 +28,7 @@ class DataTester:
         # Adds extra args
         self.parser = self.add_args(self.parser)
 
-        self.es_worker = ESWorker(self.parser)
+        self.es_worker = ESWorker()
 
         self.args = self.parser.parse_args()
         self.doc_types = ['case', 'file', 'annotation', 'project']
@@ -239,34 +240,8 @@ class DataTester:
 class ESWorker:
     """ Works with elasticsearch indices, extracts data and counts """
 
-    def __init__(self, parser=None):
-        if not parser:
-            self.parser = argparse.ArgumentParser(
-                description='Parses elasticsearch arguments')
-        else:
-            self.parser = parser
-
-        self.parser = self.add_es_args(self.parser)
-        self.args = self.parser.parse_args()
-        self.es = Elasticsearch(
-            f"https://{self.args.es_host}:{self.args.es_port}/",
-            http_auth=(self.args.es_user, self.args.es_pass),
-            timeout=30, max_retries=10, retry_on_timeout=True
-        )
-
-    def add_es_args(self, parser):
-        """
-        Adds elasticsearch arguments to a parser
-        """
-        parser.add_argument('--es-host', default='localhost',
-                            help='Elasticsearch source host')
-        parser.add_argument('--es-port', default=9200, type=int,
-                            help='Elasticsearch source port')
-        parser.add_argument('--es-user', default='',
-                            help='Basic Auth user for ES (if applicable)')
-        parser.add_argument('--es-pass', default='',
-                            help='Basic Auth password for ES (if applicable)')
-        return parser
+    def __init__(self):
+        self.es = get_elasticsearch_client()
 
     @staticmethod
     def get_simple_counts(es, index_name, doc_type, field_list):
