@@ -2,10 +2,10 @@ import os
 import subprocess
 import time
 from datetime import datetime
-from hashlib import md5
 from functools import lru_cache
+from hashlib import md5
 from reprlib import repr
-from typing import Dict, Iterable, Optional, FrozenSet
+from typing import Dict, FrozenSet, Iterable, Optional
 
 from cdislogging import get_logger
 from dotenv import load_dotenv
@@ -15,8 +15,8 @@ from gdcdatamodel.models.submission import TransactionSnapshot
 from gdcmodels import esutils
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
-from requests import HTTPError
 from queueclient import DepotQueueClient, RabbitMQClient
+from requests import HTTPError
 
 from esbuild.graph.common import builder
 from esbuild.graph.common.builder import GraphIndexBuilder
@@ -477,10 +477,7 @@ class ReleaseHelper:
         return commit_hash.decode("utf-8")
 
 
-def get_index_names(
-    index_prefix: str,
-    index_types: Iterable[str],
-) -> Dict[str, str]:
+def get_index_names(index_prefix: str, index_types: Iterable[str],) -> Dict[str, str]:
     """
     Return elasticsearch index names given an index_prefix.
 

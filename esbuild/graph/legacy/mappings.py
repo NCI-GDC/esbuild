@@ -13,34 +13,28 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 """
 
 from gdcdatamodel import models  # noqa
-from ..common.mappings import (
-    ESMapper,
-)
+
+from ..common.mappings import ESMapper
 
 
 class LegacyESMapper(ESMapper):
-
     @staticmethod
     def index_settings():
 
         settings = super(LegacyESMapper, LegacyESMapper).index_settings()
 
-        settings['settings']['analysis'] = {
-            'filter': {
+        settings["settings"]["analysis"] = {
+            "filter": {
                 "edge_ngram": {
                     "side": "front",
                     "max_gram": 20,
                     "min_gram": 2,
-                    "type": "edge_ngram"
+                    "type": "edge_ngram",
                 }
             },
             "analyzer": {
-                "lowercase_keyword": {
-                    "tokenizer": "keyword",
-                    "filter": ["lowercase"],
-                }
-            }
-
+                "lowercase_keyword": {"tokenizer": "keyword", "filter": ["lowercase"],}
+            },
         }
 
         return settings

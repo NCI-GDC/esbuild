@@ -1,41 +1,42 @@
 import os
+from argparse import ArgumentParser
+
 import yaml
 from cdislogging import get_logger
+from gdcdatamodel.models import Program, Project
 from psqlgraph import PsqlGraphDriver
-from gdcdatamodel.models import Project, Program
-from argparse import ArgumentParser
 
 
 def parse_cmd_args():
-    default_state_filename = 'project-program-release.yaml'
+    default_state_filename = "project-program-release.yaml"
     parser = ArgumentParser()
     parser.add_argument(
-        'which_data',
+        "which_data",
         help="Which es instance we're setting states for",
-        choices=['ACTIVE', 'LEGACY']
+        choices=["ACTIVE", "LEGACY"],
     )
     parser.add_argument(
-        '--state_file',
-        help='File to load states from (default {}'.format(default_state_filename),
-        default=default_state_filename
+        "--state_file",
+        help="File to load states from (default {}".format(default_state_filename),
+        default=default_state_filename,
     )
     parser.add_argument(
-        '--dry_run',
+        "--dry_run",
         help="just run code, don't make any permanent changes",
-        action='store_true'
+        action="store_true",
     )
 
     args = parser.parse_args()
-    
+
     return args
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = parse_cmd_args()
-    log = get_logger('esbuild-set_project_released_states')
+    log = get_logger("esbuild-set_project_released_states")
     # load yaml
-    with open(args.state_file, 'r') as yaml_file:
+    with open(args.state_file, "r") as yaml_file:
         state_conf = yaml.load(yaml_file)
 
     pg = PsqlGraphDriver(
@@ -49,45 +50,47 @@ if __name__ == '__main__':
 
     updated_states = 0
     with pg.session_scope() as session:
-        for program, data in current_data['PROGRAMS'].iteritems():
-            log.info('Looking for {}'.format(program))
+        for program, data in current_data["PROGRAMS"].iteritems():
+            log.info("Looking for {}".format(program))
             prog = pg.nodes(Program).props(name=program).scalar()
             if prog:
                 project_list = []
                 project_names = []
-                if data['PROJECTS'] != '*':
-                    for entry in [proj for proj in prog.projects if proj.code in data['PROJECTS']]:
+                if data["PROJECTS"] != "*":
+                    for entry in [
+                        proj for proj in prog.projects if proj.code in data["PROJECTS"]
+                    ]:
                         project_list.append(entry)
                         project_names.append(entry.code)
-                    if len(data['PROJECTS']) != len(project_list):
-                        for entry in data['PROJECTS']:
+                    if len(data["PROJECTS"]) != len(project_list):
+                        for entry in data["PROJECTS"]:
                             if entry not in project_names:
-                                log.warning('{} not found'.format(entry))
+                                log.warning("{} not found".format(entry))
 
                 else:
                     project_list = prog.projects
 
-                log.info('{} programs found'.format(len(project_list)))
+                log.info("{} programs found".format(len(project_list)))
                 for proj in project_list:
-                    if proj.props['released'] != data['RELEASED']:
-                        log.info('Changing released for {}-{} to {}'.format(
-                            program,
-                            proj.props['code'],
-                            data['RELEASED']
-                        ))
-                        proj.props['released'] = data['RELEASED']
+                    if proj.props["released"] != data["RELEASED"]:
+                        log.info(
+                            "Changing released for {}-{} to {}".format(
+                                program, proj.props["code"], data["RELEASED"]
+                            )
+                        )
+                        proj.props["released"] = data["RELEASED"]
                         session.merge(proj)
                         updated_states += 1
                     else:
-                        log.info('{}-{} released is ok as {}'.format(
-                            program,
-                            proj.props['code'],
-                            proj.props['released']
-                        ))
+                        log.info(
+                            "{}-{} released is ok as {}".format(
+                                program, proj.props["code"], proj.props["released"]
+                            )
+                        )
             else:
-                log.info('Unable to find {}'.format(program))
+                log.info("Unable to find {}".format(program))
 
         if args.dry_run:
             session.rollback()
 
-    log.info('Updated {} states'.format(updated_states))
+    log.info("Updated {} states".format(updated_states))

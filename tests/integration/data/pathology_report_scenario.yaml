@@ -1,3 +1,4 @@
+---
 nodes:
   - label: case
     submitter_id: pr_case_1

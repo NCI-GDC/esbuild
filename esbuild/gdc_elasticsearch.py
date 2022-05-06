@@ -15,13 +15,13 @@ from concurrent import futures
 from typing import Iterable, List, NamedTuple, Optional, Tuple, Type
 
 import cdislogging
-from indexclient import client
-
 import datadog
 import elasticsearch
 import progressbar
 import psqlgraph
 from elasticsearch import helpers
+from indexclient import client
+
 from esbuild import utils
 from esbuild.graph.common import builder
 
@@ -326,9 +326,7 @@ class GDCElasticsearch(object):
 
         for index_type, index_name in self.index_names.items():
             self.release_helper.delete_docs_from_index(
-                index_name,
-                index_type,
-                self.build_projects,
+                index_name, index_type, self.build_projects,
             )
 
     def _dump_locally(self, cases, files, annotations, projects):
@@ -530,11 +528,7 @@ class GDCElasticsearch(object):
 
         def action_gen():
             for doc in docs:
-                action = dict(
-                    _index=index_name,
-                    _id=doc[id_field],
-                    _source=doc,
-                )
+                action = dict(_index=index_name, _id=doc[id_field], _source=doc,)
 
                 yield action
 

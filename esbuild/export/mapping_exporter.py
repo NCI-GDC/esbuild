@@ -5,7 +5,6 @@ import yaml
 
 from esbuild.graph.active import mappings
 
-
 PathName = Union[pathlib.Path, str]
 
 

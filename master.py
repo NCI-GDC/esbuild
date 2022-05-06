@@ -19,9 +19,7 @@ def esbuild_argparser():
     """
     Returns argument parser for esbuild
     """
-    parser = argparse.ArgumentParser(
-        description="Parameters to control esbuild runs",
-    )
+    parser = argparse.ArgumentParser(description="Parameters to control esbuild runs",)
     parser.add_argument(
         "--no-roll",
         action="store_true",
@@ -36,8 +34,7 @@ def esbuild_argparser():
         help="Index name to upsert projects to. Must set when building subset of projects",
     )
     parser.add_argument(
-        "--alias",
-        help="Index alias to use for index swap",
+        "--alias", help="Index alias to use for index swap",
     )
     parser.add_argument(
         "--replicas",

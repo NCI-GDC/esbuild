@@ -8,13 +8,8 @@ for Legacy projects.
 
 """
 
-from ..common.builder import (
-    GraphIndexBuilder,
-)
-
-from .mappings import (
-    LegacyESMapper,
-)
+from ..common.builder import GraphIndexBuilder
+from .mappings import LegacyESMapper
 
 
 class LegacyGraphIndexBuilder(GraphIndexBuilder):
@@ -23,23 +18,23 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
     file_mapping = mapper.get_file_es_mapping()
 
     case_to_file_paths = [
-        ['file'],
-        ['sample', 'aliquot', 'file'],
-        ['sample', 'portion', 'file'],
-        ['sample', 'portion', 'analyte', 'aliquot', 'file'],
-        ['sample', 'portion', 'slide', 'file'],
-        ['biospecimen_supplement'],
-        ['clinical_supplement'],
+        ["file"],
+        ["sample", "aliquot", "file"],
+        ["sample", "portion", "file"],
+        ["sample", "portion", "analyte", "aliquot", "file"],
+        ["sample", "portion", "slide", "file"],
+        ["biospecimen_supplement"],
+        ["clinical_supplement"],
     ]
 
     # Types of nodes to be treated as files
     file_labels = [
-        'file',
-        'biospecimen_supplement',
-        'clinical_supplement',
+        "file",
+        "biospecimen_supplement",
+        "clinical_supplement",
         # Archives are manually included regardless of path to
         # case. see self.denormalize_archive_files()
-        'archive',
+        "archive",
     ]
 
     def denormalize_all(self):
@@ -56,10 +51,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
         # Add in files that weren't visited by denormalizing files
         # only attached to archives
-        visited_file_ids = {
-            file_['file_id']
-            for file_ in files
-        }
+        visited_file_ids = {file_["file_id"] for file_ in files}
         files += self.denormalize_archive_files(visited_file_ids)
 
         projects = self.denormalize_projects()
@@ -70,11 +62,11 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         if not super(LegacyGraphIndexBuilder, self).is_node_indexed(node):
             return False
         else:
-            if node.label == 'project':
-                return node.state == 'legacy'
-            elif node.label == 'case':
-                projects = list(self.neighbors_labeled(node, 'project', 1))
-                return any([p.state == 'legacy' for p in projects])
+            if node.label == "project":
+                return node.state == "legacy"
+            elif node.label == "case":
+                projects = list(self.neighbors_labeled(node, "project", 1))
+                return any([p.state == "legacy" for p in projects])
             else:
                 return True
 
@@ -97,7 +89,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
         """
 
-        archives = self.nodes_labeled('archive')
+        archives = self.nodes_labeled("archive")
         file_docs = []
 
         if visited_file_ids is None:
@@ -109,18 +101,29 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
             # Add only archives related to self.build_projects in case of split build
             project_id = None
-            for project in self.neighbors_labeled(archive, 'project'):
-                project_id = '-'.join([next(self.neighbors_labeled(project, 'program')).name,
-                                       project.code])
+            for project in self.neighbors_labeled(archive, "project"):
+                project_id = "-".join(
+                    [
+                        next(self.neighbors_labeled(project, "program")).name,
+                        project.code,
+                    ]
+                )
 
-            n_projects = len(list(self.neighbors_labeled(archive, 'project')))
+            n_projects = len(list(self.neighbors_labeled(archive, "project")))
             if n_projects != 1:
-                self.warning('Number of archive projects is not 1',
-                             '{} has {} projects, this is unexpected.'
-                             .format(archive, n_projects),
-                             tags=['archive_id:{}'.format(archive.node_id)])
+                self.warning(
+                    "Number of archive projects is not 1",
+                    "{} has {} projects, this is unexpected.".format(
+                        archive, n_projects
+                    ),
+                    tags=["archive_id:{}".format(archive.node_id)],
+                )
 
-            if not self.build_projects or n_projects == 0 or project_id in self.build_projects:
+            if (
+                not self.build_projects
+                or n_projects == 0
+                or project_id in self.build_projects
+            ):
                 file_docs.append(self.get_archive_as_file_doc(archive))
                 for file_ in self.neighbors_labeled(archive, self.file_labels):
                     # skip any files visited in or before this function

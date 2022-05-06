@@ -47,7 +47,7 @@ This is a temporary solution that automates the setting of these
 flags. We have a PR in that fixes this at the root level, and when
 that is done, this code should be removed.
 
-This code is automatically run from the esbuild wrapper, so no 
+This code is automatically run from the esbuild wrapper, so no
 extra execution is necessary.
 
 In the meantime, the format is this:
@@ -67,8 +67,8 @@ In the meantime, the format is this:
             RELEASED: False
 ```
 
-This data is checked in in a yaml file (project-program-release.yaml) in the 
-bin directory of esbuild. It is deployed and can be edited on the esbuild 
+This data is checked in in a yaml file (project-program-release.yaml) in the
+bin directory of esbuild. It is deployed and can be edited on the esbuild
 machine to change as need be.
 
 ## compare_indices.py
@@ -246,7 +246,7 @@ whenever the tests are run.
 ## Setup pre-commit hook to check for secrets
 
 We use [pre-commit](https://pre-commit.com/) to setup pre-commit hooks for this repo.
-We use [detect-secrets](https://github.com/Yelp/detect-secrets) to search for secrets being committed into the repo. 
+We use [detect-secrets](https://github.com/Yelp/detect-secrets) to search for secrets being committed into the repo.
 
 To install the pre-commit hook, run
 ```
@@ -258,7 +258,7 @@ To update the .secrets.baseline file run
 detect-secrets scan --update .secrets.baseline
 ```
 
-`.secrets.baseline` contains all the string that were caught by detect-secrets but are not stored in plain text. Audit the baseline to view the secrets . 
+`.secrets.baseline` contains all the string that were caught by detect-secrets but are not stored in plain text. Audit the baseline to view the secrets .
 
 ```
 detect-secrets audit .secrets.baseline

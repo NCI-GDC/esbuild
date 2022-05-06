@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="esbuild",
@@ -6,13 +6,13 @@ setup(
     setup_requires=["setuptools_scm"],
     description="Repository for building the GDC Elasticsearch indices.",
     license="Apache",
-    packages=find_packages(exclude=('tests',)),
+    packages=find_packages(exclude=("tests",)),
     install_requires=[
         # Tests for Python35 not run on >=2.2.0 anymore
         "addict<2.2.0",
         "cdislogging~=1.0",
         "datadog~=0.32",
-        "deepdiff~=4.0",                # required by compare_indices
+        "deepdiff~=4.0",  # required by compare_indices
         "dictdiffer~=0.8.0",
         "elasticsearch~=7.6",
         # gdcdatamodel needs future
@@ -32,7 +32,5 @@ setup(
         "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.8.1-rc.2#egg=gdcmodels",
         "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer",
     ],
-    scripts=[
-        'bin/esbuild-cli',
-    ],
+    scripts=["bin/esbuild-cli",],
 )

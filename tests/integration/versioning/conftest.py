@@ -7,14 +7,16 @@ from tests.integration.data import get_node_id
 
 
 def is_file(node):
-    return node._dictionary.get('category', '').endswith('_file')
+    return node._dictionary.get("category", "").endswith("_file")
 
 
 def generate_urls_metadata(node_id, filename):
     return {
-        's3://cleversafe.service.consul/bucket/TCGA/BRCA/{}/{}'.format(node_id,filename): {
-            'type': 'cleversafe',
-            'state': 'validated',
+        "s3://cleversafe.service.consul/bucket/TCGA/BRCA/{}/{}".format(
+            node_id, filename
+        ): {
+            "type": "cleversafe",
+            "state": "validated",
         }
     }
 
@@ -23,27 +25,27 @@ def create_indexd_for_node(client, node, version, release, baseid):
     urls_metadata = generate_urls_metadata(node.node_id, node.file_name)
 
     json_doc = {
-        'did': node.node_id,
-        'hashes': {'md5': node.md5sum},
-        'size': node.file_size,
-        'file_name': node.file_name,
-        'urls': list(urls_metadata.keys()),
-        'urls_metadata': urls_metadata,
-        'acl': ['phs000178'],
-        'metadata': {'gencode_version': 'neutral'}
+        "did": node.node_id,
+        "hashes": {"md5": node.md5sum},
+        "size": node.file_size,
+        "file_name": node.file_name,
+        "urls": list(urls_metadata.keys()),
+        "urls_metadata": urls_metadata,
+        "acl": ["phs000178"],
+        "metadata": {"gencode_version": "neutral"},
     }
     if version:
-        json_doc['version'] = version
+        json_doc["version"] = version
     if release:
-        json_doc['metadata'].update({'release_number': release})
+        json_doc["metadata"].update({"release_number": release})
     if baseid:
-        json_doc['baseid'] = baseid
+        json_doc["baseid"] = baseid
 
     doc = client.create(**json_doc)
     return doc
 
 
-def link_factory_nodes(graph, nodes, links, map_key='submitter_id'):
+def link_factory_nodes(graph, nodes, links, map_key="submitter_id"):
     nodes_map = {getattr(n, map_key): n for n in nodes}
     with graph.session_scope() as sxn:
         for link in links:
@@ -52,18 +54,23 @@ def link_factory_nodes(graph, nodes, links, map_key='submitter_id'):
             root = graph.nodes().get(dst_id)
             child = nodes_map[src_id]
             for pg_edge_name, pg_edge_def in root._pg_edges.items():
-                if pg_edge_def['type'] == child.__class__:
+                if pg_edge_def["type"] == child.__class__:
                     getattr(root, pg_edge_name).append(child)
             sxn.merge(root)
 
 
-def create_transaction(graph, node, old_props, action='version'):
-    program, project = node.project_id.split('-', 1)
-    tl = TransactionLog(program=program, project=project, is_dry_run=False,
-                        state='SUCCEEDED', role='create')
+def create_transaction(graph, node, old_props, action="version"):
+    program, project = node.project_id.split("-", 1)
+    tl = TransactionLog(
+        program=program,
+        project=project,
+        is_dry_run=False,
+        state="SUCCEEDED",
+        role="create",
+    )
     ts = TransactionSnapshot(
-        id=node.node_id, action=action, old_props=old_props,
-        new_props=node._props)
+        id=node.node_id, action=action, old_props=old_props, new_props=node._props
+    )
     tl.entities.append(ts)
 
     with graph.session_scope() as sxn:
@@ -85,8 +92,7 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
         :return: (created nodes, created docs, previously released docs)
         """
         graph_nodes.extend(
-            graph_factory.create_from_nodes_and_edges(nodes, edges,
-                                                      all_props=True)
+            graph_factory.create_from_nodes_and_edges(nodes, edges, all_props=True)
         )
         with pg_driver.session_scope() as sxn:
             for n in graph_nodes:
@@ -96,34 +102,33 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
 
         cur_docs, prev_docs = [], []
         for n in graph_nodes:
-            if not n._dictionary.get('category', '').endswith('_file'):
+            if not n._dictionary.get("category", "").endswith("_file"):
                 continue
 
             baseid = None
-            release = '1.0'
-            version = '1'
+            release = "1.0"
+            version = "1"
             # create a previously released version
             if make_versions:
                 prev = graph_factory.node_factory.create(
-                    n.label, all_props=True,
-                    override={'submitter_id': n.submitter_id}
+                    n.label, all_props=True, override={"submitter_id": n.submitter_id}
                 )
                 create_transaction(pg_driver, n, prev._props)
 
-                prevd = create_indexd_for_node(indexd_client, prev, version,
-                                               release, None)
+                prevd = create_indexd_for_node(
+                    indexd_client, prev, version, release, None
+                )
                 baseid = prevd.baseid
 
                 # If node in graph is released, we should also release the doc
-                released = n.state == 'released'
-                release = '2.0' if released else None
-                version = '2' if released else None
+                released = n.state == "released"
+                release = "2.0" if released else None
+                version = "2" if released else None
                 prev_docs.append(prevd)
             else:
-                create_transaction(pg_driver, n, {}, action='create')
+                create_transaction(pg_driver, n, {}, action="create")
 
-            curd = create_indexd_for_node(indexd_client, n, version, release,
-                                          baseid)
+            curd = create_indexd_for_node(indexd_client, n, version, release, baseid)
             cur_docs.append(curd)
 
         return graph_nodes, cur_docs, prev_docs
@@ -135,8 +140,7 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
 
 @pytest.fixture
 def create_aligned_reads(indexd_client, make_subgraph):
-    def wrapper(workflow_state='released', make_versions=True,
-                reads_state='submitted'):
+    def wrapper(workflow_state="released", make_versions=True, reads_state="submitted"):
         """
         This fixture creates 2 subtrees starting from SUR and SAR.
         AlignedReads/AlignedReadsIndex nodes under SUR are always released and
@@ -156,51 +160,54 @@ def create_aligned_reads(indexd_client, make_subgraph):
             2: previous versions of indexd (always released)
         """
         nodes = [
-            dict(label='submitted_aligned_reads', submitter_id='sar1'),
-            dict(label='submitted_unaligned_reads', submitter_id='sur1'),
-            dict(label='alignment_workflow', submitter_id='wf_sar1',
-                 state=workflow_state),
-            dict(label='alignment_workflow', submitter_id='wf_sur1',
-                 state=workflow_state),
-            dict(label='aligned_reads', submitter_id='ar_sar1',
-                 state=reads_state),
-            dict(label='aligned_reads', submitter_id='ar_sur1'),
-            dict(label='aligned_reads_index', submitter_id='ari_sar1',
-                 state=reads_state),
-            dict(label='aligned_reads_index', submitter_id='ari_sur1'),
+            dict(label="submitted_aligned_reads", submitter_id="sar1"),
+            dict(label="submitted_unaligned_reads", submitter_id="sur1"),
+            dict(
+                label="alignment_workflow", submitter_id="wf_sar1", state=workflow_state
+            ),
+            dict(
+                label="alignment_workflow", submitter_id="wf_sur1", state=workflow_state
+            ),
+            dict(label="aligned_reads", submitter_id="ar_sar1", state=reads_state),
+            dict(label="aligned_reads", submitter_id="ar_sur1"),
+            dict(
+                label="aligned_reads_index", submitter_id="ari_sar1", state=reads_state
+            ),
+            dict(label="aligned_reads_index", submitter_id="ari_sur1"),
         ]
 
         edges = [
-            dict(src='wf_sar1', dst='sar1'),
-            dict(src='ar_sar1', dst='wf_sar1'),
-            dict(src='ari_sar1', dst='ar_sar1'),
-            dict(src='wf_sur1', dst='sur1'),
-            dict(src='ar_sur1', dst='wf_sur1'),
-            dict(src='ari_sur1', dst='ar_sur1'),
+            dict(src="wf_sar1", dst="sar1"),
+            dict(src="ar_sar1", dst="wf_sar1"),
+            dict(src="ari_sar1", dst="ar_sar1"),
+            dict(src="wf_sur1", dst="sur1"),
+            dict(src="ar_sur1", dst="wf_sur1"),
+            dict(src="ari_sur1", dst="ar_sur1"),
         ]
         links = [
-            ('sar1', get_node_id('read-group-2')),
-            ('sur1', get_node_id('read-group-2')),
+            ("sar1", get_node_id("read-group-2")),
+            ("sur1", get_node_id("read-group-2")),
         ]
         nodes, latest, previous = make_subgraph(
-            nodes=nodes, edges=edges, root_links=links,
-            make_versions=make_versions,
+            nodes=nodes, edges=edges, root_links=links, make_versions=make_versions,
         )
         return nodes, latest, previous
 
     return wrapper
 
 
-@pytest.fixture(params=[
-    Dict(workflow_state='released', reads_state='released', make_versions=True),
-    Dict(workflow_state='released', reads_state='released', make_versions=False),
-    Dict(workflow_state='released', reads_state='submitted', make_versions=True),
-    Dict(workflow_state='released', reads_state='submitted', make_versions=False),
-    Dict(workflow_state='submitted', reads_state='released', make_versions=True),
-    Dict(workflow_state='submitted', reads_state='released', make_versions=False),
-    Dict(workflow_state='submitted', reads_state='submitted', make_versions=True),
-    Dict(workflow_state='submitted', reads_state='submitted', make_versions=False),
-])
+@pytest.fixture(
+    params=[
+        Dict(workflow_state="released", reads_state="released", make_versions=True),
+        Dict(workflow_state="released", reads_state="released", make_versions=False),
+        Dict(workflow_state="released", reads_state="submitted", make_versions=True),
+        Dict(workflow_state="released", reads_state="submitted", make_versions=False),
+        Dict(workflow_state="submitted", reads_state="released", make_versions=True),
+        Dict(workflow_state="submitted", reads_state="released", make_versions=False),
+        Dict(workflow_state="submitted", reads_state="submitted", make_versions=True),
+        Dict(workflow_state="submitted", reads_state="submitted", make_versions=False),
+    ]
+)
 def versioned_reads_setup(request, pg_driver, create_aligned_reads):
     """
     A fixture that generates different data setups.
@@ -223,8 +230,8 @@ def versioned_reads_setup(request, pg_driver, create_aligned_reads):
     """
     nodes, latest, previous = create_aligned_reads(**request.param.to_dict())
 
-    if request.param.make_versions and request.param.reads_state != 'released':
-        expected = [n for n in nodes if is_file(n) and n.state == 'submitted']
+    if request.param.make_versions and request.param.reads_state != "released":
+        expected = [n for n in nodes if is_file(n) and n.state == "submitted"]
     else:
         expected = []
 
@@ -262,23 +269,22 @@ def versioned_reads_expectations(versioned_reads_setup, indexd_client):
     """
     nodes, exp_nodes, exp_docs, params = versioned_reads_setup
 
-    if params['workflow_state'] != 'released':
+    if params["workflow_state"] != "released":
         expectations = {}
-    elif params['reads_state'] == 'released':
-        ars = [n for n in nodes if n.label == 'aligned_reads']
+    elif params["reads_state"] == "released":
+        ars = [n for n in nodes if n.label == "aligned_reads"]
         expectations = {
-            ar.node_id: indexd_client.get_latest_version(ar.node_id)
-            for ar in ars
+            ar.node_id: indexd_client.get_latest_version(ar.node_id) for ar in ars
         }
-    elif params['make_versions']:
-        ars = [n for n in nodes if n.label == 'aligned_reads']
+    elif params["make_versions"]:
+        ars = [n for n in nodes if n.label == "aligned_reads"]
         expectations = {
-            ar.node_id: indexd_client.get_latest_version(ar.node_id, True)
-            for ar in ars
+            ar.node_id: indexd_client.get_latest_version(ar.node_id, True) for ar in ars
         }
     else:
-        ar = [n for n in nodes
-              if n.label == 'aligned_reads' and n.state == 'released'][0]
+        ar = [n for n in nodes if n.label == "aligned_reads" and n.state == "released"][
+            0
+        ]
         expectations = {ar.node_id: indexd_client.get(ar.node_id)}
 
     yield expectations

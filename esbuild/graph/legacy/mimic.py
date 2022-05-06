@@ -8,8 +8,8 @@ index.
 
 """
 
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from esbuild.graph.common.mimic import CommonMimic
+from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 
 
 class LegacyMimic(CommonMimic, LegacyGraphIndexBuilder):

@@ -7,10 +7,11 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
-from cdislogging import get_logger
 from collections.abc import Iterable
 
-log = get_logger(__name__, log_level='info')
+from cdislogging import get_logger
+
+log = get_logger(__name__, log_level="info")
 
 
 class CommonMimic(object):
@@ -33,12 +34,6 @@ class CommonMimic(object):
         else:
             labels = {labels}
 
-        return [
-            edge.dst
-            for edge in node.edges_out
-            if edge.dst.label in labels
-        ] + [
-            edge.src
-            for edge in node.edges_in
-            if edge.src.label in labels
+        return [edge.dst for edge in node.edges_out if edge.dst.label in labels] + [
+            edge.src for edge in node.edges_in if edge.src.label in labels
         ]

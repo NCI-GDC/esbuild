@@ -1,12 +1,12 @@
 from gdcdatamodel.models.submission import TransactionSnapshot
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.common.builder import AVAILABLE_GENCODE_VERSIONS
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.graph.common.builder import AVAILABLE_GENCODE_VERSIONS
 from esbuild.utils import (
+    INDEXD_METADATA_FIELDS,
     VersionedNodesDiffCollector,
     extract_indexd_metadata,
-    INDEXD_METADATA_FIELDS,
 )
 
 
@@ -17,8 +17,9 @@ def assert_metadata(latest, diff):
         assert diff.get(field) == val
 
 
-def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test,
-                               indexd_client):
+def test_cache_versioned_nodes(
+    pg_driver, versioned_reads_setup, setup_test, indexd_client
+):
     cacher = VersionedNodesDiffCollector(
         project_ids=["TCGA-BRCA"],
         graph=pg_driver,
@@ -40,7 +41,7 @@ def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test,
         assert len(expected_docs) == 0
 
 
-def assert_inclusion(doc1, doc2, ignore=('updated_datetime',)):
+def assert_inclusion(doc1, doc2, ignore=("updated_datetime",)):
     for field, val in doc1.items():
         if field not in ignore and field in doc2:
             assert doc2.get(field) == val, (field, val, doc2.get(field))
@@ -56,14 +57,28 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
 
     # Query for TransactionSnapshots
     with pg_driver.session_scope():
-        ar_ts = pg_driver.nodes(TransactionSnapshot).filter(
-            TransactionSnapshot.id == ar_node.node_id,
-            TransactionSnapshot.action == 'version').first()
-        ari_ts = pg_driver.nodes(TransactionSnapshot).filter(
-            TransactionSnapshot.id == ari_node.node_id,
-            TransactionSnapshot.action == 'version').first()
+        ar_ts = (
+            pg_driver.nodes(TransactionSnapshot)
+            .filter(
+                TransactionSnapshot.id == ar_node.node_id,
+                TransactionSnapshot.action == "version",
+            )
+            .first()
+        )
+        ari_ts = (
+            pg_driver.nodes(TransactionSnapshot)
+            .filter(
+                TransactionSnapshot.id == ari_node.node_id,
+                TransactionSnapshot.action == "version",
+            )
+            .first()
+        )
 
-    ar_hits = [hit['_source'] for hit in es_response['hits']['hits'] if ar_doc.did == hit['_id']]
+    ar_hits = [
+        hit["_source"]
+        for hit in es_response["hits"]["hits"]
+        if ar_doc.did == hit["_id"]
+    ]
 
     ar_props = extract_indexd_metadata(ar_doc)
     ari_props = extract_indexd_metadata(ari_doc)
@@ -73,8 +88,8 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     assert_inclusion(ar_props, ar_hit)
 
     # Assert nested index_file properties
-    assert len(ar_hit['index_files']) == 1
-    assert_inclusion(ar_hit['index_files'][0], ari_props)
+    assert len(ar_hit["index_files"]) == 1
+    assert_inclusion(ar_hit["index_files"][0], ari_props)
 
     # Make sure either both snapshots exist or none
     assert ar_ts and ari_ts or (not ar_ts and not ari_ts)
@@ -84,21 +99,33 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
         return
 
     # Make sure that non IndexD property values are pulled from the snapshot
-    ar_props = ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props  # noqa
-    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS + ['updated_datetime'])
+    ar_props = (
+        ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props
+    )  # noqa
+    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS + ["updated_datetime"])
 
-    ari_props = ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props  # noqa
-    assert_inclusion(ari_props, ar_hit['index_files'][0],
-                     INDEXD_METADATA_FIELDS + ['updated_datetime'])
+    ari_props = (
+        ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props
+    )  # noqa
+    assert_inclusion(
+        ari_props,
+        ar_hit["index_files"][0],
+        INDEXD_METADATA_FIELDS + ["updated_datetime"],
+    )
 
 
-def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations,
-                            versioned_reads_setup, setup_test):
+def test_esbuild_versioning(
+    pg_driver,
+    init_indexd,
+    versioned_reads_expectations,
+    versioned_reads_setup,
+    setup_test,
+):
     es = setup_test
     builder = GDCElasticsearch(
         converter_class=ActiveGraphIndexBuilder,
         indexd_client=init_indexd,
-        index_prefix='gdc_es_test',
+        index_prefix="gdc_es_test",
         index_alias_prefix="test_gdc_from_graph",
         pg_driver=pg_driver,
         cache_versioned=True,
@@ -110,11 +137,14 @@ def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations
     es_expectations = versioned_reads_expectations
     nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
 
-    source = INDEXD_METADATA_FIELDS + ['index_files']
-    res = es.search(index="gdc_es_test_file",
-                    body={'query': {'terms': {'submitter_id': ['ar_sar1',
-                                                               'ar_sur1']}},
-                          '_source': source})
+    source = INDEXD_METADATA_FIELDS + ["index_files"]
+    res = es.search(
+        index="gdc_es_test_file",
+        body={
+            "query": {"terms": {"submitter_id": ["ar_sar1", "ar_sur1"]}},
+            "_source": source,
+        },
+    )
 
     total = res["hits"]["total"]
 
@@ -122,10 +152,10 @@ def test_esbuild_versioning(pg_driver, init_indexd, versioned_reads_expectations
     assert len(es_expectations) == total["value"]
 
     # If there were no versions, there are no differences to be detected
-    if not params['make_versions']:
+    if not params["make_versions"]:
         return
 
     expected_ars = set(es_expectations.keys())
-    ars = [n for n in nodes if n.label == 'aligned_reads' and n.node_id in expected_ars]
+    ars = [n for n in nodes if n.label == "aligned_reads" and n.node_id in expected_ars]
     for ar in ars:
         assert_aligned_reads_documents(init_indexd, pg_driver, ar, res)
