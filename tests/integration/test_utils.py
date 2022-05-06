@@ -84,7 +84,7 @@ def test_projects_deleted(es_after_deletion):
 
 
 def test_delete_project_docs(es_after_deletion):
-    """ Check that correct docs are deleted """
+    """Check that correct docs are deleted"""
     es, index_prefix, _, deleted_projects = es_after_deletion
 
     path_to_id = {

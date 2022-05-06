@@ -3,24 +3,27 @@ Elasticsearch test documents are defined here
 """
 from esbuild.graph.active.mappings import ESMapper
 
-dummy_docs = [{"id": "test-doc-1", "value": 1,}, {"id": "test-doc-2", "value": 2,}]
+dummy_docs = [
+    {"id": "test-doc-1", "value": 1,},
+    {"id": "test-doc-2", "value": 2,},
+]
 
 build_metadata = [
     {
-        u"build_projects": [
-            u"TCGA-DLBC",
-            u"TCGA-PRAD",
-            u"TARGET-OS",
-            u"TARGET-RT",
-            u"TCGA-STAD",
+        "build_projects": [
+            "TCGA-DLBC",
+            "TCGA-PRAD",
+            "TARGET-OS",
+            "TARGET-RT",
+            "TCGA-STAD",
         ],
-        u"commit_hash": u"a07731187614da9788fc453dcfd22aac8222592b",
-        u"counts": {u"annotation": 10, u"case": 16, u"file": 9, u"project": 5},
+        "commit_hash": "a07731187614da9788fc453dcfd22aac8222592b",
+        "counts": {"annotation": 10, "case": 16, "file": 9, "project": 5},
     },
     {
-        u"build_projects": [u"TARGET-NBL", u"FM-AD", u"TCGA-THYM"],
-        u"commit_hash": u"a07731187614da9788fc453dcfd22aac8222592b",
-        u"counts": {u"annotation": 4, u"case": 15, u"file": 5, u"project": 3},
+        "build_projects": ["TARGET-NBL", "FM-AD", "TCGA-THYM"],
+        "commit_hash": "a07731187614da9788fc453dcfd22aac8222592b",
+        "counts": {"annotation": 4, "case": 15, "file": 5, "project": 3},
     },
 ]
 

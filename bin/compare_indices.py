@@ -24,7 +24,7 @@ IGNORE_KEYS = (
 
 
 class DataTester:
-    """ Esbuild data quality tests """
+    """Esbuild data quality tests"""
 
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="Parses tester arguments")
@@ -37,7 +37,7 @@ class DataTester:
         self.doc_types = ["case", "file", "annotation", "project"]
 
     def add_args(self, parser):
-        """ Add extra arguments to a parser """
+        """Add extra arguments to a parser"""
         parser.add_argument(
             "--true-index", required=True, help="Choose reference esbuild index."
         )
@@ -58,7 +58,7 @@ class DataTester:
         getattr(self, test_type)()
 
     def compare_counts(self):
-        """ Extracts counts from test and true indices and compares them """
+        """Extracts counts from test and true indices and compares them"""
 
         # Get counts
         test_counts = self.get_counts(self.es_worker, self.args.test_index)
@@ -88,7 +88,7 @@ class DataTester:
         return mismatches == {}
 
     def full_compare(self):
-        """ Iterates over all documents and compares """
+        """Iterates over all documents and compares"""
         # Get document counts
         true_counts = self.get_counts(self.es_worker, self.args.true_index)
         sizes = {k: v["counts"]["total"] for k, v in true_counts.items()}
@@ -145,10 +145,10 @@ class DataTester:
             f.write(json.dumps(result))
 
     def get_counts(self, es_worker, index_name):
-        """ Extracts counts from :es_worker's ES cluster :index_name index"""
+        """Extracts counts from :es_worker's ES cluster :index_name index"""
 
         simple_test_cases = [
-            ("project", ["primary_site", "disease_type",]),
+            ("project", ["primary_site", "disease_type",],),
             (
                 "case",
                 [
@@ -159,8 +159,8 @@ class DataTester:
                     "project.primary_site",
                 ],
             ),
-            ("file", ["uploaded_datetime", "project_id",]),
-            ("annotation", ["annotation_id", "project_id",]),
+            ("file", ["uploaded_datetime", "project_id",],),
+            ("annotation", ["annotation_id", "project_id",],),
         ]
 
         array_test_cases = [
@@ -211,7 +211,7 @@ class DataTester:
                     "summary.experimental_strategies",
                 ],
             ),
-            ("annotation", ["project.disease_type", "project.primary_site",]),
+            ("annotation", ["project.disease_type", "project.primary_site",],),
         ]
 
         document_counts = {_: {} for _ in self.doc_types}
@@ -236,14 +236,14 @@ class DataTester:
 
 
 class ESWorker:
-    """ Works with elasticsearch indices, extracts data and counts """
+    """Works with elasticsearch indices, extracts data and counts"""
 
     def __init__(self):
         self.es = get_elasticsearch_client()
 
     @staticmethod
     def get_simple_counts(es, index_name, doc_type, field_list):
-        """ Extracts field counts from es index """
+        """Extracts field counts from es index"""
         total_docs = es.count(index=index_name, doc_type=doc_type, body={})["count"]
 
         counts = {"total": total_docs}
@@ -258,7 +258,7 @@ class ESWorker:
 
     @staticmethod
     def get_list_size_sums(es, index_name, doc_type, path_list):
-        """ Aggregates sum of lengths of array fields in :path_list in index """
+        """Aggregates sum of lengths of array fields in :path_list in index"""
         list_size_sums = {}
         for path in path_list:
             list_size_sum_query = {
@@ -279,7 +279,7 @@ class ESWorker:
 
     @staticmethod
     def get_es_iterator(es, index_name, doc_type, query={}):
-        """ Returns full index document iterator """
+        """Returns full index document iterator"""
         doc_iterator = scan(
             es,
             index=index_name,

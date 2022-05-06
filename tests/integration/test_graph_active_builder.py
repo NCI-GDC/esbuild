@@ -105,13 +105,13 @@ def diagnosis_annotations(generate_scenario):
 
 @pytest.mark.parametrize("index_type", ["project", "case", "file", "annotation"])
 def test_mapping_full(mappings, index_type):
-    """ Compare mappings defined in mappings.py to gdc-models """
+    """Compare mappings defined in mappings.py to gdc-models"""
     validate_mappings(mappings, index_type)
 
 
 def validate_mappings(mappings, index_type):
-    """ Asserts that set of expected by gdc-models paths is equal
-    to the mappings' paths set """
+    """Asserts that set of expected by gdc-models paths is equal
+    to the mappings' paths set"""
     es_mapping = mappings[index_type]["properties"]
     true_mapping = get_es_models()["gdc_from_graph"][index_type]["_mapping"][
         "properties"
@@ -224,7 +224,9 @@ def test_awg_build(init_indexd, pg_driver):
     }
 
 
-@pytest.mark.parametrize("gencode,expected_number", [["v22", 17], ["v36", 18],])
+@pytest.mark.parametrize(
+    "gencode,expected_number", [["v22", 17], ["v36", 18],],
+)
 def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
         psqlgraph_driver=pg_driver,
@@ -739,7 +741,7 @@ def test_get_file_read_groups(pg_driver, index):
 
 
 @pytest.mark.parametrize(
-    "cls,count", [(md.AlignmentWorkflow, 2), (md.SomaticMutationCallingWorkflow, 2),]
+    "cls,count", [(md.AlignmentWorkflow, 2), (md.SomaticMutationCallingWorkflow, 2),],
 )
 def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
     for workflow in pg_driver.nodes(cls).all():
@@ -827,7 +829,7 @@ def test_somatic_aggregation_workflow_read_groups(index):
 
 
 def test_sample_analyte_indexed(index):
-    """ Tests to verify that aliquots under the subtree case.sample.analyte are indexed """
+    """Tests to verify that aliquots under the subtree case.sample.analyte are indexed"""
     case_affected = None
     for case in index.cases:
         if case["submitter_id"] == "fake_submitter_2":

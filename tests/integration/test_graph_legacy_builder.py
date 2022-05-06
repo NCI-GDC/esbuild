@@ -273,7 +273,9 @@ def test_path_count(index, index_type, path, count):
     assert len(results) == count
 
 
-@pytest.mark.parametrize("index_type,path", [("cases", "[*].clinical"),])
+@pytest.mark.parametrize(
+    "index_type,path", [("cases", "[*].clinical"),],
+)
 def test_path_is_absent(index, index_type, path):
     assert not parse(path).find(getattr(index, index_type))
 

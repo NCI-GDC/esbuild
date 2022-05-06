@@ -524,9 +524,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         }
 
     def get_simple_file_doc(self, node):
-        """Create a simple file doc for {input,output}_files
-
-        """
+        """Create a simple file doc for {input,output}_files"""
 
         doc = self._get_base_doc(node)
 

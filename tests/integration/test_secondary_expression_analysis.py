@@ -7,7 +7,7 @@ from jsonpath_rw import parse
 @pytest.mark.parametrize(
     "index_type, path, expected",
     [
-        ("files", "[*].type.[*]", {"secondary_expression_analysis": 2,}),
+        ("files", "[*].type.[*]", {"secondary_expression_analysis": 2,},),
         (
             "files",
             "[*].data_type.[*]",

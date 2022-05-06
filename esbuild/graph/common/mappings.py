@@ -248,9 +248,7 @@ class ESMapper(object):
 
     @classmethod
     def get_descriptions(cls):
-        """Get a description for properties of all defined node types
-
-        """
+        """Get a description for properties of all defined node types"""
         descriptions = {}
         descriptions.update(
             cls.get_descriptions_from_tree(cls.get_annotation_tree(), "annotations")

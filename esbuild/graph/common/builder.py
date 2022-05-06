@@ -198,9 +198,7 @@ class GraphIndexBuilder(object):
         index_prefix: Optional[str] = "",
         **kwargs: Any,
     ) -> None:
-        """Walks the graph to produce elasticsearch json documents.
-
-        """
+        """Walks the graph to produce elasticsearch json documents."""
         self.indexd = indexd_client
         self.index_prefix = index_prefix
         self.file_metadata = {}  # Cache of file metadata from indexd
@@ -397,9 +395,7 @@ class GraphIndexBuilder(object):
         return result
 
     def create_tree(self, node, mapping, tree):
-        """Recursively walk a mapping to create a walkable tree.
-
-        """
+        """Recursively walk a mapping to create a walkable tree."""
 
         if node.label in self.leaf_nodes:
             return {}
@@ -457,9 +453,7 @@ class GraphIndexBuilder(object):
         return doc
 
     def copy_tree(self, original, new):
-        """Recursively copy the tree so that it can later be pruned per file.
-
-        """
+        """Recursively copy the tree so that it can later be pruned per file."""
 
         for node in original:
             new[node] = {}
@@ -723,9 +717,9 @@ class GraphIndexBuilder(object):
 
     def reconstruct_biospecimen_paths(self, case):
         """For each sample.aliquot or sample.slide, reconstruct
-           entire path. Note: the path is culled in common/mappings.py
-           in get_case_es_mapping. The new path(s) need to be popped
-           there or tests will fail.
+        entire path. Note: the path is culled in common/mappings.py
+        in get_case_es_mapping. The new path(s) need to be popped
+        there or tests will fail.
         """
 
         # Get all the "correct" aliquots and slides, save them
@@ -1009,9 +1003,7 @@ class GraphIndexBuilder(object):
                 ptree.pop(node)
 
     def add_file_data_format(self, node, doc):
-        """Add (or overwrite) the data format if found
-
-        """
+        """Add (or overwrite) the data format if found"""
         data_format = self.get_data_format(node)
         if data_format:
             doc["data_format"] = data_format
@@ -1231,9 +1223,7 @@ class GraphIndexBuilder(object):
             doc["archive"] = archive_doc
 
     def add_data_category(self, node, doc):
-        """Add the data_subtype to the file document with child data_category
-
-        """
+        """Add the data_subtype to the file document with child data_category"""
 
         data_categories = [
             data_category
@@ -1291,9 +1281,7 @@ class GraphIndexBuilder(object):
             doc["annotations"] = annotations
 
     def add_acl(self, node, doc):
-        """Add the protection status of a file to the file document.
-
-        """
+        """Add the protection status of a file to the file document."""
 
         self.add_file_access(node, doc)
         doc["acl"] = node.acl
@@ -1358,9 +1346,7 @@ class GraphIndexBuilder(object):
     ###################################################################
 
     def denormalize_project(self, p):
-        """Summarize a project.
-
-        """
+        """Summarize a project."""
         self._cache_all()
         doc = self._get_base_doc(p)
 
@@ -1672,7 +1658,7 @@ class GraphIndexBuilder(object):
 
     def denormalize_cases_sample(self, k=10):
         """Return an entire index worth of case, file, annotation
-         documents
+        documents
 
         """
         self._cache_all()
@@ -1695,9 +1681,7 @@ class GraphIndexBuilder(object):
     ###################################################################
 
     def nodes_labeled(self, labels):
-        """Returns an iterator over the edges in the graph with label `label`
-
-        """
+        """Returns an iterator over the edges in the graph with label `label`"""
 
         if isinstance(labels, Iterable) and not isinstance(labels, str):
             labels = tuple(labels)
@@ -1710,9 +1694,7 @@ class GraphIndexBuilder(object):
 
     @staticmethod
     def node_labels_by_category(categories):
-        """Returns an iterator of node labels that are files
-
-        """
+        """Returns an iterator of node labels that are files"""
 
         categories = (
             tuple(categories) if hasattr(categories, "__iter__") else (categories,)
@@ -1895,9 +1877,7 @@ class GraphIndexBuilder(object):
         return False
 
     def is_file_indexed(self, node):
-        """Returns false if node is a file that is not supposed to be indexed.
-
-        """
+        """Returns false if node is a file that is not supposed to be indexed."""
 
         # This function should test only file nodes
         if node.label not in self.file_labels:
@@ -2102,9 +2082,7 @@ class GraphIndexBuilder(object):
         return []
 
     def get_suppressed_children(self, redacted):
-        """Get the children of a redacted node.
-
-        """
+        """Get the children of a redacted node."""
         to_suppress = []
         if redacted.label == "case":
             paths = self.case_to_file_paths
@@ -2275,9 +2253,7 @@ class GraphIndexBuilder(object):
         self._cache_all()
 
     def _cache_all(self):
-        """Create key value maps to cache nodes by label, by path, etc.
-
-        """
+        """Create key value maps to cache nodes by label, by path, etc."""
 
         self._cache_experimental_strategies()
         self._cache_data_categories()
@@ -2433,7 +2409,7 @@ class GraphIndexBuilder(object):
 
     def _cache_file_properties(self):
         """Cache file nodes by the following properties: experimental_strategy,
-            data_type and data_category
+        data_type and data_category
         """
         for file_ in self.nodes_labeled(self.file_labels):
             strategy = file_._props.get("experimental_strategy")
@@ -2450,7 +2426,7 @@ class GraphIndexBuilder(object):
 
 
 def get_namespaced_uuid(ns, seed):
-    """ Creates a consistent UUID5 string using the provided args
+    """Creates a consistent UUID5 string using the provided args
     Args:
         ns (str): namespace
         seed (str): seed value
@@ -2462,7 +2438,7 @@ def get_namespaced_uuid(ns, seed):
 
 
 def get_uuid_namespace(label):
-    """ Returns a consistent uuid4 string for a given label
+    """Returns a consistent uuid4 string for a given label
     Args:
         label (str): a label for a namespace, for eg aliquots
     Returns:
