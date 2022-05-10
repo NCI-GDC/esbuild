@@ -86,7 +86,7 @@ def patched_demographic(pg_driver):
             {
                 "id": demographic.node_id,
                 "props": json.dumps(
-                    dict(demographic.props, **{"fake_property": True,})
+                    dict(demographic.props, **{"fake_property": True,},)
                 ),
             },
         )
