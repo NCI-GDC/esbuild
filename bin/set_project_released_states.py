@@ -37,7 +37,7 @@ if __name__ == "__main__":
     log = get_logger("esbuild-set_project_released_states")
     # load yaml
     with open(args.state_file, "r") as yaml_file:
-        state_conf = yaml.load(yaml_file)
+        state_conf = yaml.safe_load(yaml_file)
 
     pg = PsqlGraphDriver(
         os.environ["PG_HOST"],
