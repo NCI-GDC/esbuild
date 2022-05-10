@@ -54,7 +54,7 @@ class DataTester:
 
     def run(self):
         test_type = self.args.test_type
-        log.info("\n\nRunning {} test".format(test_type.upper()))
+        log.info(f"\n\nRunning {test_type.upper()} test")
         getattr(self, test_type)()
 
     def compare_counts(self):
@@ -104,7 +104,7 @@ class DataTester:
         # For each doctype, iterate over entire index and compare
         result = {d: {} for d in self.doc_types}
         for doc_type in self.doc_types:
-            log.info("Comparing {}s:".format(doc_type))
+            log.info(f"Comparing {doc_type}s:")
             true_docs = self.es_worker.get_es_iterator(
                 self.es_worker.es, self.args.true_index, doc_type
             )
@@ -134,14 +134,14 @@ class DataTester:
 
                 result[doc_type][doc["_id"]] = is_correct
                 if doc_count % 100 == 0:
-                    log.info("progress: {}/{}".format(doc_count, sizes[doc_type]))
+                    log.info(f"progress: {doc_count}/{sizes[doc_type]}")
 
         report_file = "compared_{}_vs_{}.json".format(
             self.args.true_index, self.args.test_index
         )
         with open(report_file, "w") as f:
             for doc_type, res in result.items():
-                f.write("{}: {}\n".format(doc_type, all(res.values())))
+                f.write(f"{doc_type}: {all(res.values())}\n")
             f.write(json.dumps(result))
 
     def get_counts(self, es_worker, index_name):

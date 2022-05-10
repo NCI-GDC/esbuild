@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests the GDC Elasticsearch interaction for active and legacy
 indices.
@@ -34,7 +33,7 @@ def make_gdc_es(pg_driver, es_client):
             index_prefix=kwargs.get("index_prefix", "gdc_es_test"),
             index_alias_prefix=kwargs.get("index_alias_prefix", "gdc_from_graph"),
             pg_driver=pg_driver,
-            **kwargs
+            **kwargs,
         )
 
     return wrapper
@@ -240,7 +239,7 @@ def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
 def get_graph_counts(es, index_prefix, index_types):
     counts = {}
     for index_type in index_types:
-        index = "{}_{}".format(index_prefix, index_type)
+        index = f"{index_prefix}_{index_type}"
         r = es.count(index=index)
         counts[index_type] = r["count"]
 
@@ -309,9 +308,9 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
     # The following should fail, because ES doesn't do aggs on 'text' fields
     error_message = r".*Text fields are not optimised for operations that require "
     "per-document field data like aggregations and sorting, so these operations are "
-    "disabled by default\. Please use a keyword field instead\. Alternatively, set "
-    "fielddata=true on \[project.project_id] in order to load field data by uninverting "
-    "the inverted index\. Note that this can use significant memory.*"
+    r"disabled by default\. Please use a keyword field instead\. Alternatively, set "
+    r"fielddata=true on \[project.project_id] in order to load field data by uninverting "
+    r"the inverted index\. Note that this can use significant memory.*"
 
     with pytest.raises(elasticsearch.RequestError, match=error_message):
         es.search(index=new_case_index, body=aggs_query)

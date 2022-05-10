@@ -42,9 +42,7 @@ def test_indexd_data(init_indexd, file_nodes):
     assert len(INDEXD) == len(file_nodes)
 
     # Check that indexd uuids == file nodes uuids
-    assert set([r["node_id"] for r in INDEXD]) == set(
-        [getattr(n, "node_id") for n in file_nodes]
-    )
+    assert {r["node_id"] for r in INDEXD} == {getattr(n, "node_id") for n in file_nodes}
 
     # Check that all DATA_FILE_INDEXD_FIELDS are in all indexd records
     for node in file_nodes:

@@ -18,7 +18,7 @@ from esbuild.utils import (
 
 logger = get_logger("esbuild_minion", log_level="info")
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, "config.yml"), "r").read())
+config = yaml.safe_load(open(os.path.join(root_dir, "config.yml")).read())
 
 TIMEDELTA = config["timedelta"]
 
@@ -35,7 +35,7 @@ def get_gdc_elasticsearch(
     build_type = payload.get("build-type")
 
     if build_type != "active":
-        raise ValueError("Unknown build-type: '{}'".format(build_type))
+        raise ValueError(f"Unknown build-type: '{build_type}'")
 
     if not payload.get("projects"):
         build_projects = None
@@ -87,7 +87,7 @@ def process_work(
     indexd_client = get_default_index_client()
     es_client = Elasticsearch(**ES_CONFIG)
 
-    log = get_logger("esbuild_minion_{}".format(worker_id), log_level="info")
+    log = get_logger(f"esbuild_minion_{worker_id}", log_level="info")
     logger.info(
         f"Initializing queue client on worker_id: {worker_id} to connect to queue_id: {queue_client.queue_id}"
     )
@@ -116,10 +116,8 @@ def process_work(
                 skip_es=skip_es,
             )
 
-            log.info(
-                "Running build-type 'active', build_awg '{}'".format(gdc_es.build_awg)
-            )
-            log.info("Payload: {}".format(payload))
+            log.info(f"Running build-type 'active', build_awg '{gdc_es.build_awg}'")
+            log.info(f"Payload: {payload}")
 
             gdc_es.go(
                 roll_alias=not payload.get("no-roll"), send_events=not no_statsd,
@@ -167,7 +165,7 @@ if __name__ == "__main__":
 
     # create processes
     for i in range(0, args.num_procs):
-        logger.info("Creating process {}".format(i))
+        logger.info(f"Creating process {i}")
         proc_info = dict(id=i)
 
         proc_info["process"] = Process(

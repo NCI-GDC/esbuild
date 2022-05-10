@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """esbuild.graph.active.builder
 ----------------------------------
 
@@ -419,11 +418,11 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         # If there are remaining analysis, record a warning and skip
         if analyses:
             self.warning(
-                "Multiple analysis on {}".format(node),
+                f"Multiple analysis on {node}",
                 "{} has multiple analyses {}, this is unexpected.".format(
                     node, analyses
                 ),
-                tags=["file_id:{}".format(node.node_id)],
+                tags=[f"file_id:{node.node_id}"],
             )
 
     def add_file_downstream_analyses(self, node, doc):

@@ -58,7 +58,7 @@ def patch_test_data_get_indexd(nodes):
         # If the node is file category and the key is supposed to be in indexd:
         if node_is_file:
             # Make up urls for the file:
-            urls = ["s3://bucket/{}/{}".format(node.md5sum, node.file_name)]
+            urls = [f"s3://bucket/{node.md5sum}/{node.file_name}"]
 
             # Replace illegal md5sum with legal one:
             md5sum = str(getattr(node, "md5sum", None))

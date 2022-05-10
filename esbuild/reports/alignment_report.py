@@ -38,7 +38,7 @@ ALIGNER_NAMES = {
 }
 
 
-class AlignmentReporter(object):
+class AlignmentReporter:
     def __init__(self, graph=None, os_mysql=None, mailserver=None, toaddrs=None):
         if graph:
             self.graph = graph
@@ -122,7 +122,7 @@ class AlignmentReporter(object):
 
     def aligned_file_sizes(self):
         return {
-            key: sum([f.file_size for f in val])
+            key: sum(f.file_size for f in val)
             for key, val in self.aligned_files.items()
         }
 
@@ -195,21 +195,21 @@ class AlignmentReporter(object):
             attachment += (
                 "Merge finished: {count} ({size:.2f} TB)".format(
                     count=len(merge_finished),
-                    size=float(sum([e.src.file_size for e in merge_finished])) / 1e12,
+                    size=float(sum(e.src.file_size for e in merge_finished)) / 1e12,
                 )
                 + "\n"
             )
             attachment += (
                 "Fixmate finished: {count} ({size:.2f} TB)".format(
                     count=len(fixmate_finished),
-                    size=float(sum([e.src.file_size for e in fixmate_finished])) / 1e12,
+                    size=float(sum(e.src.file_size for e in fixmate_finished)) / 1e12,
                 )
                 + "\n"
             )
             attachment += (
                 "Fully Complete: {count} ({size:.2f} TB)".format(
                     count=len(fully_complete),
-                    size=float(sum([e.src.file_size for e in fully_complete])) / 1e12,
+                    size=float(sum(e.src.file_size for e in fully_complete)) / 1e12,
                 )
                 + "\n"
             )
@@ -318,9 +318,7 @@ class AlignmentReporter(object):
             part = MIMEBase("application", "octet-stream")
             part.set_payload(contents)
             encoders.encode_base64(part)
-            part.add_header(
-                "Content-Disposition", "attachment; filename= {}".format(name)
-            )
+            part.add_header("Content-Disposition", f"attachment; filename= {name}")
             msg.attach(part)
 
     def send_email(self):

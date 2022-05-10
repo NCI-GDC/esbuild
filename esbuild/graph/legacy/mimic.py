@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.graph.legacy.mimic
 ----------------------------------

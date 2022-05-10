@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Setup esbuild tests
 """
@@ -155,7 +154,7 @@ class TestError(Exception):
 def raise_test_error(*args, **kwargs):
     """For monkeypatching to test exception handling"""
 
-    raise TestError("{} {}".format(args, kwargs))
+    raise TestError(f"{args} {kwargs}")
 
 
 def render_database(pg_driver):
@@ -212,8 +211,8 @@ def ro_pg_driver(pg_driver):
         ro_pass = "ro_test"
         commands = [
             # "create user {} with password '{}'".format(ro_user, ro_pass),
-            "grant connect on database {} to {}".format(PG_NAME, ro_user),
-            "grant select on all tables in schema public to {}".format(ro_user),
+            f"grant connect on database {PG_NAME} to {ro_user}",
+            f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
@@ -229,8 +228,8 @@ def ro_pg_driver(pg_driver):
 
     with pg_driver.engine.connect() as conn:
         commands = [
-            "revoke all on all tables in schema public from {}".format(ro_user),
-            "revoke all on database {} from {}".format(PG_NAME, ro_user),
+            f"revoke all on all tables in schema public from {ro_user}",
+            f"revoke all on database {PG_NAME} from {ro_user}",
         ]
 
         for cmd in commands:
@@ -324,7 +323,7 @@ def test_index_data(index_types, es_client):
         es_client.indices.refresh(index=index_names[index_type])
         es_client.indices.put_mapping(index=index_names[index_type], body=mapping)
 
-        for doc in getattr(es_data, "{}_docs".format(index_type)):
+        for doc in getattr(es_data, f"{index_type}_docs"):
             doc_id = doc["project_id"] if index_type == "project" else None
 
             es_client.index(

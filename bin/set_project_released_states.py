@@ -17,7 +17,7 @@ def parse_cmd_args():
     )
     parser.add_argument(
         "--state_file",
-        help="File to load states from (default {}".format(default_state_filename),
+        help=f"File to load states from (default {default_state_filename}",
         default=default_state_filename,
     )
     parser.add_argument(
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     args = parse_cmd_args()
     log = get_logger("esbuild-set_project_released_states")
     # load yaml
-    with open(args.state_file, "r") as yaml_file:
+    with open(args.state_file) as yaml_file:
         state_conf = yaml.safe_load(yaml_file)
 
     pg = PsqlGraphDriver(
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     updated_states = 0
     with pg.session_scope() as session:
         for program, data in current_data["PROGRAMS"].iteritems():
-            log.info("Looking for {}".format(program))
+            log.info(f"Looking for {program}")
             prog = pg.nodes(Program).props(name=program).scalar()
             if prog:
                 project_list = []
@@ -65,12 +65,12 @@ if __name__ == "__main__":
                     if len(data["PROJECTS"]) != len(project_list):
                         for entry in data["PROJECTS"]:
                             if entry not in project_names:
-                                log.warning("{} not found".format(entry))
+                                log.warning(f"{entry} not found")
 
                 else:
                     project_list = prog.projects
 
-                log.info("{} programs found".format(len(project_list)))
+                log.info(f"{len(project_list)} programs found")
                 for proj in project_list:
                     if proj.props["released"] != data["RELEASED"]:
                         log.info(
@@ -88,9 +88,9 @@ if __name__ == "__main__":
                             )
                         )
             else:
-                log.info("Unable to find {}".format(program))
+                log.info(f"Unable to find {program}")
 
         if args.dry_run:
             session.rollback()
 
-    log.info("Updated {} states".format(updated_states))
+    log.info(f"Updated {updated_states} states")

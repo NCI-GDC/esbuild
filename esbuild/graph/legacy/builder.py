@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.graph.legacy.builder
 ----------------------------------
@@ -59,7 +58,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
 
     def is_node_indexed(self, node):
         """Augments parent's method"""
-        if not super(LegacyGraphIndexBuilder, self).is_node_indexed(node):
+        if not super().is_node_indexed(node):
             return False
         else:
             if node.label == "project":
@@ -116,7 +115,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
                     "{} has {} projects, this is unexpected.".format(
                         archive, n_projects
                     ),
-                    tags=["archive_id:{}".format(archive.node_id)],
+                    tags=[f"archive_id:{archive.node_id}"],
                 )
 
             if (

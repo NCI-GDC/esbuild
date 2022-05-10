@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.graph.common.mappings
 ----------------------------------
@@ -48,7 +47,7 @@ def get_es_type(_type):
 # Index settings
 
 
-class ESMapper(object):
+class ESMapper:
 
     # The different types of indices supported by the mapper.
     index_names = ["annotation", "case", "file", "project"]
@@ -265,27 +264,25 @@ class ESMapper(object):
 
         descriptions.update(
             {
-                "files.file.{}".format(prop): cls.get_prop_description("file", prop)
+                f"files.file.{prop}": cls.get_prop_description("file", prop)
                 for prop in Node.get_subclass("file").__pg_properties__
             }
         )
         descriptions.update(
             {
-                "cases.case.{}".format(prop): cls.get_prop_description("case", prop)
+                f"cases.case.{prop}": cls.get_prop_description("case", prop)
                 for prop in Node.get_subclass("case").__pg_properties__
             }
         )
         descriptions.update(
             {
-                "projects.project.{}".format(prop): cls.get_prop_description(
-                    "project", prop
-                )
+                f"projects.project.{prop}": cls.get_prop_description("project", prop)
                 for prop in Node.get_subclass("project").__pg_properties__
             }
         )
         descriptions.update(
             {
-                "annotations.annotation.{}".format(prop): cls.get_prop_description(
+                f"annotations.annotation.{prop}": cls.get_prop_description(
                     "annotation", prop
                 )
                 for prop in Node.get_subclass("file").__pg_properties__
@@ -307,14 +304,14 @@ class ESMapper(object):
     def get_base_properties(cls, source, include_id=True):
         # Get properties from schema
         node_type = Node.get_subclass(source)
-        assert node_type, "No model for {}".format(source)
+        assert node_type, f"No model for {source}"
 
         properties = dict(node_type.get_pg_properties())
         doc = Dict()
 
         if include_id:
             # Add id to document
-            id_name = "{}_id".format(source)
+            id_name = f"{source}_id"
             doc[id_name] = STRING
 
         if properties.pop("submitter_id", None):
@@ -429,9 +426,9 @@ class ESMapper(object):
         # Given that the actual mapping functions have different signatures and depend
         # on each other, wrapping them seems like the easiest way to provide a clean
         # interface, even if the next line is pretty ugly.
-        mapping_func = getattr(cls, "get_{}_es_mapping".format(index), None)
+        mapping_func = getattr(cls, f"get_{index}_es_mapping", None)
         if not mapping_func:
-            raise ValueError("No mapping exists for {} index".format(index))
+            raise ValueError(f"No mapping exists for {index} index")
 
         return mapping_func()
 
@@ -533,8 +530,8 @@ class ESMapper(object):
 
         # Add top level id aggregation
         for label in cls.top_level_ids:
-            case.properties["{}_ids".format(label)] = STRING
-            case.properties["submitter_{}_ids".format(label)] = STRING
+            case.properties[f"{label}_ids"] = STRING
+            case.properties[f"submitter_{label}_ids"] = STRING
 
         # Add pop whatever file is present and add correct files
         case.properties.pop("file", None)

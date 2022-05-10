@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 test_graph_index.py
 ----------------------------------
@@ -130,10 +129,10 @@ def validate_mappings(mappings, index_type):
         pprint({"index_type": index_type, "extra_paths": extra_paths})
 
     # Set of missing paths must be empty:
-    assert missing_paths == set([])
+    assert missing_paths == set()
 
     # Set of extra paths must be emty:
-    assert extra_paths == set([])
+    assert extra_paths == set()
 
 
 @pytest.mark.parametrize(

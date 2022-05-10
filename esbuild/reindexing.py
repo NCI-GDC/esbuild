@@ -60,7 +60,7 @@ def _read_text_file(path: Optional[str]) -> Optional[str]:
     if not (path and os.path.exists(path)):
         return None
 
-    with open(path, "r") as f:
+    with open(path) as f:
         return f.read()
 
 
@@ -68,7 +68,7 @@ def _read_json_file(path: Optional[str]) -> Optional[dict]:
     if not (path and os.path.exists(path)):
         return None
 
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 

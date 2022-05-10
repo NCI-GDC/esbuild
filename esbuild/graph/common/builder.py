@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.graph.common.builder
 ----------------------------------
@@ -58,7 +57,7 @@ def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
     return gencode_version
 
 
-class GraphIndexBuilder(object):
+class GraphIndexBuilder:
     """This class handles all of the JSON production for the GDC
     portal. Currently, the entire postgresql database is cached to
     memory.  To save space, edge labels are only maintained if we need
@@ -241,12 +240,12 @@ class GraphIndexBuilder(object):
         for required_attr in self.required_attrs:
             if getattr(self, required_attr) is None:
                 raise NotImplementedError(
-                    "{} must set {}".format(self.__class__.__name__, required_attr)
+                    f"{self.__class__.__name__} must set {required_attr}"
                 )
 
         if self.build_projects:
             log.info("Running partial build")
-            log.info("Projects: {}".format(self.build_projects))
+            log.info(f"Projects: {self.build_projects}")
         else:
             log.info("Running full build")
 
@@ -441,10 +440,10 @@ class GraphIndexBuilder(object):
             # Aggregate ids as we walk the tree
             top_level_ids = self.mapper.top_level_ids
             if ids is not None and child.label in top_level_ids:
-                ids["{}_ids".format(child.label)].add(child.node_id)
+                ids[f"{child.label}_ids"].add(child.node_id)
                 sub_id = child._props.get("submitter_id")
                 if sub_id is not None:
-                    ids["submitter_{}_ids".format(child.label)].add(sub_id)
+                    ids[f"submitter_{child.label}_ids"].add(sub_id)
 
         if corr == ONE_TO_MANY:
             doc.append(subdoc)
@@ -477,7 +476,7 @@ class GraphIndexBuilder(object):
             base.update({"analysis_id": node.node_id})
 
         elif include_id:
-            base.update({"{}_id".format(node.label): node.node_id})
+            base.update({f"{node.label}_id": node.node_id})
 
         base.update(
             {
@@ -510,8 +509,7 @@ class GraphIndexBuilder(object):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
                     yield neighbor
 
-                for n in self.walk_path(neighbor, path[1:], whole):
-                    yield n
+                yield from self.walk_path(neighbor, path[1:], whole)
 
     def walk_paths(self, node, paths, whole=False):
         """Given a list of paths, yield the result of walking each path. If
@@ -708,7 +706,7 @@ class GraphIndexBuilder(object):
         """
         return {
             "file_count": len(files),
-            "file_size": sum([f["file_size"] or 0 for f in files]),
+            "file_size": sum(f["file_size"] or 0 for f in files),
             "experimental_strategies": list(self.get_exp_strats(files)),
             # data_type is renamed data_category, viz.
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
@@ -818,7 +816,7 @@ class GraphIndexBuilder(object):
         # Populate project_id
         code = project_doc.pop("code")
         program = project_doc["program"]["name"]
-        project_id = "{}-{}".format(program, code)
+        project_id = f"{program}-{code}"
         project_doc["project_id"] = project_id
 
         return project_doc
@@ -890,8 +888,8 @@ class GraphIndexBuilder(object):
                     self.file_metadata[node.node_id] = {"error": "to_delete file"}
                 else:
                     self.warning(
-                        "No indexd data found for {}, ignoring".format(node),
-                        "node_type: {} node_id: {}".format(node.label, node.node_id),
+                        f"No indexd data found for {node}, ignoring",
+                        f"node_type: {node.label} node_id: {node.node_id}",
                         tags=[f"node:{node.label}"],
                     )
                     self.file_metadata[node.node_id] = {"error": "no indexd record"}
@@ -973,9 +971,9 @@ class GraphIndexBuilder(object):
             # If there are still formats in a list, record warning
             if formats:
                 self.warning(
-                    "{} has mulitple data_formats".format(node),
-                    "{} has additional data_formats: {}".format(node, formats),
-                    tags=["file_id:{}".format(node.node_id)],
+                    f"{node} has mulitple data_formats",
+                    f"{node} has additional data_formats: {formats}",
+                    tags=[f"file_id:{node.node_id}"],
                 )
 
         return format_
@@ -1045,13 +1043,13 @@ class GraphIndexBuilder(object):
             if corr == ONE_TO_ONE:
                 if label in doc:
                     self.warning(
-                        "Duplicate edge on {}".format(node.node_id),
+                        f"Duplicate edge on {node.node_id}",
                         (
                             "File {} has more than one {}, this is unexpected.".format(
                                 node, label
                             )
                         ),
-                        tags=["file_id:{}".format(node.node_id)],
+                        tags=[f"file_id:{node.node_id}"],
                     )
                 else:
                     doc[label] = base
@@ -1098,7 +1096,7 @@ class GraphIndexBuilder(object):
         index_file_docs = []
         index_files = self.get_file_index_files(node)
 
-        log.debug("Found index files for {}: {}".format(node, index_files))
+        log.debug(f"Found index files for {node}: {index_files}")
 
         for index_file in index_files:
             index_file_doc = self._get_base_doc(index_file)
@@ -1207,9 +1205,9 @@ class GraphIndexBuilder(object):
 
             if "archive" in doc:
                 return self.warning(
-                    "Duplicate archives for {}".format(node),
-                    ("File {} has more than archive.".format(node)),
-                    tags=["file_id:{}".format(node.node_id)],
+                    f"Duplicate archives for {node}",
+                    (f"File {node} has more than archive."),
+                    tags=[f"file_id:{node.node_id}"],
                 )
 
             archive_doc = self._get_base_doc(archive)
@@ -1352,7 +1350,7 @@ class GraphIndexBuilder(object):
 
         # Get programs
         program = next(self.neighbors_labeled(p, "program"))
-        log.info("Program: {}".format(program))
+        log.info(f"Program: {program}")
         doc["program"] = self._get_base_doc(program)
 
         # project_id <- program.name-project.code
@@ -1360,7 +1358,7 @@ class GraphIndexBuilder(object):
 
         log.info("Finding cases")
         cases = list(self.neighbors_labeled(p, "case"))
-        log.info("Got {} cases".format(len(cases)))
+        log.info(f"Got {len(cases)} cases")
 
         # Get files
         log.info("Getting files")
@@ -1372,17 +1370,17 @@ class GraphIndexBuilder(object):
             )
             files = files.union(case_files[case])
 
-        log.info("Got {} total files from {} cases".format(len(files), len(case_files)))
+        log.info(f"Got {len(files)} total files from {len(case_files)} cases")
 
         # filter files
         files = {f for f in files if not validators.is_node_hidden(f)}
 
-        log.info("Got {} files from {} cases".format(len(files), len(case_files)))
+        log.info(f"Got {len(files)} files from {len(case_files)} cases")
 
         # Get experimental strategies
         exp_strat_summaries = []
         for exp_strat in self.experimental_strategies.keys():
-            log.info("exp_strat: {}".format(exp_strat))
+            log.info(f"exp_strat: {exp_strat}")
             exp_files = self.experimental_strategies[exp_strat] & files
 
             if not len(exp_files):
@@ -1404,7 +1402,7 @@ class GraphIndexBuilder(object):
         data_category_summaries = []
 
         for data_category in self.data_categories.keys():
-            log.info("data_category: {}".format(data_category))
+            log.info(f"data_category: {data_category}")
             dt_files = self.data_categories[data_category] & files
 
             if not len(dt_files):
@@ -1441,7 +1439,7 @@ class GraphIndexBuilder(object):
         doc["summary"] = {
             "case_count": len(cases),
             "file_count": len(files),
-            "file_size": sum([f["file_size"] or 0 for f in files]),
+            "file_size": sum(f["file_size"] or 0 for f in files),
         }
 
         if exp_strat_summaries:
@@ -1516,8 +1514,8 @@ class GraphIndexBuilder(object):
         if len(entities) == 0:
             self.error(
                 "Annotation has no entities",
-                "{} has zero entity associated.".format(node.node_id),
-                tags=["annotation_id:{}".format(node.node_id)],
+                f"{node.node_id} has zero entity associated.",
+                tags=[f"annotation_id:{node.node_id}"],
             )
             # There are no entities! We cannot proceed.
             ann_doc.update(
@@ -1528,8 +1526,8 @@ class GraphIndexBuilder(object):
         if len(entities) > 1:
             self.warning(
                 "Annotation has multiple entities",
-                "{} has more than one entity associated.".format(node.node_id),
-                tags=["annotation_id:{}".format(node.node_id)],
+                f"{node.node_id} has more than one entity associated.",
+                tags=[f"annotation_id:{node.node_id}"],
             )
             # There are too many entities! proceed with only the first
             # entity
@@ -1622,7 +1620,7 @@ class GraphIndexBuilder(object):
             except Exception as e:
                 self.error(
                     "denormalize_annotations",
-                    "{} encountered an error: {}".format(annotation, e),
+                    f"{annotation} encountered an error: {e}",
                 )
                 continue
 
@@ -1740,9 +1738,9 @@ class GraphIndexBuilder(object):
 
         if expected is not None and count != expected:
             self.warning(
-                "{}: unexpected no. of '{}' neighbors".format(node, labels),
-                "{}: {} != {} (expected)".format(node, count, expected),
-                tags=["{}:{}".format(node.label, node.node_id)],
+                f"{node}: unexpected no. of '{labels}' neighbors",
+                f"{node}: {count} != {expected} (expected)",
+                tags=[f"{node.label}:{node.node_id}"],
             )
 
     ###################################################################
@@ -1809,7 +1807,7 @@ class GraphIndexBuilder(object):
             if act != calc:
                 self.error(
                     "Inconsistent data_category count",
-                    "{}: {} != {}".format(data_category, act, calc),
+                    f"{data_category}: {act} != {calc}",
                     tags=["case_id:{}".format(case.get("case_id", "?"))],
                 )
 
@@ -1827,7 +1825,7 @@ class GraphIndexBuilder(object):
                         "Key '{}' was not found in mapping keys {}".format(
                             doc_key, list(mapping["properties"].keys())
                         ),
-                        tags=["key:{}".format(doc_key)],
+                        tags=[f"key:{doc_key}"],
                     )
                     # Remove so there is not an error when populating index
                     doc.pop(doc_key, None)
@@ -1851,7 +1849,7 @@ class GraphIndexBuilder(object):
                 "{}: {} != {}".format(
                     node.node_id, len(case["files"]), case["summary"]["file_count"]
                 ),
-                tags=["case_id:{}".format(node.node_id)],
+                tags=[f"case_id:{node.node_id}"],
             )
 
         # Check for keys that are in the doc but not in the mapping
@@ -2127,8 +2125,8 @@ class GraphIndexBuilder(object):
                 # the next annotation
                 self.error(
                     "Redaction annotation no entities",
-                    "Redaction {} has zero entities associated.".format(redaction),
-                    tags=["annotation:{}".format(redaction)],
+                    f"Redaction {redaction} has zero entities associated.",
+                    tags=[f"annotation:{redaction}"],
                 )
                 continue
 
@@ -2141,7 +2139,7 @@ class GraphIndexBuilder(object):
                         "{} has more than one entity associated. "
                         "For security reasons, removing all from index!"
                     ).format(redaction),
-                    tags=["annotation:{}".format(redaction)],
+                    tags=[f"annotation:{redaction}"],
                 )
 
             for redacted in redacted_list:
@@ -2159,7 +2157,7 @@ class GraphIndexBuilder(object):
         removed_nodes = [
             node for node in self.G.nodes() if not self.is_node_indexed(node)
         ]
-        log.info("Removing {} nodes from cache".format(len(removed_nodes)))
+        log.info(f"Removing {len(removed_nodes)} nodes from cache")
         self.G.remove_nodes_from(removed_nodes)
         log.info("Finding and removing suppressed nodes")
         suppressed = self.suppressed_nodes()
@@ -2181,7 +2179,7 @@ class GraphIndexBuilder(object):
         if (self.build_awg or self.selective_caching) and self.build_projects:
             # Load only node ids with relevant project_id's
             project_ids = ["-".join(p) for p in self.build_projects]
-            log.info("Getting {} from database".format(project_ids))
+            log.info(f"Getting {project_ids} from database")
 
             relevant_node_ids = {
                 nd.node_id for nd in self.g.nodes().prop_in("project_id", project_ids)
@@ -2246,7 +2244,7 @@ class GraphIndexBuilder(object):
             pbar.finish()
 
         # Prune graph
-        log.info("Cached {} nodes".format(self.G.number_of_nodes()))
+        log.info(f"Cached {self.G.number_of_nodes()} nodes")
         self.remove_unindexed_nodes_from_graph()
 
         # Aggressively cache relationships, nodes by type, traversals, etc.
@@ -2306,8 +2304,8 @@ class GraphIndexBuilder(object):
             if len(cases) > 1:
                 self.warning(
                     "Entity associated with > 1 case",
-                    "{}: Found {} cases".format(e, len(cases)),
-                    tags=["entity:{}".format(e)],
+                    f"{e}: Found {len(cases)} cases",
+                    tags=[f"entity:{e}"],
                 )
                 continue
 

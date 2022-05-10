@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.graph.common.mimic
 ----------------------------------
@@ -14,7 +13,7 @@ from cdislogging import get_logger
 log = get_logger(__name__, log_level="info")
 
 
-class CommonMimic(object):
+class CommonMimic:
     """Mixin for mimic classes"""
 
     def neighbors_labeled(self, node, labels, *args, **kwargs):

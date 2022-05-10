@@ -41,7 +41,7 @@ def validate_file_metadata(key, value):
         return
 
     if key in DATA_FILE_INDEXD_FIELDS:
-        error_msg = '"{}" is loaded from graph instead of indexd'.format(key)
+        error_msg = f'"{key}" is loaded from graph instead of indexd'
         if isinstance(value, str):
             assert value != "error", error_msg
         elif isinstance(value, list):
