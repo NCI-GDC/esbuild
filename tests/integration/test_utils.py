@@ -1,7 +1,7 @@
 import pytest
 
-from tests import es_data
-from tests.data import DATA_FILE_INDEXD_FIELDS
+from tests.integration import es_data
+from tests.integration.data import DATA_FILE_INDEXD_FIELDS
 from esbuild.utils import ReleaseHelper
 from esbuild.graph.common.builder import get_namespaced_uuid, get_uuid_namespace
 from esbuild.utils import get_index_names

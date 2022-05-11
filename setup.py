@@ -12,6 +12,7 @@ setup(
         "addict<2.2.0",
         "cdislogging~=1.0",
         "datadog~=0.32",
+        "deepdiff~=4.0",                # required by compare_indices
         "dictdiffer~=0.8.0",
         "elasticsearch~=7.6",
         # gdcdatamodel needs future

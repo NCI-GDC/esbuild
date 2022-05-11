@@ -25,6 +25,8 @@ Repository for building the GDC Elasticsearch indices.
 
 # Running
 
+## build_graph_index.py
+
 ```bash
 export PG_HOST=<REPLACE_ME>  # PostgreSQL hostname
 export PG_USER=<REPLACE_ME>  # PostgreSQL user
@@ -68,6 +70,33 @@ In the meantime, the format is this:
 This data is checked in in a yaml file (project-program-release.yaml) in the 
 bin directory of esbuild. It is deployed and can be edited on the esbuild 
 machine to change as need be.
+
+## compare_indices.py
+
+This is a script used to compare 2 indices. It can be used to see the changes between
+new indices and old indices. An output file with name `counts_<index_name>_vs_<another_index_name>.json`
+or `compared_<index_name>_vs_<another_index_name>.json` will be generated.
+
+### flags
+
+#### `--test-type`
+
+Choose between `compare-counts` and `full-compare`
+
+* `compare-counts` will show the count difference for indices.
+* `full-compare` will show detailed doc difference for indices.
+
+#### `--true-index` and `--test-index`
+
+Those flags are used to provide names for indices to compare.
+
+
+### Usage
+
+```bash
+compare_indices.py --true-index dr33_active_merged_file --test_index dr33_active_merged_v2_file --test-type compare_counts
+```
+
 
 =======
 # Architecture

@@ -31,7 +31,7 @@ from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
-from tests import data, es_data
+from tests.integration import data, es_data
 
 # ======================================================================
 # Test Settings
