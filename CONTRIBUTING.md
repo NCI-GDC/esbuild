@@ -1,3 +1,25 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Development Practices](#development-practices)
+  - [Git Templates](#git-templates)
+- [Version Control](#version-control)
+  - [Branches](#branches)
+  - [Commits](#commits)
+  - [Code Review](#code-review)
+  - [Rebase](#rebase)
+  - [Merge Branch](#merge-branch)
+  - [Tags](#tags)
+  - [Signed Commits](#signed-commits)
+    - [Generating a PGP Key](#generating-a-pgp-key)
+    - [Adding a maintainer key](#adding-a-maintainer-key)
+  - [Master Branch](#master-branch)
+  - [Release](#release)
+  - [Workflow](#workflow)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 - [Development Practices](#development-practices)
 - [Version Control](#version-control)
 

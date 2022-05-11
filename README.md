@@ -5,8 +5,17 @@ Repository for building the GDC Elasticsearch indices.
 [![Build Status](https://travis-ci.com/NCI-GDC/esbuild.svg?token=LApTVTN34FyXpxo5zU44&branch=develop)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-- [esbuild](#esbuild)
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
 - [Running](#running)
+  - [build_graph_index.py](#build_graph_indexpy)
+  - [compare_indices.py](#compare_indicespy)
+    - [flags](#flags)
+      - [`--test-type`](#--test-type)
+      - [`--true-index` and `--test-index`](#--true-index-and---test-index)
+    - [Usage](#usage)
 - [Architecture](#architecture)
   - [Build and Upload Process](#build-and-upload-process)
   - [Builders and Mappers](#builders-and-mappers)
@@ -21,7 +30,7 @@ Repository for building the GDC Elasticsearch indices.
 - [Production](#production)
 - [Contributing](#contributing)
 
-
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Running
 
