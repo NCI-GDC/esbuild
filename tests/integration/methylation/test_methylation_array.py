@@ -25,8 +25,22 @@ from jsonpath_rw import parse
                 "Raw Intensities": 0,
             },
         ),
-        ("files", "[*].submitter_id.[*]", {"mbv_0": 1, "mbv_1": 1,},),
-        ("files", "[*].channel.[*]", {"Red": 2, "Green": 2,},),
+        (
+            "files",
+            "[*].submitter_id.[*]",
+            {
+                "mbv_0": 1,
+                "mbv_1": 1,
+            },
+        ),
+        (
+            "files",
+            "[*].channel.[*]",
+            {
+                "Red": 2,
+                "Green": 2,
+            },
+        ),
         (
             "cases",
             "[*].files.[*].data_type.[*]",

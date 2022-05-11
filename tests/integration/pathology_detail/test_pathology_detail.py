@@ -10,12 +10,18 @@ from jsonpath_rw import parse
         (
             "files",
             "[*].cases.[*].diagnoses.[*].pathology_details.[*].submitter_id",
-            {"pd_pathology_1": 1, "pd_pathology_2": 1,},
+            {
+                "pd_pathology_1": 1,
+                "pd_pathology_2": 1,
+            },
         ),
         (
             "cases",
             "[*].diagnoses.[*].pathology_details.[*].submitter_id",
-            {"pd_pathology_1": 1, "pd_pathology_2": 1,},
+            {
+                "pd_pathology_1": 1,
+                "pd_pathology_2": 1,
+            },
         ),
     ],
 )

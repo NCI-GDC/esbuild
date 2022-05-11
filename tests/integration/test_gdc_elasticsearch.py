@@ -86,7 +86,12 @@ def patched_demographic(pg_driver):
             {
                 "id": demographic.node_id,
                 "props": json.dumps(
-                    dict(demographic.props, **{"fake_property": True,},)
+                    dict(
+                        demographic.props,
+                        **{
+                            "fake_property": True,
+                        },
+                    )
                 ),
             },
         )
@@ -210,10 +215,12 @@ def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
     gdces.go()
 
     assert not es.exists(  # The case needs to be unindexed
-        index=gdces.index_names["case"], id=get_node_id("redaction-case-released"),
+        index=gdces.index_names["case"],
+        id=get_node_id("redaction-case-released"),
     )
     assert es.exists(
-        index=gdces.index_names["annotation"], id=get_node_id("redaction-annotation"),
+        index=gdces.index_names["annotation"],
+        id=get_node_id("redaction-annotation"),
     )
 
     # Check subject withdrew consent case and redaction still show up
@@ -228,7 +235,8 @@ def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
 
     # Check released-rescinded redaction doesn't show up
     assert es.exists(
-        index=gdces.index_names["case"], id=get_node_id("released-rescinded-case"),
+        index=gdces.index_names["case"],
+        id=get_node_id("released-rescinded-case"),
     )
     assert not es.exists(
         index=gdces.index_names["annotation"],
@@ -391,10 +399,14 @@ def test_reindex_per_project(
     gdc_es.go(roll_alias=False)
 
     es_client.index(
-        index="reindex_test_project", body={"project_id": "GDC-MISC"}, id="GDC-MISC",
+        index="reindex_test_project",
+        body={"project_id": "GDC-MISC"},
+        id="GDC-MISC",
     )
     es_client.index(
-        index="reindex_test_project", body={"project_id": "FALSE"}, id="FALSE",
+        index="reindex_test_project",
+        body={"project_id": "FALSE"},
+        id="FALSE",
     )
     es_client.index(
         index="reindex_test_case",

@@ -140,7 +140,10 @@ class EventLogger:
         self._log_event(title, text, run_id, new_index, task_id, alert_type="error")
 
     def log_success(
-        self, title: str, text: str, run_id: uuid.UUID,
+        self,
+        title: str,
+        text: str,
+        run_id: uuid.UUID,
     ):
         self._log_event(title, text, run_id, alert_type="success")
 
@@ -283,7 +286,10 @@ class Reindexer:
         return {"excludes": tuple(old_properties - new_properties)}
 
     def _get_indices(
-        self, old_index: str, new_index: str, index_types: Sequence[str],
+        self,
+        old_index: str,
+        new_index: str,
+        index_types: Sequence[str],
     ) -> Iterable[IndexPair]:
         if not index_types:
             return (IndexPair(old_index, new_index),)
@@ -317,7 +323,10 @@ class Reindexer:
                 args.new_index,
             )
 
-    def _start_reindexing_task(self, args: Arguments,) -> str:
+    def _start_reindexing_task(
+        self,
+        args: Arguments,
+    ) -> str:
         source = {"index": args.old_index, "_source": args.source}
         dest = {"index": args.new_index}
 
@@ -366,7 +375,12 @@ class Reindexer:
 
         return self._release_helper.get_project_docs_query(index_type, project_ids)
 
-    def _reindex(self, args: Arguments, settings: dict, mappings: dict,) -> str:
+    def _reindex(
+        self,
+        args: Arguments,
+        settings: dict,
+        mappings: dict,
+    ) -> str:
         mappings = _get_index_mappings(args.new_index, mappings)
         source = args.source or self._get_source(args.old_index, mappings)
         query = (
@@ -446,14 +460,19 @@ class Reindexer:
 
             print(f"Beginning run: {run_id}")
             self._event_logger.log_info(
-                "Reindexing Command Called", f"Reindexing run: {run_id}", run_id,
+                "Reindexing Command Called",
+                f"Reindexing run: {run_id}",
+                run_id,
             )
 
             threads = tuple(
                 (
                     args,
                     self._executor.submit(
-                        self._reindex, args, index_settings, mappings,
+                        self._reindex,
+                        args,
+                        index_settings,
+                        mappings,
                     ),
                 )
                 for args in arguments
@@ -462,7 +481,9 @@ class Reindexer:
 
             self._progress_manager.monitor(arguments_by_task)
             self._event_logger.log_success(
-                "Reindexing Command Succeeded", f"Reindexing run: {run_id}", run_id,
+                "Reindexing Command Succeeded",
+                f"Reindexing run: {run_id}",
+                run_id,
             )
 
         except Exception as e:

@@ -270,7 +270,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += case_to_masked_methylation_array_paths
 
     file_labels = GraphIndexBuilder.node_labels_by_category(
-        ["data_file", "index_file",]
+        [
+            "data_file",
+            "index_file",
+        ]
     )
 
     # Do not create file docs for archives
@@ -282,7 +285,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
     analysis_metadata = {
-        "read_groups": {"alignment_workflow", "alignment_cocleaning_workflow",},
+        "read_groups": {
+            "alignment_workflow",
+            "alignment_cocleaning_workflow",
+        },
     }
 
     # Pre-calculate the paths to read_group from each type of file

@@ -232,8 +232,10 @@ class AlignmentReporter:
                     if v.get("alignment_type") == alignment_type_grain
                 }
             )
-            attachment += "{name}: {running} currently running / {allocated} allocated\n".format(
-                name=name, running=running, allocated=allocated
+            attachment += (
+                "{name}: {running} currently running / {allocated} allocated\n".format(
+                    name=name, running=running, allocated=allocated
+                )
             )
         return attachment
 

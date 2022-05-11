@@ -224,7 +224,11 @@ def test_awg_build(init_indexd, pg_driver):
 
 
 @pytest.mark.parametrize(
-    "gencode,expected_number", [["v22", 17], ["v36", 18],],
+    "gencode,expected_number",
+    [
+        ["v22", 17],
+        ["v36", 18],
+    ],
 )
 def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_number):
     builder = ActiveGraphIndexBuilder(
@@ -300,7 +304,9 @@ def test_mapping_does_not_contain(mappings, mapping, path):
 
 @pytest.mark.parametrize(
     "mapping,path,expected",
-    [("file", "properties.downstream_analyses.type", ["nested"]),],
+    [
+        ("file", "properties.downstream_analyses.type", ["nested"]),
+    ],
 )
 def test_mapping_value_in(mappings, mapping, path, expected):
     results = parse(path).find(mappings[mapping])
@@ -740,7 +746,11 @@ def test_get_file_read_groups(pg_driver, index):
 
 
 @pytest.mark.parametrize(
-    "cls,count", [(md.AlignmentWorkflow, 2), (md.SomaticMutationCallingWorkflow, 2),],
+    "cls,count",
+    [
+        (md.AlignmentWorkflow, 2),
+        (md.SomaticMutationCallingWorkflow, 2),
+    ],
 )
 def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
     for workflow in pg_driver.nodes(cls).all():
@@ -768,7 +778,10 @@ def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
 
 @pytest.mark.parametrize(
     "cls,count",
-    [(md.BiospecimenSupplement, 0), (md.ClinicalSupplement, 0),],
+    [
+        (md.BiospecimenSupplement, 0),
+        (md.ClinicalSupplement, 0),
+    ],
     scope="module",
 )
 def test_add_related_files(pg_driver, cached_builder, cls, count):

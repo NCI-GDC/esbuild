@@ -138,7 +138,10 @@ def non_live_related_file(pg_driver):
     with pg_driver.session_scope() as sxn:
         live_file = pg_driver.nodes(md.File).ids(get_node_id("live-file")).one()
         derived_file = fuzzed(
-            md.File, state="live", file_name="derived_file.bam", project_id="TCGA-BRCA",
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
+            project_id="TCGA-BRCA",
         )
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
@@ -202,7 +205,10 @@ def derived_file_setup(pg_driver):
         fake_center = fuzzed(md.Center)
         live_file.centers = [fake_center]
         derived_file = fuzzed(
-            md.File, state="live", file_name="derived_file.bam", project_id="TCGA-BRCA",
+            md.File,
+            state="live",
+            file_name="derived_file.bam",
+            project_id="TCGA-BRCA",
         )
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
@@ -273,7 +279,10 @@ def test_path_count(index, index_type, path, count):
 
 
 @pytest.mark.parametrize(
-    "index_type,path", [("cases", "[*].clinical"),],
+    "index_type,path",
+    [
+        ("cases", "[*].clinical"),
+    ],
 )
 def test_path_is_absent(index, index_type, path):
     assert not parse(path).find(getattr(index, index_type))

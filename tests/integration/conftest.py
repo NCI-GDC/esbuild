@@ -297,7 +297,10 @@ def index_types():
 
 @pytest.fixture(scope="session")
 def es_client():
-    es = Elasticsearch(hosts=[ES_HOST], port=ES_PORT,)
+    es = Elasticsearch(
+        hosts=[ES_HOST],
+        port=ES_PORT,
+    )
 
     return es
 
@@ -327,7 +330,9 @@ def test_index_data(index_types, es_client):
             doc_id = doc["project_id"] if index_type == "project" else None
 
             es_client.index(
-                index=index_names[index_type], body=doc, id=doc_id,
+                index=index_names[index_type],
+                body=doc,
+                id=doc_id,
             )
 
     es_client.indices.refresh()
@@ -403,7 +408,9 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
             nodes_meta = yaml.safe_load(f)
 
         x_nodes = graph_factory.create_from_nodes_and_edges(
-            nodes=nodes_meta["nodes"], edges=nodes_meta["edges"], all_props=True,
+            nodes=nodes_meta["nodes"],
+            edges=nodes_meta["edges"],
+            all_props=True,
         )
 
         for n in x_nodes:

@@ -67,7 +67,10 @@ class ActiveESMapper(ESMapper):
                     "tokenizer": "standard",
                     "filter": ["lowercase", "edge_ngram"],
                 },
-                "lowercase_keyword": {"tokenizer": "keyword", "filter": ["lowercase"],},
+                "lowercase_keyword": {
+                    "tokenizer": "keyword",
+                    "filter": ["lowercase"],
+                },
             },
         }
         return settings

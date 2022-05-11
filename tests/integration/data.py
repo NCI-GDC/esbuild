@@ -206,7 +206,9 @@ NODES = [
         md5sum="d3f6cbd40ef2f5b6607cb4af982280a9",
         state="live",
         submitter_id="3d16fb28-51b7-4fa2-b528-077716e5d64a",
-        system_annotations=dict(source="target_wgs_alignment",),
+        system_annotations=dict(
+            source="target_wgs_alignment",
+        ),
     ),
     fuzzed(
         md.File,
@@ -337,8 +339,14 @@ NODES = [
         acl=["phs000178"],
         file_name="submitted-aligned-reads-without-downstream.bam",
     ),
-    fuzzed(md.ReadGroupQc, node_id=get_node_id("read-group-qc-1"),),
-    fuzzed(md.ReadGroup, node_id=get_node_id("read-group-without-downstream"),),
+    fuzzed(
+        md.ReadGroupQc,
+        node_id=get_node_id("read-group-qc-1"),
+    ),
+    fuzzed(
+        md.ReadGroup,
+        node_id=get_node_id("read-group-without-downstream"),
+    ),
     md.ReadGroup(
         node_id=get_node_id("read-group-1"),
         adapter_name="j0o0ou",
@@ -377,7 +385,9 @@ NODES = [
         to_trim_adapter_sequence=False,
     ),
     md.ReadGroup(
-        node_id=get_node_id("read-group-2"), state="released", project_id="TCGA-BRCA",
+        node_id=get_node_id("read-group-2"),
+        state="released",
+        project_id="TCGA-BRCA",
     ),
     md.Clinical(
         node_id=get_node_id("clinical-1"),
@@ -925,7 +935,8 @@ NODES = [
         classification="Blocking Release",
     ),
     md.Annotation(
-        node_id=get_node_id("annotation-without-downstream"), state="released",
+        node_id=get_node_id("annotation-without-downstream"),
+        state="released",
     ),
     fuzzed(
         md.SomaticMutationCallingWorkflow,
@@ -1062,16 +1073,24 @@ NODES = [
     ),
     # Prelude nodes
     md.DataSubtype(
-        node_id=get_node_id("data_subtype_aligned_reads"), name="Aligned reads",
+        node_id=get_node_id("data_subtype_aligned_reads"),
+        name="Aligned reads",
     ),
     md.DataType(
-        node_id=get_node_id("data_type_raw_sequencing"), name="Raw sequencing data",
+        node_id=get_node_id("data_type_raw_sequencing"),
+        name="Raw sequencing data",
     ),
-    md.Platform(node_id=get_node_id("platform-illumina-hiseq"), name="Illumina HiSeq",),
+    md.Platform(
+        node_id=get_node_id("platform-illumina-hiseq"),
+        name="Illumina HiSeq",
+    ),
     md.ExperimentalStrategy(
         node_id=get_node_id("experimental-strategy-rna-seq"), name="RNA-Seq"
     ),
-    md.Tag(node_id=get_node_id("tag-snv"), name="snv",),
+    md.Tag(
+        node_id=get_node_id("tag-snv"),
+        name="snv",
+    ),
     md.Program(
         node_id=get_node_id("program-tcga"),
         dbgap_accession_number="phs000178",
@@ -1330,16 +1349,20 @@ NODES = [
 
 EDGES = [
     md.SampleDerivedFromCase(
-        src_id=get_node_id("tt-260-sample"), dst_id=get_node_id("fake_active_case_2"),
+        src_id=get_node_id("tt-260-sample"),
+        dst_id=get_node_id("fake_active_case_2"),
     ),
     md.PortionDerivedFromSample(
-        src_id=get_node_id("tt-260-portion"), dst_id=get_node_id("tt-260-sample"),
+        src_id=get_node_id("tt-260-portion"),
+        dst_id=get_node_id("tt-260-sample"),
     ),
     md.AnalyteDerivedFromSample(
-        src_id=get_node_id("tt-260-analyte"), dst_id=get_node_id("tt-260-sample"),
+        src_id=get_node_id("tt-260-analyte"),
+        dst_id=get_node_id("tt-260-sample"),
     ),
     md.AliquotDerivedFromAnalyte(
-        src_id=get_node_id("tt-260-aliquot"), dst_id=get_node_id("tt-260-analyte"),
+        src_id=get_node_id("tt-260-aliquot"),
+        dst_id=get_node_id("tt-260-analyte"),
     ),
     # Somatic mutation workflows
     md.SomaticAggregationWorkflowPerformedOnAnnotatedSomaticMutation(
@@ -1415,10 +1438,12 @@ EDGES = [
     ),
     # Read Groups
     md.ReadGroupQcGeneratedFromReadGroup(
-        src_id=get_node_id("read-group-qc-1"), dst_id=get_node_id("read-group-1"),
+        src_id=get_node_id("read-group-qc-1"),
+        dst_id=get_node_id("read-group-1"),
     ),
     md.ReadGroupDerivedFromAliquot(
-        src_id=get_node_id("read-group-1"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("read-group-1"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.ReadGroupDerivedFromAliquot(
         src_id=get_node_id("read-group-without-downstream"),
@@ -1429,7 +1454,8 @@ EDGES = [
         dst_id=get_node_id("read-group-without-downstream"),
     ),
     md.ReadGroupDerivedFromAliquot(
-        src_id=get_node_id("read-group-2"), dst_id=get_node_id("aliquot-2"),
+        src_id=get_node_id("read-group-2"),
+        dst_id=get_node_id("aliquot-2"),
     ),
     # Aligned Reads
     md.SubmittedAlignedReadsDataFromReadGroup(
@@ -1470,7 +1496,8 @@ EDGES = [
     ),
     # Clinical
     md.ExposureDescribesCase(
-        src_id=get_node_id("exposure-1"), dst_id=get_node_id("case-tcga-brca-breast"),
+        src_id=get_node_id("exposure-1"),
+        dst_id=get_node_id("case-tcga-brca-breast"),
     ),
     md.DiagnosisDescribesCase(
         src_id=get_node_id("diagnosis-unknown-tumor-status"),
@@ -1489,7 +1516,8 @@ EDGES = [
         dst_id=get_node_id("case-tcga-brca-breast"),
     ),
     md.ClinicalDescribesCase(
-        src_id=get_node_id("clinical-1"), dst_id=get_node_id("case-tcga-brca-breast"),
+        src_id=get_node_id("clinical-1"),
+        dst_id=get_node_id("case-tcga-brca-breast"),
     ),
     # Legacy edges
     md.FileMemberOfArchive(
@@ -1497,10 +1525,12 @@ EDGES = [
         dst_id=get_node_id("archive_1"),
     ),
     md.BiospecimenSupplementMemberOfArchive(
-        src_id=get_node_id("biospecimen_supplement_1"), dst_id=get_node_id("archive_1"),
+        src_id=get_node_id("biospecimen_supplement_1"),
+        dst_id=get_node_id("archive_1"),
     ),
     md.ClinicalSupplementMemberOfArchive(
-        src_id=get_node_id("clinical_supplement_1"), dst_id=get_node_id("archive_1"),
+        src_id=get_node_id("clinical_supplement_1"),
+        dst_id=get_node_id("archive_1"),
     ),
     md.AnnotationAnnotatesAliquot(
         src_id=get_node_id("annotation-approved-center-qc-failed"),
@@ -1515,45 +1545,56 @@ EDGES = [
         dst_id=get_node_id("aliquot-without-downstream"),
     ),
     md.AnnotationAnnotatesAliquot(
-        src_id=get_node_id("rescinded-annotation"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("rescinded-annotation"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.FileMemberOfDataSubtype(
         src_id=get_node_id("live-file"),
         dst_id=get_node_id("data_subtype_aligned_reads"),
     ),
     md.FileRelatedToFile(
-        src_id=get_node_id("live-file"), dst_id=get_node_id("index-file"),
+        src_id=get_node_id("live-file"),
+        dst_id=get_node_id("index-file"),
     ),
     md.AlignedReadsIndexDerivedFromAlignedReads(
-        src_id=get_node_id("index-file-2"), dst_id=get_node_id("aligned-reads-1"),
+        src_id=get_node_id("index-file-2"),
+        dst_id=get_node_id("aligned-reads-1"),
     ),
     md.FileRelatedToFile(
-        src_id=get_node_id("live-file"), dst_id=get_node_id("related-file"),
+        src_id=get_node_id("live-file"),
+        dst_id=get_node_id("related-file"),
     ),
     md.FileDataFromSlide(
-        src_id=get_node_id("slide-image-file"), dst_id=get_node_id("slide-top-1"),
+        src_id=get_node_id("slide-image-file"),
+        dst_id=get_node_id("slide-top-1"),
     ),
     md.FileDataFromAliquot(
-        src_id=get_node_id("live-file"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("live-file"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.FileDataFromAliquot(
         src_id=get_node_id("legacy-file-with-empty-acl"),
         dst_id=get_node_id("aliquot-1"),
     ),
     md.FileDataFromAliquot(
-        src_id=get_node_id("harmonized-file"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("harmonized-file"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.FileDataFromFile(
-        src_id=get_node_id("harmonized-file"), dst_id=get_node_id("live-file"),
+        src_id=get_node_id("harmonized-file"),
+        dst_id=get_node_id("live-file"),
     ),
     md.FileDataFromAliquot(
-        src_id=get_node_id("non-live-file"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("non-live-file"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.FileDataFromAliquot(
-        src_id=get_node_id("to-delete-file"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("to-delete-file"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.FileDataFromAliquot(
-        src_id=get_node_id("related-file"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("related-file"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-9"),
@@ -1882,7 +1923,8 @@ EDGES = [
         properties={},
     ),
     md.AnalysisMetadataDerivedFromFile(
-        src_id=get_node_id("analysis-metadata-1"), dst_id=get_node_id("live-file"),
+        src_id=get_node_id("analysis-metadata-1"),
+        dst_id=get_node_id("live-file"),
     ),
     # Somatic Mutation Calling
     md.SimpleSomaticMutationDataFromSomaticMutationCallingWorkflow(
@@ -1895,30 +1937,37 @@ EDGES = [
     ),
     # SRA metadata
     md.RunMetadataDerivedFromFile(
-        src_id=get_node_id("run-metadata-1"), dst_id=get_node_id("live-file"),
+        src_id=get_node_id("run-metadata-1"),
+        dst_id=get_node_id("live-file"),
     ),
     md.ExperimentMetadataDerivedFromFile(
-        src_id=get_node_id("experiment-metadata-1"), dst_id=get_node_id("live-file"),
+        src_id=get_node_id("experiment-metadata-1"),
+        dst_id=get_node_id("live-file"),
     ),
     # Copy Number
     md.SubmittedTangentCopyNumberDerivedFromAliquot(
-        src_id=get_node_id("cnv-file-1"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("cnv-file-1"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.CopyNumberLiftoverWorkflowPerformedOnSubmittedTangentCopyNumber(
-        src_id=get_node_id("cnv-workflow-1"), dst_id=get_node_id("cnv-file-1"),
+        src_id=get_node_id("cnv-workflow-1"),
+        dst_id=get_node_id("cnv-file-1"),
     ),
     md.CopyNumberSegmentDerivedFromCopyNumberLiftoverWorkflow(
-        src_id=get_node_id("cnv-segment-file-1"), dst_id=get_node_id("cnv-workflow-1"),
+        src_id=get_node_id("cnv-segment-file-1"),
+        dst_id=get_node_id("cnv-workflow-1"),
     ),
     md.SubmittedMethylationBetaValueDerivedFromAliquot(
-        src_id=get_node_id("sub-methyl-beta-value"), dst_id=get_node_id("aliquot-1"),
+        src_id=get_node_id("sub-methyl-beta-value"),
+        dst_id=get_node_id("aliquot-1"),
     ),
     md.MethylationLiftoverWorkflowPerformedOnSubmittedMethylationBetaValue(
         src_id=get_node_id("methyl-lift-wf"),
         dst_id=get_node_id("sub-methyl-beta-value"),
     ),
     md.MethylationBetaValueDataFromMethylationLiftoverWorkflow(
-        src_id=get_node_id("methyl-beta-value"), dst_id=get_node_id("methyl-lift-wf"),
+        src_id=get_node_id("methyl-beta-value"),
+        dst_id=get_node_id("methyl-lift-wf"),
     ),
     # Prelude
     md.DataSubtypeMemberOfDataType(
@@ -1926,18 +1975,21 @@ EDGES = [
         dst_id=get_node_id("data_type_raw_sequencing"),
     ),
     md.ProjectMemberOfProgram(
-        src_id=get_node_id("project-legacy-brca"), dst_id=get_node_id("program-tcga"),
+        src_id=get_node_id("project-legacy-brca"),
+        dst_id=get_node_id("program-tcga"),
     ),
     md.ProjectMemberOfProgram(
         src_id=get_node_id("unreleased-project"),
         dst_id=get_node_id("internal-program"),
     ),
     md.ProjectMemberOfProgram(
-        src_id=get_node_id("awg-one-project"), dst_id=get_node_id("internal-program"),
+        src_id=get_node_id("awg-one-project"),
+        dst_id=get_node_id("internal-program"),
     ),
     #  Ticket API-188
     md.ProjectMemberOfProgram(
-        src_id=get_node_id("fake_active_project"), dst_id=get_node_id("program-tcga"),
+        src_id=get_node_id("fake_active_project"),
+        dst_id=get_node_id("program-tcga"),
     ),
     md.CaseMemberOfProject(
         src_id=get_node_id("fake_active_case_1"),

@@ -189,7 +189,10 @@ def create_aligned_reads(indexd_client, make_subgraph):
             ("sur1", get_node_id("read-group-2")),
         ]
         nodes, latest, previous = make_subgraph(
-            nodes=nodes, edges=edges, root_links=links, make_versions=make_versions,
+            nodes=nodes,
+            edges=edges,
+            root_links=links,
+            make_versions=make_versions,
         )
         return nodes, latest, previous
 

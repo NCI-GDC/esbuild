@@ -4,8 +4,14 @@ Elasticsearch test documents are defined here
 from esbuild.graph.active.mappings import ESMapper
 
 dummy_docs = [
-    {"id": "test-doc-1", "value": 1,},
-    {"id": "test-doc-2", "value": 2,},
+    {
+        "id": "test-doc-1",
+        "value": 1,
+    },
+    {
+        "id": "test-doc-2",
+        "value": 2,
+    },
 ]
 
 build_metadata = [

@@ -82,10 +82,25 @@ class ESMapper:
     ]
 
     multifields = {
-        "project": ["disease_type", "name", "primary_site",],
-        "annotation": ["annotation_id", "entity_id",],
-        "files": ["file_id", "file_name",],
-        "case": ["primary_site", "disease_type", "case_id", "submitter_id",],
+        "project": [
+            "disease_type",
+            "name",
+            "primary_site",
+        ],
+        "annotation": [
+            "annotation_id",
+            "entity_id",
+        ],
+        "files": [
+            "file_id",
+            "file_name",
+        ],
+        "case": [
+            "primary_site",
+            "disease_type",
+            "case_id",
+            "submitter_id",
+        ],
     }
 
     @staticmethod

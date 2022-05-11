@@ -148,7 +148,13 @@ class DataTester:
         """Extracts counts from :es_worker's ES cluster :index_name index"""
 
         simple_test_cases = [
-            ("project", ["primary_site", "disease_type",],),
+            (
+                "project",
+                [
+                    "primary_site",
+                    "disease_type",
+                ],
+            ),
             (
                 "case",
                 [
@@ -159,8 +165,20 @@ class DataTester:
                     "project.primary_site",
                 ],
             ),
-            ("file", ["uploaded_datetime", "project_id",],),
-            ("annotation", ["annotation_id", "project_id",],),
+            (
+                "file",
+                [
+                    "uploaded_datetime",
+                    "project_id",
+                ],
+            ),
+            (
+                "annotation",
+                [
+                    "annotation_id",
+                    "project_id",
+                ],
+            ),
         ]
 
         array_test_cases = [
@@ -211,7 +229,13 @@ class DataTester:
                     "summary.experimental_strategies",
                 ],
             ),
-            ("annotation", ["project.disease_type", "project.primary_site",],),
+            (
+                "annotation",
+                [
+                    "project.disease_type",
+                    "project.primary_site",
+                ],
+            ),
         ]
 
         document_counts = {_: {} for _ in self.doc_types}
@@ -265,8 +289,17 @@ class ESWorker:
                 "size": 0,
                 "aggs": {
                     "outer_agg": {
-                        "nested": {"path": path,},
-                        "aggs": {"inner_agg": {"top_hits": {"from": 0, "size": 1,}}},
+                        "nested": {
+                            "path": path,
+                        },
+                        "aggs": {
+                            "inner_agg": {
+                                "top_hits": {
+                                    "from": 0,
+                                    "size": 1,
+                                }
+                            }
+                        },
                     }
                 },
             }

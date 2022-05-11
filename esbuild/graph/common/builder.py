@@ -153,7 +153,11 @@ class GraphIndexBuilder:
 
     # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
-    hidden_properties = {"annotation": {"creator",}}
+    hidden_properties = {
+        "annotation": {
+            "creator",
+        }
+    }
     # Set of properties to add to hidden_properties for all nodes
     hidden_properties_for_all = {
         "batch_id",
@@ -340,7 +344,11 @@ class GraphIndexBuilder:
 
         log.warning(f"{title}: {text}")
         statsd.event(
-            title, text, source_type_name="esbuild", alert_type="warning", tags=tags,
+            title,
+            text,
+            source_type_name="esbuild",
+            alert_type="warning",
+            tags=tags,
         )
 
     def error(
@@ -351,7 +359,11 @@ class GraphIndexBuilder:
 
         log.error(f"{title}: {text}")
         statsd.event(
-            title, text, source_type_name="esbuild", alert_type="error", tags=tags,
+            title,
+            text,
+            source_type_name="esbuild",
+            alert_type="error",
+            tags=tags,
         )
 
     def pbar(self, title, maxval):
@@ -1142,7 +1154,10 @@ class GraphIndexBuilder:
             rf_doc["file_id"] = rf_doc.get("file_id") or related_file.node_id
 
             # Data types
-            data_subtypes = self.neighbors_labeled(related_file, "data_subtype",)
+            data_subtypes = self.neighbors_labeled(
+                related_file,
+                "data_subtype",
+            )
 
             for dst in data_subtypes:
                 # data_subtype is renamed data_type, viz.
@@ -1519,7 +1534,11 @@ class GraphIndexBuilder:
             )
             # There are no entities! We cannot proceed.
             ann_doc.update(
-                dict(entity_type=None, entity_id=None, entity_submitter_id=None,)
+                dict(
+                    entity_type=None,
+                    entity_id=None,
+                    entity_submitter_id=None,
+                )
             )
             return ann_doc
 

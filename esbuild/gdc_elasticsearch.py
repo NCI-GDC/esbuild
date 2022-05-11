@@ -325,7 +325,9 @@ class GDCElasticsearch:
 
         for index_type, index_name in self.index_names.items():
             self.release_helper.delete_docs_from_index(
-                index_name, index_type, self.build_projects,
+                index_name,
+                index_type,
+                self.build_projects,
             )
 
     def _dump_locally(self, cases, files, annotations, projects):
@@ -525,7 +527,11 @@ class GDCElasticsearch:
 
         def action_gen():
             for doc in docs:
-                action = dict(_index=index_name, _id=doc[id_field], _source=doc,)
+                action = dict(
+                    _index=index_name,
+                    _id=doc[id_field],
+                    _source=doc,
+                )
 
                 yield action
 

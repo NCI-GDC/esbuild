@@ -32,7 +32,10 @@ class LegacyESMapper(ESMapper):
                 }
             },
             "analyzer": {
-                "lowercase_keyword": {"tokenizer": "keyword", "filter": ["lowercase"],}
+                "lowercase_keyword": {
+                    "tokenizer": "keyword",
+                    "filter": ["lowercase"],
+                }
             },
         }
 

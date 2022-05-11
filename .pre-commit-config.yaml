@@ -20,7 +20,7 @@ repos:
       - id: bandit
         args: [--skip, 'B303,B101,B404,B405,B607,B603', --exclude, tests]
   - repo: https://github.com/psf/black
-    rev: 19.10b0
+    rev: 22.3.0
     hooks:
       - id: black
         additional_dependencies: [click==8.0.4]
@@ -29,11 +29,11 @@ repos:
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-  - repo: https://github.com/pycqa/flake8
-    rev: 4.0.1
-    hooks:
-      - id: flake8
-        args: [--max-line-length, '88']
+#  - repo: https://github.com/pycqa/flake8
+#    rev: 4.0.1
+#    hooks:
+#      - id: flake8
+#        args: [--max-line-length, '88']
   - repo: https://github.com/timothycrosley/isort
     rev: 5.5.4
     hooks:
@@ -45,14 +45,6 @@ repos:
       - id: yamlfmt
         args: [--mapping, '2', --sequence, '4', --offset, '2', --width, '80']
         exclude: ^helm/templates/
-  - repo: local
-    hooks:
-      - id: pylint
-        name: pylint
-        entry: pylint
-        language: system
-        types: [python]
-        args: [-rn, -sn, --exit-zero]
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.18.0
     hooks:

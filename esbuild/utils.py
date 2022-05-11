@@ -472,7 +472,10 @@ class ReleaseHelper:
         return commit_hash.decode("utf-8")
 
 
-def get_index_names(index_prefix: str, index_types: Iterable[str],) -> Dict[str, str]:
+def get_index_names(
+    index_prefix: str,
+    index_types: Iterable[str],
+) -> Dict[str, str]:
     """
     Return elasticsearch index names given an index_prefix.
 
