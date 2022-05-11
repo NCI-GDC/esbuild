@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 import yaml
 from cdislogging import get_logger
-from gdcdatamodel.models import Program, Project
+from gdcdatamodel.models import Program
 from psqlgraph import PsqlGraphDriver
 
 
