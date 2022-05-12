@@ -1,0 +1,34 @@
+---
+nodes:
+  - label: case
+    submitter_id: mt_case_1
+  - label: diagnosis
+    submitter_id: mt_diagnosis_1
+  - label: follow_up
+    submitter_id: mt_follow_up_1
+  - label: molecular_test
+    submitter_id: mt_molecular_test_1
+  - label: clinical_supplement
+    submitter_id: mt_clinical_1
+  - label: diagnosis
+    submitter_id: mt_diagnosis_2
+  - label: molecular_test
+    submitter_id: mt_molecular_test_2
+
+edges:
+  - src: mt_diagnosis_1
+    dst: mt_case_1
+  - src: mt_follow_up_1
+    dst: mt_case_1
+  - src: mt_diagnosis_2
+    dst: mt_case_1
+  - src: mt_follow_up_1
+    dst: mt_diagnosis_1
+  - src: mt_molecular_test_1
+    dst: mt_follow_up_1
+  - src: mt_molecular_test_1
+    dst: mt_diagnosis_1
+  - src: mt_clinical_1
+    dst: mt_case_1
+  - src: mt_molecular_test_2
+    dst: mt_diagnosis_2
