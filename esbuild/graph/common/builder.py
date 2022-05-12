@@ -644,6 +644,9 @@ class GraphIndexBuilder:
         self.reconstruct_biospecimen_paths(case)
         case = self.reconstruct_diagnoses_paths(case)
 
+        # Get the case's project
+        self.patch_project(case["project"])
+
         # Denormalize the cases files
         returned_files = self.get_case_file_docs(node, ptree, files)
 
