@@ -15,10 +15,26 @@ from jsonpath_rw import parse
             },
         ),
         (
+            "cases",
+            "[*].follow_ups.[*].molecular_tests.[*].submitter_id",
+            {
+                "mt_molecular_test_1": 1,
+                "mt_molecular_test_2": 1,
+            },
+        ),
+        (
             "files",
             "[*].cases.[*].follow_ups.[*].submitter_id",
             {
                 "mt_follow_up_1": 1,
+            },
+        ),
+        (
+            "files",
+            "[*].cases.[*].follow_ups.[*].molecular_tests.[*].submitter_id",
+            {
+                "mt_molecular_test_1": 1,
+                "mt_molecular_test_2": 1,
             },
         ),
     ],

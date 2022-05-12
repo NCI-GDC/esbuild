@@ -215,7 +215,8 @@ class GraphIndexBuilder:
         )
         if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
             raise NotImplementedError(
-                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"{self.allowed_gencode_versions} is not a valid gencode_version"
+                f" requirement"
                 f"The available gencode_versions are {AVAILABLE_GENCODE_VERSIONS}"
             )
 
@@ -321,7 +322,7 @@ class GraphIndexBuilder:
         ]
 
         self.file_to_case_paths = [
-            list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
+            list(reversed(path))[1:] + ["case"] for path in self.case_to_file_paths
         ]
 
         self.possible_associated_entites = [
@@ -641,9 +642,7 @@ class GraphIndexBuilder:
 
         # Take any out of place nodes and put then in correct place in tree
         self.reconstruct_biospecimen_paths(case)
-
-        # Get the case's project
-        project = self.patch_project(case["project"])
+        case = self.reconstruct_diagnoses_paths(case)
 
         # Denormalize the cases files
         returned_files = self.get_case_file_docs(node, ptree, files)
@@ -724,6 +723,44 @@ class GraphIndexBuilder:
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
             "data_categories": list(self.get_data_categories(files)),
         }
+
+    @staticmethod
+    def reconstruct_diagnoses_paths(case: dict) -> dict:
+        """Reconstruct path for molecular tests
+
+        There are two different paths from diagnoses to molecular tests:
+        1. diagnoses -> molecular test
+        2. diagnoses -> follow up -> molecular test
+        For those missing `follow up` nodes, add a dummy `follow up` nodes
+
+        Args:
+            case: dictionary of case node
+
+        Returns:
+            updated case dictionary
+        """
+        case_copy = deepcopy(case)
+        correct_molecular_tests = set()
+        for follow_up in case_copy.get("follow_ups", []):
+            for molecular_test in follow_up.get("molecular_tests", []):
+                correct_molecular_tests.add(molecular_test["molecular_test_id"])
+
+        for diagnosis in case_copy.get("diagnoses", []):
+            for molecular_test in diagnosis.get("molecular_tests", []):
+                molecular_test_id = molecular_test["molecular_test_id"]
+                if molecular_test_id not in correct_molecular_tests:
+                    log.info(f"Moving {molecular_test_id} to correct location")
+                    case_copy["follow_ups"] = case_copy.get("follow_ups", [])
+                    case_copy["follow_ups"].append(
+                        {
+                            "follow_up_id": get_namespaced_uuid(
+                                ns="molecular_tests",
+                                seed=molecular_test_id,
+                            ),
+                            "molecular_tests": [molecular_test],
+                        }
+                    )
+        return case_copy
 
     def reconstruct_biospecimen_paths(self, case):
         """For each sample.aliquot or sample.slide, reconstruct
@@ -1274,6 +1311,8 @@ class GraphIndexBuilder:
         for case in doc["cases"]:
             self.patch_project(case["project"])
             self.reconstruct_biospecimen_paths(case)
+
+        doc["cases"] = [self.reconstruct_diagnoses_paths(case) for case in doc["cases"]]
 
         return relevant
 
@@ -1907,10 +1946,12 @@ class GraphIndexBuilder:
         node = self.add_file_metadata_from_indexd(node)
 
         # remove file node with wrong gencode_version
-        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
+        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o
+        #  indexd records ?
         if "ignore" in self.file_metadata[node.node_id]:
             log.info(
-                f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['ignore']}"
+                f"File not indexed: {node.node_id} - "
+                f"{self.file_metadata[node.node_id]['ignore']}"
             )
             return False
 

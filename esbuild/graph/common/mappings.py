@@ -160,6 +160,7 @@ class ESMapper:
         case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, "annotations")
         case_tree.diagnosis.pathology_detail.corr = (ONE_TO_MANY, "pathology_details")
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, "treatments")
+        case_tree.diagnosis.molecular_test.corr = (ONE_TO_MANY, "molecular_tests")
         case_tree.follow_up.corr = (ONE_TO_MANY, "follow_ups")
         case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, "molecular_tests")
         case_tree.family_history.corr = (ONE_TO_MANY, "family_histories")
@@ -714,27 +715,23 @@ class ESMapper:
         ]
         case.properties.project.properties.primary_site.copy_to = ["case_autocomplete"]
         case.properties.project.properties.project_id.copy_to = ["case_autocomplete"]
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = [
+
+        analytes = case.properties.samples.properties.portions.properties.analytes
+        analytes.properties.aliquots.properties.aliquot_id.copy_to = [
             "case_autocomplete"
         ]
-        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = [
+        analytes.properties.aliquots.properties.submitter_id.copy_to = [
             "case_autocomplete"
         ]
-        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = [
-            "case_autocomplete"
-        ]
-        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = [
-            "case_autocomplete"
-        ]
+        analytes.properties.analyte_id.copy_to = ["case_autocomplete"]
+        analytes.properties.submitter_id.copy_to = ["case_autocomplete"]
         case.properties.samples.properties.portions.properties.portion_id.copy_to = [
             "case_autocomplete"
         ]
-        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = [
-            "case_autocomplete"
-        ]
-        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = [
-            "case_autocomplete"
-        ]
+
+        slides = case.properties.samples.properties.portions.properties.slides
+        slides.properties.slide_id.copy_to = ["case_autocomplete"]
+        slides.properties.submitter_id.copy_to = ["case_autocomplete"]
         case.properties.samples.properties.portions.properties.submitter_id.copy_to = [
             "case_autocomplete"
         ]
@@ -780,13 +777,10 @@ class ESMapper:
         """
         Adds annotation autocomplete fields
         """
-        annotation.properties.annotation_autocomplete.fields.analyzed.analyzer = (
-            "autocomplete_analyzed"
-        )
-        annotation.properties.annotation_autocomplete.fields.analyzed.search_analyzer = (
-            "lowercase_keyword"
-        )
-        annotation.properties.annotation_autocomplete.fields.analyzed.type = "text"
+        analyzed = annotation.properties.annotation_autocomplete.fields.analyzed
+        analyzed.analyzer = "autocomplete_analyzed"
+        analyzed.search_analyzer = "lowercase_keyword"
+        analyzed.type = "text"
         annotation.properties.annotation_autocomplete.fields.lowercase.analyzer = (
             "lowercase_keyword"
         )
