@@ -28,11 +28,6 @@ repos:
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-  - repo: https://github.com/pycqa/flake8
-    rev: 4.0.1
-    hooks:
-      - id: flake8
-        args: [--max-line-length, '88', --extend-ignore, 'E203,E731']
   - repo: https://github.com/timothycrosley/isort
     rev: 5.5.4
     hooks:

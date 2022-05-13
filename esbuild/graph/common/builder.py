@@ -215,8 +215,7 @@ class GraphIndexBuilder:
         )
         if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
             raise NotImplementedError(
-                f"{self.allowed_gencode_versions} is not a valid gencode_version"
-                f" requirement"
+                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
                 f"The available gencode_versions are {AVAILABLE_GENCODE_VERSIONS}"
             )
 
@@ -322,7 +321,7 @@ class GraphIndexBuilder:
         ]
 
         self.file_to_case_paths = [
-            list(reversed(path))[1:] + ["case"] for path in self.case_to_file_paths
+            list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
         ]
 
         self.possible_associated_entites = [
@@ -645,7 +644,7 @@ class GraphIndexBuilder:
         case = self.reconstruct_diagnoses_paths(case)
 
         # Get the case's project
-        self.patch_project(case["project"])
+        project = self.patch_project(case["project"])
 
         # Denormalize the cases files
         returned_files = self.get_case_file_docs(node, ptree, files)
@@ -1949,8 +1948,7 @@ class GraphIndexBuilder:
         node = self.add_file_metadata_from_indexd(node)
 
         # remove file node with wrong gencode_version
-        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o
-        #  indexd records ?
+        # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
         if "ignore" in self.file_metadata[node.node_id]:
             log.info(
                 f"File not indexed: {node.node_id} - "

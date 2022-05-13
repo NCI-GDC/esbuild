@@ -715,23 +715,27 @@ class ESMapper:
         ]
         case.properties.project.properties.primary_site.copy_to = ["case_autocomplete"]
         case.properties.project.properties.project_id.copy_to = ["case_autocomplete"]
-
-        analytes = case.properties.samples.properties.portions.properties.analytes
-        analytes.properties.aliquots.properties.aliquot_id.copy_to = [
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.aliquot_id.copy_to = [
             "case_autocomplete"
         ]
-        analytes.properties.aliquots.properties.submitter_id.copy_to = [
+        case.properties.samples.properties.portions.properties.analytes.properties.aliquots.properties.submitter_id.copy_to = [
             "case_autocomplete"
         ]
-        analytes.properties.analyte_id.copy_to = ["case_autocomplete"]
-        analytes.properties.submitter_id.copy_to = ["case_autocomplete"]
+        case.properties.samples.properties.portions.properties.analytes.properties.analyte_id.copy_to = [
+            "case_autocomplete"
+        ]
+        case.properties.samples.properties.portions.properties.analytes.properties.submitter_id.copy_to = [
+            "case_autocomplete"
+        ]
         case.properties.samples.properties.portions.properties.portion_id.copy_to = [
             "case_autocomplete"
         ]
-
-        slides = case.properties.samples.properties.portions.properties.slides
-        slides.properties.slide_id.copy_to = ["case_autocomplete"]
-        slides.properties.submitter_id.copy_to = ["case_autocomplete"]
+        case.properties.samples.properties.portions.properties.slides.properties.slide_id.copy_to = [
+            "case_autocomplete"
+        ]
+        case.properties.samples.properties.portions.properties.slides.properties.submitter_id.copy_to = [
+            "case_autocomplete"
+        ]
         case.properties.samples.properties.portions.properties.submitter_id.copy_to = [
             "case_autocomplete"
         ]
@@ -777,10 +781,13 @@ class ESMapper:
         """
         Adds annotation autocomplete fields
         """
-        analyzed = annotation.properties.annotation_autocomplete.fields.analyzed
-        analyzed.analyzer = "autocomplete_analyzed"
-        analyzed.search_analyzer = "lowercase_keyword"
-        analyzed.type = "text"
+        annotation.properties.annotation_autocomplete.fields.analyzed.analyzer = (
+            "autocomplete_analyzed"
+        )
+        annotation.properties.annotation_autocomplete.fields.analyzed.search_analyzer = (
+            "lowercase_keyword"
+        )
+        annotation.properties.annotation_autocomplete.fields.analyzed.type = "text"
         annotation.properties.annotation_autocomplete.fields.lowercase.analyzer = (
             "lowercase_keyword"
         )
