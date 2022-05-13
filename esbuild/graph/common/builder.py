@@ -1952,8 +1952,7 @@ class GraphIndexBuilder:
         # TODO: [DEV-957] should we also remove 1) to_delete nodes and 2) nodes w/o indexd records ?
         if "ignore" in self.file_metadata[node.node_id]:
             log.info(
-                f"File not indexed: {node.node_id} - "
-                f"{self.file_metadata[node.node_id]['ignore']}"
+                f"File not indexed: {node.node_id} - {self.file_metadata[node.node_id]['ignore']}"
             )
             return False
 
