@@ -733,7 +733,7 @@ class GraphIndexBuilder:
         There are two different paths from diagnoses to molecular tests:
         1. diagnoses -> molecular test
         2. diagnoses -> follow up -> molecular test
-        For those missing `follow up` nodes, add a dummy `follow up` nodes
+        For those nodes in path 1, add a dummy `follow up` nodes, so that it can be reached through `case.follow_ups.molecular_tests`
 
         Args:
             case: dictionary of case node
