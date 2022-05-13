@@ -748,7 +748,8 @@ class GraphIndexBuilder:
                 correct_molecular_tests.add(molecular_test["molecular_test_id"])
 
         for diagnosis in case_copy.get("diagnoses", []):
-            for molecular_test in diagnosis.get("molecular_tests", []):
+            molecular_tests = diagnosis.pop("molecular_tests", [])
+            for molecular_test in molecular_tests:
                 molecular_test_id = molecular_test["molecular_test_id"]
                 if molecular_test_id not in correct_molecular_tests:
                     log.info(f"Moving {molecular_test_id} to correct location")
