@@ -538,6 +538,10 @@ class ESMapper:
         # Remove case.sample.analyte from mapping (see above)
         case.properties.samples.properties.pop("analytes")
 
+        # Remove case.diagnoses.molecular_tests from mapping,
+        # this is handled in reconstruct_diagnoses_paths
+        case.properties.diagnoses.properties.pop("molecular_tests")
+
         # Patch project
         cls.patch_project(case.properties.project.properties)
 
