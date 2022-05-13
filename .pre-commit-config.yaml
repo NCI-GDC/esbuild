@@ -23,12 +23,12 @@ repos:
     rev: 22.3.0
     hooks:
       - id: black
-  - repo: git@github.com:Yelp/detect-secrets
+  - repo: https://github.com/Yelp/detect-secrets
     rev: v1.1.0
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-  - repo: https://github.com/timothycrosley/isort
+  - repo: https://github.com/pycqa/isort
     rev: 5.5.4
     hooks:
       - id: isort
