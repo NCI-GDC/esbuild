@@ -520,7 +520,7 @@ class ESMapper:
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
         # case body
-        case = cls._get_header("case") if is_root else Dict()
+        case: dict = cls._get_header("case") if is_root else Dict()
         case.properties = cls._walk_tree(
             cls.get_case_tree(), cls.get_base_properties("case")
         )
