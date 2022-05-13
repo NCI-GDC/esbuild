@@ -2,10 +2,10 @@ import os
 import subprocess
 import time
 from datetime import datetime
-from hashlib import md5
 from functools import lru_cache
+from hashlib import md5
 from reprlib import repr
-from typing import Dict, Iterable, Optional, FrozenSet
+from typing import Dict, FrozenSet, Iterable, Optional
 
 from cdislogging import get_logger
 from dotenv import load_dotenv
@@ -15,8 +15,8 @@ from gdcdatamodel.models.submission import TransactionSnapshot
 from gdcmodels import esutils
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
-from requests import HTTPError
 from queueclient import DepotQueueClient, RabbitMQClient
+from requests import HTTPError
 
 from esbuild.graph.common import builder
 from esbuild.graph.common.builder import GraphIndexBuilder
@@ -84,7 +84,7 @@ def get_queue_client(queue_type, queue_id=None):
             durable=True,
         )
 
-    raise ValueError("Unsupported queue type: '{}'".format(queue_type))
+    raise ValueError(f"Unsupported queue type: '{queue_type}'")
 
 
 def get_elasticsearch_client():
@@ -108,7 +108,7 @@ def extract_indexd_metadata(doc, fields=None, getters=None):
     return metadata
 
 
-class VersionedNodesDiffCollector(object):
+class VersionedNodesDiffCollector:
     """pre-processing step to identify files that haven't been yet released,
     but have old versions
 
@@ -146,15 +146,14 @@ class VersionedNodesDiffCollector(object):
                 q = q.prop_in("project_id", self.project_ids)
 
             nodes = q.yield_per(1000).enable_eagerloads(False)
-            for n in nodes:
-                yield n
+            yield from nodes
 
     def iter_nodes(self, strategy="query"):
         if strategy == "query":
             return self.query_nodes()
         else:
             raise NotImplementedError(
-                "Node loading strategy '{}' is not implemented".format(strategy)
+                f"Node loading strategy '{strategy}' is not implemented"
             )
 
     def get_props_from_snapshot(self, node_id, action):
@@ -194,11 +193,11 @@ class VersionedNodesDiffCollector(object):
             extra = [v for v in unreleased_all if v.did != latest_id]
 
             for e in extra:
-                self.logger.debug("Extra unreleased IndexD doc: '{}'".format(e.did))
+                self.logger.debug(f"Extra unreleased IndexD doc: '{e.did}'")
 
         # Get latest released
         released = sorted(
-            [v for v in versions if v.version and v.metadata.get("release_number")],
+            (v for v in versions if v.version and v.metadata.get("release_number")),
             key=lambda x: int(x.version),
         )[-1]
 
@@ -246,9 +245,7 @@ class VersionedNodesDiffCollector(object):
                 return []
             return versions
 
-        self.logger.debug(
-            "IndexD is being weird with: {} '{}'".format(node.project_id, node)
-        )
+        self.logger.debug(f"IndexD is being weird with: {node.project_id} '{node}'")
         # Return an empty list if unable to query IndexD
         return []
 
@@ -290,9 +287,7 @@ class VersionedNodesDiffCollector(object):
             node_diff = self.get_old_props(node)
             if node_diff:
                 self.diffs[node.node_id] = node_diff
-                self.logger.debug(
-                    "Found old version of: {} '{}'".format(node.project_id, node)
-                )
+                self.logger.debug(f"Found old version of: {node.project_id} '{node}'")
         return self.diffs
 
 
@@ -352,7 +347,7 @@ class ReleaseHelper:
         }
 
         if index_type not in index_type_queries:
-            raise ValueError("Invalid index_type: '{}'".format(index_type))
+            raise ValueError(f"Invalid index_type: '{index_type}'")
 
         return index_type_queries[index_type]
 
@@ -441,7 +436,7 @@ class ReleaseHelper:
 
         hits = res["hits"]["hits"]
         if hits:
-            projects = set([project["_id"] for project in hits])
+            projects = {project["_id"] for project in hits}
         else:
             # Existing index did not contain any project docs
             projects = set()
@@ -469,10 +464,10 @@ class ReleaseHelper:
         )
         try:
             commit_hash = subprocess.check_output(
-                ["git", "--git-dir={}".format(git_dir), "rev-parse", "HEAD"]
+                ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"]
             )
         except Exception as err:
-            commit_hash = "unable to parse commit hash: {}".format(repr(err))
+            commit_hash = f"unable to parse commit hash: {repr(err)}"
 
         return commit_hash.decode("utf-8")
 
@@ -487,10 +482,7 @@ def get_index_names(
     Since Elasticsearch7 does not support more than 1 doc_type per index, the
     index names will be in a format: <index_prefix>_<index_type>
     """
-    return {
-        index_type: "{}_{}".format(index_prefix, index_type)
-        for index_type in index_types
-    }
+    return {index_type: f"{index_prefix}_{index_type}" for index_type in index_types}
 
 
 def force_merge_indices(es, index_prefix=None, index_names=()):

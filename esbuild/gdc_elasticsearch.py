@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 esbuild.gdc_elasticsearch
 ----------------------------------
@@ -15,13 +14,13 @@ from concurrent import futures
 from typing import Iterable, List, NamedTuple, Optional, Tuple, Type
 
 import cdislogging
-from indexclient import client
-
 import datadog
 import elasticsearch
 import progressbar
 import psqlgraph
 from elasticsearch import helpers
+from indexclient import client
+
 from esbuild import utils
 from esbuild.graph.common import builder
 
@@ -106,7 +105,7 @@ class TaskFactory:
         return tuple(update.result() for update in updates)
 
 
-class GDCElasticsearch(object):
+class GDCElasticsearch:
 
     """
     Walks the graph to produce elasticsearch json documents.
@@ -157,7 +156,7 @@ class GDCElasticsearch(object):
         skip_es: bool = False,
         index_alias_prefix: Optional[str] = None,
         audit: bool = True,
-        **kwargs
+        **kwargs,
     ):
         self.converter_class = converter_class
 
@@ -187,7 +186,7 @@ class GDCElasticsearch(object):
         self.log = cdislogging.get_logger("gdc_elasticsearch", log_level="info")
         self.converter = None
 
-        self.log.info("Build arguments: {}".format(kwargs))
+        self.log.info(f"Build arguments: {kwargs}")
 
         self.event_logger = no_op
 
@@ -241,7 +240,7 @@ class GDCElasticsearch(object):
             file_name = "{}/{}_{}.json".format(
                 self.doc_output_dir, file_name, time_stamp
             )
-            self.log.info("Saving to {}".format(file_name))
+            self.log.info(f"Saving to {file_name}")
             _save_docs(docs, file_name)
 
     def _cache_versioned_files(self) -> dict:
@@ -397,7 +396,7 @@ class GDCElasticsearch(object):
         self.event_logger("ES Upload", "Uploading indices", tags=["stage:upload"])
 
         event = {
-            "text": "successfully built indices for '{}'".format(self.index_prefix),
+            "text": f"successfully built indices for '{self.index_prefix}'",
             "alert_type": "info",
         }
         extra_tags = ["status:succeeded"]
@@ -410,7 +409,7 @@ class GDCElasticsearch(object):
                 "".format(self.index_prefix, exception, self.doc_output_dir),
                 exc_info=True,
             )
-            event["text"] = "index deploy failed: {}".format(self.index_prefix)
+            event["text"] = f"index deploy failed: {self.index_prefix}"
             event["alert_type"] = "error"
             extra_tags = ["status:failed"]
             self.save_docs(cases, files, annotations, projects)
@@ -472,12 +471,12 @@ class GDCElasticsearch(object):
 
     def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
-            self.log.info("Creating new index: '{}'".format(index_name))
+            self.log.info(f"Creating new index: '{index_name}'")
             body = dict(mappings=mappings, **index_settings)
             self.es.indices.create(index=index_name, body=body)
             self.es.indices.refresh(index=index_name)
         else:
-            self.log.info("Using existing index: '{}'".format(index_name))
+            self.log.info(f"Using existing index: '{index_name}'")
 
     def create_and_populate_index(
         self,
@@ -499,9 +498,7 @@ class GDCElasticsearch(object):
         self._create_index(index_name, index_settings, mappings.to_dict())
 
         if not docs:
-            self.log.warning(
-                "There're no documents for '{}' to populate".format(index_type)
-            )
+            self.log.warning(f"There're no documents for '{index_type}' to populate")
             return
 
         self.log.info("Populating index %s" % index_name)
@@ -526,7 +523,7 @@ class GDCElasticsearch(object):
 
         index_name = self.index_names[index_type]
         id_field = index_type + "_id"
-        pbar = self.pbar("{} upload ".format(index_name), len(docs))
+        pbar = self.pbar(f"{index_name} upload ", len(docs))
 
         def action_gen():
             for doc in docs:
@@ -580,9 +577,7 @@ class GDCElasticsearch(object):
 
         self.drop_aliases(alias)
 
-        self.log.info(
-            "Adding new alias: '{}' for indices: '{}'".format(alias, new_index)
-        )
+        self.log.info(f"Adding new alias: '{alias}' for indices: '{new_index}'")
 
         if not self.es:
             raise Exception(
@@ -617,7 +612,7 @@ class GDCElasticsearch(object):
         for index in indices:
             actions.append({"remove": {"index": index, "alias": alias}})
 
-        self.log.info("Removing alias: '{}', for indices: '{}'".format(alias, indices))
+        self.log.info(f"Removing alias: '{alias}', for indices: '{indices}'")
 
         return self.es.indices.update_aliases({"actions": actions})
 

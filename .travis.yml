@@ -1,8 +1,9 @@
+---
 language: python
 dist: bionic
 
 python:
-  - "3.6"
+  - '3.6'
 
 sudo: true
 
@@ -10,10 +11,11 @@ env:
   - ES_HOST='localhost' ES_VERSION="7.7.1"
 
 addons:
-  postgresql: "13"
+  postgresql: '13'
   apt:
     sources:
-      - sourceline: deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main 13
+      - sourceline: deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main
+          13
         key_url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
     packages:
       - postgresql-13
@@ -31,7 +33,8 @@ before_install:
 
 install:
   # Install and start elasticsearch
-  - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}-amd64.deb && sudo dpkg --force-confnew -i elasticsearch-${ES_VERSION}-amd64.deb
+  - curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}-amd64.deb
+    && sudo dpkg --force-confnew -i elasticsearch-${ES_VERSION}-amd64.deb
   - sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install mapper-size
   - sudo sed -i 's/^-Xms.*/-Xms2g/' /etc/elasticsearch/jvm.options
   - sudo sed -i 's/^-Xmx.*/-Xmx2g/' /etc/elasticsearch/jvm.options
@@ -45,14 +48,17 @@ install:
 
 before_script:
   # Wait for elasticsearch to be up
-  - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do printf '.'; sleep 1; done; printf ' done'
+  - printf 'Waiting for Elasticsearch '; until curl localhost:9200 2> /dev/null; do
+    printf '.'; sleep 1; done; printf ' done'
   - psql -U postgres -c "create user test with superuser password 'test'"
   - psql -U postgres -c "create database automated_test with owner test"
   - psql -U postgres -c "create user ro_test with password 'ro_test'"
 
-script: "tox"
+script: tox
 
 after_script:
-  - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
-  - artifacts --quiet upload --bucket gdc-travis-artifacts --target-paths "$TRAVIS_REPO_SLUG/$TRAVIS_BUILD_NUMBER/$TRAVIS_JOB_NUMBER/" tests/htmlcov/
-  - "echo Artifact link: https://gdc-travis-artifacts.osdc.io/${TRAVIS_REPO_SLUG}/${TRAVIS_BUILD_NUMBER}/${TRAVIS_JOB_NUMBER}"
+  - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install
+    | bash
+  - artifacts --quiet upload --bucket gdc-travis-artifacts --target-paths "$TRAVIS_REPO_SLUG/$TRAVIS_BUILD_NUMBER/$TRAVIS_JOB_NUMBER/"
+    tests/htmlcov/
+  - 'echo Artifact link: https://gdc-travis-artifacts.osdc.io/${TRAVIS_REPO_SLUG}/${TRAVIS_BUILD_NUMBER}/${TRAVIS_JOB_NUMBER}'

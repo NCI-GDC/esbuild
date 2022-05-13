@@ -1,3 +1,4 @@
+---
 nodes:
   - label: case
     submitter_id: sea_case_0
@@ -23,7 +24,7 @@ nodes:
     submitter_id: sea_exp_wf_0
   - label: secondary_expression_analysis
     submitter_id: sea_secondary_exp_0
-    data_type: "Differential Gene Expression"
+    data_type: Differential Gene Expression
 
   - label: rna_expression_workflow
     submitter_id: sea_rna_wf_1
@@ -33,7 +34,7 @@ nodes:
     submitter_id: sea_exp_wf_1
   - label: secondary_expression_analysis
     submitter_id: sea_secondary_exp_1
-    data_type: "Single Cell Analysis"
+    data_type: Single Cell Analysis
 
 edges:
   - src: sea_samp_0

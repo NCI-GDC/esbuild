@@ -4,25 +4,42 @@ import pytest
 from jsonpath_rw import parse
 
 
-@pytest.mark.parametrize('index_type, path, expectations', [
-    ('files', '[*].type.[*]', {
-        'masked_somatic_mutation': 2,
-        'simple_somatic_mutation': 6,  # 2 from data.py and 4 from maf data
-        'aggregated_somatic_mutation': 3,  # 1 from data.py and 2 from maf data
-        'annotated_somatic_mutation': 6,  # 2 from data.py and 4 from maf data
-    }),
-    ('files', '[*].data_type.[*]', {
-        'Masked Somatic Mutation': 2,
-        'Aggregated Somatic Mutation': 3,  # 1 from data.py and 2 from maf data
-        'Annotated Somatic Mutation': 6,
-    }),
-    ('cases', '[*].files.[*].data_type.[*]', {
-        'Masked Somatic Mutation': 2,
-        'Aggregated Somatic Mutation': 3,
-        'Annotated Somatic Mutation': 6,
-    }),
-])
-def test_aliquot_level_maf_build_counts(maf_index, index_type, path, expectations, pg_driver):
+@pytest.mark.parametrize(
+    "index_type, path, expectations",
+    [
+        (
+            "files",
+            "[*].type.[*]",
+            {
+                "masked_somatic_mutation": 2,
+                "simple_somatic_mutation": 6,  # 2 from data.py and 4 from maf data
+                "aggregated_somatic_mutation": 3,  # 1 from data.py and 2 from maf data
+                "annotated_somatic_mutation": 6,  # 2 from data.py and 4 from maf data
+            },
+        ),
+        (
+            "files",
+            "[*].data_type.[*]",
+            {
+                "Masked Somatic Mutation": 2,
+                "Aggregated Somatic Mutation": 3,  # 1 from data.py and 2 from maf data
+                "Annotated Somatic Mutation": 6,
+            },
+        ),
+        (
+            "cases",
+            "[*].files.[*].data_type.[*]",
+            {
+                "Masked Somatic Mutation": 2,
+                "Aggregated Somatic Mutation": 3,
+                "Annotated Somatic Mutation": 6,
+            },
+        ),
+    ],
+)
+def test_aliquot_level_maf_build_counts(
+    maf_index, index_type, path, expectations, pg_driver
+):
     results = parse(path).find(getattr(maf_index, index_type))
 
     counts = Counter(r.value for r in results)

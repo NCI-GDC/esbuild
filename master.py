@@ -12,16 +12,14 @@ from esbuild.utils import ES_CONFIG, get_queue_client
 logger = get_logger("esbuild_master", log_level="info")
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, "config.yml"), "r").read())
+config = yaml.safe_load(open(os.path.join(root_dir, "config.yml")).read())
 
 
 def esbuild_argparser():
     """
     Returns argument parser for esbuild
     """
-    parser = argparse.ArgumentParser(
-        description="Parameters to control esbuild runs",
-    )
+    parser = argparse.ArgumentParser(description="Parameters to control esbuild runs",)
     parser.add_argument(
         "--no-roll",
         action="store_true",
@@ -36,8 +34,7 @@ def esbuild_argparser():
         help="Index name to upsert projects to. Must set when building subset of projects",
     )
     parser.add_argument(
-        "--alias",
-        help="Index alias to use for index swap",
+        "--alias", help="Index alias to use for index swap",
     )
     parser.add_argument(
         "--replicas",
@@ -161,16 +158,14 @@ def split_projects(project_list, n, split_by_program=False):
 
     # Check input
     if not isinstance(n, int) or n < 1:
-        raise ValueError(
-            "Number of parts should be positive integer. Got: {}".format(n)
-        )
+        raise ValueError(f"Number of parts should be positive integer. Got: {n}")
 
     if n > len(project_list):
-        raise ValueError("Can not split list to {} > len(list) parts".format(n))
+        raise ValueError(f"Can not split list to {n} > len(list) parts")
 
     # Split-by-program mode
     if split_by_program:
-        programs = set([p.split("-", 1)[0] for p in project_list])
+        programs = {p.split("-", 1)[0] for p in project_list}
         if n != len(programs):
             raise Exception(
                 "Number of workers should equal number of programs ({})".format(
@@ -220,28 +215,28 @@ def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
     )
 
     if mode == "backup":
-        logger.info("Saving {} to snapshot {}".format(index_name, snapshot_name))
+        logger.info(f"Saving {index_name} to snapshot {snapshot_name}")
         backup_helper.store_snapshot(
             "esbuild-snapshots",
             snapshot_name,
             indices=[index_name],
             wait_for_completion=True,
         )
-        logger.info("Index {} saved".format(index_name))
+        logger.info(f"Index {index_name} saved")
     elif mode == "restore":
         if index_name in es_client.indices.get_alias():
-            raise Exception("Index {} already exists.".format(index_name))
+            raise Exception(f"Index {index_name} already exists.")
 
-        logger.info("Restoring {} from snapshot {}".format(index_name, snapshot_name))
+        logger.info(f"Restoring {index_name} from snapshot {snapshot_name}")
         backup_helper.restore_from_snapshot(
             "esbuild-snapshots",
             snapshot_name,
             indices=[index_name],
             wait_for_completion=True,
         )
-        logger.info("Index {} restored".format(index_name))
+        logger.info(f"Index {index_name} restored")
     else:
-        raise Exception("Unknown mode: {}".format(mode))
+        raise Exception(f"Unknown mode: {mode}")
 
 
 def load_user_configuration(path: Optional[str]) -> dict:
@@ -250,15 +245,15 @@ def load_user_configuration(path: Optional[str]) -> dict:
 
     if not os.path.exists(path):
         raise FileNotFoundError(
-            "The provided configuration file does not exist: {}".format(path)
+            f"The provided configuration file does not exist: {path}"
         )
 
-    with open(path, "r") as f:
+    with open(path) as f:
         return yaml.safe_load(f)
 
 
 def get_default_projects(args: Any, user_config: dict) -> Iterable[str]:
-    project_group = args.project_group or "{}_projects".format(args.build_type)
+    project_group = args.project_group or f"{args.build_type}_projects"
     projects = user_config.get(project_group) or config.get(project_group)
 
     if not projects:
@@ -313,7 +308,7 @@ if __name__ == "__main__":
 
     # Skip some projects, if skip-projects argument is set
     if args.skip_projects:
-        logger.info("Skipping projects: {}".format(args.skip_projects))
+        logger.info(f"Skipping projects: {args.skip_projects}")
         projects = [p for p in projects if p not in args.skip_projects]
 
     logger.info(
@@ -340,5 +335,5 @@ if __name__ == "__main__":
             "cache-versioned": args.cache_versioned,
             "gencode-version": args.gencode_version,
         }
-        logger.info("Adding work: {}".format(job_json))
+        logger.info(f"Adding work: {job_json}")
         queue_client.enqueue(msg=job_json)

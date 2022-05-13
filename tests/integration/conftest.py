@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Setup esbuild tests
 """
@@ -8,26 +7,26 @@ import os
 import time
 from collections import namedtuple
 
-import yaml
 import psqlgraph
 import pytest
+import yaml
 from datadog import statsd
-from gdcdictionary import gdcdictionary
-from gdcdatamodel import models
-from gdcdatamodel.viz import create_graphviz
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
+from gdcdatamodel import models
+from gdcdatamodel.viz import create_graphviz
+from gdcdictionary import gdcdictionary
 from indexd_test_utils import (
-    indexd_client,
-    indexd_server,
-    create_indexd_tables,
-    index_driver,
     alias_driver,
     auth_driver,
-    setup_indexd_test_database,
+    create_indexd_tables,
+    index_driver,
     indexd_admin_user,
+    indexd_client,
+    indexd_server,
+    setup_indexd_test_database,
 )
-from psqlgraph import PsqlGraphDriver, Node, Edge, mocks
+from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -36,16 +35,16 @@ from tests.integration import data, es_data
 # ======================================================================
 # Test Settings
 
-Index = namedtuple('Index', 'cases, files, annotations, projects')
+Index = namedtuple("Index", "cases, files, annotations, projects")
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-DATA_DIR = os.path.join(TEST_DIR, 'data')
+DATA_DIR = os.path.join(TEST_DIR, "data")
 
-PG_HOST = 'localhost'
-PG_USER = 'test'
-PG_PASS = 'test'
-PG_NAME = 'automated_test'
-ES_HOST = 'localhost'
+PG_HOST = "localhost"
+PG_USER = "test"
+PG_PASS = "test"
+PG_NAME = "automated_test"
+ES_HOST = "localhost"
 ES_PORT = 9200
 
 # ======================================================================
@@ -60,13 +59,12 @@ def clear_graph_database(pg_driver):
 
     edge_tables = Edge.get_subclass_table_names()
     node_tables = Node.get_subclass_table_names()
-    tables = ['_voided_nodes', '_voided_edges'] + [
-        t for t in edge_tables + node_tables
-        if t not in {'edge_edge', 'node_node'}
+    tables = ["_voided_nodes", "_voided_edges"] + [
+        t for t in edge_tables + node_tables if t not in {"edge_edge", "node_node"}
     ]
 
     with pg_driver.engine.begin() as conn:
-        conn.execute('TRUNCATE {}'.format(', '.join(tables)))
+        conn.execute("TRUNCATE {}".format(", ".join(tables)))
 
 
 def cleanup_nodes(pg_driver, nodes):
@@ -92,13 +90,13 @@ def create_all(engine):
     models.FileReport.metadata.create_all(engine)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def graph():
     pg_conn = PsqlGraphDriver(
-        host=os.getenv('PG_HOST', PG_HOST),
-        user=os.getenv('PG_USER', PG_USER),
-        password=os.getenv('PG_PASS', PG_PASS),
-        database=os.getenv('PG_NAME', PG_NAME),
+        host=os.getenv("PG_HOST", PG_HOST),
+        user=os.getenv("PG_USER", PG_USER),
+        password=os.getenv("PG_PASS", PG_PASS),
+        database=os.getenv("PG_NAME", PG_NAME),
     )
 
     drop_all(pg_conn.engine)
@@ -116,27 +114,26 @@ def create_indexd_documents(indexd_client):
         # Insert indexd data:
         for record in records:
             record = dict(record)
-            urls = record['urls']
+            urls = record["urls"]
             # NOTE: 'file_state' is stored as 'state' in indexd.
             # However, this is not important as esbuild does not pay attention to 'file_state'
             # and it is removed from resulting elasticsearch documents. See PRTL-2109
-            urls_metadata = {
-                urls[0]: {'state': record.get('file_state', 'validated')}
-            }
+            urls_metadata = {urls[0]: {"state": record.get("file_state", "validated")}}
             if "gencode_version" not in record:
                 record["gencode_version"] = "neutral"
             doc = indexd_client.create(
-                did=record['did'],
-                acl=record['acl'],
-                hashes={'md5': record['md5sum']},
-                size=record['file_size'],
-                file_name=record.get('file_name', None),
+                did=record["did"],
+                acl=record["acl"],
+                hashes={"md5": record["md5sum"]},
+                size=record["file_size"],
+                file_name=record.get("file_name", None),
                 urls=urls,
                 metadata=record,
                 urls_metadata=urls_metadata,
             )
             docs.append(doc)
         return docs
+
     return _inner
 
 
@@ -150,13 +147,14 @@ def init_indexd(indexd_client, create_indexd_documents):
 
 class TestError(Exception):
     """Monkeypatch exception for testinting exception handling"""
+
     pass
 
 
 def raise_test_error(*args, **kwargs):
     """For monkeypatching to test exception handling"""
 
-    raise TestError('{} {}'.format(args, kwargs))
+    raise TestError(f"{args} {kwargs}")
 
 
 def render_database(pg_driver):
@@ -164,23 +162,24 @@ def render_database(pg_driver):
 
     with pg_driver.session_scope():
         dot = create_graphviz(pg_driver.nodes())
-        dot.render('test_suite_data.gv')
+        dot.render("test_suite_data.gv")
 
 
 # ======================================================================
 # Fixtures
 
+
 @pytest.fixture(autouse=True)
 def environment(monkeypatch):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv('ES_HOST', ES_HOST)
-    monkeypatch.setenv('ES_USER', '')
-    monkeypatch.setenv('ES_PASSWORD', '')
-    monkeypatch.setenv('PG_HOST', PG_HOST)
-    monkeypatch.setenv('PG_USER', PG_USER)
-    monkeypatch.setenv('PG_PASS', PG_PASS)
-    monkeypatch.setenv('PG_NAME', PG_NAME)
+    monkeypatch.setenv("ES_HOST", ES_HOST)
+    monkeypatch.setenv("ES_USER", "")
+    monkeypatch.setenv("ES_PASSWORD", "")
+    monkeypatch.setenv("PG_HOST", PG_HOST)
+    monkeypatch.setenv("PG_USER", PG_USER)
+    monkeypatch.setenv("PG_PASS", PG_PASS)
+    monkeypatch.setenv("PG_NAME", PG_NAME)
 
 
 @pytest.fixture(scope="module")
@@ -198,53 +197,53 @@ def pg_driver(graph):
     try:
         render_database(graph)
     except Exception as exc:
-        logger.error('Failed to write updated database viz files: %s', exc)
+        logger.error("Failed to write updated database viz files: %s", exc)
 
     yield graph
 
     clear_graph_database(graph)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def ro_pg_driver(pg_driver):
     with pg_driver.engine.connect() as conn:
-        ro_user = 'ro_test'
-        ro_pass = 'ro_test'
+        ro_user = "ro_test"
+        ro_pass = "ro_test"
         commands = [
             # "create user {} with password '{}'".format(ro_user, ro_pass),
-            'grant connect on database {} to {}'.format(PG_NAME, ro_user),
-            'grant select on all tables in schema public to {}'.format(ro_user),
+            f"grant connect on database {PG_NAME} to {ro_user}",
+            f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=os.getenv('PG_HOST', PG_HOST),
+        host=os.getenv("PG_HOST", PG_HOST),
         user=ro_user,
         password=ro_pass,
-        database=os.getenv('PG_NAME', PG_NAME),
+        database=os.getenv("PG_NAME", PG_NAME),
     )
 
     yield ro_pg_conn
 
     with pg_driver.engine.connect() as conn:
         commands = [
-            'revoke all on all tables in schema public from {}'.format(ro_user),
-            'revoke all on database {} from {}'.format(PG_NAME, ro_user),
+            f"revoke all on all tables in schema public from {ro_user}",
+            f"revoke all on database {PG_NAME} from {ro_user}",
         ]
 
         for cmd in commands:
             conn.execute(cmd)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def graph_factory():
     graph_globals = {
-        'properties': {
-            'project_id': 'TCGA-BRCA',
-            'state': 'released',
-            'batch_id': 1,
-            'experimental_strategy': 'WXS',
+        "properties": {
+            "project_id": "TCGA-BRCA",
+            "state": "released",
+            "batch_id": 1,
+            "experimental_strategy": "WXS",
         }
     }
     factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
@@ -259,9 +258,10 @@ def graph_factory():
 def get_all_indices(es):
     return (
         # closed indices
-        list(es.cluster.state()['blocks'].get('indices', {}).keys()) +
+        list(es.cluster.state()["blocks"].get("indices", {}).keys())
+        +
         # opened indices:
-        list(es.indices.stats()['indices'].keys())
+        list(es.indices.stats()["indices"].keys())
     )
 
 
@@ -273,13 +273,13 @@ def cleanup_indices(es, indices=None):
     """
     for _ in range(10):
         try:
-            es.cluster.health(wait_for_status='yellow')
+            es.cluster.health(wait_for_status="yellow")
             break
         except ElasticsearchException:
             time.sleep(0.1)
     else:
         # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
-        raise Exception('Elasticsearch cluster offline after 5 minutes')
+        raise Exception("Elasticsearch cluster offline after 5 minutes")
 
     if not indices:
         indices = get_all_indices(es)
@@ -305,12 +305,12 @@ def es_client():
     return es
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def test_index_data(index_types, es_client):
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
-    index_prefix = 'test_index_data'
+    index_prefix = "test_index_data"
 
     index_names = get_index_names(index_prefix, index_types)
 
@@ -320,12 +320,13 @@ def test_index_data(index_types, es_client):
     for index_type in index_types:
         mapping = es_data.get_mapping(index_type)
 
-        es_client.indices.create(index=index_names[index_type], ignore=400,
-                                 body=es_data.get_index_settings())
+        es_client.indices.create(
+            index=index_names[index_type], ignore=400, body=es_data.get_index_settings()
+        )
         es_client.indices.refresh(index=index_names[index_type])
         es_client.indices.put_mapping(index=index_names[index_type], body=mapping)
 
-        for doc in getattr(es_data, '{}_docs'.format(index_type)):
+        for doc in getattr(es_data, f"{index_type}_docs"):
             doc_id = doc["project_id"] if index_type == "project" else None
 
             es_client.index(
@@ -337,12 +338,14 @@ def test_index_data(index_types, es_client):
     es_client.indices.refresh()
 
     # Make sure that docs are created:
-    for index_type, counts in [['case', len(es_data.case_docs)],
-                               ['file', len(es_data.file_docs)],
-                               ['project', len(es_data.project_docs)],
-                               ['annotation', len(es_data.annotation_docs)]]:
+    for index_type, counts in [
+        ["case", len(es_data.case_docs)],
+        ["file", len(es_data.file_docs)],
+        ["project", len(es_data.project_docs)],
+        ["annotation", len(es_data.annotation_docs)],
+    ]:
         while True:
-            count = es_client.count(index=index_names[index_type])['count']
+            count = es_client.count(index=index_names[index_type])["count"]
             if count == counts:
                 break
             time.sleep(0.1)
@@ -352,7 +355,7 @@ def test_index_data(index_types, es_client):
     cleanup_indices(es_client, index_names.values())
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def es_after_deletion(test_index_data, index_types):
     """
     Deletes some projects from the index but not updates the metadata,
@@ -391,7 +394,7 @@ def mocked_statsd(monkeypatch):
     def event_mock(*_, **__):
         pass
 
-    monkeypatch.setattr(statsd, 'event', event_mock)
+    monkeypatch.setattr(statsd, "event", event_mock)
 
 
 @pytest.fixture
@@ -405,22 +408,22 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
             nodes_meta = yaml.safe_load(f)
 
         x_nodes = graph_factory.create_from_nodes_and_edges(
-            nodes=nodes_meta['nodes'],
-            edges=nodes_meta['edges'],
+            nodes=nodes_meta["nodes"],
+            edges=nodes_meta["edges"],
             all_props=True,
         )
 
         for n in x_nodes:
-            n.acl = ['phs000178']
+            n.acl = ["phs000178"]
 
         x_nodes, records = data.patch_test_data_get_indexd(x_nodes)
         nodes.extend(x_nodes)
         docs = create_indexd_documents(records)
 
-        case_nodes = [n for n in x_nodes if n.label == 'case']
+        case_nodes = [n for n in x_nodes if n.label == "case"]
 
         with pg_driver.session_scope():
-            project = pg_driver.nodes(models.Project).props(code='BRCA').one()
+            project = pg_driver.nodes(models.Project).props(code="BRCA").one()
             project.cases.extend(case_nodes)
 
         return x_nodes, docs
@@ -469,7 +472,11 @@ def apply_gencode_to_indexd(pg_driver, init_indexd, gencode_version_graph):
 
         # apply specified gencode_version to GeneExpression to test pick up by gencode
         for submitter_id, gencode in gencode_versions:
-            node = pg_driver.nodes(models.GeneExpression).props(submitter_id=submitter_id).one()
+            node = (
+                pg_driver.nodes(models.GeneExpression)
+                .props(submitter_id=submitter_id)
+                .one()
+            )
             doc = init_indexd.get(node.node_id)
             doc.metadata["gencode_version"] = gencode
             doc.patch()

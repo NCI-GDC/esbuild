@@ -6,7 +6,7 @@ from tests.integration.conftest import Index
 
 @pytest.fixture
 def maf_graph(generate_scenario):
-    generate_scenario('maf_scenario.yaml')
+    generate_scenario("maf_scenario.yaml")
 
 
 @pytest.fixture

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """esbuild.graph.active.mappings
 ----------------------------------
 
@@ -15,17 +14,16 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 from copy import deepcopy
 
 from addict import Dict
-from normalizer import normalize, load_normalizer, load_blacklist
+from normalizer import load_blacklist, load_normalizer, normalize
 
-from esbuild.graph.common.mappings import ESMapper, STRING
+from esbuild.graph.common.mappings import STRING, ESMapper
 
 
 class ActiveESMapper(ESMapper):
-
     @staticmethod
     def get_blacklist():
         blacklist = load_blacklist()
-        blacklist.extend(['case_submitter_id', 'entity_submitter_id'])
+        blacklist.extend(["case_submitter_id", "entity_submitter_id"])
 
         return blacklist
 
@@ -39,7 +37,7 @@ class ActiveESMapper(ESMapper):
     @staticmethod
     def multifield(name):
         doc = Dict()
-        doc.type = 'keyword'
+        doc.type = "keyword"
         return Dict({name: doc})
 
     @staticmethod
@@ -50,11 +48,11 @@ class ActiveESMapper(ESMapper):
         # FIXME: add support for different normalizers if needed in the future
         _, definition = load_normalizer()
 
-        settings['settings']['analysis'] = {
-            'normalizer': definition,
+        settings["settings"]["analysis"] = {
+            "normalizer": definition,
             "filter": {
                 "edge_ngram": {
-                    "min_gram": '1',
+                    "min_gram": "1",
                     "side": "front",
                     "type": "edge_ngram",
                     "max_gram": "20",
@@ -85,12 +83,15 @@ class ActiveESMapper(ESMapper):
 
     @classmethod
     def get_file_es_mapping(cls, include_case=True, is_root=True):
-        files = Dict(super(ActiveESMapper, ActiveESMapper)
-                     .get_file_es_mapping(include_case, is_root))
+        files = Dict(
+            super(ActiveESMapper, ActiveESMapper).get_file_es_mapping(
+                include_case, is_root
+            )
+        )
 
-        file_base_props = cls.multifield('file_id')
-        file_base_props.update(cls.get_properties_by_category('index_file'))
-        file_base_props.update(cls.get_properties_by_category('data_file'))
+        file_base_props = cls.multifield("file_id")
+        file_base_props.update(cls.get_properties_by_category("index_file"))
+        file_base_props.update(cls.get_properties_by_category("data_file"))
         file_base_props.access = STRING
 
         # Update file properties to allow props from all file types
@@ -101,28 +102,28 @@ class ActiveESMapper(ESMapper):
 
         # Input/output files
         input_files = Dict()
-        input_files.type = 'nested'
+        input_files.type = "nested"
         cls.update_no_overwrite(input_files.properties, file_base_props)
         input_files.properties.access = STRING
         output_files = Dict(deepcopy(input_files.to_dict()))
 
         # Analysis
         analysis = Dict()
-        analysis.properties = cls.get_properties_by_category('analysis')
+        analysis.properties = cls.get_properties_by_category("analysis")
         analysis.properties.analysis_id = STRING
         analysis.properties.analysis_type = STRING
         analysis.properties.input_files = input_files
 
         # Metadata
         metadata = Dict()
-        read_groups = cls.nested('read_group')
-        read_groups.properties.read_group_qcs = cls.nested('read_group_qc')
+        read_groups = cls.nested("read_group")
+        read_groups.properties.read_group_qcs = cls.nested("read_group_qc")
         metadata.properties.read_groups = read_groups
         analysis.properties.metadata = metadata
 
         # Downstream analysis
-        ds_analysis = Dict(type='nested')
-        ds_analysis.properties = cls.get_properties_by_category('analysis')
+        ds_analysis = Dict(type="nested")
+        ds_analysis.properties = cls.get_properties_by_category("analysis")
         ds_analysis.properties.analysis_id = STRING
         ds_analysis.properties.analysis_type = STRING
         ds_analysis.properties.output_files = output_files
@@ -134,46 +135,43 @@ class ActiveESMapper(ESMapper):
         if is_root:
             files = cls.add_file_autocomplete(files)
 
-        return ActiveESMapper.apply_normalizer(
-            deepcopy(files.to_dict())
-        )
+        return ActiveESMapper.apply_normalizer(deepcopy(files.to_dict()))
 
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
-        case = Dict(super(ActiveESMapper, ActiveESMapper)
-                    .get_case_es_mapping(include_file, is_root))
+        case = Dict(
+            super(ActiveESMapper, ActiveESMapper).get_case_es_mapping(
+                include_file, is_root
+            )
+        )
 
         # Add autocomplete and copy_to fields
         if is_root:
             case = cls.add_case_autocomplete(case)
 
-        return ActiveESMapper.apply_normalizer(
-            deepcopy(case.to_dict())
-        )
+        return ActiveESMapper.apply_normalizer(deepcopy(case.to_dict()))
 
     @classmethod
     def get_annotation_es_mapping(cls, include_file=True):
-        annotation = Dict(super(ActiveESMapper, ActiveESMapper)
-                          .get_annotation_es_mapping(include_file))
+        annotation = Dict(
+            super(ActiveESMapper, ActiveESMapper).get_annotation_es_mapping(
+                include_file
+            )
+        )
 
         # Add autocomplete and copy_to fields
         annotation = cls.add_annotation_autocomplete(annotation)
 
-        return ActiveESMapper.apply_normalizer(
-            deepcopy(annotation.to_dict())
-        )
+        return ActiveESMapper.apply_normalizer(deepcopy(annotation.to_dict()))
 
     @classmethod
     def get_project_es_mapping(cls):
-        project = Dict(super(ActiveESMapper, ActiveESMapper)
-                       .get_project_es_mapping())
+        project = Dict(super(ActiveESMapper, ActiveESMapper).get_project_es_mapping())
 
         # Add autocomplete and copy_to fields
         project = cls.add_project_autocomplete(project)
 
-        return ActiveESMapper.apply_normalizer(
-            deepcopy(project.to_dict())
-        )
+        return ActiveESMapper.apply_normalizer(deepcopy(project.to_dict()))
 
 
 get_file_es_mapping = ActiveESMapper.get_file_es_mapping

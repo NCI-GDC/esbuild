@@ -1,11 +1,10 @@
-from typing import NamedTuple, Callable
+from typing import Callable, NamedTuple
 
 import pytest
-
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
 
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from tests.integration.conftest import Index
 
 
