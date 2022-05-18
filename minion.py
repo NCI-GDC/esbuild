@@ -3,9 +3,11 @@ import os
 import time
 from multiprocessing import Process
 
+import psqlgraph
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
+from indexclient import client
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
@@ -24,14 +26,29 @@ TIMEDELTA = config["timedelta"]
 
 
 def get_gdc_elasticsearch(
-    indexd_client,
-    pg_driver,
+    indexd_client: client.IndexClient,
+    pg_driver: psqlgraph.PsqlGraphDriver,
     es_client: Elasticsearch,
     payload: dict,
     save_doc_path: str = None,
     skip_es: bool = False,
 ) -> GDCElasticsearch:
-    """Parse and validate payload and return GDCElasticsearch instance"""
+    """Parse and validate payload and return GDCElasticsearch instance.
+
+    Args:
+        indexd_client: Indexd Client
+        pg_driver: psql graph driver
+        es_client: elasticsearch client
+        payload: job payload
+        save_doc_path: Where to save docs (if necessary)
+        skip_es: Skips writing to es
+
+    Returns:
+        GDCElasticsearch
+
+    Raises:
+        ValueError when build type is not active
+    """
     build_type = payload.get("build-type")
 
     if build_type != "active":
@@ -129,9 +146,12 @@ def process_work(
         time.sleep(sleep_time)
 
 
-def minion_argparser():
-    """Parses run arguments for esbuild minion"""
+def minion_argparser() -> argparse.ArgumentParser:
+    """Parse run arguments for esbuild minion.
 
+    Returns:
+        argparse argument parser
+    """
     parser = argparse.ArgumentParser(
         description="Parses esbuild job parameters",
     )
