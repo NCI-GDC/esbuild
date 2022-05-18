@@ -160,6 +160,7 @@ class ESMapper:
         case_tree.diagnosis.annotation.corr = (ONE_TO_MANY, "annotations")
         case_tree.diagnosis.pathology_detail.corr = (ONE_TO_MANY, "pathology_details")
         case_tree.diagnosis.treatment.corr = (ONE_TO_MANY, "treatments")
+        case_tree.diagnosis.molecular_test.corr = (ONE_TO_MANY, "molecular_tests")
         case_tree.follow_up.corr = (ONE_TO_MANY, "follow_ups")
         case_tree.follow_up.molecular_test.corr = (ONE_TO_MANY, "molecular_tests")
         case_tree.family_history.corr = (ONE_TO_MANY, "family_histories")
@@ -519,7 +520,7 @@ class ESMapper:
     @classmethod
     def get_case_es_mapping(cls, include_file=True, is_root=True):
         # case body
-        case = cls._get_header("case") if is_root else Dict()
+        case: dict = cls._get_header("case") if is_root else Dict()
         case.properties = cls._walk_tree(
             cls.get_case_tree(), cls.get_base_properties("case")
         )
@@ -536,6 +537,10 @@ class ESMapper:
 
         # Remove case.sample.analyte from mapping (see above)
         case.properties.samples.properties.pop("analytes")
+
+        # Remove case.diagnoses.molecular_tests from mapping,
+        # this is handled in reconstruct_diagnoses_paths
+        case.properties.diagnoses.properties.pop("molecular_tests")
 
         # Patch project
         cls.patch_project(case.properties.project.properties)

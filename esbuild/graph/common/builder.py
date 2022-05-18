@@ -641,6 +641,7 @@ class GraphIndexBuilder:
 
         # Take any out of place nodes and put then in correct place in tree
         self.reconstruct_biospecimen_paths(case)
+        case = self.reconstruct_diagnoses_paths(case)
 
         # Get the case's project
         project = self.patch_project(case["project"])
@@ -724,6 +725,45 @@ class GraphIndexBuilder:
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
             "data_categories": list(self.get_data_categories(files)),
         }
+
+    @staticmethod
+    def reconstruct_diagnoses_paths(case: dict) -> dict:
+        """Reconstruct path for molecular tests
+
+        There are two different paths from diagnoses to molecular tests:
+        1. diagnoses -> molecular test
+        2. diagnoses -> follow up -> molecular test
+        For those nodes in path 1, add a dummy `follow up` nodes, so that it can be reached through `case.follow_ups.molecular_tests`
+
+        Args:
+            case: dictionary of case node
+
+        Returns:
+            updated case dictionary
+        """
+        case_copy = deepcopy(case)
+        correct_molecular_tests = set()
+        for follow_up in case_copy.get("follow_ups", []):
+            for molecular_test in follow_up.get("molecular_tests", []):
+                correct_molecular_tests.add(molecular_test["molecular_test_id"])
+
+        for diagnosis in case_copy.get("diagnoses", []):
+            molecular_tests = diagnosis.pop("molecular_tests", [])
+            for molecular_test in molecular_tests:
+                molecular_test_id = molecular_test["molecular_test_id"]
+                if molecular_test_id not in correct_molecular_tests:
+                    log.info(f"Moving {molecular_test_id} to correct location")
+                    case_copy["follow_ups"] = case_copy.get("follow_ups", [])
+                    case_copy["follow_ups"].append(
+                        {
+                            "follow_up_id": get_namespaced_uuid(
+                                ns="molecular_tests",
+                                seed=molecular_test_id,
+                            ),
+                            "molecular_tests": [molecular_test],
+                        }
+                    )
+        return case_copy
 
     def reconstruct_biospecimen_paths(self, case):
         """For each sample.aliquot or sample.slide, reconstruct
@@ -1274,6 +1314,8 @@ class GraphIndexBuilder:
         for case in doc["cases"]:
             self.patch_project(case["project"])
             self.reconstruct_biospecimen_paths(case)
+
+        doc["cases"] = [self.reconstruct_diagnoses_paths(case) for case in doc["cases"]]
 
         return relevant
 
