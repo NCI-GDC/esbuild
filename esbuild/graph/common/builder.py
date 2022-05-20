@@ -10,6 +10,7 @@ import hashlib
 import itertools
 import random
 import re
+import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from copy import deepcopy
@@ -1671,7 +1672,7 @@ class GraphIndexBuilder:
                     }
 
                 # Handle case info
-                case = ann_to_case[annotation.node_id]
+                case = ann_to_case.get(annotation.node_id)
                 if case:
                     doc["case_id"] = case.node_id
                     doc["case_submitter_id"] = case.submitter_id
@@ -1679,9 +1680,13 @@ class GraphIndexBuilder:
                 docs.append(doc)
 
             except Exception as e:
+                exception = "".join(
+                    traceback.format_exception(type(e), e, e.__traceback__, limit=1)
+                )
+
                 self.error(
                     "denormalize_annotations",
-                    f"{annotation} encountered an error: {e}",
+                    f"Annotation: {annotation.node_id} encountered an exception:\n{exception}",
                 )
                 continue
 
