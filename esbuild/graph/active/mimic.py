@@ -1,6 +1,4 @@
-"""
-esbuild.graph.active.mimic
-----------------------------------
+"""esbuild.graph.active.mimic.
 
 Mimics the isolation of functionality such as filtering nodes from the
 index.
