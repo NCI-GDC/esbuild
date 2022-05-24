@@ -1,5 +1,4 @@
-"""esbuild.graph.active.mappings
-----------------------------------
+"""esbuild.graph.active.mappings.
 
 Defines the Elasticsearch mappings for the main GDC graph index.
 
