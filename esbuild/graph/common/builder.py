@@ -1,6 +1,4 @@
-"""
-esbuild.graph.common.builder
-----------------------------------
+"""esbuild.graph.common.builder.
 
 Defines :class:`GraphIndexBuilder` for use building the primary GDC
 graph index.
@@ -10,11 +8,22 @@ import hashlib
 import itertools
 import random
 import re
-from collections import defaultdict
-from collections.abc import Iterable
+import uuid
+from collections import abc, defaultdict
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any, List, Optional
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 from uuid import UUID, uuid5
 
 import networkx as nx
@@ -29,6 +38,9 @@ from sqlalchemy.orm import joinedload
 
 from esbuild.graph.common import validators
 from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
+
+PTree = Dict[Node, "Ptree"]
+Document = Dict[str, Union[str, int]]
 
 log = get_logger("graph_index", log_level="info")
 
@@ -58,7 +70,9 @@ def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
 
 
 class GraphIndexBuilder:
-    """This class handles all of the JSON production for the GDC
+    """Build graph index from gdc psqlgraph.
+
+    This class handles all the JSON production for the GDC
     portal. Currently, the entire postgresql database is cached to
     memory.  To save space, edge labels are only maintained if we need
     to distinguish between two different types of edges between a
@@ -67,7 +81,7 @@ class GraphIndexBuilder:
     Currently, the entire batch of JSON documents is produced at once
     for reasons that follow. There are two topmost denormalization
     functions that are called, denormalize_cases() and
-    denormalize_projects(). The former produces all of the
+    denormalize_projects(). The former produces all the
     case, file, and annotations documents. The latter produces
     the project summaries.
 
@@ -86,7 +100,7 @@ class GraphIndexBuilder:
     list of files.  If after denormalizing case 1 who produced
     file A, the upsert involves adding to A the list if not present.
     If we have already gotten file A from another case, it
-    means that the file came from multiple cases and we have to
+    means that the file came from multiple cases, and we have to
     update file A to also reference case 1.
 
     In order to make decrease the processing time, there are a lot of
@@ -201,7 +215,7 @@ class GraphIndexBuilder:
         index_prefix: Optional[str] = "",
         **kwargs: Any,
     ) -> None:
-        """Walks the graph to produce elasticsearch json documents."""
+        """Walk the graph to produce elasticsearch json documents."""
         self.indexd = indexd_client
         self.index_prefix = index_prefix
         self.file_metadata = {}  # Cache of file metadata from indexd
@@ -269,10 +283,10 @@ class GraphIndexBuilder:
         self.data_categories = defaultdict(set)
         self.popular_nodes = {}
         self.cases = None
-        self.projects = None
-        self.relevant_nodes = None
+        self.projects: Optional[Iterable[Node]] = None
+        self.relevant_nodes: Dict[Node, Set[Node]] = None
         self.annotations = None
-        self.annotation_entities = None
+        self.annotation_entities: Dict[Node, Dict[uuid.UUID, dict]] = None
         self.entity_cases = None
 
         # Different from ``self.data_categories`` in that it's a
@@ -367,7 +381,7 @@ class GraphIndexBuilder:
         )
 
     def pbar(self, title, maxval):
-        """Create and initialize a custom progressbar
+        """Create and initialize a custom progressbar.
 
         :param str title: The text of the progress bar
         :param int maxval: The maximum value of the progress bar
@@ -394,11 +408,12 @@ class GraphIndexBuilder:
     ###################################################################
 
     def parse_tree(self, tree, result):
-        """Recursively walk a mapping tree and generate a simpler tree with
+        """Generate a simpler tree with just node labels.
+
+        Recursively walk a mapping tree and generate a simpler tree with
         just node labels and not correspondences.
 
         """
-
         for key in tree:
             if key != "corr":
                 result[key] = {}
@@ -407,7 +422,6 @@ class GraphIndexBuilder:
 
     def create_tree(self, node, mapping, tree):
         """Recursively walk a mapping to create a walkable tree."""
-
         if node.label in self.leaf_nodes:
             return {}
         submap = mapping[node.label]
@@ -419,12 +433,21 @@ class GraphIndexBuilder:
             self.create_tree(child, submap, tree[child])
         return tree
 
-    def walk_tree(self, node, tree, mapping, doc, level=0, ids=None):
-        """Recursively walk from a node to all possible neighbors that are
+    def walk_tree(
+        self,
+        node: Node,
+        tree: Dict[Node, dict],
+        mapping: Dict[str, dict],
+        doc: Document,
+        level=0,
+        ids=None,
+    ):
+        """Add the properties of node neighbors to doc.
+
+        Recursively walk from a node to all possible neighbors that are
         allowed in the tree structure.  Add the node's properties to the doc.
 
         """
-
         corr, plural = mapping[node.label]["corr"]
 
         # NOTE: we need to add some extra properties for deeply nested annotation
@@ -463,21 +486,21 @@ class GraphIndexBuilder:
             doc.update(subdoc)
         return doc
 
-    def copy_tree(self, original, new):
+    def copy_tree(self, original: PTree, new: PTree) -> PTree:
         """Recursively copy the tree so that it can later be pruned per file."""
-
         for node in original:
             new[node] = {}
             self.copy_tree(original[node], new[node])
         return new
 
-    def _get_base_doc(self, node, include_id=True):
-        """This is the basic document generator.  Take all the properties of a
-        node and add it the the result.  The result doc will have *_id
+    def _get_base_doc(self, node: Node, include_id: bool = True) -> Document:
+        """Create a dictionary with all the properties of a node.
+
+        This is the basic document generator.  Take all the properties of a
+        node and add it to the result.  The result doc will have *_id
         where * is the node type.
 
         """
-
         base = {}
         old_props = self.versioned_files.get(node.node_id, {})
 
@@ -509,13 +532,16 @@ class GraphIndexBuilder:
     #                        Path functions
     ###################################################################
 
-    def walk_path(self, node, path, whole=False):
-        """Given a list of strings, treat it as a path, and yield the end of
+    def walk_path(
+        self, node: Node, path: List[str], whole=False
+    ) -> Generator[Node, None, None]:
+        """Get a node from end of a path or all the nodes along the path.
+
+        Given a list of strings, treat it as a path, and yield the end of
         possible traversals.  If `whole` is true, return every node
         along the traversal.
 
         """
-
         if path:
             for neighbor in self.neighbors_labeled(node, path[0]):
                 if whole or (len(path) == 1 and path[0] == neighbor.label):
@@ -523,12 +549,13 @@ class GraphIndexBuilder:
 
                 yield from self.walk_path(neighbor, path[1:], whole)
 
-    def walk_paths(self, node, paths, whole=False):
-        """Given a list of paths, yield the result of walking each path. If
+    def walk_paths(self, node: Node, paths: List[List[str]], whole=False) -> Set[Node]:
+        """Get nodes from walking paths.
+
+        Given a list of paths, yield the result of walking each path. If
         `whole` is true, return every node along each traversal.
 
         """
-
         return {
             n
             for n in itertools.chain(
@@ -544,7 +571,9 @@ class GraphIndexBuilder:
     ##################################################################
 
     def remove_hidden_nodes(self, nodes):
-        """Returns a subset of :param:`nodes` for which
+        """Get subset of nodes whose self.is_node_hidden(node) is False.
+
+        Returns a subset of :param:`nodes` for which
         ``self.is_node_hidden(node)`` is not True.
 
         :param nodes: iterable of nodes to filter
@@ -554,8 +583,7 @@ class GraphIndexBuilder:
         return {node for node in nodes if not validators.is_node_hidden(node)}
 
     def get_case_files(self, node):
-        """Return a list of file nodes by walking out from case"""
-
+        """Return a list of file nodes by walking out from case."""
         files = self.walk_paths(node, self.case_to_file_paths)
         # Set file metadata fields from indexd as node properties
         files = (self.add_file_metadata_from_indexd(f) for f in files)
@@ -566,7 +594,7 @@ class GraphIndexBuilder:
         return files
 
     def get_case_tree(self, node):
-        """Use tree to create nested json
+        """Use tree to create nested json.
 
         :returns: doc, ptree, visited_ids
 
@@ -585,11 +613,12 @@ class GraphIndexBuilder:
         return doc, ptree, visited_ids
 
     def get_relevant_ids(self, node, visited_ids):
-        """Create a flattened copy of visited_ids to filter relevant
+        """Create flattened copy of visited_ids.
+
+        Create a flattened copy of visited_ids to filter relevant
         annotations by entity id
 
         """
-
         return [
             _entity_id
             for _entity_type in visited_ids.values()
@@ -597,16 +626,11 @@ class GraphIndexBuilder:
         ] + [node.node_id]
 
     def get_case_ptree(self, node):
-        """Walk graph naturally for tree of node objects"""
-
+        """Walk graph naturally for tree of node objects."""
         return {node: self.create_tree(node, self.ptree_mapping, {})}
 
     def get_relevant_annotations(self, file_docs, relevant_ids):
-        """Return a flat list of annotations who describe entities in
-        :param:`relevant_ids`
-
-        """
-
+        """Return a flat list of annotations who describe entities in relevant_ids."""
         return [
             annotation
             for file_ in file_docs
@@ -616,15 +640,16 @@ class GraphIndexBuilder:
 
     def get_diagnosis_annotations(self, node):
         """Return a flat list of annotations describing a case's diagnoses."""
-
         return [
             ann_doc
             for diagnosis in self.neighbors_labeled(node, "diagnosis")
             for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
         ]
 
-    def denormalize_case(self, node):
-        """Given a case node, return the entire case document,
+    def denormalize_case(self, node: Node) -> Tuple[dict, List[dict], List]:
+        """Get the entire case document for a case node.
+
+        Given a case node, return the entire case document,
         the files belonging to that case, and the annotations
         that were aggregated to those files.
 
@@ -669,25 +694,27 @@ class GraphIndexBuilder:
 
         return case, returned_files, []
 
-    def get_case_file_docs(self, node, ptree, files):
-        """Given a list of files, return a list of file docs"""
+    def get_case_file_docs(
+        self, node: Node, ptree: PTree, files: Set[Node]
+    ) -> List[dict]:
+        """Given a list of files, return a list of file docs."""
         return [self.denormalize_file(file_, ptree) for file_ in files]
 
     def patch_annotations(self, annotations, node, project):
-        """Add misc properties to annotations in-place"""
-
+        """Add misc properties to annotations in-place."""
         for annotation in annotations:
             annotation["project"] = project
             annotation["case_id"] = node.node_id
             annotation["case_submitter_id"] = node.submitter_id
 
     def get_exp_strats(self, files):
-        """Get the set of experimental_strategies where intersection of the
+        """Get files experimental strategies.
+
+        Get the set of experimental_strategies where intersection of the
         set `files` and the set of files that relate to that
         experimental_strategy is non-null
 
         """
-
         for exp_strat, file_list in self.experimental_strategies.items():
             intersection = file_list & files
             if intersection:
@@ -697,7 +724,9 @@ class GraphIndexBuilder:
                 }
 
     def get_data_categories(self, files):
-        """Get the set of data_categories where intersection of the
+        """Get files data category.
+
+        Get the set of data_categories where intersection of the
         set `files` and the set of files that relate to that
         data_category is non-null
 
@@ -712,8 +741,10 @@ class GraphIndexBuilder:
                     "file_count": len(intersection),
                 }
 
-    def get_case_summary(self, node, files):
-        """Generate a dictionary containing a summary of a cases files
+    def get_case_summary(self, node: Node, files):
+        """Create a dictionary with summary information about case files.
+
+        Generate a dictionary containing a summary of a cases files
         and file classifications
 
         """
@@ -727,13 +758,14 @@ class GraphIndexBuilder:
         }
 
     @staticmethod
-    def reconstruct_diagnoses_paths(case: dict) -> dict:
-        """Reconstruct path for molecular tests
+    def reconstruct_diagnoses_paths(case: Document) -> Document:
+        """Reconstruct path for molecular tests.
 
         There are two different paths from diagnoses to molecular tests:
         1. diagnoses -> molecular test
         2. diagnoses -> follow up -> molecular test
-        For those nodes in path 1, add a dummy `follow up` nodes, so that it can be reached through `case.follow_ups.molecular_tests`
+        For those nodes in path 1, add a dummy `follow up` nodes, so that it can be
+        reached through `case.follow_ups.molecular_tests`
 
         Args:
             case: dictionary of case node
@@ -765,13 +797,13 @@ class GraphIndexBuilder:
                     )
         return case_copy
 
-    def reconstruct_biospecimen_paths(self, case):
-        """For each sample.aliquot or sample.slide, reconstruct
-        entire path. Note: the path is culled in common/mappings.py
+    def reconstruct_biospecimen_paths(self, case: dict) -> None:
+        """For each sample.aliquot or sample.slide, reconstruct entire path.
+
+        Note: the path is culled in common/mappings.py
         in get_case_es_mapping. The new path(s) need to be popped
         there or tests will fail.
         """
-
         # Get all the "correct" aliquots and slides, save them
         # so we can differentiate between these and the other
         # linked ones
@@ -877,11 +909,8 @@ class GraphIndexBuilder:
     #                       File denormalization
     ###################################################################
 
-    def denormalize_file(self, node, ptree):
-        """Given a cases tree and a file node, create the file json
-        document.
-
-        """
+    def denormalize_file(self, node: Node, ptree: PTree) -> Dict[str, Union[int, str]]:
+        """Given a cases tree and a file node, create the file json document."""
         # Add file metadata fields from indexd
         node = self.add_file_metadata_from_indexd(node)
 
@@ -918,11 +947,8 @@ class GraphIndexBuilder:
 
         return gencode_version in self.allowed_gencode_versions
 
-    def add_file_metadata_from_indexd(self, node):
-        """
-        Reads file metadata from indexd and sets it to node
-        """
-
+    def add_file_metadata_from_indexd(self, node: Node) -> Node:
+        """Read file metadata from indexd and sets it to node."""
         if node.node_id in self.versioned_files:
             for key, value in self.versioned_files[node.node_id].items():
                 setattr(node, key, value)
@@ -993,17 +1019,18 @@ class GraphIndexBuilder:
 
         return node
 
-    def add_node_type(self, node, doc):
+    def add_node_type(self, node: Node, doc: Document) -> None:
         doc["type"] = node.label
 
-    def get_data_format(self, node):
-        """Return the ``data_format`` given a file node based on
+    def get_data_format(self, node: Node) -> str:
+        """Get data format of a file node.
+
+        Return the ``data_format`` given a file node based on
 
         1. its properties (data_format or file_format)
         2. an edge to a DataFormat node
 
         """
-
         if "data_format" in node._props:
             format_ = node._props["data_format"]
 
@@ -1031,8 +1058,10 @@ class GraphIndexBuilder:
         return format_
 
     def prune_case(self, relevant_nodes, ptree, keys):
-        """Start with whole case tree and remove any nodes that did not
-        contribute the the creation of this file.
+        """Remove node (whose label in keys but is not in relavent_nodes) from ptree.
+
+        Start with whole case tree and remove any nodes that did not
+        contribute the creation of this file.
 
         .. note:: :param:`ptree` is edited **in place*
 
@@ -1053,17 +1082,18 @@ class GraphIndexBuilder:
                 ptree.pop(node)
 
     def add_file_data_format(self, node, doc):
-        """Add (or overwrite) the data format if found"""
+        """Add (or overwrite) the data format if found."""
         data_format = self.get_data_format(node)
         if data_format:
             doc["data_format"] = data_format
 
-    def add_file_neighbors(self, node, doc):
-        """Given a file, walk to all of it's neighbors specified by the schema
+    def add_file_neighbors(self, node: Node, doc: Document) -> None:
+        """Add specified neighbors to file doc[label].
+
+        Given a file, walk to all of its neighbors specified by the schema
         and add them to the document.
 
         """
-
         auto_neighbors = [
             n
             for n in dict(self.ftree_mapping["file"]).keys()
@@ -1111,7 +1141,7 @@ class GraphIndexBuilder:
                 doc[label].append(base)
 
     def is_index_file(self, node):
-        """Given a node, return whether it is considerend an 'index file'
+        """Given a node, return whether it is considered an 'index file'.
 
         :returns: bool
 
@@ -1133,7 +1163,7 @@ class GraphIndexBuilder:
             return False
 
     def get_file_index_files(self, node):
-        """Given a file, return any neighboring index files"""
+        """Given a file, return any neighboring index files."""
         return [
             n
             for n in list(self.neighbors_labeled(node, "file"))
@@ -1141,7 +1171,9 @@ class GraphIndexBuilder:
         ]
 
     def add_index_files(self, node, doc):
-        """Given a file, walk to any neighboring index files and add
+        """Add neighboring index files to file doc["index_files"].
+
+        Given a file, walk to any neighboring index files and add
         them to the index_files section of the document.
 
         """
@@ -1159,8 +1191,10 @@ class GraphIndexBuilder:
         if index_file_docs:
             doc["index_files"] = index_file_docs
 
-    def add_related_files(self, node, doc):
-        """Given a file, walk to any (non data-from) neighboring files and add
+    def add_related_files(self, node: Node, doc: dict) -> None:
+        """Add neighboring files to file doc["metadata_files"].
+
+        Given a file, walk to any (non data-from) neighboring files and add
         them to the related_files section of the document.
 
         ..note::
@@ -1243,12 +1277,13 @@ class GraphIndexBuilder:
             doc["metadata_files"] = rf_docs
 
     def add_archives(self, node, doc):
-        """For each archive attached to a given file node, multixplex on
+        """Add attached archive to file doc["archive"].
+
+        For each archive attached to a given file node, multixplex on
         whether it is a containing or related archive and add it to the
         respective places in the doc.
 
         """
-
         for archive in set(self.neighbors_labeled(node, "archive")):
             is_skipped_legacy_edge = (
                 node.label == "file"
@@ -1276,8 +1311,7 @@ class GraphIndexBuilder:
             doc["archive"] = archive_doc
 
     def add_data_category(self, node, doc):
-        """Add the data_subtype to the file document with child data_category"""
-
+        """Add the data_subtype to the file document with child data_category."""
         data_categories = [
             data_category
             for data_category, files in self.data_categories.items()
@@ -1288,8 +1322,10 @@ class GraphIndexBuilder:
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
             doc["data_category"] = data_categories[0]
 
-    def add_cases(self, node, ptree, doc):
-        """Given a file and a case tree, re-insert the case as a
+    def add_cases(self, node: Node, ptree: Dict[Node, dict], doc: dict) -> Set[Node]:
+        """Add cases to file doc['cases'].
+
+        Given a file and a case tree, re-insert the case as a
         child of file with only the biospecimen entities that are
         direct ancestors of the file.
 
@@ -1320,12 +1356,13 @@ class GraphIndexBuilder:
         return relevant
 
     def add_annotations(self, node, relevant, doc):
-        """Given a file node, aggregate all of the annotations from a pruned
+        """Loop relevant, get all annotation docs and add them to doc["annotations"].
+
+        Given a file node, aggregate all the annotations from a pruned
         case tree and insert them at the root level of the file
         document.
 
         """
-
         annotations = doc.pop("annotations", [])
 
         for relevant_node in relevant:
@@ -1337,26 +1374,26 @@ class GraphIndexBuilder:
 
     def add_acl(self, node, doc):
         """Add the protection status of a file to the file document."""
-
         self.add_file_access(node, doc)
         doc["acl"] = node.acl
 
-    def add_file_access(self, node, doc):
-        """Summarizes whether the ACL implies that the file is either ``open``
+    def add_file_access(self, node: Node, doc: dict) -> None:
+        """Summarize file ACL and Add it to doc["access"].
+
+        Summarizes whether the ACL implies that the file is either ``open``
         or ``controlled``
 
         """
-
         if node.acl == ["open"]:
             doc["access"] = "open"
         else:
             doc["access"] = "controlled"
 
-    def get_file_associated_entities(self, node):
-        """Returns a list of entities that are 'associated' with a file"""
+    def get_file_associated_entities(self, node: Node) -> List[Node]:
+        """Return a list of entities that are 'associated' with a file."""
         return list(self.neighbors_labeled(node, self.possible_associated_entites))
 
-    def add_file_associated_entities(self, node, doc, case_id):
+    def add_file_associated_entities(self, node: Node, doc, case_id):
         self._cache_entity_cases()
 
         docs = []
@@ -1400,7 +1437,7 @@ class GraphIndexBuilder:
     #                       Project summaries
     ###################################################################
 
-    def denormalize_project(self, p):
+    def denormalize_project(self, p: Node) -> dict:
         """Summarize a project."""
         self._cache_all()
         doc = self._get_base_doc(p)
@@ -1513,9 +1550,12 @@ class GraphIndexBuilder:
     #                     Topmost denorm functions
     ###################################################################
 
-    def denormalize_cases(self, cases=None):
+    def denormalize_cases(
+        self, cases: Iterable[Node] = None
+    ) -> Tuple[List[dict], List[dict], List[dict]]:
+        """Denormalize specified cases or all cases in graph.
 
-        """If cases is not specified, denormalize all cases in
+        If cases is not specified, denormalize all cases in
         the graph.  If cases is specified, denormalize only those
         given.
 
@@ -1541,13 +1581,14 @@ class GraphIndexBuilder:
         pbar.finish()
         return case_docs, list(file_docs.values()), list(ann_docs.values())
 
-    def denormalize_projects(self, projects=None):
-        """If projects is not specified, denormalize all projects in
+    def denormalize_projects(self, projects: Iterable[Node] = None) -> List[dict]:
+        """Denormalize specified projects or all projects in graph.
+
+        If projects is not specified, denormalize all projects in
         the graph.  If projects is specified, denormalize only those
         given.
 
         """
-
         self._cache_all()
         if not projects:
             projects = self.projects
@@ -1688,10 +1729,7 @@ class GraphIndexBuilder:
         return docs
 
     def denormalize_all(self):
-        """Return an entire index worth of case, file, annotation, and
-        project documents
-
-        """
+        """Return an entire index worth of case, file, annotation, and project documents."""
         cases, files, _ = self.denormalize_cases()
         projects = self.denormalize_projects()
 
@@ -1716,20 +1754,14 @@ class GraphIndexBuilder:
         return cases, files, annotations, projects
 
     def denormalize_cases_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation
-        documents
-
-        """
+        """Return an entire index worth of case, file, annotation documents."""
         self._cache_all()
         cases = random.sample(self.cases, k)
         cases, files, annotations = self.denormalize_cases(cases)
         return cases, files, annotations
 
     def denormalize_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation, and
-        project documents
-
-        """
+        """Return an entire index worth of case, file, annotation, and project documents."""
         cases, files, annotations = self.denormalize_sample_cases(k)
         projs = random.sample(self.projects, 1)
         projects = self.denormalize_projects(projs)
@@ -1739,10 +1771,20 @@ class GraphIndexBuilder:
     #                         Graph functions
     ###################################################################
 
-    def nodes_labeled(self, labels):
-        """Returns an iterator over the edges in the graph with label `label`"""
+    def nodes_labeled(
+        self, labels: Union[Iterable, str]
+    ) -> Generator[Node, None, None]:
+        """Return an iterator over the edges in the graph with label `label`.
 
-        if isinstance(labels, Iterable) and not isinstance(labels, str):
+        Args:
+            labels: node label or node labels
+
+        Returns:
+            networkx node generator
+        """
+        """Return an iterator over the edges in the graph with label `label`."""
+
+        if isinstance(labels, abc.Iterable) and not isinstance(labels, str):
             labels = tuple(labels)
         else:
             labels = (labels,)
@@ -1752,9 +1794,8 @@ class GraphIndexBuilder:
                 yield n
 
     @staticmethod
-    def node_labels_by_category(categories):
-        """Returns an iterator of node labels that are files"""
-
+    def node_labels_by_category(categories: Union[Iterable, str]) -> List[str]:
+        """Return an iterator of node labels that are files."""
         categories = (
             tuple(categories) if hasattr(categories, "__iter__") else (categories,)
         )
@@ -1765,15 +1806,27 @@ class GraphIndexBuilder:
             if n._dictionary["category"] in categories
         ]
 
-    def neighbors_labeled(self, node, labels, expected=None):
-        """For a given node, return an iterator with generates neighbors to
+    def neighbors_labeled(
+        self,
+        node: Node,
+        labels: Union[str, Iterable[str]],
+        expected: Optional[int] = None,
+    ) -> Generator[Node, None, None]:
+        """Get neighbors of node, with desired labels.
+
+        For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
         string or list of strings.
 
-        :param is_expected: Int count of expected elements
+        Args:
+            node: node whose neighbors to get.
+            labels: labels of neighbors wanted.
+            expected: number of neighbors expected.
 
+        Returns:
+            A generator of neighbors.
         """
-        if isinstance(labels, Iterable) and not isinstance(labels, str):
+        if isinstance(labels, abc.Iterable) and not isinstance(labels, str):
             labels = tuple(labels)
         else:
             labels = (labels,)
@@ -1872,8 +1925,10 @@ class GraphIndexBuilder:
                     tags=["case_id:{}".format(case.get("case_id", "?"))],
                 )
 
-    def validate_against_mapping(self, doc, mapping):
-        """Recursively verify that all keys in the document are in the
+    def validate_against_mapping(self, doc: Union[dict, list], mapping: dict) -> None:
+        """Validate keys in the document are in the mapping.
+
+        Recursively verify that all keys in the document are in the
         provided Elasticsearch mapping
 
         """
@@ -1896,7 +1951,7 @@ class GraphIndexBuilder:
                     )
 
         elif isinstance(doc, list):
-            # Loop over all all items in the list. Note that ES
+            # Loop over all items in the list. Note that ES
             # mappings do not distinguish between lists of subdocs and
             # single subdocs.
             for list_entry in doc:
@@ -1936,8 +1991,7 @@ class GraphIndexBuilder:
         return False
 
     def is_file_indexed(self, node):
-        """Returns false if node is a file that is not supposed to be indexed."""
-
+        """Return false if node is a file that is not supposed to be indexed."""
         # This function should test only file nodes
         if node.label not in self.file_labels:
             return True
@@ -1977,12 +2031,8 @@ class GraphIndexBuilder:
 
         return True
 
-    def is_omitted_project_or_neighbor_case(self, node):
-        """Returns false if the node is a project that is not supposed to be
-        indexed.
-
-        """
-
+    def is_omitted_project_or_neighbor_case(self, node: Node) -> bool:
+        """Return false if the node is a project that is not supposed to be indexed."""
         if node.label == "project":
             projects = [node]
         elif node.label == "case":
@@ -2022,13 +2072,14 @@ class GraphIndexBuilder:
             self.neighbors_labeled(node, "project", 1)
         )
 
-    def is_node_unindexed_by_property(self, node):
-        """Returns True if node should be removed because its properties are
+    def is_node_unindexed_by_property(self, node: Node) -> bool:
+        """Check if node properties specified in self.unindexed_by_property.
+
+        Returns True if node should be removed because its properties are
         specified in self.unindexed_by_property as an indication to
         remove it from the index.
 
         """
-
         filters = self.unindexed_by_property.get(node.label, [])
 
         for filter_ in filters:
@@ -2039,8 +2090,8 @@ class GraphIndexBuilder:
 
         return False
 
-    def is_node_public(self, node):
-        """Returns whether a node is public.
+    def is_node_public(self, node: Node) -> bool:
+        """Return whether a node is public.
 
         A node is public if:
         1. it's a project and it's released
@@ -2051,7 +2102,6 @@ class GraphIndexBuilder:
         1. project must be in self.build_projects
         2. it's a node with a 'state' that is a AWG state
         """
-
         # AWG mode
         if self.build_awg:
             awg_states = {"live", "submitted", "processed", "released"}
@@ -2090,15 +2140,13 @@ class GraphIndexBuilder:
         return False
 
     def cache_skipped_node(self, node, reason):
-        """
-        Caches skipped node in self.skipped_nodes['{reason-for-skipping}']
-        """
+        """Cache skipped node in self.skipped_nodes['{reason-for-skipping}']."""
+        # TODO: Use defaultdict for skipped_nodes
         self.skipped_nodes.setdefault(reason, [])
         self.skipped_nodes[reason].append(str(node))
 
     def is_node_indexed(self, node):
-        """Returns false if the node is not supposed to be indexed"""
-
+        """Return false if the node is not supposed to be indexed."""
         # Is the node allowed to be displayed publicly
         if not self.is_node_public(node):
             self.cache_skipped_node([node, node._props.get("state")], "not-public")
@@ -2126,14 +2174,21 @@ class GraphIndexBuilder:
         return True
 
     @staticmethod
-    def truncate_path(path, label):
-        """
+    def truncate_path(path: List[str], label: str) -> List[str]:
+        """Truncate a path, so it starts from next value of the given label.
+
         Given a path (a list of node labels), "truncate" it from the left
         such that it starts with the given label, or return [], e.g.:
 
         truncate_path(["a", "b", "c"], "a") -> ["b", "c"]
         truncate_path(["c", "d"], "b") -> []
 
+        Args:
+            path: path to truncate
+            label: label to truncate from
+
+        Returns:
+            truncated path
         """
         for i, currlabel in enumerate(path):
             if currlabel == label:
@@ -2162,8 +2217,7 @@ class GraphIndexBuilder:
         return to_suppress
 
     def get_redaction_annotations(self):
-        """Returns an iterator of annotations that should cause redactions"""
-
+        """Return an iterator of annotations that should cause redactions."""
         return (
             annotation
             for annotation in self.nodes_labeled("annotation")
@@ -2173,10 +2227,7 @@ class GraphIndexBuilder:
         )
 
     def suppressed_nodes(self):
-        """
-        Find all nodes that need to be suppressed due to redactions.
-        """
-
+        """Find all nodes that need to be suppressed due to redactions."""
         to_suppress = []
         for redaction in self.get_redaction_annotations():
             redacted_list = list(self.G.neighbors(redaction))
@@ -2208,8 +2259,9 @@ class GraphIndexBuilder:
 
         return to_suppress
 
-    def remove_unindexed_nodes_from_graph(self):
-        """
+    def remove_unindexed_nodes_from_graph(self) -> None:
+        """Remove unindexed nodes and suppressed nodes from cached networkx graph.
+
         Removes nodes from cached graph in self.G according to:
         - is_node_indexed(node)
         - suppressed_nodes()
@@ -2225,8 +2277,8 @@ class GraphIndexBuilder:
         log.info("Removing %s suppressed nodes", len(suppressed))
         self.G.remove_nodes_from(suppressed)
 
-    def iter_database_edges(self):
-        """Returns an iterable of edges to load from the database.
+    def iter_database_edges(self) -> Iterator[Edge]:
+        """Return an iterable of edges to load from the database.
 
         Eagerly (with join) loads the source and destination of the edge.
         NOTE: All nodes that are not Project and expected to be picked up
@@ -2236,7 +2288,6 @@ class GraphIndexBuilder:
         NOTE: [AWG build mode] If self.build_awg is set, will return only edges
         that are connected to nodes that are part of awg_review == True projects
         """
-
         if (self.build_awg or self.selective_caching) and self.build_projects:
             # Load only node ids with relevant project_id's
             project_ids = ["-".join(p) for p in self.build_projects]
@@ -2270,11 +2321,12 @@ class GraphIndexBuilder:
         )
 
     def cache_database(self):
-        """Load the database into memory and remember only edge labels that we
+        """Cache database psqlgraph into memory.
+
+        Load the database into memory and remember only edge labels that we
         will need to distinguish later.
 
         """
-
         with self.g.session_scope() as sxn, sxn.no_autoflush:
             pbar = self.pbar("Caching Database: ", self.g.edges().count())
             # Cache graph to self.G
@@ -2311,9 +2363,8 @@ class GraphIndexBuilder:
         # Aggressively cache relationships, nodes by type, traversals, etc.
         self._cache_all()
 
-    def _cache_all(self):
+    def _cache_all(self) -> None:
         """Create key value maps to cache nodes by label, by path, etc."""
-
         self._cache_experimental_strategies()
         self._cache_data_categories()
         self._cache_file_properties()
@@ -2323,23 +2374,20 @@ class GraphIndexBuilder:
         self._cache_cases()
         self._cache_projects()
 
-    def _cache_projects(self):
-        """Save a list of all Project nodes"""
-
+    def _cache_projects(self) -> None:
+        """Cache a list of all Project nodes."""
         if not self.projects:
             log.info("Caching projects...")
             self.projects = list(self.nodes_labeled("project"))
 
-    def _cache_cases(self):
-        """Save a list of all Case nodes"""
-
+    def _cache_cases(self) -> None:
+        """Cache a list of all Case nodes."""
         if not self.cases:
             log.info("Caching cases...")
             self.cases = list(self.nodes_labeled("case"))
 
     def _cache_entity_cases(self):
-        """Cache the related Case nodes for each file"""
-
+        """Cache the related Case nodes for each file."""
         if self.entity_cases:
             return
 
@@ -2376,9 +2424,15 @@ class GraphIndexBuilder:
             pbar.update(pbar.value + 1)
         pbar.finish()
 
-    def get_cls_file_to_case_paths(self, cls):
-        """Given a node, return the paths the lead monotonically up to case"""
+    def get_cls_file_to_case_paths(self, cls: Node) -> Iterable[List[str]]:
+        """Given a node, return the paths the lead monotonically up to case.
 
+        Args:
+            cls: psqlgraph node
+
+        Returns:
+            generator of paths from node to case
+        """
         parent_labels = {link["dst_type"].label for link in cls._pg_links.values()}
         return (
             path
@@ -2386,13 +2440,16 @@ class GraphIndexBuilder:
             if path and path[0] in parent_labels
         )
 
-    def _cache_relevant_nodes(self):
-        """The file documents will need to be pruned to only the nodes that
-        are relevant to the file. Here we cache all of the nodes
+    def _cache_relevant_nodes(self) -> None:
+        """Cache all nodes on path from current node to related cases.
+
+        The file documents will need to be pruned to only the nodes that
+        are relevant to the file. Here we cache all the nodes
         encountered when traversing to all related cases.
 
+        Returns:
+            None
         """
-
         if self.relevant_nodes:
             return
 
@@ -2438,7 +2495,9 @@ class GraphIndexBuilder:
         return self.popular_nodes[node][labels]
 
     def _cache_experimental_strategies(self):
-        """Looking up the files that are classified in each
+        """Cache files classified in each experimental strategy.
+
+        Looking up the files that are classified in each
         experimental_strategy is a common computation.  Here we cache
         this information for easy retrieval.
 
@@ -2467,8 +2526,13 @@ class GraphIndexBuilder:
             )
 
     def _cache_file_properties(self):
-        """Cache file nodes by the following properties: experimental_strategy,
+        """Cache file nodes by some properties.
+
+        Cache file nodes by the following properties: experimental_strategy,
         data_type and data_category
+
+        Returns:
+            None
         """
         for file_ in self.nodes_labeled(self.file_labels):
             strategy = file_._props.get("experimental_strategy")
@@ -2485,10 +2549,12 @@ class GraphIndexBuilder:
 
 
 def get_namespaced_uuid(ns, seed):
-    """Creates a consistent UUID5 string using the provided args
+    """Create a consistent UUID5 string using the provided args.
+
     Args:
         ns (str): namespace
         seed (str): seed value
+
     Returns:
         str: uuid5 string
     """
@@ -2497,13 +2563,14 @@ def get_namespaced_uuid(ns, seed):
 
 
 def get_uuid_namespace(label):
-    """Returns a consistent uuid4 string for a given label
+    """Return a consistent uuid4 string for a given label.
+
     Args:
         label (str): a label for a namespace, for eg aliquots
+
     Returns:
         UUID: uuid4 string
     """
-
     if label in UUID_NAMESPACES:
         return UUID_NAMESPACES[label]
 
