@@ -1,6 +1,4 @@
-"""
-esbuild.graph.legacy.mimic
-----------------------------------
+"""esbuild.graph.legacy.mimic.
 
 Mimics the isolation of functionality such as filtering nodes from the
 index.
