@@ -1,6 +1,4 @@
-"""
-esbuild.graph.common.mappings
-----------------------------------
+"""esbuild.graph.common.mappings.
 
 Common definitions for building GDC Elasticsearch mappings
 
@@ -215,7 +213,6 @@ class ESMapper:
         Returns:
             The retrieved description, or None if none is set.
         """
-
         definition = gdcdictionary.schema[label]["properties"].get(prop)
         if not definition:
             return None
@@ -229,8 +226,7 @@ class ESMapper:
 
     @classmethod
     def get_descriptions_from_tree(cls, tree, root_name, path=""):
-        """Given a tree (file, case, etc) recurively aggregate the
-        descriptions
+        """Given a tree (file, case, etc) recurively aggregate the descriptions.
 
         :returns:
             Flattened dict of descriptions with keys like
@@ -263,7 +259,7 @@ class ESMapper:
 
     @classmethod
     def get_descriptions(cls):
-        """Get a description for properties of all defined node types"""
+        """Get a description for properties of all defined node types."""
         descriptions = {}
         descriptions.update(
             cls.get_descriptions_from_tree(cls.get_annotation_tree(), "annotations")
@@ -359,7 +355,7 @@ class ESMapper:
 
     @staticmethod
     def flatten_data_type(root):
-        """Compress nested data_type and sub_type into flat key/value
+        """Compress nested data_type and sub_type into flat key/value.
 
         ..note::
             data_type is renamed data_category, viz.
@@ -438,7 +434,6 @@ class ESMapper:
         Raises:
             ValueError: The given index is not recognized.
         """
-
         # Given that the actual mapping functions have different signatures and depend
         # on each other, wrapping them seems like the easiest way to provide a clean
         # interface, even if the next line is pretty ugly.
@@ -656,9 +651,7 @@ class ESMapper:
 
     @staticmethod
     def add_file_autocomplete(files):
-        """
-        Adds file autocomplete fields
-        """
+        """Add file autocomplete fields."""
         files.properties.data_category.copy_to = ["file_autocomplete"]
         files.properties.data_type.copy_to = ["file_autocomplete"]
         files.properties.experimental_strategy.copy_to = ["file_autocomplete"]
@@ -690,9 +683,7 @@ class ESMapper:
 
     @staticmethod
     def add_case_autocomplete(case):
-        """
-        Adds case autocomplete fields
-        """
+        """Add case autocomplete fields."""
         case.properties.case_autocomplete.fields.analyzed.analyzer = (
             "autocomplete_analyzed"
         )
@@ -751,9 +742,7 @@ class ESMapper:
 
     @staticmethod
     def add_project_autocomplete(project):
-        """
-        Adds project autocomplete fields
-        """
+        """Add project autocomplete fields."""
         project.properties.primary_site.copy_to = ["project_autocomplete"]
         project.properties.project_autocomplete.fields.analyzed.analyzer = (
             "autocomplete_analyzed"
@@ -782,9 +771,7 @@ class ESMapper:
 
     @staticmethod
     def add_annotation_autocomplete(annotation):
-        """
-        Adds annotation autocomplete fields
-        """
+        """Add annotation autocomplete fields."""
         annotation.properties.annotation_autocomplete.fields.analyzed.analyzer = (
             "autocomplete_analyzed"
         )
