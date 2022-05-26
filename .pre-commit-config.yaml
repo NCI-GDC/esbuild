@@ -53,10 +53,6 @@ repos:
         name: isort (pyi)
         types: [pyi]
         args: [--profile, black]
-      - id: isort
-        name: isort (pyi)
-        types: [pyi]
-        args: [--profile, black]
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.1.1
     hooks:
