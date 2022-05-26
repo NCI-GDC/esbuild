@@ -32,5 +32,7 @@ setup(
         "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.8.1-rc.2#egg=gdcmodels",
         "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@2.0.4#egg=normalizer",
     ],
-    scripts=["bin/esbuild-cli",],
+    scripts=[
+        "bin/esbuild-cli",
+    ],
 )

@@ -120,7 +120,8 @@ def process_work(
             log.info(f"Payload: {payload}")
 
             gdc_es.go(
-                roll_alias=not payload.get("no-roll"), send_events=not no_statsd,
+                roll_alias=not payload.get("no-roll"),
+                send_events=not no_statsd,
             )
         except Exception as e:
             log.exception(str(e))
@@ -131,7 +132,9 @@ def process_work(
 def minion_argparser():
     """Parses run arguments for esbuild minion"""
 
-    parser = argparse.ArgumentParser(description="Parses esbuild job parameters",)
+    parser = argparse.ArgumentParser(
+        description="Parses esbuild job parameters",
+    )
     parser.add_argument(
         "--queue-type",
         choices=["depot", "rabbitmq"],
