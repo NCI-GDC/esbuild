@@ -158,6 +158,7 @@ class GDCElasticsearch:
         self.indexd_client = indexd_client
 
         # TODO: This should use the helper function in utils.py
+        # https://jira.opensciencedatacloud.org/browse/DEV-1169
         self.graph = pg_driver or psqlgraph.PsqlGraphDriver(
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
