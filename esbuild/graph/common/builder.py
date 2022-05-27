@@ -9,7 +9,7 @@ import itertools
 import random
 import re
 import uuid
-from collections import abc, defaultdict
+from collections import defaultdict
 from copy import deepcopy
 from functools import lru_cache
 from typing import (
@@ -1784,7 +1784,7 @@ class GraphIndexBuilder:
         """
         """Return an iterator over the edges in the graph with label `label`."""
 
-        if isinstance(labels, abc.Iterable) and not isinstance(labels, str):
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
             labels = tuple(labels)
         else:
             labels = (labels,)
@@ -1826,7 +1826,7 @@ class GraphIndexBuilder:
         Returns:
             A generator of neighbors.
         """
-        if isinstance(labels, abc.Iterable) and not isinstance(labels, str):
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
             labels = tuple(labels)
         else:
             labels = (labels,)

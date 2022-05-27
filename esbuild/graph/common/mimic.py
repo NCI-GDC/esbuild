@@ -4,7 +4,6 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
-from collections import abc
 from typing import Iterable, Union
 
 from cdislogging import get_logger
@@ -30,7 +29,7 @@ class CommonMimic:
             entire graph cached.
 
         """
-        if isinstance(labels, abc.Iterable) and not isinstance(labels, str):
+        if isinstance(labels, Iterable) and not isinstance(labels, str):
             labels = set(labels)
         else:
             labels = {labels}
