@@ -183,16 +183,6 @@ def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_n
         assert (v36_submitter_id in submitter_ids) is include_v36
 
 
-def test_include_switch():
-    mapper = ActiveGraphIndexBuilder.mapper
-
-    mapping = mapper.get_file_es_mapping(include_case=False)
-    assert "cases" not in mapping["properties"]
-
-    mapping = mapper.get_case_es_mapping(include_file=False)
-    assert "files" not in mapping["properties"]
-
-
 @pytest.mark.parametrize(
     "index_type,path",
     [
@@ -204,17 +194,6 @@ def test_include_switch():
 )
 def test_path_is_absent(index, index_type, path):
     assert not parse(path).find(getattr(index, index_type))
-
-
-@pytest.mark.parametrize(
-    "path",
-    [
-        "sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads",
-        "sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads.alignment_workflow.aligned_reads",
-    ],
-)
-def test_get_case_to_file_path_is_present(path):
-    assert path.split(".") in ActiveGraphIndexBuilder.case_to_file_paths
 
 
 @pytest.mark.parametrize(
@@ -527,20 +506,6 @@ def test_case_summary_file_counts(index):
             [f for f in index.files if f["cases"][0]["case_id"] == case["case_id"]]
         )
         assert actual_count == case["summary"]["file_count"]
-
-
-@pytest.mark.parametrize(
-    "label,path",
-    [
-        ("submitted_aligned_reads", ["read_group"]),
-        (
-            "aligned_reads",
-            ["alignment_workflow", "submitted_aligned_reads", "read_group"],
-        ),
-    ],
-)
-def test_file_to_read_group_paths(label, path):
-    assert path in ActiveGraphIndexBuilder.file_to_read_group_paths[label]
 
 
 def test_get_file_read_groups(pg_driver, index):

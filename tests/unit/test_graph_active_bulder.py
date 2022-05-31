@@ -13,6 +13,27 @@ from esbuild.graph.active.builder import (
 from tests.unit.utils import get_dict_paths
 
 
+@pytest.fixture(scope="session")
+def mappings():
+    mapper = ActiveGraphIndexBuilder.mapper
+    return {
+        "file": mapper.get_file_es_mapping().to_dict(),
+        "annotation": mapper.get_annotation_es_mapping().to_dict(),
+        "case": mapper.get_case_es_mapping().to_dict(),
+        "project": mapper.get_project_es_mapping().to_dict(),
+    }
+
+
+def test_include_switch():
+    mapper = ActiveGraphIndexBuilder.mapper
+
+    mapping = mapper.get_file_es_mapping(include_case=False)
+    assert "cases" not in mapping["properties"]
+
+    mapping = mapper.get_case_es_mapping(include_file=False)
+    assert "files" not in mapping["properties"]
+
+
 @pytest.mark.parametrize(
     "prefix",
     [
@@ -33,7 +54,6 @@ def test_get_case_to_file_paths_contains_expected_path(prefix):
     )
 
 
-# TODO: relocate test to unit
 @pytest.mark.parametrize(
     "a,b,expected",
     [
@@ -87,17 +107,6 @@ def test_subtree_paths_to_file_expecting_empty():
 )
 def test_case_to_file_paths_is_absent(path):
     assert path not in ActiveGraphIndexBuilder.case_to_file_paths
-
-
-@pytest.fixture(scope="session")
-def mappings():
-    mapper = ActiveGraphIndexBuilder.mapper
-    return {
-        "file": mapper.get_file_es_mapping().to_dict(),
-        "annotation": mapper.get_annotation_es_mapping().to_dict(),
-        "case": mapper.get_case_es_mapping().to_dict(),
-        "project": mapper.get_project_es_mapping().to_dict(),
-    }
 
 
 @pytest.mark.parametrize("index_type", ["project", "case", "file", "annotation"])
@@ -213,3 +222,28 @@ def test_mapping_value_in(mappings, mapping, path, expected):
     results = parse(path).find(mappings[mapping])
     for r in results:
         assert r.value in expected
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads",
+        "sample.portion.analyte.aliquot.read_group.submitted_unaligned_reads.alignment_workflow.aligned_reads",
+    ],
+)
+def test_get_case_to_file_path_is_present(path):
+    assert path.split(".") in ActiveGraphIndexBuilder.case_to_file_paths
+
+
+@pytest.mark.parametrize(
+    "label,path",
+    [
+        ("submitted_aligned_reads", ["read_group"]),
+        (
+            "aligned_reads",
+            ["alignment_workflow", "submitted_aligned_reads", "read_group"],
+        ),
+    ],
+)
+def test_file_to_read_group_paths(label, path):
+    assert path in ActiveGraphIndexBuilder.file_to_read_group_paths[label]
