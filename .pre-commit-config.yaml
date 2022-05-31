@@ -53,8 +53,14 @@ repos:
         name: isort (pyi)
         types: [pyi]
         args: [--profile, black]
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.1.1
+    hooks:
+      - id: pydocstyle
+        args: [convention=google, --add-ignore, 'D100,D101,D102,D103,D104,D105,D106,D107']
+        exclude: ^(tests|unit_tests)/
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
-    rev: 0.1.0
+    rev: 0.2.1
     hooks:
       - id: yamlfmt
         args: [--mapping, '2', --sequence, '4', --offset, '2', --width, '80']

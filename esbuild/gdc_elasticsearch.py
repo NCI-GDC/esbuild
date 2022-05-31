@@ -1,9 +1,6 @@
-"""
-esbuild.gdc_elasticsearch
-----------------------------------
+"""esbuild.gdc_elasticsearch.
 
-Defines functions to build graph indices and upload them to
-Elasticsearch
+Define functions to build graph indices and upload them to Elasticsearch
 
 """
 import datetime
@@ -11,7 +8,7 @@ import json
 import os
 import time
 from concurrent import futures
-from typing import Iterable, List, NamedTuple, Optional, Tuple, Type
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
 
 import cdislogging
 import datadog
@@ -106,9 +103,7 @@ class TaskFactory:
 
 
 class GDCElasticsearch:
-
-    """
-    Walks the graph to produce elasticsearch json documents.
+    """Walks the graph to produce elasticsearch json documents.
 
     Attributes:
         converter_class (GraphIndexBuilder): builder class
@@ -162,6 +157,8 @@ class GDCElasticsearch:
 
         self.indexd_client = indexd_client
 
+        # TODO: This should use the helper function in utils.py
+        # https://jira.opensciencedatacloud.org/browse/DEV-1169
         self.graph = pg_driver or psqlgraph.PsqlGraphDriver(
             os.environ["PG_HOST"],
             os.environ["PG_USER"],
@@ -423,11 +420,19 @@ class GDCElasticsearch:
         self.log_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
 
     @staticmethod
-    def log_into_file(entries, path, file_nametag):
-        """
-        Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`
+    def log_into_file(entries: Union[List, Dict], path: str, file_nametag: str):
+        """Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`.
 
         Extension depends on whether `entries` is list or dict
+
+        Args:
+            entries: the entry or entries to log (seems used only as a dict for skipped
+                nodes)
+            path: path of the log file
+            file_nametag: log file prefix
+
+        Returns:
+            None
         """
         if isinstance(entries, list):
             extension = "list"
@@ -447,12 +452,15 @@ class GDCElasticsearch:
             elif isinstance(entries, dict):
                 f.write(json.dumps(entries, indent=2))
 
-    def pbar(self, title, max_value):
-        """Create and initialize a custom progressbar
+    def pbar(self, title: str, max_value: int) -> progressbar.ProgressBar:
+        """Create and initialize a custom progressbar.
 
-        :param str title: The text of the progress bar
-        :param int maxval: The maximum value of the progress bar
+        Args:
+            title: The text of the progress bar
+            max_value: The maximum value of the progress bar
 
+        Returns:
+            ProgressBar
         """
         pbar = progressbar.ProgressBar(
             widgets=[
@@ -480,15 +488,28 @@ class GDCElasticsearch:
 
     def create_and_populate_index(
         self,
-        index_type,
-        docs,
-        thread_count=THREAD_COUNT,
-        chunk_size=CHUNK_SIZE,
-        max_chunk_bytes=MAX_CHUNK_BYTES,
+        index_type: str,
+        docs: List[dict],
+        thread_count: int = THREAD_COUNT,
+        chunk_size: int = CHUNK_SIZE,
+        max_chunk_bytes: int = MAX_CHUNK_BYTES,
     ):
-        """
+        """Create index and populate it with docs.
+
         Create index and put mappings for a given index_type if it doesn't exist,
         otherwise proceed with document indexing
+
+        Args:
+            index_type: The index_type to upload documents to, one of annotation, case,
+                file, project,
+            docs: list of The documents to upload
+            thread_count: Number of threads to spawn during parallel bulk
+                index upload
+            chunk_size: Number of actions to perform per bulk request
+            max_chunk_bytes: Bulk request document size limit
+
+        Returns:
+            None
         """
         index_name = self.index_names[index_type]
         mapping_getter = mapping_getters[index_type]
@@ -506,11 +527,14 @@ class GDCElasticsearch:
         self.populate_index(index_type, docs, thread_count, chunk_size, max_chunk_bytes)
 
     def populate_index(
-        self, index_type, docs, thread_count, chunk_size, max_chunk_bytes
+        self,
+        index_type: str,
+        docs: List[Dict],
+        thread_count: int,
+        chunk_size: int,
+        max_chunk_bytes: int,
     ):
-        """Chunk and upload docs to Elasticsearch.  This function will raise
-        an exception of there were errors inserting any of the
-        documents
+        """Chunk and upload docs to Elasticsearch.
 
         Args:
             index_type (str): The index_type to upload documents to
@@ -519,8 +543,13 @@ class GDCElasticsearch:
                 index upload
             chunk_size (int): Number of actions to perform per bulk request
             max_chunk_bytes (int): Bulk request document size limit
-        """
 
+        Returns:
+            None
+
+        Raises:
+            RuntimeError when there are errors inserting any of the documents
+        """
         index_name = self.index_names[index_type]
         id_field = index_type + "_id"
         pbar = self.pbar(f"{index_name} upload ", len(docs))
@@ -567,14 +596,12 @@ class GDCElasticsearch:
         pbar.finish()
 
     def swap_index_alias(self, alias: str, new_index: str):
-        """
-        Switch the resolution of alias from old indices to new_index
+        """Switch the resolution of alias from old indices to new_index.
 
         Args:
             alias: alias that needs to be updated
             new_index: new index to be associated with the alias
         """
-
         self.drop_aliases(alias)
 
         self.log.info(f"Adding new alias: '{alias}' for indices: '{new_index}'")
@@ -586,7 +613,7 @@ class GDCElasticsearch:
 
         return self.es.indices.put_alias(index=new_index, name=alias)
 
-    def lookup_index_by_alias(self, alias):
+    def lookup_index_by_alias(self, alias: str):
         """
         Find a set of indices that an Elasticsearch alias is pointing to.
 
@@ -601,8 +628,15 @@ class GDCElasticsearch:
 
         return list(aliases)
 
-    def drop_aliases(self, alias):
-        """Remove all index aliases for `alias`"""
+    def drop_aliases(self, alias) -> Union[Dict, bool]:
+        """Remove all index aliases for `alias`.
+
+        Args:
+            alias:  A comma-separated list of index names
+
+        Returns:
+            indexclient response
+        """
         indices = self.lookup_index_by_alias(alias)
 
         if not indices:
@@ -618,20 +652,35 @@ class GDCElasticsearch:
 
     def deploy(
         self,
-        case_docs,
-        file_docs,
-        ann_docs,
-        project_docs,
-        roll_alias=True,
-        thread_count=THREAD_COUNT,
-        chunk_size=CHUNK_SIZE,
-        max_chunk_bytes=MAX_CHUNK_BYTES,
+        case_docs: List[Dict],
+        file_docs: List[Dict],
+        ann_docs: List[Dict],
+        project_docs: List[Dict],
+        roll_alias: bool = True,
+        thread_count: int = THREAD_COUNT,
+        chunk_size: int = CHUNK_SIZE,
+        max_chunk_bytes: int = MAX_CHUNK_BYTES,
     ):
-        """Create a new index with an name based on self.index_prefix, populate
+        """Create and populate new indices.
+
+        Create a new index with an name based on self.index_prefix, populate
         it with :func create_and_populate_index:, atomically switch the alias to
         point to the new index
-        """
 
+        Args:
+            case_docs: case documents to populate  case index
+            file_docs: file documents to populate  file index
+            ann_docs: annotation documents to populate  annotation index
+            project_docs: project documents to populate  project index
+            roll_alias: if true, point the alias to new indices
+            thread_count: Number of threads to spawn during parallel bulk
+                index upload
+            chunk_size: Number of actions to perform per bulk request
+            max_chunk_bytes: Bulk request document size limit
+
+        Returns:
+            None
+        """
         self.log.info("Deploying to index %s", self.index_prefix)
 
         for index_type, index_docs in [

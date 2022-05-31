@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, List, Optional
 
 import yaml
 from cdislogging import get_logger
@@ -15,9 +15,11 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 config = yaml.safe_load(open(os.path.join(root_dir, "config.yml")).read())
 
 
-def esbuild_argparser():
-    """
-    Returns argument parser for esbuild
+def esbuild_argparser() -> argparse.ArgumentParser:
+    """Return argument parser for esbuild.
+
+    Returns:
+        argument parser for esbuild
     """
     parser = argparse.ArgumentParser(
         description="Parameters to control esbuild runs",
@@ -73,7 +75,7 @@ def esbuild_argparser():
     )
     parser.add_argument(
         "--config",
-        help="A path to a yaml configruation file for overriding default configurations.",
+        help="A path to a yaml configuration file for overriding default configurations.",
         type=str,
     )
     parser.add_argument(
@@ -146,16 +148,29 @@ def esbuild_argparser():
     return parser
 
 
-def parse_args():
-    """Parses arguments, checks for sanity"""
+def parse_args() -> argparse.Namespace:
+    """Parse arguments, check for sanity.
 
+    Returns:
+        arguments namespace
+    """
     args = esbuild_argparser().parse_args()
     return args
 
 
-def split_projects(project_list, n, split_by_program=False):
-    """Splits list of projects into n parts"""
+def split_projects(
+    project_list: List[str], n: int, split_by_program: bool = False
+) -> List[List[str]]:
+    """Split list of projects into n parts.
 
+    Args:
+        project_list: a list of project code
+        n: number of partitions
+        split_by_program: use program name to split projects
+
+    Returns:
+        a list of split projects list
+    """
     if n == 1:
         return [project_list]
 
@@ -198,9 +213,21 @@ def split_projects(project_list, n, split_by_program=False):
         return result
 
 
-def backup_wrapper(snapshot_name, index_name, mode, s3_bucket=None):
-    """
-    Executes backup or restore procedure with BackupHelper
+def backup_wrapper(
+    snapshot_name: str, index_name: str, mode: str, s3_bucket: Optional[str] = None
+):
+    """Execute backup or restore procedure with BackupHelper.
+
+    Args:
+        snapshot_name: the name of the backup file
+        index_name: the name of the elasticsearch index to back up
+        mode: either `backup` index to s3 file or `restore` s3 file to index
+        s3_bucket: the s3 bucket the back-up file located
+
+    Returns:
+        None
+    Raises:
+        Exception: the mode is unknown
     """
     es_client = Elasticsearch(**ES_CONFIG)
 

@@ -1,6 +1,4 @@
-"""
-esbuild.graph.legacy.builder
-----------------------------------
+"""esbuild.graph.legacy.builder.
 
 Defines :class:`LegacyGraphIndexBuilder` for building the graph index
 for Legacy projects.
@@ -37,15 +35,13 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
     ]
 
     def denormalize_all(self):
-        """Return an entire index worth of case, file, annotation, and
-        project documents
+        """Return an entire index worth of case, file, annotation, and project documents.
 
         Overrides the Common Builder `denormalize_all()` method in
         order to include files from archives that are not attached to
         biospecimen nodes.
 
         """
-
         cases, files, annotations = self.denormalize_cases()
 
         # Add in files that weren't visited by denormalizing files
@@ -57,7 +53,7 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         return cases, files, annotations, projects
 
     def is_node_indexed(self, node):
-        """Augments parent's method"""
+        """Augments parent's method."""
         if not super().is_node_indexed(node):
             return False
         else:
@@ -70,15 +66,14 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
                 return True
 
     def get_archive_as_file_doc(self, archive):
-        """Returns a an archive doc in format consistent with file index"""
-
+        """Return an archive doc in format consistent with file index."""
         archive_doc = self.denormalize_file(archive, {})
         self.validate_against_mapping(archive_doc, self.file_mapping)
 
         return archive_doc
 
     def denormalize_archive_files(self, visited_file_ids=None):
-        """Starting at each archive in the graph, denormalize its files.
+        """Start at each archive in the graph, denormalize its files.
 
         This is intended to be used in addition to
         `self.denormalize_case()` wherein the set of resulting file
@@ -87,7 +82,6 @@ class LegacyGraphIndexBuilder(GraphIndexBuilder):
         along canonical paths.
 
         """
-
         archives = self.nodes_labeled("archive")
         file_docs = []
 

@@ -1,9 +1,11 @@
+from typing import List
+
 import elasticsearch
 
 
 class BackupHelper:
-    """
-    Wraps backup-restore to s3 operations for elasticsearch indices.
+    """Wrap backup-restore to s3 operations for elasticsearch indices.
+
     Elasticsearch cluster has to have 'repository-s3' plugin installed.
     Refer to https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html
     """
@@ -18,9 +20,9 @@ class BackupHelper:
             "bucket": s3_bucket,
         }
 
-    def create_repository(self, repository_name):
-        """
-        Creates repository in es cluster associated with S3 bucket
+    def create_repository(self, repository_name: str) -> None:
+        """Create repository in es cluster associated with S3 bucket.
+
         Cluster and bucket are chosen during __init__
         """
         repository_settings = {
@@ -36,21 +38,23 @@ class BackupHelper:
             repository=repository_name, body=repository_settings
         )
 
-    def delete_repository(self, repository_name, snapshot_name=None):
-        """
-        Deletes repository (default) or a particular snapshot
-        """
+    def delete_repository(
+        self, repository_name: str, snapshot_name: str = None
+    ) -> None:
+        """Delete repository (default) or a particular snapshot."""
         if not snapshot_name:
             self.es_snapshot.delete_repository(repository=repository_name)
         else:
             self.es_snapshot.delete(repository=repository_name, snapshot=snapshot_name)
 
     def store_snapshot(
-        self, repository_name, snapshot_name, indices, wait_for_completion=True
-    ):
-        """
-        Stores indices as a snapshot in s3 repository
-        """
+        self,
+        repository_name: str,
+        snapshot_name: str,
+        indices: List[str],
+        wait_for_completion=True,
+    ) -> None:
+        """Store indices as a snapshot in s3 repository."""
         # Create repository if not found
         if repository_name not in self.es_snapshot.get_repository():
             self.create_repository(repository_name)

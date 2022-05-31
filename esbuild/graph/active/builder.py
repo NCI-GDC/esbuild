@@ -1,5 +1,4 @@
-"""esbuild.graph.active.builder
-----------------------------------
+"""esbuild.graph.active.builder.
 
 Defines :class:`ActiveGraphIndexBuilder` for building the graph index
 for Active projects.
@@ -7,7 +6,7 @@ for Active projects.
 Strategy to add analysis and file types:
 
 - An attempt to balance abstraction by creating the traversals from a
-known point to limit wandering through the graph.  Currently the
+known point to limit wandering through the graph.  Currently, the
 subgraph that includes active data_file and analysis nodes is isolated
 by removing read_group, so we create a readgroup subtree and append
 all paths generated in the readgroup subtree to paths from aliquot to
@@ -17,6 +16,8 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
+from typing import List, Optional, Set
+
 from cdislogging import get_logger
 from gdcdatamodel.models import ReadGroup
 
@@ -29,8 +30,8 @@ log = get_logger("graph_active_index", log_level="info")
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 
-def reverse_and_skip_first_entry(path):
-    """Returns a path that
+def reverse_and_skip_first_entry(path: List) -> List:
+    """Return a path that.
 
     1. is reversed and
     2. has the first step (in reversed order) removed
@@ -40,12 +41,11 @@ def reverse_and_skip_first_entry(path):
     that node. Example: ``['a', 'b', 'c'] -> ['b', 'a']``
 
     """
-
     return path[-2::-1]
 
 
-def list_product(roots, subtrees):
-    """Appends each subtree to each root.
+def list_product(roots: List, subtrees: List) -> List:
+    """Append each subtree to each root.
 
     It's not quite a cartesian product, example::
 
@@ -64,15 +64,27 @@ def list_product(roots, subtrees):
 
 
 def subtree_paths_to_file(
-    cls, paths=None, visited=None, categories=None, exclude_paths_through=None
-):
-    """Recurse through all child nodes in categories :param:`categories`
+    cls,
+    paths: Optional[List[List[str]]] = None,
+    visited: Optional[List[str]] = None,
+    categories: Optional[Set[str]] = None,
+    exclude_paths_through: Optional[set] = None,
+) -> List[List[str]]:
+    """Find paths to file nodes in subtree.
+
+    Recurse through all child nodes in categories :param:`categories`
     and return all paths from :param:`cls` to destination child file
     nodes.
 
-    :param cls: The originating node class
-    :param categories: The set of categories through which recursion is allowed
+    Args:
+        cls: The originating node class
+        paths: Paths to file nodes
+        visited: visited child labels
+        categories: The set of categories through which recursion is allowed
+        exclude_paths_through: child labels to skip
 
+    Returns:
+        paths to file nodes
     """
     if categories is None:
         categories = {"data_file", "analysis"}
@@ -378,7 +390,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return doc
 
     def get_file_index_files(self, node):
-        """Given a file, return any neighboring index files"""
+        """Given a file, return any neighboring index files."""
         return [
             n
             for n in list(self.get_child_with_category(node, "index_file"))
@@ -386,8 +398,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ]
 
     def get_parent_with_category(self, node, category):
-        """returns iterable of neighors from outbound edges with category"""
-
+        """Return iterable of neighbors from outbound edges with category."""
         labels = [
             l["dst_type"].label
             for l in node._pg_links.values()
@@ -397,8 +408,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return self.neighbors_labeled(node, labels)
 
     def get_child_with_category(self, node, category):
-        """returns iterable of neighors from inbound edges with category"""
-
+        """Return iterable of neighbors from inbound edges with category."""
         labels = [
             l["src_type"].label
             for l in node._pg_backrefs.values()
@@ -408,8 +418,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return self.neighbors_labeled(node, labels)
 
     def add_file_analysis(self, node, doc):
-        """Add the 'analysis' that produced the current file"""
-
+        """Add the 'analysis' that produced the current file."""
         analyses = list(self.get_parent_with_category(node, "analysis"))
 
         if analyses:
@@ -432,8 +441,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             )
 
     def add_file_downstream_analyses(self, node, doc):
-        """Add the 'analysis' that produced the current file"""
-
+        """Add the 'analysis' that produced the current file."""
         analyses = list(self.get_child_with_category(node, "analysis"))
 
         for analysis in analyses:
@@ -442,8 +450,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc.setdefault("downstream_analyses", []).append(analysis_doc)
 
     def add_analysis_input_files(self, node, doc):
-        """For a given analysis node, add the input_files to the doc"""
-
+        """For a given analysis node, add the input_files to the doc."""
         input_files = [
             f
             for f in self.get_parent_with_category(node, "data_file")
@@ -455,8 +462,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc.setdefault("input_files", []).extend(input_file_docs)
 
     def add_analysis_output_files(self, node, doc):
-        """For a given analysis node, add the output_files to the doc"""
-
+        """For a given analysis node, add the output_files to the doc."""
         output_files = [
             f
             for f in self.get_child_with_category(node, "data_file")
@@ -468,8 +474,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc.setdefault("output_files", []).extend(output_file_docs)
 
     def add_analysis_metadata(self, analysis, read_groups, doc):
-        """For a given analysis node, add the metadata to the doc"""
-
+        """For a given analysis node, add the metadata to the doc."""
         metadata_doc = {}
 
         if analysis.label in self.analysis_metadata["read_groups"]:
@@ -479,8 +484,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc["metadata"] = metadata_doc
 
     def add_analysis_metadata_read_groups(self, read_groups, doc):
-        """For a given analysis node, add read_groups to the metadata subdoc"""
-
+        """For a given analysis node, add read_groups to the metadata subdoc."""
         read_group_docs = []
 
         for read_group in read_groups:
@@ -496,8 +500,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
             doc["read_groups"] = read_group_docs
 
     def get_read_group_qc_docs(self, read_group):
-        """Returns a list of documents for Read Group QCs"""
-
+        """Return a list of documents for Read Group QCs."""
         read_group_qc_docs = []
         rg_qcs = self.neighbors_labeled(read_group, "read_group_qc")
         for read_group_qc in rg_qcs:
@@ -506,22 +509,20 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return read_group_qc_docs
 
     def get_file_read_groups(self, node):
-        """Given a data_file node, traverse up the tree to read_groups
+        """Given a data_file node, traverse up the tree to read_groups.
 
         :returns: set of read_groups
 
         """
-
         paths = self.file_to_read_group_paths.get(node.label, [])
         return set(self.walk_paths(node, paths))
 
     def get_analysis_read_groups(self, node):
-        """Given a analysis node, traverse up the tree to read_groups:
+        """Given a analysis node, traverse up the tree to read_groups.
 
         :returns: set of read_groups
 
         """
-
         return {
             path
             for file_ in self.get_parent_with_category(node, "data_file")
@@ -529,8 +530,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         }
 
     def get_simple_file_doc(self, node):
-        """Create a simple file doc for {input,output}_files"""
-
+        """Create a simple file doc for {input,output}_files."""
         doc = self._get_base_doc(node)
 
         self.add_data_category(node, doc)
@@ -544,8 +544,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         return doc
 
     def get_file_associated_entities(self, node):
-        """Returns a list of entities that are 'associated' with a file"""
-
+        """Return a list of entities that are 'associated' with a file."""
         entities = super().get_file_associated_entities(node)
 
         # Add entities via read_group

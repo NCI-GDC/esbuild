@@ -314,6 +314,7 @@ def test_mapping_value_in(mappings, mapping, path, expected):
         assert r.value in expected
 
 
+# TODO: relocate test to unit
 @pytest.mark.parametrize(
     "a,b,expected",
     [
@@ -335,6 +336,7 @@ def test_list_product(a, b, expected):
     assert list_product(a, b) == expected
 
 
+# TODO: relocate test to unit
 @pytest.mark.parametrize(
     "node,expected",
     [
@@ -354,10 +356,12 @@ def test_subtree_paths_to_file_subset(node, expected):
     assert expected in subtree_paths_to_file(node)
 
 
+# TODO: relocate test to unit
 def test_subtree_paths_to_file_expecting_empty():
     assert subtree_paths_to_file(md.Annotation) == []
 
 
+# TODO: relocate test to unit
 @pytest.mark.parametrize(
     "path",
     [
@@ -393,6 +397,7 @@ def test_get_case_to_file_path_is_present(path):
     assert path.split(".") in ActiveGraphIndexBuilder.case_to_file_paths
 
 
+# TODO: relocate test to unit
 @pytest.mark.parametrize(
     "prefix",
     [

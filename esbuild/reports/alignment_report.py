@@ -69,7 +69,7 @@ class AlignmentReporter:
 
     @property
     def totals(self):
-        "totals per zhenyu"
+        """Totals per zhenyu."""
         return {
             "WGS (>= 320 GB)": 364,
             "WGS (< 320 GB)": 4355,
@@ -82,7 +82,7 @@ class AlignmentReporter:
 
     @property
     def total_sizes(self):
-        "total sizes (in bytes) per zhenyu"
+        """Total sizes (in bytes) per zhenyu."""
         return {
             "WGS (>= 320 GB)": 161761091978632,
             "WGS (< 320 GB)": 365747226114438,

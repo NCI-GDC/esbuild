@@ -1,5 +1,4 @@
-"""esbuild.graph.legacy.mappings
-----------------------------------
+"""esbuild.graph.legacy.mappings.
 
 Defines the Elasticsearch mappings for the main GDC graph index.
 

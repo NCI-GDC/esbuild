@@ -1,12 +1,10 @@
-"""
-esbuild.graph.common.mimic
-----------------------------------
+"""esbuild.graph.common.mimic.
 
 Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
-from collections.abc import Iterable
+from typing import Iterable, Union
 
 from cdislogging import get_logger
 
@@ -14,10 +12,14 @@ log = get_logger(__name__, log_level="info")
 
 
 class CommonMimic:
-    """Mixin for mimic classes"""
+    """Mixin for mimic classes."""
 
-    def neighbors_labeled(self, node, labels, *args, **kwargs):
-        """For a given node, return an iterator with generates neighbors to
+    def neighbors_labeled(
+        self, node, labels: Union[str, Iterable[str]], *args, **kwargs
+    ):
+        """Get node neighbors whose label is in labels.
+
+        For a given node, return an iterator with generates neighbors to
         that node that are in a list of labels.  `label` can be either a
         string or list of strings.
 
@@ -27,7 +29,6 @@ class CommonMimic:
             entire graph cached.
 
         """
-
         if isinstance(labels, Iterable) and not isinstance(labels, str):
             labels = set(labels)
         else:

@@ -7,6 +7,7 @@ from hashlib import md5
 from reprlib import repr
 from typing import Dict, FrozenSet, Iterable, Optional
 
+import psqlgraph
 from cdislogging import get_logger
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
@@ -109,9 +110,11 @@ def extract_indexd_metadata(doc, fields=None, getters=None):
 
 
 class VersionedNodesDiffCollector:
-    """pre-processing step to identify files that haven't been yet released,
-    but have old versions
+    """collects differences between corresponding new and old version.
 
+    pre-processing step to identify files that haven't been yet released,
+    but have old versions. Look up metadata nodes in the same TransactionLog that
+    the version action happened
     """
 
     TARGET_NODE_STATES = ["validated", "submitted"]
@@ -249,10 +252,8 @@ class VersionedNodesDiffCollector:
         # Return an empty list if unable to query IndexD
         return []
 
-    def get_old_props(self, node):
-        """
-        Given a Node, collect old properties from TransactionSnapshot and IndexD
-        """
+    def get_old_props(self, node: psqlgraph.Node) -> dict:
+        """Given a Node, collect old properties from TransactionSnapshot and IndexD."""
         # Lookup TransactionSnapshot with 'version' action
         transaction_props = self.get_props_from_snapshot(node.node_id, "version")
 
@@ -292,8 +293,7 @@ class VersionedNodesDiffCollector:
 
 
 class ReleaseHelper:
-    """
-    Prepares previously stored index to be used in a next data release
+    """Prepares previously stored index to be used in a next data release.
 
     Attributes:
         es: Elatcisearch client instance
@@ -302,7 +302,8 @@ class ReleaseHelper:
     """
 
     def __init__(self, es: Elasticsearch, audit_index: str, audit: bool = True):
-        """
+        """Initialize release helper.
+
         Usage:
             - initialize the helper
             - run .prepare_index_to_build()
@@ -316,7 +317,8 @@ class ReleaseHelper:
     def get_project_docs_query(
         cls, index_type: str, project_ids: Optional[Iterable[str]] = None
     ) -> Dict:
-        """
+        """Create a query for documents of a given index_type and project_ids.
+
         Create a query that will return all documents from a given ``index_type``
         for a given subset of ``project_ids``. If no ``project_ids`` were passed,
         return all documents from the index
@@ -354,8 +356,7 @@ class ReleaseHelper:
     def delete_docs_from_index(
         self, index_name: str, index_type: str, projects_to_delete: Iterable[str]
     ):
-        """
-        Removes ebsuild docs associated with selected projects from the index.
+        """Remove ebsuild docs associated with selected projects from the index.
 
         Args:
             index_name: ES index to remove docs from
@@ -425,9 +426,7 @@ class ReleaseHelper:
         return md5hash.hexdigest()
 
     def get_project_ids(self, index_prefix):
-        """
-        Returns set of projects based on project documents in index
-        """
+        """Return set of projects based on project documents in index."""
         query = {"query": {"match_all": {}}, "stored_fields": "_id"}
 
         project_index = index_prefix + "_project"
@@ -443,9 +442,7 @@ class ReleaseHelper:
         return projects
 
     def wait_for_es(self, index_name, query=None, max_wait_sec=30):
-        """
-        Wait for query to return non empty result
-        """
+        """Wait for query to return non empty result."""
         if query is None:
             query = {"match_all": {}}
 
@@ -485,8 +482,8 @@ def get_index_names(
     return {index_type: f"{index_prefix}_{index_type}" for index_type in index_types}
 
 
-def force_merge_indices(es, index_prefix=None, index_names=()):
-    """Force-merging the graph indices down to a single segment
+def force_merge_indices(es, index_prefix=None, index_names=()) -> None:
+    """Force-merging the graph indices down to a single segment.
 
     Args:
         es: Elasticsearch client
@@ -494,7 +491,10 @@ def force_merge_indices(es, index_prefix=None, index_names=()):
         index_names: index names
 
     Returns:
+        None
 
+    Raises:
+        Value Error for wrong input arguments.
     """
     if not index_prefix and not index_names:
         raise ValueError("index_prefix or index_name must be provided")
@@ -512,7 +512,7 @@ def force_merge_indices(es, index_prefix=None, index_names=()):
 
 
 def get_all_gencode_versions(gencode_version: str) -> FrozenSet[str]:
-    """Map specified gencode version to all allowed gencode versions"""
+    """Map specified gencode version to all allowed gencode versions."""
     gencode_versions = (
         builder.AVAILABLE_GENCODE_VERSIONS
         if gencode_version == "all"

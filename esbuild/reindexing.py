@@ -417,7 +417,9 @@ class Reindexer:
         script: Optional[str] = None,
         script_language: Optional[str] = None,
     ):
-        """Starts the Elasticsearch reindex process which moves the data from
+        """Start the Elasticsearch reindex process.
+
+        Start the Elasticsearch reindex process which moves the data from
         an existing index into a different (new or existing) index. If the new
         index has not yet been created this process will create the new index
         using the current GDC models before calling the reindexing process.
