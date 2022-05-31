@@ -8,7 +8,7 @@ import json
 import os
 import time
 from concurrent import futures
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
 
 import cdislogging
 import datadog
@@ -157,14 +157,7 @@ class GDCElasticsearch:
 
         self.indexd_client = indexd_client
 
-        # TODO: This should use the helper function in utils.py
-        # https://jira.opensciencedatacloud.org/browse/DEV-1169
-        self.graph = pg_driver or psqlgraph.PsqlGraphDriver(
-            os.environ["PG_HOST"],
-            os.environ["PG_USER"],
-            os.environ["PG_PASS"],
-            os.environ["PG_NAME"],
-        )
+        self.graph = pg_driver or utils.get_default_pg_driver()
         self.index_prefix = index_prefix
         self.build_projects = build_projects
         self.selective_caching = selective_caching
