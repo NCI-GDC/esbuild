@@ -3,6 +3,7 @@ from pprint import pprint
 import pytest
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
+from jsonpath_rw import parse
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,
@@ -130,3 +131,85 @@ def validate_mappings(mappings, index_type):
 
     # Set of extra paths must be emty:
     assert extra_paths == set()
+
+
+@pytest.mark.parametrize(
+    "index_type,field,substring",
+    [
+        ("annotation", "annotations.analyte.project_id", "Unique ID for any specific"),
+        ("annotation", "annotations.annotation.submitter_id", "project-specific"),
+        ("annotation", "annotations.slide.section_location", "Tissue source"),
+        ("case", "cases.case.created_datetime", "combination of date and time"),
+        ("case", "cases.case.primary_site", "the primary site of disease"),
+        ("case", "cases.diagnoses.morphology", "The third edition"),
+        ("case", "cases.follow_ups.molecular_tests.intron", "Intron number"),
+        ("case", "cases.project.code", "Project code"),
+        ("file", "files.center.code", "Numeric code for the center"),
+        ("file", "files.file.md5sum", "The 128-bit hash"),
+        ("project", "projects.project.state", "The possible states"),
+    ],
+)
+def test_mapping_descriptions(mappings, index_type, field, substring):
+    """Spot-check the descriptions for some fields in the mappings.
+
+    Confirm some is present in those descriptions, based on what was in the dictionary
+    at the time this test was written.
+    """
+    description = mappings[index_type]["_meta"]["descriptions"].get(field)
+    assert description is not None and substring in description
+
+
+@pytest.mark.parametrize(
+    "mapping,path",
+    [
+        (
+            "file",
+            "properties.analysis.properties.metadata.properties.read_groups.properties.read_group_qcs",
+        ),
+        ("file", "properties.analysis.properties.input_files.properties.data_category"),
+        (
+            "file",
+            "properties.downstream_analyses.properties.output_files.properties.data_category",
+        ),
+        ("case", "_meta.descriptions"),
+        (
+            "case",
+            '_meta.descriptions."cases.samples.portions.analytes.a260_a280_ratio"',
+        ),
+        ("project", "_meta.descriptions"),
+        ("annotation", "_meta.descriptions"),
+    ],
+)
+def test_mapping_contains(mappings, mapping, path):
+    results = parse(path).find(mappings[mapping])
+    assert len([r.value for r in results]) == 1
+
+
+@pytest.mark.parametrize(
+    "mapping,path",
+    [
+        ("file", "properties.uploaded_datetime"),
+        ("file", "properties.project_id"),
+        ("file", "properties.cases.properties.samples.properties.project_id"),
+        ("case", "properties.project_id"),
+        ("case", "properties.metadata_files"),
+        ("case", "properties.samples.properties.aliquots"),
+        ("case", "properties.samples.properties.portions.properties.project_id"),
+        ("annotation", "properties.creator"),
+        ("annotation", "properties.project_id"),
+    ],
+)
+def test_mapping_does_not_contain(mappings, mapping, path):
+    assert len(parse(path).find(mappings[mapping])) == 0
+
+
+@pytest.mark.parametrize(
+    "mapping,path,expected",
+    [
+        ("file", "properties.downstream_analyses.type", ["nested"]),
+    ],
+)
+def test_mapping_value_in(mappings, mapping, path, expected):
+    results = parse(path).find(mappings[mapping])
+    for r in results:
+        assert r.value in expected
