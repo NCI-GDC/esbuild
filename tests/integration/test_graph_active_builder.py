@@ -13,11 +13,7 @@ from gdcdatamodel import models as md
 from gdcmodels import get_es_models
 from jsonpath_rw import parse
 
-from esbuild.graph.active.builder import (
-    ActiveGraphIndexBuilder,
-    list_product,
-    subtree_paths_to_file,
-)
+from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import GraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
 from tests.integration.data import get_node_id
@@ -314,65 +310,6 @@ def test_mapping_value_in(mappings, mapping, path, expected):
         assert r.value in expected
 
 
-# TODO: relocate test to unit
-@pytest.mark.parametrize(
-    "a,b,expected",
-    [
-        (
-            [["a", "b"], ["-", "#"]],
-            [[0, 1], [2, 3], [4, 5, 6, 7]],
-            [
-                ["a", "b", 0, 1],
-                ["a", "b", 2, 3],
-                ["a", "b", 4, 5, 6, 7],
-                ["-", "#", 0, 1],
-                ["-", "#", 2, 3],
-                ["-", "#", 4, 5, 6, 7],
-            ],
-        )
-    ],
-)
-def test_list_product(a, b, expected):
-    assert list_product(a, b) == expected
-
-
-# TODO: relocate test to unit
-@pytest.mark.parametrize(
-    "node,expected",
-    [
-        (md.RnaExpressionWorkflow, ["gene_expression"]),
-        (
-            md.ReadGroup,
-            [
-                "submitted_aligned_reads",
-                "aligned_reads",
-                "somatic_mutation_calling_workflow",
-                "simple_somatic_mutation",
-            ],
-        ),
-    ],
-)
-def test_subtree_paths_to_file_subset(node, expected):
-    assert expected in subtree_paths_to_file(node)
-
-
-# TODO: relocate test to unit
-def test_subtree_paths_to_file_expecting_empty():
-    assert subtree_paths_to_file(md.Annotation) == []
-
-
-# TODO: relocate test to unit
-@pytest.mark.parametrize(
-    "path",
-    [
-        ["case", "sample", "portion", "analyte", "aliquot"],
-        ["case", "sample", "aliquot"],
-    ],
-)
-def test_case_to_file_paths_is_absent(path):
-    assert path not in ActiveGraphIndexBuilder.case_to_file_paths
-
-
 @pytest.mark.parametrize(
     "index_type,path",
     [
@@ -395,27 +332,6 @@ def test_path_is_absent(index, index_type, path):
 )
 def test_get_case_to_file_path_is_present(path):
     assert path.split(".") in ActiveGraphIndexBuilder.case_to_file_paths
-
-
-# TODO: relocate test to unit
-@pytest.mark.parametrize(
-    "prefix",
-    [
-        ["sample", "aliquot", "read_group"],
-        ["sample", "portion", "analyte", "aliquot", "read_group"],
-    ],
-)
-def test_get_case_to_file_paths_contains_expected_path(prefix):
-    assert (
-        prefix
-        + [
-            "submitted_aligned_reads",
-            "aligned_reads",
-            "somatic_mutation_calling_workflow",
-            "simple_somatic_mutation",
-        ]
-        in ActiveGraphIndexBuilder.case_to_file_paths
-    )
 
 
 @pytest.mark.parametrize(
