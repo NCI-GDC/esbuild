@@ -6,18 +6,16 @@ Test the builder for graph ES index
 
 """
 from functools import reduce
-from pprint import pprint
 
 import pytest
 from gdcdatamodel import models as md
-from gdcmodels import get_es_models
 from jsonpath_rw import parse
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import GraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
 from tests.integration.data import get_node_id
-from tests.integration.test_utils import get_dict_paths, validate_file_metadata
+from tests.integration.test_utils import validate_file_metadata
 
 DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
 DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
@@ -96,39 +94,6 @@ def diagnosis_annotations(generate_scenario):
 
 # ======================================================================
 # Tests
-
-
-@pytest.mark.parametrize("index_type", ["project", "case", "file", "annotation"])
-def test_mapping_full(mappings, index_type):
-    """Compare mappings defined in mappings.py to gdc-models"""
-    validate_mappings(mappings, index_type)
-
-
-def validate_mappings(mappings, index_type):
-    """Asserts that set of expected by gdc-models paths is equal
-    to the mappings' paths set"""
-    es_mapping = mappings[index_type]["properties"]
-    true_mapping = get_es_models()["gdc_from_graph"][index_type]["_mapping"][
-        "properties"
-    ]
-
-    es_paths = get_dict_paths(es_mapping)[0]
-    true_paths = get_dict_paths(true_mapping)[0]
-
-    missing_paths = set(true_paths) - set(es_paths)
-    extra_paths = set(es_paths) - set(true_paths)
-
-    if missing_paths:
-        pprint({"index_type": index_type, "missing_paths": missing_paths})
-
-    if extra_paths:
-        pprint({"index_type": index_type, "extra_paths": extra_paths})
-
-    # Set of missing paths must be empty:
-    assert missing_paths == set()
-
-    # Set of extra paths must be emty:
-    assert extra_paths == set()
 
 
 @pytest.mark.parametrize(
