@@ -56,26 +56,6 @@ def validate_file_metadata(key, value):
             )
 
 
-def get_dict_paths(d, path_list=None, path="root"):
-    """
-    Returns list of all paths in a dict and a last path found
-    """
-    if path_list is None:
-        path_list = []
-
-    for k, v in d.items():
-        subpath = path + "." + k
-        if isinstance(v, dict):
-            sublist, subpath = get_dict_paths(v, path_list, subpath)
-        else:
-            if isinstance(v, list):
-                sublist = [path + "." + k + "." + str(e) for e in v]
-            else:
-                sublist = [path + "." + k + "." + str(v)]
-        path_list.extend(sublist)
-    return list(set(path_list)), path
-
-
 def test_projects_deleted(es_after_deletion):
     es, index_name, projects_before, deleted_projects = es_after_deletion
     helper = ReleaseHelper(es, audit_index="build_metadata_test")
