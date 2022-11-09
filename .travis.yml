@@ -44,7 +44,7 @@ install:
   # Make sure we have a new enough virtualenv to get a version of pip that
   # understands VCS URLs. Install virtualenv before running tox because
   # tox-travis seems to break if we let tox upgrade it for us.
-  - pip install tox-travis 'virtualenv>=20.0.21' 'pip >= 20.1.1' 'pip-tools==6.3.0'
+  - pip install tox-travis 'virtualenv>=20.0.21' 'pip >= 20.1.1'
 
 before_script:
   # Wait for elasticsearch to be up

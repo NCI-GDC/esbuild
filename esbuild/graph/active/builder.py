@@ -272,6 +272,14 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         ],
     )
 
+    case_to_genotyping_array_paths = list_product(
+        case_to_aliquot, [["submitted_genotyping_array"]]
+    )
+    case_to_germline_variation_paths = list_product(
+        case_to_genotyping_array_paths,
+        [["germline_mutation_calling_workflow", "simple_germline_variation"]],
+    )
+
     case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
     case_to_file_paths += case_to_copy_number_segment_paths
     case_to_file_paths += case_to_copy_number_estimate_paths
@@ -280,6 +288,8 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += case_to_protein_expression
     case_to_file_paths += case_to_raw_methylation_array_paths
     case_to_file_paths += case_to_masked_methylation_array_paths
+    case_to_file_paths += case_to_genotyping_array_paths
+    case_to_file_paths += case_to_germline_variation_paths
 
     file_labels = GraphIndexBuilder.node_labels_by_category(
         [
