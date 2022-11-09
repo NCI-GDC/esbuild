@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from collections import namedtuple
+from typing import NamedTuple, Sequence
 
 import psqlgraph
 import pytest
@@ -35,7 +36,6 @@ from tests.integration import data, es_data
 # ======================================================================
 # Test Settings
 
-Index = namedtuple("Index", "cases, files, annotations, projects")
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
@@ -52,6 +52,13 @@ ES_PORT = 9200
 
 logger = logging.getLogger("conftest")
 logger.setLevel(logging.DEBUG)
+
+
+class Index(NamedTuple):
+    cases: Sequence[dict]
+    files: Sequence[dict]
+    annotations: Sequence[dict]
+    projects: Sequence[dict]
 
 
 def clear_graph_database(pg_driver):

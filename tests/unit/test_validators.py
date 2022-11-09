@@ -13,7 +13,7 @@ from esbuild.graph.common import validators
         (models.MethylationBetaValue(), False),
         (models.SubmittedAlignedReads(), True),
         (models.SubmittedGenomicProfile(), True),
-        (models.SubmittedGenotypingArray(), True),
+        (models.SubmittedGenotypingArray(), False),
         (models.SubmittedMethylationBetaValue(), True),
         (models.SubmittedTangentCopyNumber(), True),
         (models.SubmittedUnalignedReads(), True),

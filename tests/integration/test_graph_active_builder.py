@@ -7,8 +7,10 @@ Test the builder for graph ES index
 """
 from functools import reduce
 
+import psqlgraph
 import pytest
 from gdcdatamodel import models as md
+from indexclient import client
 from jsonpath_rw import parse
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
@@ -692,7 +694,10 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     assert "slide_2" in si2_entity_ids
 
 
-def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numbers):
+@pytest.mark.usefixtures("gpas_copy_numbers")
+def test_gpas_copy_number_nodes_picked_up(
+    pg_driver: psqlgraph.PsqlGraphDriver, init_indexd: client.IndexClient
+) -> None:
     """
     Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up
     """
@@ -704,19 +709,26 @@ def test_gpas_copy_number_nodes_picked_up(pg_driver, init_indexd, gpas_copy_numb
 
     cases, files, _, _ = builder.denormalize_all()
 
-    file_submitter_ids = {f.get("submitter_id") for f in files}
+    file_submitter_ids = frozenset({f.get("submitter_id", "") for f in files})
 
-    # 6 additional files: 2 CNE, 2 CNS, 2 ARs
-    expected_submitter_ids = {
-        "cn_cne_1",
-        "cn_cne_2",
-        "cn_cns_1",
-        "cn_cns_2",
-        "cn_ar_1",
-        "cn_ar_2",
-    }
-    assert len(files) == N_FILES + 6
-    assert expected_submitter_ids.issubset(file_submitter_ids), file_submitter_ids
+    # 8 additional files: 2 CNE, 2 CNS, 2 ARs, 2 SGA
+    expected_submitter_ids = frozenset(
+        {
+            "cn_cne_1",
+            "cn_cne_2",
+            "cn_cns_1",
+            "cn_cns_2",
+            "cn_ar_1",
+            "cn_ar_2",
+            "cn_sga_1",
+            "cn_sga_2",
+        }
+    )
+
+    assert len(files) == N_FILES + len(expected_submitter_ids)
+    assert (
+        expected_submitter_ids < file_submitter_ids
+    ), f"Missing: {expected_submitter_ids - file_submitter_ids}"
 
 
 @pytest.mark.usefixtures("diagnosis_annotations")

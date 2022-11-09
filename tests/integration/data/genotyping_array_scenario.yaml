@@ -1,0 +1,35 @@
+---
+nodes:
+  - label: case
+    submitter_id: gta_c0
+
+  - label: sample
+    submitter_id: gta_s0
+  - label: portion
+    submitter_id: gta_p0
+  - label: analyte
+    submitter_id: gta_an0
+  - label: aliquot
+    submitter_id: gta_al0
+  - label: submitted_genotyping_array
+    submitter_id: gta_sgta0
+  - label: germline_mutation_calling_workflow
+    submitter_id: gta_gmcw0
+  - label: simple_germline_variation
+    submitter_id: gta_sgv0
+
+edges:
+  - src: gta_c0
+    dst: gta_s0
+  - src: gta_s0
+    dst: gta_p0
+  - src: gta_p0
+    dst: gta_an0
+  - src: gta_an0
+    dst: gta_al0
+  - src: gta_al0
+    dst: gta_sgta0
+  - src: gta_sgta0
+    dst: gta_gmcw0
+  - src: gta_gmcw0
+    dst: gta_sgv0

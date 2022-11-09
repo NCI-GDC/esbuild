@@ -6,6 +6,9 @@ def is_node_hidden(node):
 
     """
     # Hide all submitted_* node types from indices
+    if node.label == "submitted_genotyping_array":
+        return False
+
     return node.label.startswith("submitted_") or node.label in [
         "archive",
         "raw_methylation_array",
