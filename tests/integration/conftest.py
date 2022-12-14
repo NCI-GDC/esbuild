@@ -96,27 +96,19 @@ def create_all(engine):
     models.FileReport.metadata.create_all(engine)
 
 
-@pytest.fixture(scope="session")
-def graph(postgresql_proc):
-    with DatabaseJanitor(
-        user=postgresql_proc.user,
-        host=postgresql_proc.host,
-        port=postgresql_proc.port,
-        dbname=postgresql_proc.dbname,
-        version=postgresql_proc.version,
-        password=postgresql_proc.password,
-    ):
+@pytest.fixture
+def graph(postgresql):
 
-        pg_conn = PsqlGraphDriver(
-            host=f"{postgresql_proc.host}:{postgresql_proc.port}",
-            user=postgresql_proc.user,
-            password=postgresql_proc.password,
-            database=postgresql_proc.dbname,
-        )
+    pg_conn = PsqlGraphDriver(
+        host=f"{postgresql.info.host}:{postgresql.info.port}",
+        user=postgresql.info.user,
+        password=postgresql.info.password,
+        database=postgresql.info.dbname,
+    )
 
-        create_all(pg_conn.engine)
+    create_all(pg_conn.engine)
 
-        yield pg_conn
+    yield pg_conn
 
 
 @pytest.fixture
@@ -182,19 +174,19 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch, postgresql_proc):
+def environment(monkeypatch, postgresql):
     """Monkeypatch the script environment"""
 
     monkeypatch.setenv("ES_HOST", ES_HOST)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
-    monkeypatch.setenv("PG_HOST", f"{postgresql_proc.host}:{postgresql_proc.port}")
-    monkeypatch.setenv("PG_USER", postgresql_proc.user)
-    monkeypatch.setenv("PG_PASS", postgresql_proc.password)
-    monkeypatch.setenv("PG_NAME", postgresql_proc.dbname)
+    monkeypatch.setenv("PG_HOST", f"{postgresql.info.host}:{postgresql.info.port}")
+    monkeypatch.setenv("PG_USER", postgresql.info.user)
+    monkeypatch.setenv("PG_PASS", postgresql.info.password)
+    monkeypatch.setenv("PG_NAME", postgresql.info.dbname)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def pg_driver(graph):
     """Add all test data to the database.
 
@@ -212,23 +204,23 @@ def pg_driver(graph):
 
 
 @pytest.fixture(scope="module")
-def ro_pg_driver(pg_driver, postgresql_proc):
+def ro_pg_driver(pg_driver, postgresql):
     with pg_driver.engine.connect() as conn:
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
             f"create user {ro_user} with password '{ro_pass}'",
-            f"grant connect on database {postgresql_proc.dbname} to {ro_user}",
+            f"grant connect on database {postgresql.info.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=f"{postgresql_proc.host}:{postgresql_proc.port}",
+        host=f"{postgresql.info.host}:{postgresql.info.port}",
         user=ro_user,
         password=ro_pass,
-        database=postgresql_proc.dbname,
+        database=postgresql.info.dbname,
     )
 
     yield ro_pg_conn
@@ -236,7 +228,7 @@ def ro_pg_driver(pg_driver, postgresql_proc):
     with pg_driver.engine.connect() as conn:
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
-            f"revoke all on database {postgresql_proc.dbname} from {ro_user}",
+            f"revoke all on database {postgresql.info.dbname} from {ro_user}",
             f"drop user {ro_user}",
         ]
 
