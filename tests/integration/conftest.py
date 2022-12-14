@@ -216,7 +216,7 @@ def ro_pg_driver(pg_driver, postgresql_proc):
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
-            "create user {} with password '{}'".format(ro_user, ro_pass),
+            f"create user {ro_user} with password '{ro_pass}'",
             f"grant connect on database {postgresql_proc.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
@@ -236,6 +236,7 @@ def ro_pg_driver(pg_driver, postgresql_proc):
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
             f"revoke all on database {postgresql_proc.dbname} from {ro_user}",
+            f"drop user {ro_user}",
         ]
 
         for cmd in commands:
