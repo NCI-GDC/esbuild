@@ -28,6 +28,7 @@ from indexd_test_utils import (
     setup_indexd_test_database,
 )
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from pytest_postgresql.janitor import DatabaseJanitor
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -40,10 +41,7 @@ from tests.integration import data, es_data
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
-PG_HOST = "localhost"
-PG_USER = "test"
-PG_PASS = "test"
-PG_NAME = "automated_test"
+
 ES_HOST = "localhost"
 ES_PORT = 9200
 
@@ -98,20 +96,26 @@ def create_all(engine):
 
 
 @pytest.fixture(scope="session")
-def graph():
-    pg_conn = PsqlGraphDriver(
-        host=os.getenv("PG_HOST", PG_HOST),
-        user=os.getenv("PG_USER", PG_USER),
-        password=os.getenv("PG_PASS", PG_PASS),
-        database=os.getenv("PG_NAME", PG_NAME),
-    )
+def graph(postgresql_proc):
+    with DatabaseJanitor(
+        user=postgresql_proc.user,
+        host=postgresql_proc.host,
+        port=postgresql_proc.port,
+        dbname=postgresql_proc.dbname,
+        version=postgresql_proc.version,
+        password=postgresql_proc.password,
+    ):
 
-    drop_all(pg_conn.engine)
-    create_all(pg_conn.engine)
+        pg_conn = PsqlGraphDriver(
+            host=f"{postgresql_proc.host}:{postgresql_proc.port}",
+            user=postgresql_proc.user,
+            password=postgresql_proc.password,
+            database=postgresql_proc.dbname,
+        )
 
-    yield pg_conn
+        create_all(pg_conn.engine)
 
-    drop_all(pg_conn.engine)
+        yield pg_conn
 
 
 @pytest.fixture
@@ -177,16 +181,16 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch):
+def environment(monkeypatch, postgresql_proc):
     """Monkeypatch the script environment"""
 
     monkeypatch.setenv("ES_HOST", ES_HOST)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
-    monkeypatch.setenv("PG_HOST", PG_HOST)
-    monkeypatch.setenv("PG_USER", PG_USER)
-    monkeypatch.setenv("PG_PASS", PG_PASS)
-    monkeypatch.setenv("PG_NAME", PG_NAME)
+    monkeypatch.setenv("PG_HOST", f"{postgresql_proc.host}:{postgresql_proc.port}")
+    monkeypatch.setenv("PG_USER", postgresql_proc.user)
+    monkeypatch.setenv("PG_PASS", postgresql_proc.password)
+    monkeypatch.setenv("PG_NAME", postgresql_proc.dbname)
 
 
 @pytest.fixture(scope="module")
@@ -196,9 +200,6 @@ def pg_driver(graph):
     Attempt to render a PDF representation of the test suite.
 
     """
-
-    clear_graph_database(graph)
-
     data.insert(graph)
 
     try:
@@ -208,27 +209,25 @@ def pg_driver(graph):
 
     yield graph
 
-    clear_graph_database(graph)
-
 
 @pytest.fixture(scope="module")
-def ro_pg_driver(pg_driver):
+def ro_pg_driver(pg_driver, postgresql_proc):
     with pg_driver.engine.connect() as conn:
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
-            # "create user {} with password '{}'".format(ro_user, ro_pass),
-            f"grant connect on database {PG_NAME} to {ro_user}",
+            "create user {} with password '{}'".format(ro_user, ro_pass),
+            f"grant connect on database {postgresql_proc.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=os.getenv("PG_HOST", PG_HOST),
+        host=f"{postgresql_proc.host}:{postgresql_proc.port}",
         user=ro_user,
         password=ro_pass,
-        database=os.getenv("PG_NAME", PG_NAME),
+        database=postgresql_proc.dbname,
     )
 
     yield ro_pg_conn
@@ -236,7 +235,7 @@ def ro_pg_driver(pg_driver):
     with pg_driver.engine.connect() as conn:
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
-            f"revoke all on database {PG_NAME} from {ro_user}",
+            f"revoke all on database {postgresql_proc.dbname} from {ro_user}",
         ]
 
         for cmd in commands:
