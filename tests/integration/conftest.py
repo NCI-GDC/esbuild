@@ -5,7 +5,6 @@ Setup esbuild tests
 import logging
 import os
 import time
-from collections import namedtuple
 from typing import NamedTuple, Sequence
 
 import psqlgraph
@@ -26,10 +25,8 @@ from indexd_test_utils2 import (
     indexd_client,
     indexd_server,
     pg_url,
-    setup_indexd_test_database,
 )
-from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
-from pytest_postgresql.janitor import DatabaseJanitor
+from psqlgraph import PsqlGraphDriver, mocks
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -60,33 +57,12 @@ class Index(NamedTuple):
     projects: Sequence[dict]
 
 
-def clear_graph_database(pg_driver):
-    """Clear graph from database"""
-
-    edge_tables = Edge.get_subclass_table_names()
-    node_tables = Node.get_subclass_table_names()
-    tables = ["_voided_nodes", "_voided_edges"] + [
-        t for t in edge_tables + node_tables if t not in {"edge_edge", "node_node"}
-    ]
-
-    with pg_driver.engine.begin() as conn:
-        conn.execute("TRUNCATE {}".format(", ".join(tables)))
-
-
 def cleanup_nodes(pg_driver, nodes):
     with pg_driver.session_scope() as sxn:
         for n in nodes:
             nobj = pg_driver.nodes().get(n.node_id)
             if nobj:
                 sxn.delete(nobj)
-
-
-def drop_all(engine):
-    models.versioned_nodes.Base.metadata.drop_all(engine)
-    models.submission.Base.metadata.drop_all(engine)
-    models.FileReport.metadata.drop_all(engine)
-    psqlgraph.base.ORMBase.metadata.drop_all(engine)
-    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
 
 
 def create_all(engine):
