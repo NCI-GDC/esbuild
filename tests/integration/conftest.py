@@ -17,17 +17,6 @@ from elasticsearch.exceptions import ElasticsearchException
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
-from indexd_test_utils2 import (
-    alias_driver,
-    auth_driver,
-    create_indexd_tables,
-    index_driver,
-    indexd_admin_user,
-    indexd_client,
-    indexd_server,
-    pg_url,
-    setup_indexd_test_database,
-)
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
 from pytest_postgresql.janitor import DatabaseJanitor
 
