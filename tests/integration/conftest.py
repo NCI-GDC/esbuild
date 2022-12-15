@@ -5,6 +5,7 @@ Setup esbuild tests
 import logging
 import os
 import time
+from collections import namedtuple
 from typing import NamedTuple, Sequence
 
 import psqlgraph
@@ -16,7 +17,19 @@ from elasticsearch.exceptions import ElasticsearchException
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
-from psqlgraph import PsqlGraphDriver, mocks
+from indexd_test_utils2 import (
+    alias_driver,
+    auth_driver,
+    create_indexd_tables,
+    index_driver,
+    indexd_admin_user,
+    indexd_client,
+    indexd_server,
+    pg_url,
+    setup_indexd_test_database,
+)
+from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from pytest_postgresql.janitor import DatabaseJanitor
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -47,12 +60,33 @@ class Index(NamedTuple):
     projects: Sequence[dict]
 
 
+def clear_graph_database(pg_driver):
+    """Clear graph from database"""
+
+    edge_tables = Edge.get_subclass_table_names()
+    node_tables = Node.get_subclass_table_names()
+    tables = ["_voided_nodes", "_voided_edges"] + [
+        t for t in edge_tables + node_tables if t not in {"edge_edge", "node_node"}
+    ]
+
+    with pg_driver.engine.begin() as conn:
+        conn.execute("TRUNCATE {}".format(", ".join(tables)))
+
+
 def cleanup_nodes(pg_driver, nodes):
     with pg_driver.session_scope() as sxn:
         for n in nodes:
             nobj = pg_driver.nodes().get(n.node_id)
             if nobj:
                 sxn.delete(nobj)
+
+
+def drop_all(engine):
+    models.versioned_nodes.Base.metadata.drop_all(engine)
+    models.submission.Base.metadata.drop_all(engine)
+    models.FileReport.metadata.drop_all(engine)
+    psqlgraph.base.ORMBase.metadata.drop_all(engine)
+    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
 
 
 def create_all(engine):
@@ -62,19 +96,27 @@ def create_all(engine):
     models.FileReport.metadata.create_all(engine)
 
 
-@pytest.fixture
-def graph(postgresql):
+@pytest.fixture(scope="session")
+def graph(postgresql_proc):
+    with DatabaseJanitor(
+        user=postgresql_proc.user,
+        host=postgresql_proc.host,
+        port=postgresql_proc.port,
+        dbname=postgresql_proc.dbname,
+        version=postgresql_proc.version,
+        password=postgresql_proc.password,
+    ):
 
-    pg_conn = PsqlGraphDriver(
-        host=f"{postgresql.info.host}:{postgresql.info.port}",
-        user=postgresql.info.user,
-        password=postgresql.info.password,
-        database=postgresql.info.dbname,
-    )
+        pg_conn = PsqlGraphDriver(
+            host=f"{postgresql_proc.host}:{postgresql_proc.port}",
+            user=postgresql_proc.user,
+            password=postgresql_proc.password,
+            database=postgresql_proc.dbname,
+        )
 
-    create_all(pg_conn.engine)
+        create_all(pg_conn.engine)
 
-    yield pg_conn
+        yield pg_conn
 
 
 @pytest.fixture
@@ -140,19 +182,19 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch, postgresql):
+def environment(monkeypatch, postgresql_proc):
     """Monkeypatch the script environment"""
 
     monkeypatch.setenv("ES_HOST", ES_HOST)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
-    monkeypatch.setenv("PG_HOST", f"{postgresql.info.host}:{postgresql.info.port}")
-    monkeypatch.setenv("PG_USER", postgresql.info.user)
-    monkeypatch.setenv("PG_PASS", postgresql.info.password)
-    monkeypatch.setenv("PG_NAME", postgresql.info.dbname)
+    monkeypatch.setenv("PG_HOST", f"{postgresql_proc.host}:{postgresql_proc.port}")
+    monkeypatch.setenv("PG_USER", postgresql_proc.user)
+    monkeypatch.setenv("PG_PASS", postgresql_proc.password)
+    monkeypatch.setenv("PG_NAME", postgresql_proc.dbname)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def pg_driver(graph):
     """Add all test data to the database.
 
@@ -170,23 +212,23 @@ def pg_driver(graph):
 
 
 @pytest.fixture(scope="module")
-def ro_pg_driver(pg_driver, postgresql):
+def ro_pg_driver(pg_driver, postgresql_proc):
     with pg_driver.engine.connect() as conn:
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
             f"create user {ro_user} with password '{ro_pass}'",
-            f"grant connect on database {postgresql.info.dbname} to {ro_user}",
+            f"grant connect on database {postgresql_proc.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=f"{postgresql.info.host}:{postgresql.info.port}",
+        host=f"{postgresql_proc.host}:{postgresql_proc.port}",
         user=ro_user,
         password=ro_pass,
-        database=postgresql.info.dbname,
+        database=postgresql_proc.dbname,
     )
 
     yield ro_pg_conn
@@ -194,7 +236,7 @@ def ro_pg_driver(pg_driver, postgresql):
     with pg_driver.engine.connect() as conn:
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
-            f"revoke all on database {postgresql.info.dbname} from {ro_user}",
+            f"revoke all on database {postgresql_proc.dbname} from {ro_user}",
             f"drop user {ro_user}",
         ]
 
