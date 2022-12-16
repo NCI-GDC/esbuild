@@ -5,7 +5,6 @@ Setup esbuild tests
 import logging
 import os
 import time
-from collections import namedtuple
 from typing import NamedTuple, Sequence
 
 import psqlgraph
@@ -18,7 +17,7 @@ from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
-from pytest_postgresql.janitor import DatabaseJanitor
+from pytest_postgresql import factories
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -70,14 +69,6 @@ def cleanup_nodes(pg_driver, nodes):
                 sxn.delete(nobj)
 
 
-def drop_all(engine):
-    models.versioned_nodes.Base.metadata.drop_all(engine)
-    models.submission.Base.metadata.drop_all(engine)
-    models.FileReport.metadata.drop_all(engine)
-    psqlgraph.base.ORMBase.metadata.drop_all(engine)
-    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
-
-
 def create_all(engine):
     psqlgraph.create_all(engine)
     models.versioned_nodes.Base.metadata.create_all(engine)
@@ -85,27 +76,35 @@ def create_all(engine):
     models.FileReport.metadata.create_all(engine)
 
 
-@pytest.fixture(scope="session")
-def graph(postgresql_proc):
-    with DatabaseJanitor(
-        user=postgresql_proc.user,
-        host=postgresql_proc.host,
-        port=postgresql_proc.port,
-        dbname=postgresql_proc.dbname,
-        version=postgresql_proc.version,
-        password=postgresql_proc.password,
-    ):
+def db_loader(host, port, user, dbname, password):
+    pg_conn = PsqlGraphDriver(
+        host=f"{host}:{port}",
+        user=user,
+        password=password,
+        database=dbname,
+    )
+    create_all(pg_conn.engine)
 
-        pg_conn = PsqlGraphDriver(
-            host=f"{postgresql_proc.host}:{postgresql_proc.port}",
-            user=postgresql_proc.user,
-            password=postgresql_proc.password,
-            database=postgresql_proc.dbname,
-        )
 
-        create_all(pg_conn.engine)
+postgresql_proc_esbuild = factories.postgresql_proc(
+    dbname="esbuild_test", load=[db_loader]
+)
+postgresql_esbuild = factories.postgresql(
+    "postgresql_proc_esbuild", dbname="esbuild_test"
+)
 
-        yield pg_conn
+
+@pytest.fixture
+def graph(postgresql_esbuild):
+
+    pg_conn = PsqlGraphDriver(
+        host=f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}",
+        user=postgresql_esbuild.info.user,
+        password=postgresql_esbuild.info.password,
+        database=postgresql_esbuild.info.dbname,
+    )
+
+    yield pg_conn
 
 
 @pytest.fixture
@@ -171,19 +170,21 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch, postgresql_proc):
+def environment(monkeypatch, postgresql_esbuild):
     """Monkeypatch the script environment"""
 
     monkeypatch.setenv("ES_HOST", ES_HOST)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
-    monkeypatch.setenv("PG_HOST", f"{postgresql_proc.host}:{postgresql_proc.port}")
-    monkeypatch.setenv("PG_USER", postgresql_proc.user)
-    monkeypatch.setenv("PG_PASS", postgresql_proc.password)
-    monkeypatch.setenv("PG_NAME", postgresql_proc.dbname)
+    monkeypatch.setenv(
+        "PG_HOST", f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}"
+    )
+    monkeypatch.setenv("PG_USER", postgresql_esbuild.info.user)
+    monkeypatch.setenv("PG_PASS", postgresql_esbuild.info.password)
+    monkeypatch.setenv("PG_NAME", postgresql_esbuild.info.dbname)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def pg_driver(graph):
     """Add all test data to the database.
 
@@ -200,24 +201,24 @@ def pg_driver(graph):
     yield graph
 
 
-@pytest.fixture(scope="module")
-def ro_pg_driver(pg_driver, postgresql_proc):
+@pytest.fixture
+def ro_pg_driver(pg_driver, postgresql_esbuild):
     with pg_driver.engine.connect() as conn:
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
             f"create user {ro_user} with password '{ro_pass}'",
-            f"grant connect on database {postgresql_proc.dbname} to {ro_user}",
+            f"grant connect on database {postgresql_esbuild.info.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=f"{postgresql_proc.host}:{postgresql_proc.port}",
+        host=f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}",
         user=ro_user,
         password=ro_pass,
-        database=postgresql_proc.dbname,
+        database=postgresql_esbuild.info.dbname,
     )
 
     yield ro_pg_conn
@@ -225,7 +226,7 @@ def ro_pg_driver(pg_driver, postgresql_proc):
     with pg_driver.engine.connect() as conn:
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
-            f"revoke all on database {postgresql_proc.dbname} from {ro_user}",
+            f"revoke all on database {postgresql_esbuild.info.dbname} from {ro_user}",
             f"drop user {ro_user}",
         ]
 
