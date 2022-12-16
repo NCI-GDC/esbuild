@@ -325,12 +325,13 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
 
 
 @pytest.mark.usefixtures("setup_test")
-def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
+def test_build_from_readonly(pg_driver, init_indexd, es_client):
+    # def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
     """
     Make sure that no write attempts are made during ESBuild run and also that
     correct indices/aliases were created
     """
-
+    ro_pg_driver = pg_driver
     # Making sure ES is empty
     assert len(es_client.indices.get_alias()) == 0
 
