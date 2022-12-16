@@ -48,25 +48,8 @@ class Index(NamedTuple):
     projects: Sequence[dict]
 
 
-def clear_graph_database(pg_driver):
-    """Clear graph from database"""
-
-    edge_tables = Edge.get_subclass_table_names()
-    node_tables = Node.get_subclass_table_names()
-    tables = ["_voided_nodes", "_voided_edges"] + [
-        t for t in edge_tables + node_tables if t not in {"edge_edge", "node_node"}
-    ]
-
-    with pg_driver.engine.begin() as conn:
-        conn.execute("TRUNCATE {}".format(", ".join(tables)))
-
-
 def cleanup_nodes(pg_driver, nodes):
-    with pg_driver.session_scope() as sxn:
-        for n in nodes:
-            nobj = pg_driver.nodes().get(n.node_id)
-            if nobj:
-                sxn.delete(nobj)
+    pass
 
 
 def create_all(engine):
