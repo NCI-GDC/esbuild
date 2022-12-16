@@ -108,12 +108,11 @@ def test_get_file_metadata_from_indexd(index):
             validate_file_metadata(key, value)
 
 
-def test_selective_caching(init_indexd, pg_driver):
+def test_selective_caching(init_indexd, ro_pg_driver):
     # def test_selective_caching(init_indexd, ro_pg_driver):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
-    ro_pg_driver = pg_driver
     projects_subset = {"TCGA-BRCA", "TCGA-DEV1"}
     builder1 = ActiveGraphIndexBuilder(
         ro_pg_driver,
