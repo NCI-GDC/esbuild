@@ -17,6 +17,7 @@ from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from pytest_elasticsearch import factories as es_factories
 from pytest_postgresql import factories
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
@@ -30,9 +31,13 @@ from tests.integration import data, es_data
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
+ES_HOST = os.getenv("ES_HOST", "localhost")
+ES_PORT = os.getenv("ES_PORT", "9200")
 
-ES_HOST = "localhost"
-ES_PORT = 9200
+elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
+    host=ES_HOST, port=ES_PORT
+)
+elasticsearch_esbuild = es_factories.elasticsearch("elasticsearch_server_esbuild")
 
 # ======================================================================
 # Util
@@ -166,6 +171,7 @@ def environment(monkeypatch, postgresql_esbuild):
     """Monkeypatch the script environment"""
 
     monkeypatch.setenv("ES_HOST", ES_HOST)
+    monkeypatch.setenv("ES_PORT", ES_PORT)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
     monkeypatch.setenv(
@@ -285,14 +291,9 @@ def index_types():
     return ["annotation", "case", "file", "project"]
 
 
-@pytest.fixture(scope="session")
-def es_client():
-    es = Elasticsearch(
-        hosts=[ES_HOST],
-        port=ES_PORT,
-    )
-
-    return es
+@pytest.fixture
+def es_client(elasticsearch_esbuild):
+    return elasticsearch_esbuild
 
 
 @pytest.fixture(scope="module")
