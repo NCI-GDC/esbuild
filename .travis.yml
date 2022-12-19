@@ -34,6 +34,7 @@ install:
   - sudo sed -i 's/^-Xmx.*/-Xmx2g/' /etc/elasticsearch/jvm.options
   - sudo chown -R elasticsearch:elasticsearch /etc/default/elasticsearch
   - sudo service elasticsearch start
+  - /usr/share/elasticsearch/bin/elasticsearch -Vv
 
   # Make sure we have a new enough virtualenv to get a version of pip that
   # understands VCS URLs. Install virtualenv before running tox because
