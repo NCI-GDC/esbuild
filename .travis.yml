@@ -33,7 +33,9 @@ install:
   - sudo sed -i 's/^-Xms.*/-Xms2g/' /etc/elasticsearch/jvm.options
   - sudo sed -i 's/^-Xmx.*/-Xmx2g/' /etc/elasticsearch/jvm.options
   - sudo chown -R elasticsearch:elasticsearch /etc/default/elasticsearch
+  - sudo usermod -aG elasticsearch travis
   - sudo service elasticsearch start
+  - id
   - /usr/share/elasticsearch/bin/elasticsearch -Vv
 
   # Make sure we have a new enough virtualenv to get a version of pip that
