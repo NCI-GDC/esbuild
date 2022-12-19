@@ -30,12 +30,11 @@ from tests.integration import data, es_data
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
-ES_HOST = os.getenv("ES_HOST", "localhost")
-ES_PORT = os.getenv("ES_PORT", "9200")
-
-elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
-    host=ES_HOST, port=ES_PORT
-)
+elasticsearch_server_esbuild = es_factories.elasticsearch_proc()
+if os.getenv("USE_RUNNING_ES", "false").lower() == "true":
+    elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
+        host=os.getenv("ES_HOST", "localhost"), port=os.getenv("ES_PORT", "9200")
+    )
 elasticsearch_esbuild = es_factories.elasticsearch("elasticsearch_server_esbuild")
 
 # ======================================================================
@@ -166,11 +165,11 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch, postgresql_esbuild):
+def environment(monkeypatch, postgresql_esbuild, elasticsearch_server_esbuild):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv("ES_HOST", ES_HOST)
-    monkeypatch.setenv("ES_PORT", ES_PORT)
+    monkeypatch.setenv("ES_HOST", elasticsearch_server_esbuild.host)
+    monkeypatch.setenv("ES_PORT", elasticsearch_server_esbuild.port)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
     monkeypatch.setenv(
