@@ -11,7 +11,6 @@ import psqlgraph
 import pytest
 import yaml
 from datadog import statsd
-from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
