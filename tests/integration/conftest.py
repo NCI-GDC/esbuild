@@ -31,7 +31,7 @@ TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
 elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
-    executable=os.getenv("ES_EXECUTABLE")
+    executable=os.getenv("ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch")
 )
 if os.getenv("USE_RUNNING_ES", "false").lower() == "true":
     elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
