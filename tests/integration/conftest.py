@@ -294,7 +294,7 @@ def es_client(elasticsearch_esbuild):
     return elasticsearch_esbuild
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def test_index_data(index_types, es_client):
     """Generate data index as a fixture for re-use between tests"""
 
@@ -344,7 +344,7 @@ def test_index_data(index_types, es_client):
     cleanup_indices(es_client, index_names.values())
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def es_after_deletion(test_index_data, index_types):
     """
     Deletes some projects from the index but not updates the metadata,
