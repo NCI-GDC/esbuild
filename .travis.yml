@@ -34,6 +34,7 @@ install:
   - sudo sed -i 's/^-Xmx.*/-Xmx2g/' /etc/elasticsearch/jvm.options
   - sudo chown -R elasticsearch:elasticsearch /etc/default/elasticsearch
   - sudo chmod a+r /etc/default/elasticsearch
+  - sudo chmod -R 755 /etc/elasticsearch
   - sudo chmod -R 777 /var/log/elasticsearch
   - sudo service elasticsearch start
   - /usr/share/elasticsearch/bin/elasticsearch -Vv
