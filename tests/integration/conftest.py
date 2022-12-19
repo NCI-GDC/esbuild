@@ -49,6 +49,7 @@ class Index(NamedTuple):
 
 
 def cleanup_nodes(pg_driver, nodes):
+    """This is not necessary with pytest-postgresql"""
     pass
 
 
@@ -69,11 +70,19 @@ def db_loader(host, port, user, dbname, password):
     create_all(pg_conn.engine)
 
 
-postgresql_proc_esbuild = factories.postgresql_proc(
+postgresql_server_esbuild = factories.postgresql_proc(
     dbname="esbuild_test", load=[db_loader]
 )
+if os.getenv("USE_RUNNING_POSTGRES", "true").lower() == "true":
+    postgresql_server_indexd = factories.postgresql_noproc(
+        host=os.getenv("PG_INDEXD_HOST", "localhost"),
+        user=os.getenv("PG_INDEXD_USER", "postgres"),
+        password=os.getenv("PG_INDEXD_PASS", ""),
+        dbname=os.getenv("PG_INDEXD_NAME", "indexd_test"),
+        load=[db_loader],
+    )
 postgresql_esbuild = factories.postgresql(
-    "postgresql_proc_esbuild", dbname="esbuild_test"
+    "postgresql_server_esbuild", dbname="esbuild_test"
 )
 
 
