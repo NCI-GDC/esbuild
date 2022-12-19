@@ -30,7 +30,9 @@ from tests.integration import data, es_data
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
-elasticsearch_server_esbuild = es_factories.elasticsearch_proc()
+elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
+    executable=os.getenv("ES_EXECUTABLE")
+)
 if os.getenv("USE_RUNNING_ES", "false").lower() == "true":
     elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
         host=os.getenv("ES_HOST", "localhost"), port=os.getenv("ES_PORT", "9200")
