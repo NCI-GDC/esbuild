@@ -80,10 +80,10 @@ postgresql_server_esbuild = factories.postgresql_proc(
 )
 if os.getenv("USE_RUNNING_POSTGRES", "true").lower() == "true":
     postgresql_server_indexd = factories.postgresql_noproc(
-        host=os.getenv("PG_INDEXD_HOST", ""),
-        user=os.getenv("PG_INDEXD_USER", "postgres"),
-        password=os.getenv("PG_INDEXD_PASS", ""),
-        dbname=os.getenv("PG_INDEXD_NAME", "esbuild_test"),
+        host=os.getenv("PG_ESBUILD_HOST", ""),
+        user=os.getenv("PG_ESBUILD_USER", "postgres"),
+        password=os.getenv("PG_ESBUILD_PASS", ""),
+        dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"),
         load=[db_loader],
     )
 postgresql_esbuild = factories.postgresql(
