@@ -274,8 +274,9 @@ def cleanup_indices(es, indices=None):
         except ElasticsearchException:
             time.sleep(0.1)
     else:
+        health = es.cluster.health()
         # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
-        raise Exception("Elasticsearch cluster offline after 5 minutes")
+        raise Exception(f"Elasticsearch cluster offline after 5 minutes: {health}")
 
     if not indices:
         indices = get_all_indices(es)
