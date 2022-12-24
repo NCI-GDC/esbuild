@@ -30,12 +30,13 @@ from tests.integration import data, es_data
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
-elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
-    executable=os.getenv("ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch")
-)
-if os.getenv("USE_RUNNING_ES", "false").lower() == "true":
+if os.getenv("USE_RUNNING_ES", "true").lower() == "true":
     elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
         host=os.getenv("ES_HOST", "localhost"), port=os.getenv("ES_PORT", "9200")
+    )
+else:
+    elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
+        executable=os.getenv("ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch")
     )
 elasticsearch_esbuild = es_factories.elasticsearch("elasticsearch_server_esbuild")
 
@@ -75,16 +76,17 @@ def db_loader(host, port, user, dbname, password):
     create_all(pg_conn.engine)
 
 
-postgresql_server_esbuild = factories.postgresql_proc(
-    dbname="esbuild_test", load=[db_loader]
-)
-if os.getenv("USE_RUNNING_POSTGRES", "true").lower() == "true":
-    postgresql_server_indexd = factories.postgresql_noproc(
+if os.getenv("USE_RUNNING_PG", "true").lower() == "true":
+    postgresql_server_esbuild = factories.postgresql_noproc(
         host=os.getenv("PG_ESBUILD_HOST", ""),
         user=os.getenv("PG_ESBUILD_USER", "postgres"),
         password=os.getenv("PG_ESBUILD_PASS", ""),
         dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"),
         load=[db_loader],
+    )
+else:
+    postgresql_server_esbuild = factories.postgresql_proc(
+        dbname="esbuild_test", load=[db_loader]
     )
 postgresql_esbuild = factories.postgresql(
     "postgresql_server_esbuild", dbname="esbuild_test"
