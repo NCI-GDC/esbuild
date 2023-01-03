@@ -252,6 +252,26 @@ The test suite data is visualized in a PDF
 using [graphviz](http://www.graphviz.org/) if you have installed
 whenever the tests are run.
 
+### Parallel testing
+
+We are now able to run the tests in parallel, with `indexd_test_utils2`,
+`pytest-postgresql`, `pytest-elasticsearch` and `pytest-xdist`.
+To start test in parallel, run with the following command:
+```bash
+pytest tests -n auto
+```
+
+If your elasticsearch is not installed in default location or your are using opensearch,
+set the following env:
+```bash
+ES_EXECUTABLE=/opt/homebrew/opt/opensearch/bin/opensearch
+```
+
+If you are using mac, you also need to set:
+```bash
+OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+```
+
 ## Setup pre-commit hook to check for secrets
 
 We use [pre-commit](https://pre-commit.com/) to setup pre-commit hooks for this repo.
