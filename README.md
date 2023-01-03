@@ -258,8 +258,10 @@ We are now able to run the tests in parallel, with `indexd_test_utils2`,
 `pytest-postgresql`, `pytest-elasticsearch` and `pytest-xdist`.
 To start test in parallel, run with the following command:
 ```bash
-pytest tests -n auto
+USE_RUNNING_ES=false USE_RUNNING_PG=false pytest tests -n auto
 ```
+
+You have to export postgres path so `pg_config` is available for `pytest-postgresql`.
 
 If your elasticsearch is not installed in default location or your are using opensearch,
 set the following env:
