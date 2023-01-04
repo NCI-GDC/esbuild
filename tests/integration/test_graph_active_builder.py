@@ -109,7 +109,6 @@ def test_get_file_metadata_from_indexd(index):
 
 
 def test_selective_caching(init_indexd, ro_pg_driver):
-    # def test_selective_caching(init_indexd, ro_pg_driver):
     """
     Tests that partial graph data caching is working in subset build scenario
     """
