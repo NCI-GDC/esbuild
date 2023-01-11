@@ -2,7 +2,6 @@ import pytest
 from addict import Dict
 from gdcdatamodel.models.submission import TransactionLog, TransactionSnapshot
 
-from tests.integration.conftest import cleanup_nodes
 from tests.integration.data import get_node_id
 
 
@@ -134,8 +133,6 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
         return graph_nodes, cur_docs, prev_docs
 
     yield wrapper
-
-    cleanup_nodes(pg_driver, graph_nodes)
 
 
 @pytest.fixture

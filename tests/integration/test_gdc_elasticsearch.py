@@ -17,7 +17,7 @@ from esbuild.graph.active import builder
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration import data
-from tests.integration.conftest import cleanup_nodes, get_all_indices
+from tests.integration.conftest import get_all_indices
 from tests.integration.data import get_node_id
 
 GRAPH_INDEX_DOC_TYPES = ["project", "case", "annotation", "file"]
@@ -52,8 +52,6 @@ def derived_file(pg_driver):
         sxn.merge(derived_file)
 
     yield derived_file
-
-    cleanup_nodes(pg_driver, [derived_file])
 
 
 def verify_index_settings(es, index, replicas, shards):

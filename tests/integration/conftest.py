@@ -36,7 +36,9 @@ if os.getenv("USE_RUNNING_ES", "true").lower() == "true":
     )
 else:
     elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
-        executable=os.getenv("ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch")
+        executable=os.getenv(
+            "ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch"
+        )
     )
 elasticsearch_esbuild = es_factories.elasticsearch("elasticsearch_server_esbuild")
 
@@ -52,11 +54,6 @@ class Index(NamedTuple):
     files: Sequence[dict]
     annotations: Sequence[dict]
     projects: Sequence[dict]
-
-
-def cleanup_nodes(pg_driver, nodes):
-    """This is not necessary with pytest-postgresql"""
-    pass
 
 
 def create_all(engine):
@@ -423,8 +420,6 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
         return x_nodes, docs
 
     yield _from_file
-
-    cleanup_nodes(pg_driver, nodes)
 
 
 @pytest.fixture
