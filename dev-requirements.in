@@ -3,7 +3,11 @@
 jsonpath-rw~=1.4
 mock~=3.0
 more-itertools==8.14.0
-pytest~=7.0
+pytest~=6.2.0
+pytest-parallel
+pytest-postgresql
+pytest-xdist
+pytest-postgresql
 pytest-cov~=2.8
 python-dateutil<2.8.1,>=2.1
 
