@@ -3,14 +3,12 @@
 jsonpath-rw~=1.4
 mock~=3.0
 more-itertools==8.14.0
-pytest<7
+pytest
 pytest-cov~=2.8
 python-dateutil<2.8.1,>=2.1
-pytest-elasticsearch
-pytest-postgresql
-pytest-xdist
 
 # below is indexd and its dependencies
--e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
--e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
--e git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
+git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
+git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
+git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
+git+ssh://git@github.com/NCI-GDC/indexclient.git@feat/dev-1637-use-indexdmodels-in-pytest-indexd#egg=indexclient[pytest_indexd]

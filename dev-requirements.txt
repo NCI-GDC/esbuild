@@ -4,21 +4,13 @@
 #
 #    pip-compile dev-requirements.in
 #
--e git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
-    # via
-    #   -r dev-requirements.in
-    #   indexd
--e git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
-    # via
-    #   -r dev-requirements.in
-    #   indexd
--e git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
-    # via -r dev-requirements.in
 attrs==20.3.0
     # via
     #   -c requirements.txt
     #   jsonschema
     #   pytest
+backports.zoneinfo==0.2.1
+    # via psycopg
 cdislogging==1.0.0
     # via
     #   -c requirements.txt
@@ -26,7 +18,6 @@ cdislogging==1.0.0
 certifi==2020.12.5
     # via
     #   -c requirements.txt
-    #   elasticsearch
     #   requests
 chardet==4.0.0
     # via
@@ -40,10 +31,14 @@ decorator==4.4.2
     # via
     #   -c requirements.txt
     #   jsonpath-rw
-elasticsearch==7.10.1
+doiclient @ git+https://github.com/uc-cdis/doiclient.git@1.0.0
     # via
-    #   -c requirements.txt
-    #   pytest-elasticsearch
+    #   -r dev-requirements.in
+    #   indexd
+dosclient @ git+https://github.com/uc-cdis/dosclient.git@1.0.0
+    # via
+    #   -r dev-requirements.in
+    #   indexd
 execnet==1.9.0
     # via pytest-xdist
 flask==1.1.2
@@ -62,6 +57,16 @@ importlib-metadata==2.1.1
     #   jsonschema
     #   pluggy
     #   pytest
+importlib-resources==5.4.0
+    # via backports.zoneinfo
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.0-rc.1
+    # via
+    #   -c requirements.txt
+    #   -r dev-requirements.in
+indexd @ git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1
+    # via
+    #   -r dev-requirements.in
+    #   indexclient
 iniconfig==1.1.1
     # via pytest
 itsdangerous==1.1.0
@@ -77,9 +82,7 @@ jsonschema==3.2.0
 markupsafe==1.1.1
     # via jinja2
 mirakuru==2.3.0
-    # via
-    #   pytest-elasticsearch
-    #   pytest-postgresql
+    # via pytest-postgresql
 mock==3.0.5
     # via -r dev-requirements.in
 more-itertools==8.14.0
@@ -91,11 +94,11 @@ pluggy==0.13.1
 ply==3.11
     # via jsonpath-rw
 port-for==0.5.0
-    # via
-    #   pytest-elasticsearch
-    #   pytest-postgresql
+    # via pytest-postgresql
 psutil==5.9.4
     # via mirakuru
+psycopg==3.0.18
+    # via indexclient
 psycopg2==2.8.6
     # via
     #   -c requirements.txt
@@ -111,18 +114,19 @@ pyrsistent==0.17.3
 pytest==6.2.5
     # via
     #   -r dev-requirements.in
+    #   indexclient
     #   pytest-cov
-    #   pytest-elasticsearch
+    #   pytest-parallel
     #   pytest-postgresql
     #   pytest-xdist
 pytest-cov==2.10.1
     # via -r dev-requirements.in
-pytest-elasticsearch==2.0.1
-    # via -r dev-requirements.in
+pytest-parallel==0.1.1
+    # via indexclient
 pytest-postgresql==3.0.0
-    # via -r dev-requirements.in
+    # via indexclient
 pytest-xdist==3.0.2
-    # via -r dev-requirements.in
+    # via indexclient
 python-dateutil==2.8.0
     # via -r dev-requirements.in
 requests==2.25.1
@@ -130,6 +134,7 @@ requests==2.25.1
     #   -c requirements.txt
     #   doiclient
     #   dosclient
+    #   indexclient
 six==1.15.0
     # via
     #   -c requirements.txt
@@ -145,21 +150,25 @@ sqlalchemy==1.3.3
     #   sqlalchemy-utils
 sqlalchemy-utils==0.36.3
     # via indexd
+tblib==1.7.0
+    # via pytest-parallel
 toml==0.10.2
     # via pytest
+typing-extensions==4.1.1
+    # via psycopg
 urllib3==1.26.2
     # via
     #   -c requirements.txt
-    #   elasticsearch
     #   requests
 werkzeug==0.16.1
     # via
     #   flask
     #   indexd
-zipp==1.2.0
+zipp==3.6.0
     # via
     #   -c requirements.txt
     #   importlib-metadata
+    #   importlib-resources
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
