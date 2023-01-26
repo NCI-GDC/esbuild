@@ -18,6 +18,7 @@ cdislogging==1.0.0
 certifi==2020.12.5
     # via
     #   -c requirements.txt
+    #   elasticsearch
     #   requests
 chardet==4.0.0
     # via
@@ -39,6 +40,10 @@ dosclient @ git+https://github.com/uc-cdis/dosclient.git@1.0.0
     # via
     #   -r dev-requirements.in
     #   indexd
+elasticsearch==7.10.1
+    # via
+    #   -c requirements.txt
+    #   pytest-elasticsearch
 execnet==1.9.0
     # via pytest-xdist
 flask==1.1.2
@@ -59,7 +64,7 @@ importlib-metadata==2.1.1
     #   pytest
 importlib-resources==5.4.0
     # via backports.zoneinfo
-indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.0-rc.1
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.1
     # via
     #   -c requirements.txt
     #   -r dev-requirements.in
@@ -82,7 +87,9 @@ jsonschema==3.2.0
 markupsafe==1.1.1
     # via jinja2
 mirakuru==2.3.0
-    # via pytest-postgresql
+    # via
+    #   pytest-elasticsearch
+    #   pytest-postgresql
 mock==3.0.5
     # via -r dev-requirements.in
 more-itertools==8.14.0
@@ -94,7 +101,9 @@ pluggy==0.13.1
 ply==3.11
     # via jsonpath-rw
 port-for==0.5.0
-    # via pytest-postgresql
+    # via
+    #   pytest-elasticsearch
+    #   pytest-postgresql
 psutil==5.9.4
     # via mirakuru
 psycopg==3.0.18
@@ -116,10 +125,13 @@ pytest==6.2.5
     #   -r dev-requirements.in
     #   indexclient
     #   pytest-cov
+    #   pytest-elasticsearch
     #   pytest-parallel
     #   pytest-postgresql
     #   pytest-xdist
 pytest-cov==2.10.1
+    # via -r dev-requirements.in
+pytest-elasticsearch==2.0.1
     # via -r dev-requirements.in
 pytest-parallel==0.1.1
     # via indexclient
@@ -159,6 +171,7 @@ typing-extensions==4.1.1
 urllib3==1.26.2
     # via
     #   -c requirements.txt
+    #   elasticsearch
     #   requests
 werkzeug==0.16.1
     # via
