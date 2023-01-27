@@ -1,7 +1,6 @@
 """
 Setup esbuild tests
 """
-
 import logging
 import os
 import time
@@ -15,6 +14,7 @@ from elasticsearch.exceptions import ElasticsearchException
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
+from indexclient.types import IndexData
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
 from pytest_elasticsearch import factories as es_factories
 from pytest_postgresql import factories
@@ -104,12 +104,15 @@ def graph(postgresql_esbuild):
 
 
 @pytest.fixture
-def create_indexd_documents(indexd_client):
+def create_indexd_documents(indexd_client, indexd_loader):
     def _inner(records):
-        docs = []
+
+        record_dicts = (dict(record) for record in records)
+
+        processed_records = []
+
         # Insert indexd data:
-        for record in records:
-            record = dict(record)
+        for record in record_dicts:
             urls = record["urls"]
             # NOTE: 'file_state' is stored as 'state' in indexd.
             # However, this is not important as esbuild does not pay attention to 'file_state'
@@ -117,18 +120,21 @@ def create_indexd_documents(indexd_client):
             urls_metadata = {urls[0]: {"state": record.get("file_state", "validated")}}
             if "gencode_version" not in record:
                 record["gencode_version"] = "neutral"
-            doc = indexd_client.create(
-                did=record["did"],
-                acl=record["acl"],
-                hashes={"md5": record["md5sum"]},
-                size=record["file_size"],
-                file_name=record.get("file_name", None),
-                urls=urls,
-                metadata=record,
-                urls_metadata=urls_metadata,
+
+            processed_records.append(
+                IndexData(
+                    did=record["did"],
+                    acl=record["acl"],
+                    hashes={"md5": record["md5sum"]},
+                    size=record["file_size"],
+                    file_name=record.get("file_name", None),
+                    urls=urls,
+                    metadata=record,
+                    urls_metadata=urls_metadata,
+                )
             )
-            docs.append(doc)
-        return docs
+
+        return indexd_loader(resource=processed_records)
 
     return _inner
 
