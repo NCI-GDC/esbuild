@@ -26,7 +26,7 @@ setup(
         "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.4.2#egg=psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.6.3#egg=gdcdictionary",
         "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.6.5#egg=gdcdatamodel",
-        "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.6.3#egg=gdcdatamodel2",
+        "gdcdatamodel2 @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.6.3#egg=gdcdatamodel2",
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2#egg=gdc_ng_models",
         "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.1.0-rc.4#egg=indexclient",
         "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
