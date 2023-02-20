@@ -70,7 +70,7 @@ importlib-resources==5.4.0
     # via
     #   backports.zoneinfo
     #   indexclient
-indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@06e3ebf3f7d0cc00f061cb3d6bdb8233c86d8db9
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3
     # via
     #   -c requirements.txt
     #   -r dev-requirements.in
@@ -138,15 +138,12 @@ pytest==6.2.5
     #   indexclient
     #   pytest-cov
     #   pytest-elasticsearch
-    #   pytest-parallel
     #   pytest-postgresql
     #   pytest-xdist
 pytest-cov==2.10.1
     # via -r dev-requirements.in
 pytest-elasticsearch==2.0.1
     # via -r dev-requirements.in
-pytest-parallel==0.1.1
-    # via indexclient
 pytest-postgresql==3.0.0
     # via indexclient
 pytest-xdist==3.0.2
@@ -175,8 +172,6 @@ sqlalchemy==1.3.3
     #   sqlalchemy-utils
 sqlalchemy-utils==0.36.3
     # via indexd
-tblib==1.7.0
-    # via pytest-parallel
 toml==0.10.2
     # via pytest
 typing-extensions==4.1.1

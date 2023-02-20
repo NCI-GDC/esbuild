@@ -62,7 +62,7 @@ idna==2.10
     # via requests
 importlib-metadata==2.1.1
     # via jsonschema
-indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@06e3ebf3f7d0cc00f061cb3d6bdb8233c86d8db9
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3
     # via esbuild (setup.py)
 jsonschema==3.2.0
     # via
