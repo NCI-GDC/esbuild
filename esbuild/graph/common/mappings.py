@@ -3,7 +3,7 @@
 Common definitions for building GDC Elasticsearch mappings
 
 """
-
+import typing as t
 from copy import deepcopy
 
 from addict import Dict
@@ -313,17 +313,17 @@ class ESMapper:
         return header
 
     @classmethod
-    def get_base_properties(cls, source, include_id=True):
+    def get_base_properties(cls, node_label: str, include_id=True):
         # Get properties from schema
-        node_type = Node.get_subclass(source)
-        assert node_type, f"No model for {source}"
+        node_type = Node.get_subclass(node_label)
+        assert node_type, f"No model for {node_label}"
 
-        properties = dict(node_type.get_pg_properties())
+        properties: t.Dict[str, t.Tuple[t.Type]] = dict(node_type.get_pg_properties())
         doc = Dict()
 
         if include_id:
             # Add id to document
-            id_name = f"{source}_id"
+            id_name = f"{node_label}_id"
             doc[id_name] = STRING
 
         if properties.pop("submitter_id", None):
@@ -335,12 +335,12 @@ class ESMapper:
             # assign the type
             doc[field] = {"type": _type}
 
-        if source == "project":
+        if node_label == "project":
             # Remove some fields from project document
             for key in cls.project_keys_to_hide:
                 doc.pop(key)
 
-        if source != "project":
+        if node_label != "project":
             doc.pop("project_id", None)
             doc.pop("batch_id", None)
             doc.pop("file_state", None)

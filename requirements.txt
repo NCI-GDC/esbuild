@@ -40,11 +40,11 @@ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2#egg=gdc_ng_models
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
-git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.6.3#egg=gdcdatamodel2
+git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.4.2#egg=gdcdatamodel2
     # via esbuild (setup.py)
 git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.6.5#egg=gdcdatamodel
     # via esbuild (setup.py)
-git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.6.3#egg=gdcdictionary
+git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.4.2#egg=gdcdictionary
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
