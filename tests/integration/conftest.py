@@ -25,6 +25,7 @@ from tests.integration import data, es_data
 
 # ======================================================================
 # Test Settings
+pytest_plugins = ("pytest_indexd.plugin",)
 
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
