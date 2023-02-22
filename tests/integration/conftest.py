@@ -1,33 +1,23 @@
 """
 Setup esbuild tests
 """
-
 import logging
 import os
 import time
-from collections import namedtuple
 from typing import NamedTuple, Sequence
 
 import psqlgraph
 import pytest
 import yaml
 from datadog import statsd
-from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ElasticsearchException
 from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
-from indexd_test_utils import (
-    alias_driver,
-    auth_driver,
-    create_indexd_tables,
-    index_driver,
-    indexd_admin_user,
-    indexd_client,
-    indexd_server,
-    setup_indexd_test_database,
-)
+from indexclient.types import IndexData
 from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from pytest_elasticsearch import factories as es_factories
+from pytest_postgresql import factories
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import ReleaseHelper, get_index_names
@@ -35,17 +25,23 @@ from tests.integration import data, es_data
 
 # ======================================================================
 # Test Settings
+pytest_plugins = ("pytest_indexd.plugin",)
 
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
 
-PG_HOST = "localhost"
-PG_USER = "test"
-PG_PASS = "test"
-PG_NAME = "automated_test"
-ES_HOST = "localhost"
-ES_PORT = 9200
+if os.getenv("USE_RUNNING_ES", "true").lower() == "true":
+    elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
+        host=os.getenv("ES_HOST", "localhost"), port=os.getenv("ES_PORT", "9200")
+    )
+else:
+    elasticsearch_server_esbuild = es_factories.elasticsearch_proc(
+        executable=os.getenv(
+            "ES_EXECUTABLE", "/usr/share/elasticsearch/bin/elasticsearch"
+        )
+    )
+elasticsearch_esbuild = es_factories.elasticsearch("elasticsearch_server_esbuild")
 
 # ======================================================================
 # Util
@@ -61,35 +57,6 @@ class Index(NamedTuple):
     projects: Sequence[dict]
 
 
-def clear_graph_database(pg_driver):
-    """Clear graph from database"""
-
-    edge_tables = Edge.get_subclass_table_names()
-    node_tables = Node.get_subclass_table_names()
-    tables = ["_voided_nodes", "_voided_edges"] + [
-        t for t in edge_tables + node_tables if t not in {"edge_edge", "node_node"}
-    ]
-
-    with pg_driver.engine.begin() as conn:
-        conn.execute("TRUNCATE {}".format(", ".join(tables)))
-
-
-def cleanup_nodes(pg_driver, nodes):
-    with pg_driver.session_scope() as sxn:
-        for n in nodes:
-            nobj = pg_driver.nodes().get(n.node_id)
-            if nobj:
-                sxn.delete(nobj)
-
-
-def drop_all(engine):
-    models.versioned_nodes.Base.metadata.drop_all(engine)
-    models.submission.Base.metadata.drop_all(engine)
-    models.FileReport.metadata.drop_all(engine)
-    psqlgraph.base.ORMBase.metadata.drop_all(engine)
-    psqlgraph.base.VoidedBase.metadata.drop_all(engine)
-
-
 def create_all(engine):
     psqlgraph.create_all(engine)
     models.versioned_nodes.Base.metadata.create_all(engine)
@@ -97,30 +64,56 @@ def create_all(engine):
     models.FileReport.metadata.create_all(engine)
 
 
-@pytest.fixture(scope="session")
-def graph():
+def db_loader(host, port, user, dbname, password):
     pg_conn = PsqlGraphDriver(
-        host=os.getenv("PG_HOST", PG_HOST),
-        user=os.getenv("PG_USER", PG_USER),
-        password=os.getenv("PG_PASS", PG_PASS),
-        database=os.getenv("PG_NAME", PG_NAME),
+        host=f"{host}:{port}",
+        user=user,
+        password=password,
+        database=dbname,
     )
-
-    drop_all(pg_conn.engine)
     create_all(pg_conn.engine)
 
-    yield pg_conn
 
-    drop_all(pg_conn.engine)
+if os.getenv("USE_RUNNING_PG", "true").lower() == "true":
+    postgresql_server_esbuild = factories.postgresql_noproc(
+        host=os.getenv("PG_ESBUILD_HOST", ""),
+        user=os.getenv("PG_ESBUILD_USER", "postgres"),
+        password=os.getenv("PG_ESBUILD_PASS", ""),
+        dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"),
+        load=[db_loader],
+    )
+else:
+    postgresql_server_esbuild = factories.postgresql_proc(
+        dbname="esbuild_test", load=[db_loader]
+    )
+postgresql_esbuild = factories.postgresql(
+    "postgresql_server_esbuild", dbname="esbuild_test"
+)
 
 
 @pytest.fixture
-def create_indexd_documents(indexd_client):
+def graph(postgresql_esbuild):
+
+    pg_conn = PsqlGraphDriver(
+        host=f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}",
+        user=postgresql_esbuild.info.user,
+        password=postgresql_esbuild.info.password,
+        database=postgresql_esbuild.info.dbname,
+    )
+
+    yield pg_conn
+
+
+@pytest.fixture
+def create_indexd_documents(indexd_client, indexd_loader):
     def _inner(records):
-        docs = []
+
+        record_dicts = (dict(record) for record in records)
+
+        processed_records = []
+
         # Insert indexd data:
-        for record in records:
-            record = dict(record)
+        for record in record_dicts:
             urls = record["urls"]
             # NOTE: 'file_state' is stored as 'state' in indexd.
             # However, this is not important as esbuild does not pay attention to 'file_state'
@@ -128,18 +121,21 @@ def create_indexd_documents(indexd_client):
             urls_metadata = {urls[0]: {"state": record.get("file_state", "validated")}}
             if "gencode_version" not in record:
                 record["gencode_version"] = "neutral"
-            doc = indexd_client.create(
-                did=record["did"],
-                acl=record["acl"],
-                hashes={"md5": record["md5sum"]},
-                size=record["file_size"],
-                file_name=record.get("file_name", None),
-                urls=urls,
-                metadata=record,
-                urls_metadata=urls_metadata,
+
+            processed_records.append(
+                IndexData(
+                    did=record["did"],
+                    acl=record["acl"],
+                    hashes={"md5": record["md5sum"]},
+                    size=record["file_size"],
+                    file_name=record.get("file_name", None),
+                    urls=urls,
+                    metadata=record,
+                    urls_metadata=urls_metadata,
+                )
             )
-            docs.append(doc)
-        return docs
+
+        return indexd_loader(resource=processed_records)
 
     return _inner
 
@@ -177,28 +173,28 @@ def render_database(pg_driver):
 
 
 @pytest.fixture(autouse=True)
-def environment(monkeypatch):
+def environment(monkeypatch, postgresql_esbuild, elasticsearch_server_esbuild):
     """Monkeypatch the script environment"""
 
-    monkeypatch.setenv("ES_HOST", ES_HOST)
+    monkeypatch.setenv("ES_HOST", elasticsearch_server_esbuild.host)
+    monkeypatch.setenv("ES_PORT", elasticsearch_server_esbuild.port)
     monkeypatch.setenv("ES_USER", "")
     monkeypatch.setenv("ES_PASSWORD", "")
-    monkeypatch.setenv("PG_HOST", PG_HOST)
-    monkeypatch.setenv("PG_USER", PG_USER)
-    monkeypatch.setenv("PG_PASS", PG_PASS)
-    monkeypatch.setenv("PG_NAME", PG_NAME)
+    monkeypatch.setenv(
+        "PG_HOST", f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}"
+    )
+    monkeypatch.setenv("PG_USER", postgresql_esbuild.info.user)
+    monkeypatch.setenv("PG_PASS", postgresql_esbuild.info.password)
+    monkeypatch.setenv("PG_NAME", postgresql_esbuild.info.dbname)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def pg_driver(graph):
     """Add all test data to the database.
 
     Attempt to render a PDF representation of the test suite.
 
     """
-
-    clear_graph_database(graph)
-
     data.insert(graph)
 
     try:
@@ -208,27 +204,25 @@ def pg_driver(graph):
 
     yield graph
 
-    clear_graph_database(graph)
 
-
-@pytest.fixture(scope="module")
-def ro_pg_driver(pg_driver):
+@pytest.fixture
+def ro_pg_driver(pg_driver, postgresql_esbuild):
     with pg_driver.engine.connect() as conn:
         ro_user = "ro_test"
         ro_pass = "ro_test"
         commands = [
-            # "create user {} with password '{}'".format(ro_user, ro_pass),
-            f"grant connect on database {PG_NAME} to {ro_user}",
+            f"create user {ro_user} with password '{ro_pass}'",
+            f"grant connect on database {postgresql_esbuild.info.dbname} to {ro_user}",
             f"grant select on all tables in schema public to {ro_user}",
         ]
         for cmd in commands:
             conn.execute(cmd)
 
     ro_pg_conn = PsqlGraphDriver(
-        host=os.getenv("PG_HOST", PG_HOST),
+        host=f"{postgresql_esbuild.info.host}:{postgresql_esbuild.info.port}",
         user=ro_user,
         password=ro_pass,
-        database=os.getenv("PG_NAME", PG_NAME),
+        database=postgresql_esbuild.info.dbname,
     )
 
     yield ro_pg_conn
@@ -236,7 +230,8 @@ def ro_pg_driver(pg_driver):
     with pg_driver.engine.connect() as conn:
         commands = [
             f"revoke all on all tables in schema public from {ro_user}",
-            f"revoke all on database {PG_NAME} from {ro_user}",
+            f"revoke all on database {postgresql_esbuild.info.dbname} from {ro_user}",
+            f"drop user {ro_user}",
         ]
 
         for cmd in commands:
@@ -285,8 +280,9 @@ def cleanup_indices(es, indices=None):
         except ElasticsearchException:
             time.sleep(0.1)
     else:
+        health = es.cluster.health()
         # Default timeout is 30 seconds, 10 iterations ~ 5 minutes
-        raise Exception("Elasticsearch cluster offline after 5 minutes")
+        raise Exception(f"Elasticsearch cluster offline after 5 minutes: {health}")
 
     if not indices:
         indices = get_all_indices(es)
@@ -302,17 +298,12 @@ def index_types():
     return ["annotation", "case", "file", "project"]
 
 
-@pytest.fixture(scope="session")
-def es_client():
-    es = Elasticsearch(
-        hosts=[ES_HOST],
-        port=ES_PORT,
-    )
-
-    return es
+@pytest.fixture
+def es_client(elasticsearch_esbuild):
+    return elasticsearch_esbuild
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def test_index_data(index_types, es_client):
     """Generate data index as a fixture for re-use between tests"""
 
@@ -362,7 +353,7 @@ def test_index_data(index_types, es_client):
     cleanup_indices(es_client, index_names.values())
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def es_after_deletion(test_index_data, index_types):
     """
     Deletes some projects from the index but not updates the metadata,
@@ -436,8 +427,6 @@ def generate_scenario(graph_factory, pg_driver, create_indexd_documents):
         return x_nodes, docs
 
     yield _from_file
-
-    cleanup_nodes(pg_driver, nodes)
 
 
 @pytest.fixture

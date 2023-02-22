@@ -11,7 +11,7 @@ from gdcdatamodel import models as md
 from jsonpath_rw import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
-from tests.integration.conftest import Index, cleanup_nodes, raise_test_error
+from tests.integration.conftest import Index, raise_test_error
 from tests.integration.data import fuzzed, get_node_id
 from tests.integration.test_utils import validate_file_metadata
 
@@ -56,8 +56,6 @@ def custom_annotation(pg_driver):
 
     yield case, annotation
 
-    cleanup_nodes(pg_driver, [case, annotation])
-
 
 @pytest.fixture
 def suppressed_case(pg_driver, graph_factory):
@@ -91,8 +89,6 @@ def suppressed_case(pg_driver, graph_factory):
         sxn.add(case)
 
     yield case, redaction
-
-    cleanup_nodes(pg_driver, nodes + [redaction])
 
 
 @pytest.fixture
@@ -130,8 +126,6 @@ def non_case_redaction(pg_driver):
 
     yield portion, sample, case
 
-    cleanup_nodes(pg_driver, [annotation, redacted1, redacted2])
-
 
 @pytest.fixture
 def non_live_related_file(pg_driver):
@@ -158,8 +152,6 @@ def non_live_related_file(pg_driver):
 
     yield derived_file
 
-    cleanup_nodes(pg_driver, [related_to_derived, derived_file])
-
 
 @pytest.fixture
 def withdrew_consent_redaction(pg_driver):
@@ -177,8 +169,6 @@ def withdrew_consent_redaction(pg_driver):
         s.merge(case)
 
     yield case, annotation
-
-    cleanup_nodes(pg_driver, [annotation])
 
 
 @pytest.fixture
@@ -222,8 +212,6 @@ def derived_file_setup(pg_driver):
         derived_file.related_files = [related_to_derived]
 
     yield live_file, derived_file, related_to_derived
-
-    cleanup_nodes(pg_driver, [related_to_derived, derived_file])
 
 
 # ======================================================================

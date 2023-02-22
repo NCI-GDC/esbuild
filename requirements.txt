@@ -62,7 +62,7 @@ idna==2.10
     # via requests
 importlib-metadata==2.1.1
     # via jsonschema
-indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.2
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3
     # via esbuild (setup.py)
 jsonschema==3.2.0
     # via
@@ -128,7 +128,7 @@ urllib3==1.26.2
     #   requests
 xlocal==0.5
     # via psqlgraph
-zipp==1.2.0
+zipp==3.6.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
