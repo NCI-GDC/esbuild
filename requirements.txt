@@ -14,7 +14,7 @@ backports.weakref==1.0.post1
     # via backports.tempfile
 cdislogging==1.0.0
     # via esbuild (setup.py)
-certifi==2020.12.5
+certifi==2022.12.7
     # via
     #   elasticsearch
     #   requests
