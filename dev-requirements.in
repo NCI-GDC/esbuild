@@ -12,4 +12,4 @@ pytest-elasticsearch
 git+https://github.com/uc-cdis/doiclient.git@1.0.0#egg=doiclient
 git+https://github.com/uc-cdis/dosclient.git@1.0.0#egg=dosclient
 git+ssh://git@github.com/NCI-GDC/indexd.git@2.9.0-rc.1#egg=indexd
-git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3#egg=indexclient[pytest_indexd]
+git+ssh://git@github.com/NCI-GDC/indexclient.git@feat/dev-1707-pin-update#egg=indexclient[pytest_indexd]
