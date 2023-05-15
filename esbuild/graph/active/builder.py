@@ -600,10 +600,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         # Methylation paths
         methylation_paths = [
-            reverse_and_skip_first_entry(paif sub:
-            print(f"READ GROUPS: {sub}")
-        
-        entities.extend(sub)th)
+            reverse_and_skip_first_entry(path)
             for path in list_product(
                 [["aliquot"]], self.aliquot_to_methylation_value_paths
             )
