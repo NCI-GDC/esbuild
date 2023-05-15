@@ -558,20 +558,29 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
         entities = super().get_file_associated_entities(node)
 
         # Add entities via read_group
-        entities += [
+        sub = [
             entity
             for rg in self.get_file_read_groups(node)
             for entity in self.neighbors_labeled(rg, self.possible_associated_entites)
         ]
+        if sub:
+            print(f"READ GROUPS: {sub}")
+        
+        entities.extend(sub)
 
         # Add entities with one step through a data_file
-        entities += [
+        sub = [
             entity
             for parent in self.get_parent_with_category(node, "data_file")
             for entity in self.neighbors_labeled(
                 parent, self.possible_associated_entites
             )
         ]
+        if sub:
+            print(f"PASS THROUGH: {sub}")
+        
+        entities.extend(sub)
+        
 
         # Copy number paths
         cnv_paths = [
@@ -591,7 +600,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         # Methylation paths
         methylation_paths = [
-            reverse_and_skip_first_entry(path)
+            reverse_and_skip_first_entry(paif sub:
+            print(f"READ GROUPS: {sub}")
+        
+        entities.extend(sub)th)
             for path in list_product(
                 [["aliquot"]], self.aliquot_to_methylation_value_paths
             )

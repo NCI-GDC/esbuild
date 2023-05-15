@@ -260,6 +260,11 @@ class GDCElasticsearch:
             converter.cache_database()
             cache_end_time = datetime.datetime.now()
 
+            n = self.graph.nodes().get("9c5b9758-5dda-43f9-b458-064cf322f081")
+
+            print(converter.get_file_associated_entities(n))
+            raise Exception()
+
             self.log.info(
                 "ANALYSIS: Loaded data in %s", cache_end_time - cache_start_time
             )
