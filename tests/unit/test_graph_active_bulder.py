@@ -3,7 +3,7 @@ from pprint import pprint
 import pytest
 from gdcdatamodel import models as md
 from gdcmodels import get_es_models
-from jsonpath_rw import parse
+from jsonpath_ng import parse
 
 from esbuild.graph.active.builder import (
     ActiveGraphIndexBuilder,

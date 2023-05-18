@@ -8,25 +8,25 @@ Strategy to add analysis and file types:
 - An attempt to balance abstraction by creating the traversals from a
 known point to limit wandering through the graph.  Currently, the
 subgraph that includes active data_file and analysis nodes is isolated
-by removing read_group, so we create a readgroup subtree and append
-all paths generated in the readgroup subtree to paths from aliquot to
+by removing read_group, so we create a read group subtree and append
+all paths generated in the read group subtree to paths from aliquot to
 case - jsm (2016-03-22)
 
 - we don't need a special path for harmonized files because they get
 tied to the relevant aliquots during cache_database
 
 """
-from typing import List, Optional, Set
+import itertools
+from typing import Iterable, List, Optional, Sequence, Set
 
-from cdislogging import get_logger
-from gdcdatamodel.models import ReadGroup
+import cdislogging
+import psqlgraph
+from gdcdatamodel import models
 
-from esbuild.graph.active.mappings import ActiveESMapper
-from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.active import mappings
+from esbuild.graph.common import builder, validators
 
-from ..common import validators
-
-log = get_logger("graph_active_index", log_level="info")
+log = cdislogging.get_logger("graph_active_index", log_level="error")
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 
@@ -118,9 +118,8 @@ def subtree_paths_to_file(
     return paths
 
 
-class ActiveGraphIndexBuilder(GraphIndexBuilder):
-
-    mapper = ActiveESMapper
+class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
+    mapper = mappings.ActiveESMapper
 
     """
     Since the Active index has more complicated paths from case to
@@ -171,8 +170,10 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     # - a very tired joe sislow (3/15/2018)
 
     readgroup_subtree = list_product(
-        [[ReadGroup.label]],
-        subtree_paths_to_file(ReadGroup, exclude_paths_through=exclude_paths_through),
+        [[models.ReadGroup.label]],
+        subtree_paths_to_file(
+            models.ReadGroup, exclude_paths_through=exclude_paths_through
+        ),
     )
 
     # Even more fun
@@ -291,7 +292,7 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
     case_to_file_paths += case_to_genotyping_array_paths
     case_to_file_paths += case_to_germline_variation_paths
 
-    file_labels = GraphIndexBuilder.node_labels_by_category(
+    file_labels = builder.GraphIndexBuilder.node_labels_by_category(
         [
             "data_file",
             "index_file",
@@ -553,53 +554,62 @@ class ActiveGraphIndexBuilder(GraphIndexBuilder):
 
         return doc
 
-    def get_file_associated_entities(self, node):
-        """Return a list of entities that are 'associated' with a file."""
-        entities = super().get_file_associated_entities(node)
-
-        # Add entities via read_group
-        entities += [
-            entity
-            for rg in self.get_file_read_groups(node)
-            for entity in self.neighbors_labeled(rg, self.possible_associated_entites)
-        ]
-
-        # Add entities with one step through a data_file
-        entities += [
-            entity
-            for parent in self.get_parent_with_category(node, "data_file")
-            for entity in self.neighbors_labeled(
-                parent, self.possible_associated_entites
-            )
-        ]
-
-        # Copy number paths
-        cnv_paths = [
-            reverse_and_skip_first_entry(path)
-            for path in list_product(
-                [["aliquot"]], self.aliquot_to_copy_number_segment_paths
-            )
-        ]
-
-        # GISTIC paths
-        gistic_paths = [
-            reverse_and_skip_first_entry(path)
-            for path in list_product(
-                [["aliquot"]], self.aliquot_to_copy_number_estimate_paths
-            )
-        ]
-
-        # Methylation paths
-        methylation_paths = [
-            reverse_and_skip_first_entry(path)
-            for path in list_product(
-                [["aliquot"]], self.aliquot_to_methylation_value_paths
-            )
-        ]
-
+    def _get_custom_associated_entity_paths(
+        self, node: psqlgraph.Node
+    ) -> Iterable[Sequence[str]]:
         # Special case paths to be traversed to possible associated entities
-        custom_paths = cnv_paths + gistic_paths + methylation_paths
+        if node.label == "copy_number_segment":
+            return (
+                reverse_and_skip_first_entry(path)
+                for path in list_product(
+                    [["aliquot"]], self.aliquot_to_copy_number_segment_paths
+                )
+            )
+        elif node.label == "copy_number_estimate":
+            return (
+                reverse_and_skip_first_entry(path)
+                for path in list_product(
+                    [["aliquot"]], self.aliquot_to_copy_number_estimate_paths
+                )
+            )
+        elif node.label == "methylation_beta_value":
+            return (
+                reverse_and_skip_first_entry(path)
+                for path in list_product(
+                    [["aliquot"]], self.aliquot_to_methylation_value_paths
+                )
+            )
+        else:
+            return ()
 
-        entities += [entity for entity in self.walk_paths(node, custom_paths)]
+    def _get_associated_entities_via_read_group(
+        self, node: psqlgraph.Node
+    ) -> Iterable[psqlgraph.Node]:
+        return itertools.chain.from_iterable(
+            self.neighbors_labeled(rg, self.possible_associated_entities)
+            for rg in self.get_file_read_groups(node)
+        )
 
-        return list(set(entities))
+    def _get_associated_entities_via_data_files(
+        self, node: psqlgraph.Node
+    ) -> Iterable[psqlgraph.Node]:
+        return itertools.chain.from_iterable(
+            self.neighbors_labeled(parent, self.possible_associated_entities)
+            for parent in self.get_parent_with_category(node, "data_file")
+        )
+
+    def get_file_associated_entities(
+        self, node: psqlgraph.Node
+    ) -> Iterable[psqlgraph.Node]:
+        """Return all entities that are 'associated' with a file."""
+        custom_paths = self._get_custom_associated_entity_paths(node)
+        entities = super().get_file_associated_entities(node)
+        entities = itertools.chain(
+            entities, self._get_associated_entities_via_read_group(node)
+        )
+        entities = itertools.chain(
+            entities, self._get_associated_entities_via_data_files(node)
+        )
+        entities = itertools.chain(entities, self.walk_paths(node, custom_paths))
+
+        return frozenset(entities)

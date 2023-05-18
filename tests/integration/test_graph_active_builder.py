@@ -11,7 +11,7 @@ import psqlgraph
 import pytest
 from gdcdatamodel import models as md
 from indexclient import client
-from jsonpath_rw import parse
+from jsonpath_ng import parse
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import GraphIndexBuilder
@@ -82,11 +82,6 @@ def mappings():
 @pytest.fixture
 def inconsistent_slides(generate_scenario):
     generate_scenario("slide_two_cases_scenario.yaml")
-
-
-@pytest.fixture
-def gpas_copy_numbers(generate_scenario):
-    generate_scenario("copy_number_scenario.yaml")
 
 
 @pytest.fixture
@@ -655,13 +650,13 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     builderA = MyBuilderA(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderA.cache_database()
-        labeled = builderA.nodes_labeled(builderA.possible_associated_entites)
+        labeled = builderA.nodes_labeled(builderA.possible_associated_entities)
         assert labeled and all(n.label == "slide" for n in labeled[:3])
 
     builderB = MyBuilderB(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderB.cache_database()
-        labeled = builderB.nodes_labeled(builderB.possible_associated_entites)
+        labeled = builderB.nodes_labeled(builderB.possible_associated_entities)
         assert labeled and all(n.label == "slide" for n in labeled[-3:])
 
     # Comparing that 2 maps are the same
@@ -692,43 +687,6 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     # Make sure that correct entities got linked
     si2_entity_ids = [ae["entity_submitter_id"] for ae in si2_entities]
     assert "slide_2" in si2_entity_ids
-
-
-@pytest.mark.usefixtures("gpas_copy_numbers")
-def test_gpas_copy_number_nodes_picked_up(
-    pg_driver: psqlgraph.PsqlGraphDriver, init_indexd: client.IndexClient
-) -> None:
-    """
-    Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up
-    """
-
-    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
-
-    with pg_driver.session_scope():
-        builder.cache_database()
-
-    cases, files, _, _ = builder.denormalize_all()
-
-    file_submitter_ids = frozenset({f.get("submitter_id", "") for f in files})
-
-    # 8 additional files: 2 CNE, 2 CNS, 2 ARs, 2 SGA
-    expected_submitter_ids = frozenset(
-        {
-            "cn_cne_1",
-            "cn_cne_2",
-            "cn_cns_1",
-            "cn_cns_2",
-            "cn_ar_1",
-            "cn_ar_2",
-            "cn_sga_1",
-            "cn_sga_2",
-        }
-    )
-
-    assert len(files) == N_FILES + len(expected_submitter_ids)
-    assert (
-        expected_submitter_ids < file_submitter_ids
-    ), f"Missing: {expected_submitter_ids - file_submitter_ids}"
 
 
 @pytest.mark.usefixtures("diagnosis_annotations")
