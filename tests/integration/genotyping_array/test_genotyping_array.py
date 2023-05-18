@@ -1,4 +1,4 @@
-import jsonpath_rw
+import jsonpath_ng
 
 from tests.integration import conftest
 
@@ -6,10 +6,10 @@ from tests.integration import conftest
 def test__submitted_genotyping_array__files(
     genotyping_array_index: conftest.Index,
 ) -> None:
-    file_results = jsonpath_rw.parse("[*].submitter_id").find(
+    file_results = jsonpath_ng.parse("[*].submitter_id").find(
         genotyping_array_index.files
     )
-    case_results = jsonpath_rw.parse("[*].cases.[*].submitter_id").find(
+    case_results = jsonpath_ng.parse("[*].cases.[*].submitter_id").find(
         genotyping_array_index.files
     )
     file_submitter_ids = frozenset(r.value for r in file_results)
@@ -22,10 +22,10 @@ def test__submitted_genotyping_array__files(
 def test__submitted_genotyping_array__cases(
     genotyping_array_index: conftest.Index,
 ) -> None:
-    case_results = jsonpath_rw.parse("[*].submitter_id").find(
+    case_results = jsonpath_ng.parse("[*].submitter_id").find(
         genotyping_array_index.cases
     )
-    file_results = jsonpath_rw.parse("[*].files.[*].submitter_id").find(
+    file_results = jsonpath_ng.parse("[*].files.[*].submitter_id").find(
         genotyping_array_index.cases
     )
     case_submitter_ids = frozenset(r.value for r in case_results)
@@ -38,13 +38,13 @@ def test__submitted_genotyping_array__cases(
 def test__simple_germline_variation__files(
     genotyping_array_index: conftest.Index,
 ) -> None:
-    file_results = jsonpath_rw.parse("[*].submitter_id").find(
+    file_results = jsonpath_ng.parse("[*].submitter_id").find(
         genotyping_array_index.files
     )
-    input_file_results = jsonpath_rw.parse("[*].analysis.input_files.[*].submitter_id").find(
+    input_file_results = jsonpath_ng.parse("[*].analysis.input_files.[*].submitter_id").find(
         genotyping_array_index.files
     )
-    case_results = jsonpath_rw.parse("[*].cases.[*].submitter_id").find(
+    case_results = jsonpath_ng.parse("[*].cases.[*].submitter_id").find(
         genotyping_array_index.files
     )
     file_submitter_ids = frozenset(r.value for r in file_results)
@@ -60,10 +60,10 @@ def test__simple_germline_variation__files(
 def test__simple_germline_variation__cases(
     genotyping_array_index: conftest.Index,
 ) -> None:
-    case_results = jsonpath_rw.parse("[*].submitter_id").find(
+    case_results = jsonpath_ng.parse("[*].submitter_id").find(
         genotyping_array_index.cases
     )
-    file_results = jsonpath_rw.parse("[*].files.[*].submitter_id").find(
+    file_results = jsonpath_ng.parse("[*].files.[*].submitter_id").find(
         genotyping_array_index.cases
     )
     case_submitter_ids = frozenset(r.value for r in case_results)

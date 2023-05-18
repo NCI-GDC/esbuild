@@ -11,7 +11,7 @@ import psqlgraph
 import pytest
 from gdcdatamodel import models as md
 from indexclient import client
-from jsonpath_rw import parse
+from jsonpath_ng import parse
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import GraphIndexBuilder

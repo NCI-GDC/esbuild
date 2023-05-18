@@ -1,6 +1,6 @@
 -c requirements.txt
 
-jsonpath-rw~=1.4
+jsonpath-ng~=1.5.3
 mock~=3.0
 more-itertools==8.14.0
 pytest

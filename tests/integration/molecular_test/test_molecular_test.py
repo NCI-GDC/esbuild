@@ -1,7 +1,7 @@
 from collections import Counter
 
 import pytest
-from jsonpath_rw import parse
+from jsonpath_ng import parse
 
 
 @pytest.mark.parametrize(

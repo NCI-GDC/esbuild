@@ -8,7 +8,7 @@ Test the builder for graph ES index
 
 import pytest
 from gdcdatamodel import models as md
-from jsonpath_rw import parse
+from jsonpath_ng import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
