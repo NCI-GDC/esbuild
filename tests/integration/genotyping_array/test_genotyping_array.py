@@ -41,9 +41,9 @@ def test__simple_germline_variation__files(
     file_results = jsonpath_ng.parse("[*].submitter_id").find(
         genotyping_array_index.files
     )
-    input_file_results = jsonpath_ng.parse(
-        "[*].analysis.input_files.[*].submitter_id"
-    ).find(genotyping_array_index.files)
+    input_file_results = jsonpath_ng.parse("[*].analysis.input_files.[*].submitter_id").find(
+        genotyping_array_index.files
+    )
     case_results = jsonpath_ng.parse("[*].cases.[*].submitter_id").find(
         genotyping_array_index.files
     )
