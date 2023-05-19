@@ -1,7 +1,7 @@
 from collections import Counter
 
+import jmespath
 import pytest
-from jsonpath_ng import parse
 
 
 @pytest.mark.parametrize(
@@ -9,14 +9,14 @@ from jsonpath_ng import parse
     [
         (
             "files",
-            "[*].type.[*]",
+            "[].type",
             {
                 "secondary_expression_analysis": 2,
             },
         ),
         (
             "files",
-            "[*].data_type.[*]",
+            "[].data_type",
             {
                 "Differential Gene Expression": 1,
                 "Single Cell Analysis": 1,
@@ -24,7 +24,7 @@ from jsonpath_ng import parse
         ),
         (
             "files",
-            "[*].submitter_id.[*]",
+            "[].submitter_id",
             {
                 "sea_secondary_exp_0": 1,
                 "sea_secondary_exp_1": 1,
@@ -37,8 +37,8 @@ def test_secondary_expression_analysis_counts(
 ):
     index = scenario_index("secondary_expression_analysis_scenario.yaml")
 
-    results = parse(path).find(getattr(index, index_type))
-    counts = Counter(r.value for r in results)
+    results = jmespath.search(path, getattr(index, index_type))
+    counts = Counter(results)
 
     for value, count in expected.items():
         assert counts[value] == count, counts

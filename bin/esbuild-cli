@@ -2,11 +2,12 @@
 
 import argparse
 import json
+from concurrent import futures
 
 import datadog
-from esbuild import utils, reindexing, gdc_elasticsearch
+
+from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.export import mapping_exporter
-from concurrent import futures
 
 
 def handle_mappings(args):

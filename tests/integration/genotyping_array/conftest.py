@@ -1,8 +1,8 @@
 from typing import Any, Callable
 
+import psqlgraph
 import pytest
 from indexclient import client
-import psqlgraph
 
 from esbuild.graph.active import builder
 from tests.integration import conftest
