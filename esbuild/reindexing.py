@@ -11,7 +11,7 @@ import elasticsearch
 import progressbar
 
 from esbuild import gdc_elasticsearch, utils
-from esbuild.graph.active import builder
+from esbuild.graph.active import builder, mappings
 
 
 def _extract_properties(mapping: dict, prefix: str = "") -> Iterable[str]:
@@ -30,7 +30,7 @@ def _get_index_type(index_name: str) -> str:
 
 
 def _get_index_settings() -> Dict[str, Any]:
-    index_settings = builder.ActiveESMapper.index_settings()
+    index_settings = mappings.ActiveESMapper.index_settings()
     settings = index_settings.setdefault("settings", {})
     settings["index.number_of_replicas"] = 0
     settings["index.number_of_shards"] = 1
@@ -40,10 +40,10 @@ def _get_index_settings() -> Dict[str, Any]:
 
 def _get_mappings() -> Dict[str, Any]:
     return {
-        "annotation": builder.ActiveESMapper.get_annotation_es_mapping(),
-        "case": builder.ActiveESMapper.get_case_es_mapping(),
-        "file": builder.ActiveESMapper.get_file_es_mapping(),
-        "project": builder.ActiveESMapper.get_project_es_mapping(),
+        "annotation": mappings.ActiveESMapper.get_annotation_es_mapping(),
+        "case": mappings.ActiveESMapper.get_case_es_mapping(),
+        "file": mappings.ActiveESMapper.get_file_es_mapping(),
+        "project": mappings.ActiveESMapper.get_project_es_mapping(),
     }
 
 

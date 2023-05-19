@@ -13,7 +13,7 @@ from gdcdatamodel.models import Demographic, File
 
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.active import builder
+from esbuild.graph.active import builder, mappings
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration import data
@@ -253,10 +253,10 @@ def get_graph_counts(es, index_prefix, index_types):
 
 
 def get_modified_mapping():
-    mappings = builder.ActiveESMapper.get_case_es_mapping().to_dict()
-    mappings["properties"]["project"]["properties"]["project_id"]["type"] = "text"
+    mapping = mappings.ActiveESMapper.get_case_es_mapping().to_dict()
+    mapping["properties"]["project"]["properties"]["project_id"]["type"] = "text"
 
-    return mappings
+    return mapping
 
 
 def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
@@ -287,10 +287,10 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
     new_index_prefix = "new_gdc_es_test"
     new_case_index = new_index_prefix + "_case"
     modified_mapping = get_modified_mapping()
-    settings = builder.ActiveESMapper.index_settings()
+    settings = mappings.ActiveESMapper.index_settings()
 
     with mock.patch(
-        "esbuild.graph.active.builder.ActiveESMapper"
+        "esbuild.graph.active.mappings.ActiveESMapper"
     ) as mapper, futures.ThreadPoolExecutor() as executor:
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
         progress_manager = reindexing.TaskProgressManager(
