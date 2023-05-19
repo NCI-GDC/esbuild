@@ -1,7 +1,7 @@
 from collections import Counter
 
+import jmespath
 import pytest
-from jsonpath_rw import parse
 
 
 @pytest.mark.parametrize(
@@ -9,7 +9,7 @@ from jsonpath_rw import parse
     [
         (
             "files",
-            "[*].cases.[*].diagnoses.[*].pathology_details.[*].submitter_id",
+            "[].cases[].diagnoses[].pathology_details[].submitter_id",
             {
                 "pd_pathology_1": 1,
                 "pd_pathology_2": 1,
@@ -17,7 +17,7 @@ from jsonpath_rw import parse
         ),
         (
             "cases",
-            "[*].diagnoses.[*].pathology_details.[*].submitter_id",
+            "[].diagnoses[].pathology_details[].submitter_id",
             {
                 "pd_pathology_1": 1,
                 "pd_pathology_2": 1,
@@ -28,8 +28,8 @@ from jsonpath_rw import parse
 def test_pathology_detail_counts(
     pathology_detail_index, index_type, path, expectations
 ):
-    results = parse(path).find(getattr(pathology_detail_index, index_type))
-    counts = Counter(r.value for r in results)
+    results = jmespath.search(path, getattr(pathology_detail_index, index_type))
+    counts = Counter(results)
 
     for value, count in expectations.items():
         assert counts[value] == count, counts

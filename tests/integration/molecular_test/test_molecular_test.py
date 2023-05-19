@@ -1,7 +1,7 @@
 from collections import Counter
 
+import jmespath
 import pytest
-from jsonpath_rw import parse
 
 
 @pytest.mark.parametrize(
@@ -9,14 +9,14 @@ from jsonpath_rw import parse
     [
         (
             "cases",
-            "[*].follow_ups.[*].submitter_id",
+            "[].follow_ups[].submitter_id",
             {
                 "mt_follow_up_1": 1,
             },
         ),
         (
             "cases",
-            "[*].follow_ups.[*].molecular_tests.[*].submitter_id",
+            "[].follow_ups[].molecular_tests[].submitter_id",
             {
                 "mt_molecular_test_1": 1,
                 "mt_molecular_test_2": 1,
@@ -24,14 +24,14 @@ from jsonpath_rw import parse
         ),
         (
             "files",
-            "[*].cases.[*].follow_ups.[*].submitter_id",
+            "[].cases[].follow_ups[].submitter_id",
             {
                 "mt_follow_up_1": 1,
             },
         ),
         (
             "files",
-            "[*].cases.[*].follow_ups.[*].molecular_tests.[*].submitter_id",
+            "[].cases[].follow_ups[].molecular_tests[].submitter_id",
             {
                 "mt_molecular_test_1": 1,
                 "mt_molecular_test_2": 1,
@@ -40,8 +40,8 @@ from jsonpath_rw import parse
     ],
 )
 def test_molecular_test_counts(molecular_test_index, index_type, path, expectations):
-    results = parse(path).find(getattr(molecular_test_index, index_type))
-    counts = Counter(r.value for r in results)
+    results = jmespath.search(path, getattr(molecular_test_index, index_type))
+    counts = Counter(results)
 
     for value, count in expectations.items():
         assert counts[value] == count, counts

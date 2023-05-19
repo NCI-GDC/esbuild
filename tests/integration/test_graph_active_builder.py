@@ -5,13 +5,14 @@ test_graph_index.py
 Test the builder for graph ES index
 
 """
+import operator
 from functools import reduce
 
+import jmespath
 import psqlgraph
 import pytest
 from gdcdatamodel import models as md
 from indexclient import client
-from jsonpath_rw import parse
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import GraphIndexBuilder
@@ -188,54 +189,54 @@ def test_gencode_version(apply_gencode_to_indexd, pg_driver, gencode, expected_n
 @pytest.mark.parametrize(
     "index_type,path",
     [
-        ("cases", "[*].clinical"),
-        ("cases", "[*].files.[*].file_state"),
-        ("files", "[*].file_state"),
-        ("annotations", "[*].creator"),
+        ("cases", "[].clinical"),
+        ("cases", "[].files[].file_state"),
+        ("files", "[].file_state"),
+        ("annotations", "[].creator"),
     ],
 )
 def test_path_is_absent(index, index_type, path):
-    assert not parse(path).find(getattr(index, index_type))
+    assert not jmespath.search(path, getattr(index, index_type))
 
 
 @pytest.mark.parametrize(
     "index_type,path,count",
     [
-        ("projects", "[*].primary_site", 2),
-        ("projects", "[*].disease_type", 2),
-        ("cases", "[*].primary_site", 5),
-        ("cases", "[*].disease_type", 5),
-        ("cases", "[*].project.project_id", 5),
-        ("cases", "[*].project.disease_type", 5),
-        ("cases", "[*].project.primary_site", 5),
-        ("cases", "[*].project_id", 0),
-        ("cases", "[*].metadata_files", 0),
-        ("cases", "[*].samples.[*].project_id", 0),
-        ("cases", "[*].samples.[*].portions.[*].portion_id", 6),
-        ("cases", "[*].samples.[*].portions.[*].analytes.[*].analyte_id", 7),
+        ("projects", "[].primary_site", 2),
+        ("projects", "[].disease_type", 2),
+        ("cases", "[].primary_site", 5),
+        ("cases", "[].disease_type", 5),
+        ("cases", "[].project.project_id", 5),
+        ("cases", "[].project.disease_type", 5),
+        ("cases", "[].project.primary_site", 5),
+        ("cases", "[].project_id", 0),
+        ("cases", "[].metadata_files", 0),
+        ("cases", "[].samples[].project_id", 0),
+        ("cases", "[].samples[].portions[].portion_id", 6),
+        ("cases", "[].samples[].portions[].analytes[].analyte_id", 7),
         (
             "cases",
-            "[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].project_id",
+            "[].samples[].portions[].analytes[].aliquots[].project_id",
             0,
         ),
-        ("cases", "[*].samples.[*].sample_id", 3),
+        ("cases", "[].samples[].sample_id", 3),
         (
             "cases",
-            "[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id",
+            "[].samples[].portions[].analytes[].aliquots[].aliquot_id",
             13,
         ),
-        ("files", "[*].(file_size | file_name | file_id)", N_FILES * 3),
-        ("files", "[*].uploaded_datetime", 0),
-        ("files", "[*].project_id", 0),
-        ("files", "[*].cases.[*].project_id", 0),
-        ("files", "[*].annotations.[*].case_id", N_FILES_UNDER_ALIQUOT_1),
-        ("annotations", "[*].project_id", 0),
-        ("annotations", "[*].annotation_id", 3),
-        ("files", "[*].associated_entities.[*].entity_type", N_FILES + 3),
+        ("files", "[].[file_size,file_name,file_id][]", N_FILES * 3),
+        ("files", "[].uploaded_datetime", 0),
+        ("files", "[].project_id", 0),
+        ("files", "[].cases[].project_id", 0),
+        ("files", "[].annotations[].case_id", N_FILES_UNDER_ALIQUOT_1),
+        ("annotations", "[].project_id", 0),
+        ("annotations", "[].annotation_id", 3),
+        ("files", "[].associated_entities[].entity_type", N_FILES + 3),
     ],
 )
 def test_path_count(index, index_type, path, count):
-    results = parse(path).find(getattr(index, index_type))
+    results = jmespath.search(path, getattr(index, index_type))
     assert len(results) == count
 
 
@@ -253,19 +254,19 @@ def test_basic_counts(index, index_type, count):
     [
         (
             "projects",
-            "[*].name",
+            "[].name",
             2,
             {"Breast Invasive Carcinoma", "Made up active project"},
         ),
         (
             "projects",
-            "[*].summary.[*].data_categories.[*].file_count",
+            "[].summary[].data_categories[].file_count",
             9,
             {1, 2, 3},
         ),  # 3 CNV
         (
             "projects",
-            "[*].summary.[*].data_categories.[*].data_category",
+            "[].summary[].data_categories[].data_category",
             9,
             {
                 "Simple Nucleotide Variation",
@@ -281,7 +282,7 @@ def test_basic_counts(index, index_type, count):
         ),
         (
             "cases",
-            "[*].submitter_id",
+            "[].submitter_id",
             5,
             {
                 "TCGA-AR-A1AR",
@@ -290,44 +291,44 @@ def test_basic_counts(index, index_type, count):
                 "released_case_submitter_2",
             },
         ),
-        ("cases", "[*].demographic.year_of_birth", 1, {1951}),
-        ("cases", "[*].diagnoses.[*].age_at_diagnosis", 1, {47}),
+        ("cases", "[].demographic.year_of_birth", 1, {1951}),
+        ("cases", "[].diagnoses[].age_at_diagnosis", 1, {47}),
         (
             "cases",
-            "[*].diagnoses.[*].treatments.[*].treatment_or_therapy",
+            "[].diagnoses[].treatments[].treatment_or_therapy",
             1,
             {"unknown"},
         ),
-        ("cases", "[*].exposures.[*].cigarettes_per_day", 1, {10.3}),
+        ("cases", "[].exposures[].cigarettes_per_day", 1, {10.3}),
         (
             "cases",
-            "[*].family_histories.[*].relationship_primary_diagnosis",
+            "[].family_histories[].relationship_primary_diagnosis",
             1,
             {"Colorectal Cancer"},
         ),
         (
             "cases",
-            "[*].files.[*].analysis.[*].metadata.[*].read_groups.[*].read_group_id",
+            "[].files[].analysis[].metadata[].read_groups[].read_group_id",
             2,
             {get_node_id("read-group-1"), get_node_id("read-group-2")},
         ),
         (
             "cases",
-            "[*].disease_type",
+            "[].disease_type",
             5,
             {"Blood Vessel Tumors", "Adenomas and Adenocarcinomas"},
         ),
-        ("cases", "[*].primary_site", 5, {"Breast", "Prostate gland", "Rectum"}),
+        ("cases", "[].primary_site", 5, {"Breast", "Prostate gland", "Rectum"}),
         (
             "files",
-            "[*].analysis.metadata.read_groups.[*].read_group_qcs.[*].read_group_qc_id",
+            "[].analysis.metadata.read_groups[].read_group_qcs[].read_group_qc_id",
             1,
             {get_node_id("read-group-qc-1")},
         ),
-        ("files", "[*].index_files.[*].file_name", 1, {"index-file-2.bam.bai"}),
+        ("files", "[].index_files[].file_name", 1, {"index-file-2.bam.bai"}),
         (
             "files",
-            "[*].analysis.[*].input_files.[*].data_category",
+            "[].analysis[].input_files[].data_category",
             N_INPUT_FILES,
             {
                 "Sequencing Reads",
@@ -337,31 +338,31 @@ def test_basic_counts(index, index_type, count):
         ),
         (
             "files",
-            "[*].downstream_analyses.[*].output_files.[*].access",
+            "[].downstream_analyses[].output_files[].access",
             N_OUTPUT_FILES,
             {"controlled"},
         ),
         (
             "files",
-            "[*].analysis.[*].input_files.[*].access",
+            "[].analysis[].input_files[].access",
             N_INPUT_FILES,
             {"controlled"},
         ),
         (
             "files",
-            "[*].downstream_analyses.[*].output_files.[*].data_category",
+            "[].downstream_analyses[].output_files[].data_category",
             N_OUTPUT_FILES,
             {"Simple Nucleotide Variation", "Combined Nucleotide Variation"},
         ),
         (
             "files",
-            "[*].downstream_analyses.[*].output_files.[*].state",
+            "[].downstream_analyses[].output_files[].state",
             N_OUTPUT_FILES,
             {"released"},
         ),
         (
             "files",
-            "[*].type.[*]",
+            "[].type",
             N_FILES,
             {
                 "simple_somatic_mutation",
@@ -380,8 +381,8 @@ def test_basic_counts(index, index_type, count):
     ],
 )
 def test_path_value_set_equals(index, index_type, path, expected, count):
-    results = parse(path).find(getattr(index, index_type))
-    actual = {r.value for r in results}
+    results = jmespath.search(path, getattr(index, index_type))
+    actual = frozenset(results)
     assert actual == expected
     assert len(results) == count
 
@@ -391,25 +392,25 @@ def test_path_value_set_equals(index, index_type, path, expected, count):
     [
         (
             "files",
-            "[*].file_id",
+            "[].file_id",
             md.Aliquot,
             [get_node_id("aliquot-derived-from-unreleased-sample")],
         ),
         (
             "cases",
-            "[*].case_id",
+            "[].case_id",
             md.Case,
             [get_node_id("released-case-in-unreleased-project")],
         ),
         (
             "cases",
-            "[*].samples.[*].sample_id",
+            "[].samples[].sample_id",
             md.Sample,
             [get_node_id("sample-unreleased")],
         ),
         (
             "cases",
-            "[*].annotations.[*].annotation_id",
+            "[].annotations[].annotation_id",
             md.Annotation,
             [get_node_id("unreleased-annotation")],
         ),
@@ -423,10 +424,9 @@ def test_unreleased_nodes_not_indexed(
             node = pg_driver.nodes(cls).ids(node_id).one()
             assert node.state in ["submitted", "released"]
 
-    results = parse(path).find(getattr(index, index_type))
-    result_set = {r.value for r in results}
+    results = frozenset(jmespath.search(path, getattr(index, index_type)))
 
-    assert len(result_set.intersection(set(node_ids))) == 0
+    assert len(results & frozenset(node_ids)) == 0
 
 
 @pytest.mark.parametrize(
@@ -434,18 +434,18 @@ def test_unreleased_nodes_not_indexed(
     [
         (
             "projects",
-            "[*].disease_type",
+            "[].disease_type",
             2,
             {"Blood Vessel Tumors", "Adenomas and Adenocarcinomas"},
         ),
-        ("projects", "[*].primary_site", 2, {"Breast", "Prostate gland", "Rectum"}),
+        ("projects", "[].primary_site", 2, {"Breast", "Prostate gland", "Rectum"}),
     ],
 )
 def test_path_value_set_equals_set(index, index_type, path, expected, count):
-    results = parse(path).find(getattr(index, index_type))
+    results = jmespath.search(path, getattr(index, index_type))
     # reduce the dimensionality because we only really care about the
     # existing values here and the count
-    actual = reduce(set.union, map(lambda x: set(x.value), results))
+    actual = reduce(operator.or_, map(lambda x: frozenset(x), results))
     assert actual == expected
     assert len(results) == count
 

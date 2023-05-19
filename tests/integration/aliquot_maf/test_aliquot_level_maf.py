@@ -1,7 +1,7 @@
 from collections import Counter
 
+import jmespath
 import pytest
-from jsonpath_rw import parse
 
 
 @pytest.mark.parametrize(
@@ -9,7 +9,7 @@ from jsonpath_rw import parse
     [
         (
             "files",
-            "[*].type.[*]",
+            "[].type",
             {
                 "masked_somatic_mutation": 2,
                 "simple_somatic_mutation": 6,  # 2 from data.py and 4 from maf data
@@ -19,7 +19,7 @@ from jsonpath_rw import parse
         ),
         (
             "files",
-            "[*].data_type.[*]",
+            "[].data_type",
             {
                 "Masked Somatic Mutation": 2,
                 "Aggregated Somatic Mutation": 3,  # 1 from data.py and 2 from maf data
@@ -28,7 +28,7 @@ from jsonpath_rw import parse
         ),
         (
             "cases",
-            "[*].files.[*].data_type.[*]",
+            "[].files[].data_type",
             {
                 "Masked Somatic Mutation": 2,
                 "Aggregated Somatic Mutation": 3,
@@ -40,8 +40,8 @@ from jsonpath_rw import parse
 def test_aliquot_level_maf_build_counts(
     maf_index, index_type, path, expectations, pg_driver
 ):
-    results = parse(path).find(getattr(maf_index, index_type))
+    results = jmespath.search(path, getattr(maf_index, index_type))
 
-    counts = Counter(r.value for r in results)
+    counts = Counter(results)
     for value, count in expectations.items():
         assert counts[value] == count, (value, counts[value])
