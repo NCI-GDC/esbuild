@@ -6,9 +6,9 @@ Test the builder for graph ES index
 
 """
 
+import jmespath
 import pytest
 from gdcdatamodel import models as md
-from jsonpath_ng import parse
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
@@ -247,75 +247,77 @@ def test_annotation_case_submitter_id(pg_driver, init_indexd, custom_annotation)
 @pytest.mark.parametrize(
     "index_type,path,count",
     [
-        ("cases", "[*].project.project_id", 1),
-        ("cases", "[*].samples.[*].sample_id", 2),
-        ("cases", "[*].samples.[*].portions.[*].portion_id", 3),
-        ("cases", "[*].samples.[*].portions.[*].analytes.[*].analyte_id", 6),
+        ("cases", "[].project.project_id", 1),
+        ("cases", "[].samples[].sample_id", 2),
+        ("cases", "[].samples[].portions[].portion_id", 3),
+        ("cases", "[].samples[].portions[].analytes[].analyte_id", 6),
         (
             "cases",
-            "[*].samples.[*].portions.[*].analytes.[*].aliquots.[*].aliquot_id",
+            "[].samples[].portions[].analytes[].aliquots[].aliquot_id",
             12,
         ),
-        ("files", "[*].file_size", 8),
-        ("files", "[*].associated_entities", 6),
-        ("annotations", "[*].annotation_id", 3),
+        ("files", "[].file_size", 8),
+        ("files", "[].associated_entities", 6),
+        ("annotations", "[].annotation_id", 3),
     ],
 )
 def test_path_count(index, index_type, path, count):
-    results = parse(path).find(getattr(index, index_type))
+    results = jmespath.search(path, getattr(index, index_type))
     assert len(results) == count
 
 
 @pytest.mark.parametrize(
     "index_type,path",
     [
-        ("cases", "[*].clinical"),
+        ("cases", "[].clinical"),
     ],
 )
 def test_path_is_absent(index, index_type, path):
-    assert not parse(path).find(getattr(index, index_type))
+    assert not jmespath.search(path, getattr(index, index_type))
 
 
 @pytest.mark.parametrize(
-    "index_type,path,expected,count",
-    [
-        ("projects", "[*].summary.[*].data_categories.[*].file_count", [1], 3),
+    ("index_type", "path", "expected", "count"),
+    (
+        ("projects", "[].summary[].data_categories[].file_count", [1], 3),
         (
             "projects",
-            "[*].summary.[*].data_categories.[*].data_category",
+            "[].summary[].data_categories[].data_category",
             ["Raw sequencing data", "Clinical", "Biospecimen"],
             3,
         ),
-        ("cases", "[*].demographic.year_of_birth", [1951], 1),
-        ("cases", "[*].diagnoses.[*].age_at_diagnosis", [47], 1),
+        ("cases", "[].demographic.year_of_birth", [1951], 1),
+        ("cases", "[].diagnoses[].age_at_diagnosis", [47], 1),
         (
             "cases",
-            "[*].diagnoses.[*].treatments.[*].treatment_or_therapy",
+            "[].diagnoses[].treatments[].treatment_or_therapy",
             ["unknown"],
             1,
         ),
-        ("cases", "[*].exposures.[*].cigarettes_per_day", [10.3], 1),
+        ("cases", "[].exposures[].cigarettes_per_day", [10.3], 1),
         (
             "cases",
-            "[*].family_histories.[*].relationship_primary_diagnosis",
+            "[].family_histories[].relationship_primary_diagnosis",
             ["Colorectal Cancer"],
             1,
         ),
-        ("files", "[*].index_files.[*].file_name", ["test_file.bam.bai"], 1),
+        ("files", "[].index_files[].file_name", ["test_file.bam.bai"], 1),
         (
             "files",
-            "[*].type.[*]",
+            "[].type",
             ["file", "biospecimen_supplement", "clinical_supplement", "archive"],
             8,
         ),
-        ("files", "[*].metadata_files.[*].data_format", ["SRA XML", None], 5),
-    ],
+        ("files", "[].metadata_files[].to_string(data_format)", ["SRA XML", "null"], 5),
+    ),
 )
 def test_path_value_in(index, index_type, path, expected, count, init_indexd):
-    results = parse(path).find(getattr(index, index_type))
-    assert len([r.value for r in results]) == count
+    results = jmespath.search(path, getattr(index, index_type))
+
+    assert len(results) == count
+
     for actual in results:
-        assert actual.value in expected
+        assert actual in expected
 
 
 def test_omitted_projects(pg_driver, init_indexd):
