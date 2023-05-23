@@ -339,7 +339,7 @@ class GraphIndexBuilder:
             list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
         ]
 
-        self.possible_associated_entites = [
+        self.possible_associated_entities = [
             "portion",
             "aliquot",
             "case",
@@ -1390,9 +1390,9 @@ class GraphIndexBuilder:
         else:
             doc["access"] = "controlled"
 
-    def get_file_associated_entities(self, node: Node) -> List[Node]:
+    def get_file_associated_entities(self, node: Node) -> Iterable[Node]:
         """Return a list of entities that are 'associated' with a file."""
-        return list(self.neighbors_labeled(node, self.possible_associated_entites))
+        return self.neighbors_labeled(node, self.possible_associated_entities)
 
     def add_file_associated_entities(self, node: Node, doc, case_id):
         self._cache_entity_cases()
@@ -2396,7 +2396,7 @@ class GraphIndexBuilder:
         if self.entity_cases:
             return
 
-        entities = list(self.nodes_labeled(self.possible_associated_entites))
+        entities = list(self.nodes_labeled(self.possible_associated_entities))
         pbar = self.pbar("Caching entity cases: ", len(entities))
         self.entity_cases = {}
 

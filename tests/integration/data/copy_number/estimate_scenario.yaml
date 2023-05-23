@@ -43,7 +43,7 @@ nodes:
     submitter_id: cn_scn_wf_2
   - label: copy_number_estimate
     submitter_id: cn_cne_2
-  - label: copy_number_estimate
+  - label: copy_number_segment
     submitter_id: cn_cns_2
 
 edges:

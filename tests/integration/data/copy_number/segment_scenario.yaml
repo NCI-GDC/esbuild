@@ -1,0 +1,62 @@
+---
+nodes:
+  # submitted genotyping arrays subtree
+  - label: case
+    submitter_id: gta_case_1
+  - label: sample
+    submitter_id: gta_sample_1
+  - label: aliquot
+    submitter_id: gta_aliquot_1
+  - label: submitted_genotyping_array
+    submitter_id: gta_sga_1
+  - label: somatic_copy_number_workflow
+    submitter_id: gta_scnw_1
+  - label: copy_number_segment
+    submitter_id: gta_cns_1
+
+  # submitted tangent CN arrays subtree
+  - label: case
+    submitter_id: tcn_case_1
+  - label: sample
+    submitter_id: tcn_sample_1
+  - label: aliquot
+    submitter_id: tcn_aliquot_1
+  - label: submitted_tangent_copy_number
+    submitter_id: tcn_stcn_1
+  - label: copy_number_liftover_workflow
+    submitter_id: tcn_cnlw_1
+  - label: copy_number_segment
+    submitter_id: tcn_cns_1
+
+  # common copy number variation wf (to insure no backtracking)
+  - label: copy_number_variation_workflow
+    submitter_id: cnvw_1
+
+edges:
+  # submitted genotyping arrays subtree
+  - src: gta_case_1
+    dst: gta_sample_1
+  - src: gta_sample_1
+    dst: gta_aliquot_1
+  - src: gta_aliquot_1
+    dst: gta_sga_1
+  - src: gta_sga_1
+    dst: gta_scnw_1
+  - src: gta_scnw_1
+    dst: gta_cns_1
+  - src: gta_cns_1
+    dst: cnvw_1
+
+  # submitted tangent CN arrays subtree
+  - src: tcn_case_1
+    dst: tcn_sample_1
+  - src: tcn_sample_1
+    dst: tcn_aliquot_1
+  - src: tcn_aliquot_1
+    dst: tcn_stcn_1
+  - src: tcn_stcn_1
+    dst: tcn_cnlw_1
+  - src: tcn_cnlw_1
+    dst: tcn_cns_1
+  - src: tcn_cns_1
+    dst: cnvw_1
