@@ -28,6 +28,8 @@ click==7.1.2
     # via flask
 coverage==5.3.1
     # via pytest-cov
+dataclasses==0.8
+    # via indexclient
 decorator==4.4.2
     # via
     #   -c requirements.txt
@@ -140,8 +142,10 @@ pytest==6.2.5
     #   pytest-elasticsearch
     #   pytest-postgresql
     #   pytest-xdist
-pytest-cov==2.10.1
-    # via -r dev-requirements.in
+pytest-cov[toml]==2.10.1
+    # via
+    #   -r dev-requirements.in
+    #   indexclient
 pytest-elasticsearch==2.0.1
     # via -r dev-requirements.in
 pytest-postgresql==3.0.0
