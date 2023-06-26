@@ -6,7 +6,7 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-yaml
-        exclude: ^helm/templates/
+        exclude: ^\.gitlab-ci.yml
       - id: end-of-file-fixer
       - id: fix-encoding-pragma
         args: [--remove]
@@ -35,11 +35,6 @@ repos:
     rev: 22.3.0
     hooks:
       - id: black
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.1.0
-    hooks:
-      - id: detect-secrets
-        args: [--baseline, .secrets.baseline]
   - repo: https://github.com/pycqa/isort
     rev: 5.10.1
     hooks:
@@ -71,3 +66,8 @@ repos:
     hooks:
       - id: toml-sort
         args: [--in-place]
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
