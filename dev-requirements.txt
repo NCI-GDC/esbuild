@@ -7,9 +7,14 @@
 attrs==20.3.0
     # via
     #   -c requirements.txt
+    #   jsonschema
     #   pytest
 backports.zoneinfo==0.2.1
     # via psycopg
+cdislogging==1.0.0
+    # via
+    #   -c requirements.txt
+    #   indexd
 certifi==2020.12.5
     # via
     #   -c requirements.txt
@@ -19,6 +24,8 @@ chardet==4.0.0
     # via
     #   -c requirements.txt
     #   requests
+click==7.1.2
+    # via flask
 coverage==5.3.1
     # via pytest-cov
 deepdiff==4.3.2
@@ -26,15 +33,25 @@ deepdiff==4.3.2
     #   -c requirements.txt
     #   indexclient
 doiclient @ git+https://github.com/uc-cdis/doiclient.git@1.0.0
-    # via -r dev-requirements.in
+    # via
+    #   -r dev-requirements.in
+    #   indexd
 dosclient @ git+https://github.com/uc-cdis/dosclient.git@1.0.0
-    # via -r dev-requirements.in
+    # via
+    #   -r dev-requirements.in
+    #   indexd
 elasticsearch==7.10.1
     # via
     #   -c requirements.txt
     #   pytest-elasticsearch
 execnet==1.9.0
     # via pytest-xdist
+flask==1.1.4
+    # via indexd
+future==0.18.2
+    # via
+    #   -c requirements.txt
+    #   indexd
 idna==2.10
     # via
     #   -c requirements.txt
@@ -42,6 +59,7 @@ idna==2.10
 importlib-metadata==2.1.1
     # via
     #   -c requirements.txt
+    #   jsonschema
     #   pluggy
     #   pytest
 importlib-resources==5.4.0
@@ -60,8 +78,18 @@ indexdmodels @ git+ssh://git@github.com/NCI-GDC/indexdmodels.git@0.2.0
     # via indexclient
 iniconfig==1.1.1
     # via pytest
+itsdangerous==1.1.0
+    # via flask
+jinja2==2.11.3
+    # via flask
 jmespath==0.10.0
     # via -r dev-requirements.in
+jsonschema==3.2.0
+    # via
+    #   -c requirements.txt
+    #   indexd
+markupsafe==2.0.1
+    # via jinja2
 mirakuru==2.3.0
     # via
     #   pytest-elasticsearch
@@ -86,10 +114,18 @@ psutil==5.9.4
     # via mirakuru
 psycopg==3.0.18
     # via indexclient
+psycopg2==2.8.6
+    # via
+    #   -c requirements.txt
+    #   indexd
 py==1.10.0
     # via pytest
 pyparsing==2.4.7
     # via packaging
+pyrsistent==0.17.3
+    # via
+    #   -c requirements.txt
+    #   jsonschema
 pytest==6.2.5
     # via
     #   -r dev-requirements.in
@@ -117,12 +153,18 @@ requests==2.25.1
 six==1.15.0
     # via
     #   -c requirements.txt
+    #   jsonschema
     #   mock
     #   python-dateutil
+    #   sqlalchemy-utils
 sqlalchemy==1.3.3
     # via
     #   -c requirements.txt
+    #   indexd
     #   indexdmodels
+    #   sqlalchemy-utils
+sqlalchemy-utils==0.36.3
+    # via indexd
 toml==0.10.2
     # via pytest
 typing-extensions==4.1.1
@@ -134,8 +176,15 @@ urllib3==1.26.2
     #   -c requirements.txt
     #   elasticsearch
     #   requests
+werkzeug==0.16.1
+    # via
+    #   flask
+    #   indexd
 zipp==3.6.0
     # via
     #   -c requirements.txt
     #   importlib-metadata
     #   importlib-resources
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools
