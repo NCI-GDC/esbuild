@@ -1,8 +1,8 @@
 from typing import Any, Callable
 
+import psqlgraph
 import pytest
 from indexclient import client
-import psqlgraph
 
 from esbuild.graph.active import builder
 from tests.integration import conftest
@@ -25,6 +25,7 @@ def copy_number_estimate_index(
     index = active_builder.denormalize_all()
 
     return conftest.Index(*index)
+
 
 @pytest.fixture
 def copy_number_segment_graph(generate_scenario: Callable[[str], Any]) -> None:
