@@ -24,8 +24,8 @@ tox:
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: test
     POSTGRES_HOST_AUTH_METHOD: trust
-    PG_HOST: postgres
-    PG_USER: postgres
+    PG_ESBUILD_HOST: postgres
+    PG_ESBUILD_USER: postgres
     PG_INDEXD_HOST: postgres
     ES_HOST: elasticsearch
   before_script:
