@@ -20,10 +20,12 @@ tox:
   tags:
     - dind
   variables:
+    # these are for postgres docker
     POSTGRES_DB: automated_test
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: test
     POSTGRES_HOST_AUTH_METHOD: trust
+    # these are for tox
     PG_ESBUILD_HOST: postgres
     PG_INDEXD_HOST: postgres
     ES_HOST: elasticsearch
