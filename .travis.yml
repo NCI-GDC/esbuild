@@ -8,7 +8,7 @@ python:
 sudo: true
 
 env:
-  - ES_HOST='localhost' ES_VERSION="7.7.1" PG_ESBUILD_HOST='localhost' PG_ESBUILD_USER="test"
+  - ES_HOST='localhost' ES_VERSION="7.7.1" PG_ESBUILD_HOST='localhost'
 
 addons:
   postgresql: '13'
