@@ -76,18 +76,19 @@ def db_loader(host, port, user, dbname, password):
 
 if os.getenv("USE_RUNNING_PG", "true").lower() == "true":
     postgresql_server_esbuild = factories.postgresql_noproc(
-        host=os.getenv("PG_ESBUILD_HOST", ""),
+        host=os.getenv("PG_ESBUILD_HOST", "localhost"),
         user=os.getenv("PG_ESBUILD_USER", "postgres"),
-        password=os.getenv("PG_ESBUILD_PASS", ""),
+        password=os.getenv("PG_ESBUILD_PASS", "test"),
         dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"),
         load=[db_loader],
     )
 else:
     postgresql_server_esbuild = factories.postgresql_proc(
-        dbname="esbuild_test", load=[db_loader]
+        dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"), load=[db_loader]
     )
 postgresql_esbuild = factories.postgresql(
-    "postgresql_server_esbuild", dbname="esbuild_test"
+    "postgresql_server_esbuild",
+    dbname=os.getenv("PG_ESBUILD_NAME", "esbuild_test"),
 )
 
 
