@@ -23,7 +23,8 @@ tox:
   services:
     - name: docker.osdc.io/ncigdc/ci-postgres-13:${BASE_CONTAINER_VERSION}
       alias: postgres
-    - name: docker.osdc.io/ncigdc/ci-elasticsearch-7:${BASE_CONTAINER_VERSION}
+    - name: 
+        docker.osdc.io/ncigdc/ci-elasticsearch-7:feat_migrate_away_from_openssl_1.1-1db3a2d0
       alias: elasticsearch
   tags:
     - dind

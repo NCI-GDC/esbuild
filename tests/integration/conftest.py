@@ -289,12 +289,7 @@ def cleanup_indices(es, indices=None):
         indices = get_all_indices(es)
 
     for index in indices:
-        if index == ".geoip_databases":
-            es.cluster.put_settings(
-                {"persistent": {"ingest.geoip.downloader.enabled": False}}
-            )
-        else:
-            es.indices.delete(index, ignore=(404, 400))
+        es.indices.delete(index, ignore=(404, 400))
 
     es.indices.refresh()
 
