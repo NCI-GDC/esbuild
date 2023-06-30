@@ -46,7 +46,7 @@ elasticsearch==7.10.1
     #   pytest-elasticsearch
 execnet==1.9.0
     # via pytest-xdist
-flask==1.1.2
+flask==1.1.4
     # via indexd
 future==0.18.2
     # via
@@ -80,7 +80,7 @@ iniconfig==1.1.1
     # via pytest
 itsdangerous==1.1.0
     # via flask
-jinja2==2.11.2
+jinja2==2.11.3
     # via flask
 jmespath==0.10.0
     # via -r dev-requirements.in
@@ -88,7 +88,7 @@ jsonschema==3.2.0
     # via
     #   -c requirements.txt
     #   indexd
-markupsafe==1.1.1
+markupsafe==2.0.1
     # via jinja2
 mirakuru==2.3.0
     # via
@@ -168,7 +168,9 @@ sqlalchemy-utils==0.36.3
 toml==0.10.2
     # via pytest
 typing-extensions==4.1.1
-    # via psycopg
+    # via
+    #   -c requirements.txt
+    #   psycopg
 urllib3==1.26.2
     # via
     #   -c requirements.txt
