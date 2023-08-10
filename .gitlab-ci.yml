@@ -28,7 +28,6 @@ tox:
   tags:
     - dind
   variables:
-    BASE_CONTAINER_VERSION: 2.3.1
     # these are for postgres docker
     POSTGRES_DB: automated_test
     POSTGRES_USER: postgres
