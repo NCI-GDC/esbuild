@@ -19,7 +19,7 @@ include:
 
 tox:
   stage: test
-  image: ${BASE_CONTAINER_REGISTRY}/python3.6-builder
+  image: ${BASE_CONTAINER_REGISTRY}/python3.6-builder:${BASE_CONTAINER_VERSION}
   services:
     - name: docker.osdc.io/ncigdc/ci-postgres-13:${BASE_CONTAINER_VERSION}
       alias: postgres
