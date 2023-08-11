@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG CURRENT_VERSION
-ARG REGISTRY
+ARG REGISTRY=quay.io
 
 FROM ${REGISTRY}/ncigdc/python3.6-builder:${CURRENT_VERSION} as build
 
