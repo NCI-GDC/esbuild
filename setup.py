@@ -32,6 +32,19 @@ setup(
         "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@2.8.1-rc.2#egg=gdcmodels",
         "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@3.0.0#egg=normalizer",
     ],
+    extras_require={
+        "dev": [
+            "jmespath~=0.10",
+            "mock~=3.0",
+            "more-itertools==8.14.0",
+            "pytest",
+            "pytest-cov~=2.8",
+            "python-dateutil<2.8.1,>=2.1",
+            "pytest-elasticsearch",
+            "indexd @ git+ssh://git@github.com/NCI-GDC/indexd.git@2.13.0#egg=indexd",
+            "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3#egg=indexclient[pytest_indexd]",
+        ]
+    },
     scripts=[
         "bin/esbuild-cli",
         "bin/compare_indices.py",
