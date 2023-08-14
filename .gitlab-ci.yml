@@ -17,6 +17,9 @@ include:
     matrix:
       - DEPLOY_SERVICE_LIST: [esbuild]
 
+variables:
+  PIP_DEFAULT_INDEX_URL: https://nexus-staging.osddc.io/repository/pypi-all/simple
+
 tox:
   stage: test
   image: ${BASE_CONTAINER_REGISTRY}/python3.6-builder:${BASE_CONTAINER_VERSION}
