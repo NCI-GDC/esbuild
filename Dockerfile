@@ -26,4 +26,6 @@ COPY --from=build \
      /venv/bin/compare_indices.py \
      /venv/bin/master.py \
      /venv/bin/minion.py \
-     /venv/bin
+     /venv/bin/
+
+WORKDIR /app
