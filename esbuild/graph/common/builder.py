@@ -48,6 +48,7 @@ log = get_logger("graph_index", log_level="info")
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 FILE_MISSING_GENCODE = {"error": "no gencode_version for generated data files"}
 ENTRY_FOR_WRONG_GENCODE = {"ignore": "wrong gencode_version for generated data files"}
+FIELD_ALLOWLIST = frozenset({"wgs_coverage"})
 
 
 @lru_cache(maxsize=32)
@@ -519,7 +520,8 @@ class GraphIndexBuilder:
                 key: old_props.get(key) or value
                 for key, value in node._props.items()
                 # Only use props in the pinned version of the dictionary
-                if key in node.__pg_properties__
+                # Also include manually included fields form allowlist.
+                if (key in node.__pg_properties__ or key in FIELD_ALLOWLIST)
                 # Ignore certain keys by type
                 and key not in self.hidden_properties.get(node.label, [])
                 # Hide project_id for all nodes but project, viz. PGDC-1550
