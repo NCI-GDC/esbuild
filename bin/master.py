@@ -7,14 +7,15 @@ from typing import Any, Iterable, List, Optional
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
+from importlib_resources import files
 
+import esbuild
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG, get_queue_client
 
 logger = get_logger("esbuild_master", log_level="info")
 
-root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, "config.yml")).read())
+config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 
 
 def esbuild_argparser() -> argparse.ArgumentParser:

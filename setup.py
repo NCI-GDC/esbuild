@@ -1,11 +1,24 @@
+from pathlib import Path
+
 from setuptools import find_packages, setup
+
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
 
 setup(
     name="esbuild",
-    use_scm_version={"local_scheme": "dirty-tag", "write_to": "esbuild/_version.py"},
-    setup_requires=["setuptools_scm<6"],
     description="Repository for building the GDC Elasticsearch indices.",
     license="Apache",
+    author="NCI GDC",
+    author_email="gdc_dev_questions-aaaaae2lhsbell56tlvh3upgoq@cdis.slack.com",
+    url="https://github.com/NCI-GDC/esbuild",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    classifiers=[
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+    ],
     packages=find_packages(exclude=("tests",)),
     install_requires=[
         # Tests for Python35 not run on >=2.2.0 anymore
@@ -52,4 +65,5 @@ setup(
         "bin/master.py",
         "bin/minion.py",
     ],
+    package_data={"": ["esbuild/config.yml"]},
 )
