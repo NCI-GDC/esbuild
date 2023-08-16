@@ -19,7 +19,6 @@ tox.ini
 .gitlab-ci.yml
 venv
 build
-.git
 .eggs
 .travis.yml
 docker.sh
