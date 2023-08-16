@@ -49,7 +49,7 @@ setup(
     scripts=[
         "bin/esbuild-cli",
         "bin/compare_indices.py",
-        "master.py",
-        "minion.py",
+        "bin/master.py",
+        "bin/minion.py",
     ],
 )
