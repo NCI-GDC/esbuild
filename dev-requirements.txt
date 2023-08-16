@@ -95,9 +95,10 @@ importlib-metadata==2.1.1
     #   jsonschema
     #   pluggy
     #   pytest
-importlib-resources==5.4.0
+importlib-resources==5.4.0 ; python_version < "3.7"
     # via
     #   backports.zoneinfo
+    #   esbuild (setup.py)
     #   indexclient
 indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3
     # via esbuild (setup.py)
