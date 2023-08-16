@@ -65,5 +65,5 @@ setup(
         "bin/master.py",
         "bin/minion.py",
     ],
-    package_data={"": ["esbuild/config.yml"]},
+    include_package_data=True,
 )
