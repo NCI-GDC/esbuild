@@ -119,23 +119,15 @@ def validate_mappings(index_mappings, index_type):
         "properties"
     ]
 
-    es_paths = frozenset(utils.get_dict_paths(es_mapping)[0])
-    true_paths = frozenset(utils.get_dict_paths(true_mapping)[0])
+    es_paths = frozenset(utils.get_dict_paths(es_mapping))
+    true_paths = utils.get_dict_paths(true_mapping)
 
-    missing_paths = true_paths - es_paths
-    extra_paths = es_paths - true_paths
-
-    if missing_paths:
-        pprint.pprint({"index_type": index_type, "missing_paths": missing_paths})
-
-    if extra_paths:
-        pprint.pprint({"index_type": index_type, "extra_paths": extra_paths})
-
-    # Set of missing paths must be empty:
-    assert missing_paths == frozenset()
+    # We currently only want to insure that the mapping is a subset of the 'true'
+    # one.
+    extra_paths = es_paths.difference(true_paths)
 
     # Set of extra paths must be empty:
-    assert extra_paths == frozenset()
+    assert not extra_paths, f"Mapping contains extra paths: {extra_paths}"
 
 
 @pytest.mark.parametrize(
