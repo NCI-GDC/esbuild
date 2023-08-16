@@ -1,18 +1,25 @@
-def get_dict_paths(d, path_list=None, path="root"):
-    """
-    Returns list of all paths in a dict and a last path found
-    """
-    if path_list is None:
-        path_list = []
+from typing import Iterable, Iterator
 
-    for k, v in d.items():
-        subpath = path + "." + k
-        if isinstance(v, dict):
-            sublist, subpath = get_dict_paths(v, path_list, subpath)
-        else:
-            if isinstance(v, list):
-                sublist = [path + "." + k + "." + str(e) for e in v]
-            else:
-                sublist = [path + "." + k + "." + str(v)]
-        path_list.extend(sublist)
-    return list(set(path_list)), path
+
+def get_dict_paths(dictionary: dict, path: str = "root") -> Iterator[str]:
+    """
+    Flattens all entries in a dictionary and its nested dictionaries into a path.
+
+    NOTE: items in any list value will generate a path for each value.
+
+    Args:
+        dictionary: The dict to be flattened.
+        path: The current path to the given dictionary.
+
+    Returns:
+        An iterator of all the final paths.
+    """
+    for key, value in dictionary.items():
+        subpath = f"{path}.{key}"
+
+        if isinstance(value, dict):
+            yield from get_dict_paths(value, subpath)
+        elif isinstance(value, str):
+            yield f"{subpath}.{value}"
+        elif isinstance(value, Iterable):
+            yield from (f"{subpath}.{e}" for e in value)
