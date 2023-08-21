@@ -28,7 +28,7 @@ BUILD_COMMAND=(build \
   --label org.opencontainers.image.revision="$(git rev-parse HEAD)" \
   --label org.opencontainers.ref.name="esbuild:${GIT_BRANCH}" \
   --build-arg CURRENT_VERSION="${BASE_CONTAINER_VERSION:=2.3.1}" \
-  --build-arg REGISTRY="${DOCKER_RELEASE_REGISTRY%\/ncigdc}" \
+  --build-arg REGISTRY="${BASE_CONTAINER_REGISTRY%\/ncigdc}" \
   --build-arg GIT_COMMIT_HASH="${GIT_COMMIT_HASH}" \
   --ssh default -t "$IMAGE_NAME:$GIT_BRANCH")
 
