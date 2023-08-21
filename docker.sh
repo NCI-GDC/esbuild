@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-PARAM=${1:-push};
+PARAM=${1:-DO_NOT_PUSH};
 
 IMAGE_NAME="${DOCKER_RELEASE_REGISTRY:=quay.io}/ncigdc/esbuild"
 
