@@ -458,7 +458,7 @@ class ReleaseHelper:
     def get_commit_hash():
         git_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.realpath(__file__))), ".git"
-        )
+        ).decode("utf-8")
         try:
             commit_hash = subprocess.check_output(
                 ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"]
@@ -466,7 +466,7 @@ class ReleaseHelper:
         except Exception as err:
             commit_hash = f"unable to parse commit hash: {repr(err)}"
 
-        return commit_hash.decode("utf-8")
+        return commit_hash
 
 
 def get_index_names(
