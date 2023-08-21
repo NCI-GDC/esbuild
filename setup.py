@@ -56,7 +56,7 @@ setup(
             "python-dateutil<2.8.1,>=2.1",
             "pytest-elasticsearch",
             "indexd @ git+ssh://git@github.com/NCI-GDC/indexd.git@2.13.0#egg=indexd",
-            "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3#egg=indexclient[pytest_indexd]",
+            "indexclient[pytest_indexd] @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3#egg=indexclient[pytest_indexd]",
         ]
     },
     scripts=[
