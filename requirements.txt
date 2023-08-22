@@ -42,11 +42,11 @@ gdc-ng-models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2
     #   gdcdatamodel
 gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.4.0
     # via esbuild (setup.py)
-gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.4.0
+gdcdictionary @ git+https://github.com/NCI-GDC/gdcdictionary.git@2.4.0
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
-gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@4.0.0-rc.1
+gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@4.0.0
     # via
     #   esbuild (setup.py)
     #   normalizer
@@ -72,8 +72,7 @@ jsonschema==3.2.0
     #   gdcdictionary
 networkx==2.4
     # via esbuild (setup.py)
-normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@4.0.0-rc.1
-
+normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@4.0.0
     # via esbuild (setup.py)
 ordered-set==4.0.2
     # via deepdiff
