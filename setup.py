@@ -38,13 +38,13 @@ setup(
         "SQLAlchemy==1.3.3",
         "importlib-resources; python_version<'3.7'",
         "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@3.3.0#egg=psqlgraph",
-        "gdcdictionary @ git+https://github.com/NCI-GDC/gdcdictionary.git@2.4.0#egg=gdcdictionary",
+        "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.4.0#egg=gdcdictionary",
         "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@3.4.0#egg=gdcdatamodel",
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2#egg=gdc_ng_models",
         "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3#egg=indexclient",
         "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
-        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@4.0.0#egg=gdcmodels",
-        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@4.0.0#egg=normalizer",
+        "gdcmodels @ git+ssh://git@github.com/NCI-GDC/gdc-models.git@4.0.0-rc.1#egg=gdcmodels",
+        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@4.0.0-rc.1#egg=normalizer",
     ],
     extras_require={
         "dev": [
