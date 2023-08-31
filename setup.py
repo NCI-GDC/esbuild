@@ -15,9 +15,10 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=[
+        "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.9",
     ],
     packages=find_packages(exclude=("tests",)),
     install_requires=[
