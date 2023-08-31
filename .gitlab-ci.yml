@@ -2,7 +2,7 @@
 
 include:
   - project: nci-gdc/gitlab-templates
-    ref: 0.2.0
+    ref: 0.2.1
     file:
       - templates/global/full.yaml
       - templates/python/full.yaml
@@ -19,7 +19,7 @@ include:
 
 tox:
   stage: test
-  image: ${BASE_CONTAINER_REGISTRY}/python3.6-builder
+  image: ${BASE_CONTAINER_REGISTRY}/python3.6-builder:${BASE_CONTAINER_VERSION}
   services:
     - name: docker.osdc.io/ncigdc/ci-postgres-13:${BASE_CONTAINER_VERSION}
       alias: postgres
@@ -28,7 +28,6 @@ tox:
   tags:
     - dind
   variables:
-    BASE_CONTAINER_VERSION: 2.3.1
     # these are for postgres docker
     POSTGRES_DB: automated_test
     POSTGRES_USER: postgres
@@ -55,5 +54,44 @@ tox:
 release:
   before_script:
     - git fetch --unshallow || true
-  variables:
-    LEGACY_BASE_CONTAINER_VERSION: 2.3.0
+  after_script:
+    - python setup.py --version > VERSION.txt
+  artifacts:
+    paths:
+      - VERSION.txt
+    expire_in: 1 week
+
+Docker build:
+  stage: release
+  before_script:
+    - apk add bash git
+  services:
+    - docker:$DOCKER_VERSION-dind
+  script:
+    - !reference [.load_github_key, script]
+    - /bin/bash docker.sh push
+  except:
+    - tags
+  tags:
+    - dind
+  dependencies:
+    - release
+
+Docker build git tag:
+  stage: release
+  before_script:
+    - apk add bash git
+    - git fetch --unshallow || true
+  services:
+    - docker:$DOCKER_VERSION-dind
+  script:
+    - BRANCH_NAME=$(git branch -a --contains tags/${CI_COMMIT_TAG} | grep origin |
+      sed 's/.*origin\///' | tail -1)
+    - CLEAN_BRANCH_NAME=${BRANCH_NAME/\//_}
+    - docker pull docker.osdc.io/ncigdc/$CI_PROJECT_NAME:${CLEAN_BRANCH_NAME}
+    - docker tag docker.osdc.io/ncigdc/$CI_PROJECT_NAME:${CLEAN_BRANCH_NAME} $DOCKER_RELEASE_REGISTRY/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_TAG}
+    - docker push $DOCKER_RELEASE_REGISTRY/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_TAG}
+  only:
+    - tags
+  tags:
+    - dind

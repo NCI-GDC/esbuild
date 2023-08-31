@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 import os
 import time
@@ -7,8 +9,10 @@ import psqlgraph
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
+from importlib_resources import files
 from indexclient import client
 
+import esbuild
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.utils import (
@@ -19,8 +23,8 @@ from esbuild.utils import (
 )
 
 logger = get_logger("esbuild_minion", log_level="info")
-root_dir = os.path.dirname(os.path.abspath(__file__))
-config = yaml.safe_load(open(os.path.join(root_dir, "config.yml")).read())
+
+config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 
 TIMEDELTA = config["timedelta"]
 

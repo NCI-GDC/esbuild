@@ -1,0 +1,30 @@
+# Ignore
+.pytest_cache
+.tox
+test_suite_data.gv
+test_suite_data.gv.pdf
+dist
+dev-requirements.txt
+.pre-commit-config.yaml
+Dockerfile
+tests
+.gitmodules
+.secrets.baseline
+venv36
+.dockerignore
+.gitignore
+CONTRIBUTING.md
+tox.ini
+.python-version
+.gitlab-ci.yml
+venv
+build
+.eggs
+.travis.yml
+docker.sh
+esbuild.egg-info
+travis
+.idea
+
+# Don't ignore
+!requirements.txt

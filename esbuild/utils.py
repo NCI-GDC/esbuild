@@ -456,17 +456,25 @@ class ReleaseHelper:
     @staticmethod
     @lru_cache(1)
     def get_commit_hash():
+        commit_hash = os.getenv("GIT_COMMIT_HASH")
+        if os.getenv("GIT_COMMIT_HASH"):
+            return commit_hash
+
         git_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.realpath(__file__))), ".git"
         )
         try:
-            commit_hash = subprocess.check_output(
-                ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"]
+            commit_hash = (
+                subprocess.check_output(
+                    ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"]
+                )
+                .decode("utf-8")
+                .strip()
             )
         except Exception as err:
             commit_hash = f"unable to parse commit hash: {repr(err)}"
 
-        return commit_hash.decode("utf-8")
+        return commit_hash
 
 
 def get_index_names(

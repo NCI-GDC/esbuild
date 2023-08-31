@@ -1,0 +1,6 @@
+include esbuild/config.yml
+exclude .pre-commit-config.yaml
+
+prune tests
+
+global-exclude *.pyc
