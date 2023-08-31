@@ -60,8 +60,6 @@ idna==2.10
     # via requests
 importlib-metadata==2.1.1
     # via jsonschema
-importlib-resources==5.4.0 ; python_version < "3.7"
-    # via esbuild (setup.py)
 indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.3
     # via esbuild (setup.py)
 jsonschema==3.2.0
@@ -132,9 +130,7 @@ urllib3==1.26.2
 xlocal==0.5
     # via psqlgraph
 zipp==3.6.0
-    # via
-    #   importlib-metadata
-    #   importlib-resources
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

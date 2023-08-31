@@ -2,12 +2,12 @@
 
 import argparse
 import os
+from importlib.resources import files
 from typing import Any, Iterable, List, Optional
 
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
-from importlib_resources import files
 
 import esbuild
 from esbuild.export.s3_repository import BackupHelper
