@@ -47,7 +47,7 @@ setup(
             "jmespath~=0.10",
             "mock~=3.0",
             "more-itertools==8.14.0",
-            "pytest",
+            "pytest>=7.0.0",  # older version will not work with pytest-elasticsearch 4.0.1
             "pytest-cov~=2.8",
             "python-dateutil<2.8.1,>=2.1",
             "pytest-elasticsearch",
