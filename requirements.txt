@@ -59,7 +59,7 @@ graphviz==0.4.10
     # via gdcdatamodel
 idna==2.10
     # via requests
-indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.3.7
+indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.4.0
     # via esbuild (setup.py)
 jsonschema==3.2.0
     # via
