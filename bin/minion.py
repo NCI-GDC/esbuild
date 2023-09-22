@@ -3,13 +3,13 @@
 import argparse
 import os
 import time
+from importlib.resources import files
 from multiprocessing import Process
 
 import psqlgraph
 import yaml
 from cdislogging import get_logger
 from elasticsearch import Elasticsearch
-from importlib_resources import files
 from indexclient import client
 
 import esbuild

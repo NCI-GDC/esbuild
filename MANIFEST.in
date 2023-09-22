@@ -1,6 +1,5 @@
-include esbuild/config.yml
+graft esbuild
+recursive-exclude __pycache__ *.py[cod]
 exclude .pre-commit-config.yaml
 
 prune tests
-
-global-exclude *.pyc
