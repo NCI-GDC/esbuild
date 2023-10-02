@@ -97,13 +97,14 @@ Choose between `compare-counts` and `full-compare`
 
 #### `--true-index` and `--test-index`
 
-Those flags are used to provide names for indices to compare.
+The base names of the two elasticsearch indices being tested. All
+gdc_from_graph (annotation, case, file, project) subtypes will be tested.
 
 
 ### Usage
 
 ```bash
-compare_indices.py --true-index dr33_active_merged_file --test_index dr33_active_merged_v2_file --test-type compare_counts
+compare_indices.py --true-index dr33_active_merged --test_index dr33_active_merged_v2 --test-type compare_counts
 ```
 
 
