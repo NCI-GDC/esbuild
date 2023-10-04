@@ -25,9 +25,10 @@ setup(
         "addict",
         "cdislogging~=1.0",
         "datadog~=0.32",
-        "deepdiff~=4.0",  # required by compare_indices
+        "deepdiff~=6.5.0",  # required by compare_indices
         "dictdiffer~=0.8.0",
         "elasticsearch~=7.6",
+        "more-itertools==8.14.0",
         "networkx",
         "progressbar2>=2.0,<4",
         "python-dotenv~=0.10.3",
@@ -46,7 +47,6 @@ setup(
         "dev": [
             "jmespath~=0.10",
             "mock~=3.0",
-            "more-itertools==8.14.0",
             "pytest>=7.0.0",  # older version will not work with pytest-elasticsearch 4.0.1
             "pytest-cov~=2.8",
             "python-dateutil<2.8.1,>=2.1",
