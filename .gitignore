@@ -79,3 +79,5 @@ package.json
 
 *.sq3
 esbuild/_version.py
+
+*pdf

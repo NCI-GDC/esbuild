@@ -5,7 +5,6 @@ import json
 from concurrent import futures
 
 import datadog
-
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.export import mapping_exporter
 
@@ -76,8 +75,8 @@ def get_parser() -> argparse.ArgumentParser:
     mappings_sub.add_argument(
         "-o",
         "--output-dir",
-        default="mappings",
-        help="Directory to which to write the new mappings (./mappings by default)",
+        required=True,
+        help="Directory to which to write the new mappings (Generates obsolete mappings too).",
     )
     mappings_sub.set_defaults(func=handle_mappings)
 
