@@ -34,14 +34,14 @@ setup(
         "python-dotenv~=0.10.3",
         "requests~=2.7",
         "SQLAlchemy==1.3.3",
-        "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@4.0.2#egg=psqlgraph",
+        "psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@5.0.1#egg=psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.6.8#egg=gdcdictionary",
-        "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@4.1.1#egg=gdcdatamodel",
+        "gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@4.2.0#egg=gdcdatamodel",
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2#egg=gdc_ng_models",
         "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.4.0#egg=indexclient",
         "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
         "gdcmodels @ git+https://github.com/NCI-GDC/gdc-models.git@feat/DEV-2143-generate-obsolete-mappings#egg=gdcmodels",
-        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@develop#egg=normalizer",
+        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@feat/DEV-2143-bump-gdc-models#egg=normalizer",
     ],
     extras_require={
         "dev": [

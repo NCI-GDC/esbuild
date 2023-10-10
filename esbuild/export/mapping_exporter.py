@@ -44,29 +44,32 @@ class MappingExporter:
 
         # Current mapping
         mapping_filename = self.MAPPING_FILENAME_FORMAT.format(index_name=index)
-        with open(output_path / mapping_filename) as f:
-            current_mapping = yaml.safe_load(f)
+        if os.path.exists(mapping_filename):
+            with open(output_path / mapping_filename) as f:
+                current_mapping = yaml.safe_load(f)
 
-        diff = deepdiff.DeepDiff(
-            new_mapping,
-            current_mapping,
-            ignore_order=True,
-            report_repetition=True,
-        )
-        if diff:
-            mapping_diff = {} + deepdiff.Delta(diff, force=True)
-            obsolete_mapping_filename = self.OBSOLETE_MAPPING_FILENAME_FORMAT.format(
-                index_name=index
+            diff = deepdiff.DeepDiff(
+                new_mapping,
+                current_mapping,
+                ignore_order=True,
+                report_repetition=True,
             )
-            obsolete_exists = os.path.exists(output_path / obsolete_mapping_filename)
-            with open(output_path / obsolete_mapping_filename, "w+") as f:
-                obsolete_mappings = mapping_diff
-                if obsolete_exists:
-                    obsolete_mappings = yaml.safe_load(f)
-                    obsolete_mappings = mapping_utils.deep_merge_mapping_files(
-                        obsolete_mappings, mapping_diff
-                    )
-                yaml.safe_dump(obsolete_mappings, f)
+            if diff:
+                mapping_diff = {} + deepdiff.Delta(diff, force=True)
+                obsolete_mapping_filename = (
+                    self.OBSOLETE_MAPPING_FILENAME_FORMAT.format(index_name=index)
+                )
+                obsolete_exists = os.path.exists(
+                    output_path / obsolete_mapping_filename
+                )
+                with open(output_path / obsolete_mapping_filename, "w+") as f:
+                    obsolete_mappings = mapping_diff
+                    if obsolete_exists:
+                        obsolete_mappings = yaml.safe_load(f)
+                        obsolete_mappings = mapping_utils.deep_merge_mapping_files(
+                            obsolete_mappings, mapping_diff
+                        )
+                    yaml.safe_dump(obsolete_mappings, f)
 
         with open(output_path / mapping_filename, "w") as f:
             yaml.safe_dump(new_mapping, f)

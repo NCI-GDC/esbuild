@@ -13,7 +13,7 @@ import uuid
 
 from gdcdatamodel import models as md
 from gdcdictionary import gdcdictionary
-from psqlgraph.mocks import NodeFactory
+from psqlgraph.hydrator import NodeFactory
 
 from esbuild.graph.common.builder import GraphIndexBuilder
 

@@ -15,7 +15,7 @@ from gdcdatamodel import models
 from gdcdatamodel.viz import create_graphviz
 from gdcdictionary import gdcdictionary
 from indexclient.types import IndexData
-from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from psqlgraph import Edge, Node, PsqlGraphDriver, hydrator
 from pytest_elasticsearch import factories as es_factories
 from pytest_postgresql import factories
 
@@ -249,7 +249,7 @@ def graph_factory():
             "experimental_strategy": "WXS",
         }
     }
-    factory = mocks.GraphFactory(models, gdcdictionary, graph_globals)
+    factory = hydrator.GraphFactory(models, gdcdictionary, graph_globals)
 
     return factory
 

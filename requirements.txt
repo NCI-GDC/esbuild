@@ -43,13 +43,13 @@ gdc-ng-models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.5.2
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
-gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@4.1.1
+gdcdatamodel @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel.git@4.2.0
     # via esbuild (setup.py)
 gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.6.8
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
-gdcmodels @ git+https://github.com/NCI-GDC/gdc-models.git@4.1.0
+gdcmodels @ git+https://github.com/NCI-GDC/gdc-models.git@feat/DEV-2143-generate-obsolete-mappings
     # via
     #   esbuild (setup.py)
     #   normalizer
@@ -75,7 +75,7 @@ more-itertools==8.14.0
     # via esbuild (setup.py)
 networkx==2.4
     # via esbuild (setup.py)
-normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@develop
+normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@feat/DEV-2143-bump-gdc-models
     # via esbuild (setup.py)
 ordered-set==4.0.2
     # via deepdiff
@@ -83,7 +83,7 @@ pika==1.1.0
     # via queueclient
 progressbar2==3.53.1
     # via esbuild (setup.py)
-psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@4.0.2
+psqlgraph @ git+ssh://git@github.com/NCI-GDC/psqlgraph.git@5.0.1
     # via
     #   esbuild (setup.py)
     #   gdcdatamodel
