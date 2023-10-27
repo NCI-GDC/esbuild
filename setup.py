@@ -52,6 +52,7 @@ setup(
             "python-dateutil<2.8.1,>=2.1",
             "pytest-elasticsearch",
             "pytest-postgresql",  # this should not be needed
+            "graphviz~=0.19.1",  # this should not be needed
             "gdcdatamodel2[visualization] @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.4.0#egg=gdcdatamodel2[visualization]",
             "indexdmodels @ git+ssh://git@github.com/NCI-GDC/indexdmodels.git@0.2.0#egg=indexdmodels",  # this should not be needed
             "indexd @ git+ssh://git@github.com/NCI-GDC/indexd.git@2.13.0#egg=indexd",
