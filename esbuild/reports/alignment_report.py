@@ -9,7 +9,7 @@ from email.MIMEText import MIMEText
 import salt.client
 from cdislogging import get_logger
 from consulate import Consul
-from gdcdatamodel.models import File, FileDataFromFile
+from gdcdatamodel2 import models
 from psqlgraph import PsqlGraphDriver
 from sqlalchemy import create_engine, desc
 from sqlalchemy.pool import NullPool
@@ -175,9 +175,9 @@ class AlignmentReporter:
         for key in ["WGS (< 320 GB)", "WGS (>= 320 GB)", "WXS (TCGA)", "WXS (TARGET)"]:
             all_of_key = self.aligned_files[key]
             edges = [
-                self.graph.edges(FileDataFromFile)
+                self.graph.edges(models.FileDataFromFile)
                 .src(f.node_id)
-                .order_by(desc(FileDataFromFile.created))
+                .order_by(desc(models.FileDataFromFile.created))
                 .first()
                 for f in all_of_key
             ]
@@ -257,8 +257,8 @@ class AlignmentReporter:
         self.log.info("Querying for analysis ids of files currently being aligned")
         analysis_ids = [
             res[0]
-            for res in self.graph.nodes(File._sysan["analysis_id"])
-            .filter(File.node_id.in_(in_progres_gdc_ids))
+            for res in self.graph.nodes(models.File._sysan["analysis_id"])
+            .filter(models.File.node_id.in_(in_progres_gdc_ids))
             .all()
         ]
         attachment = "\n".join(analysis_ids)
@@ -280,9 +280,9 @@ class AlignmentReporter:
         self.log.info("Generating rows")
         for file in aligned_wgs_files:
             edge = (
-                self.graph.edges(FileDataFromFile)
+                self.graph.edges(models.FileDataFromFile)
                 .src(file.node_id)
-                .order_by(desc(FileDataFromFile.created))
+                .order_by(desc(models.FileDataFromFile.created))
                 .first()
             )
             os_uuid = edge.sysan.get("alignment_host_openstack_uuid")
@@ -300,7 +300,7 @@ class AlignmentReporter:
     def generate_fixmate_problem_analysis_ids_file(self):
         self.log.info("Generating file with in FixMateInformation failure analysis ids")
         problem_files = (
-            self.graph.nodes(File).sysan(alignment_fixmate_failure=True).all()
+            self.graph.nodes(models.File).sysan(alignment_fixmate_failure=True).all()
         )
         analysis_ids = [f.sysan["analysis_id"] for f in problem_files]
         attachment = "\n".join(analysis_ids)
@@ -309,7 +309,7 @@ class AlignmentReporter:
     def generate_markdups_failure_analysis_ids_file(self):
         self.log.info("Generating file with in MarkDuplicates failure analysis ids")
         problem_files = (
-            self.graph.nodes(File).sysan(alignment_markdups_failure=True).all()
+            self.graph.nodes(models.File).sysan(alignment_markdups_failure=True).all()
         )
         analysis_ids = [f.sysan["analysis_id"] for f in problem_files]
         attachment = "\n".join(analysis_ids)

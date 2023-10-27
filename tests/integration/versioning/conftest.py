@@ -1,6 +1,6 @@
 import pytest
 from addict import Dict
-from gdcdatamodel.models.submission import TransactionLog, TransactionSnapshot
+from gdc_ng_models.models import submission
 
 from tests.integration.data import get_node_id
 
@@ -60,14 +60,14 @@ def link_factory_nodes(graph, nodes, links, map_key="submitter_id"):
 
 def create_transaction(graph, node, old_props, action="version"):
     program, project = node.project_id.split("-", 1)
-    tl = TransactionLog(
+    tl = submission.TransactionLog(
         program=program,
         project=project,
         is_dry_run=False,
         state="SUCCEEDED",
         role="create",
     )
-    ts = TransactionSnapshot(
+    ts = submission.TransactionSnapshot(
         id=node.node_id, action=action, old_props=old_props, new_props=node._props
     )
     tl.entities.append(ts)

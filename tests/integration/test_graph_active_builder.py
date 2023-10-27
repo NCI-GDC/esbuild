@@ -11,7 +11,7 @@ from functools import reduce
 import jmespath
 import psqlgraph
 import pytest
-from gdcdatamodel import models as md
+from gdcdatamodel2 import models
 from indexclient import client
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
@@ -388,25 +388,25 @@ def test_path_value_set_equals(index, index_type, path, expected, count):
         (
             "files",
             "[].file_id",
-            md.Aliquot,
+            models.Aliquot,
             [get_node_id("aliquot-derived-from-unreleased-sample")],
         ),
         (
             "cases",
             "[].case_id",
-            md.Case,
+            models.Case,
             [get_node_id("released-case-in-unreleased-project")],
         ),
         (
             "cases",
             "[].samples[].sample_id",
-            md.Sample,
+            models.Sample,
             [get_node_id("sample-unreleased")],
         ),
         (
             "cases",
             "[].annotations[].annotation_id",
-            md.Annotation,
+            models.Annotation,
             [get_node_id("unreleased-annotation")],
         ),
     ],
@@ -446,7 +446,7 @@ def test_path_value_set_equals_set(index, index_type, path, expected, count):
 
 
 @pytest.mark.parametrize(
-    "node_cls", [(md.SubmittedAlignedReads), (md.SubmittedMethylationBetaValue)]
+    "node_cls", [(models.SubmittedAlignedReads), (models.SubmittedMethylationBetaValue)]
 )
 def test_no_submitted_types(pg_driver, index, node_cls):
     with pg_driver.session_scope():
@@ -507,15 +507,15 @@ def test_case_summary_file_counts(index):
 
 def test_get_file_read_groups(pg_driver, index):
     with pg_driver.session_scope():
-        f_ids = {n.node_id for n in pg_driver.nodes(md.SubmittedAlignedReads).all()}
+        f_ids = {n.node_id for n in pg_driver.nodes(models.SubmittedAlignedReads).all()}
         assert not [d for d in index.files if d["file_id"] in f_ids]
 
 
 @pytest.mark.parametrize(
     "cls,count",
     [
-        (md.AlignmentWorkflow, 2),
-        (md.SomaticMutationCallingWorkflow, 2),
+        (models.AlignmentWorkflow, 2),
+        (models.SomaticMutationCallingWorkflow, 2),
     ],
 )
 def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
@@ -529,10 +529,10 @@ def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
 @pytest.mark.parametrize(
     "cls,count",
     [
-        (md.AlignedReads, 1),
-        (md.CopyNumberSegment, 1),
-        (md.RunMetadata, 1),
-        (md.ExperimentMetadata, 1),
+        (models.AlignedReads, 1),
+        (models.CopyNumberSegment, 1),
+        (models.RunMetadata, 1),
+        (models.ExperimentMetadata, 1),
     ],
 )
 def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
@@ -545,8 +545,8 @@ def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
 @pytest.mark.parametrize(
     "cls,count",
     [
-        (md.BiospecimenSupplement, 0),
-        (md.ClinicalSupplement, 0),
+        (models.BiospecimenSupplement, 0),
+        (models.ClinicalSupplement, 0),
     ],
     scope="module",
 )
@@ -561,10 +561,10 @@ def test_add_related_files(pg_driver, cached_builder, cls, count):
 @pytest.mark.parametrize(
     "cls,has_archive",
     [
-        (md.BiospecimenSupplement, True),
-        (md.ClinicalSupplement, True),
-        (md.AlignedReads, False),
-        (md.CopyNumberSegment, False),
+        (models.BiospecimenSupplement, True),
+        (models.ClinicalSupplement, True),
+        (models.AlignedReads, False),
+        (models.CopyNumberSegment, False),
     ],
     scope="module",
 )

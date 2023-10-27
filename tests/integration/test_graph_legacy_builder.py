@@ -8,7 +8,7 @@ Test the builder for graph ES index
 
 import jmespath
 import pytest
-from gdcdatamodel import models as md
+from gdcdatamodel2 import models
 
 from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
@@ -40,16 +40,16 @@ def index(init_indexd, pg_driver):
 
 @pytest.fixture
 def custom_annotation(pg_driver):
-    case = fuzzed(md.Case, project_id="TCGA-BRCA", state="live")
+    case = fuzzed(models.Case, project_id="TCGA-BRCA", state="live")
     annotation = fuzzed(
-        md.Annotation,
+        models.Annotation,
         node_id="custom-annotation",
         category="Item flagged DNU",
         classification="Notification",
     )
     with pg_driver.session_scope() as s:
-        f = pg_driver.nodes(md.File).ids(get_node_id("live-file")).first()
-        case.projects = [pg_driver.nodes(md.Project).props(code="BRCA").first()]
+        f = pg_driver.nodes(models.File).ids(get_node_id("live-file")).first()
+        case.projects = [pg_driver.nodes(models.Project).props(code="BRCA").first()]
         case.files = [f]
         case.annotations = [annotation]
         s.add(case)
@@ -94,7 +94,7 @@ def suppressed_case(pg_driver, graph_factory):
 @pytest.fixture
 def non_case_redaction(pg_driver):
     annotation = fuzzed(
-        md.Annotation,
+        models.Annotation,
         node_id="non-case-redaction-1",
         classification="Redaction",
         project_id="TCGA-BRCA",
@@ -103,7 +103,7 @@ def non_case_redaction(pg_driver):
     )
     with pg_driver.session_scope() as s:
         portion_id = get_node_id("portion-01")
-        portion = pg_driver.nodes(md.Portion).get(portion_id)
+        portion = pg_driver.nodes(models.Portion).get(portion_id)
         annotation.portions = [portion]
 
         sample = portion.samples[0]
@@ -112,11 +112,11 @@ def non_case_redaction(pg_driver):
         aliquot = analyte.aliquots[0]
 
         redacted1 = fuzzed(
-            md.File, node_id="redact1", state="live", project_id="TCGA-BRCA"
+            models.File, node_id="redact1", state="live", project_id="TCGA-BRCA"
         )
         redacted1.portions = [portion]
         redacted2 = fuzzed(
-            md.File, node_id="redact2", state="live", project_id="TCGA-BRCA"
+            models.File, node_id="redact2", state="live", project_id="TCGA-BRCA"
         )
         redacted2.aliquots = [aliquot]
 
@@ -130,9 +130,9 @@ def non_case_redaction(pg_driver):
 @pytest.fixture
 def non_live_related_file(pg_driver):
     with pg_driver.session_scope() as sxn:
-        live_file = pg_driver.nodes(md.File).ids(get_node_id("live-file")).one()
+        live_file = pg_driver.nodes(models.File).ids(get_node_id("live-file")).one()
         derived_file = fuzzed(
-            md.File,
+            models.File,
             state="live",
             file_name="derived_file.bam",
             project_id="TCGA-BRCA",
@@ -140,7 +140,7 @@ def non_live_related_file(pg_driver):
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
         related_to_derived = fuzzed(
-            md.File,
+            models.File,
             state="uploaded",
             file_name="derived_file.txt",
             project_id="TCGA-BRCA",
@@ -156,9 +156,9 @@ def non_live_related_file(pg_driver):
 @pytest.fixture
 def withdrew_consent_redaction(pg_driver):
     with pg_driver.session_scope() as s:
-        case = pg_driver.nodes(md.Case).props(submitter_id="TCGA-AR-A1AR").one()
+        case = pg_driver.nodes(models.Case).props(submitter_id="TCGA-AR-A1AR").one()
         annotation = fuzzed(
-            md.Annotation,
+            models.Annotation,
             classification="Redaction",
             category="Subject withdrew consent",
             project_id="TCGA-BRCA",
@@ -174,9 +174,9 @@ def withdrew_consent_redaction(pg_driver):
 @pytest.fixture
 def exp_strats_setup(pg_driver):
     with pg_driver.session_scope():
-        live_file = pg_driver.nodes(md.File).ids(get_node_id("live-file")).one()
+        live_file = pg_driver.nodes(models.File).ids(get_node_id("live-file")).one()
         exp = (
-            pg_driver.nodes(md.ExperimentalStrategy)
+            pg_driver.nodes(models.ExperimentalStrategy)
             .prop_in("name", ["WXS", "VALIDATION"])
             .all()
         )
@@ -191,11 +191,11 @@ def exp_strats_setup(pg_driver):
 @pytest.fixture
 def derived_file_setup(pg_driver):
     with pg_driver.session_scope():
-        live_file = pg_driver.nodes(md.File).ids(get_node_id("live-file")).one()
-        fake_center = fuzzed(md.Center)
+        live_file = pg_driver.nodes(models.File).ids(get_node_id("live-file")).one()
+        fake_center = fuzzed(models.Center)
         live_file.centers = [fake_center]
         derived_file = fuzzed(
-            md.File,
+            models.File,
             state="live",
             file_name="derived_file.bam",
             project_id="TCGA-BRCA",
@@ -203,7 +203,7 @@ def derived_file_setup(pg_driver):
         derived_file.sysan["source"] = "tcga_exome_alignment"
         live_file.derived_files = [derived_file]
         related_to_derived = fuzzed(
-            md.File,
+            models.File,
             state="live",
             file_name="derived_file.bam.txt",
             project_id="TCGA-BRCA",
