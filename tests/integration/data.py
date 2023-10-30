@@ -591,10 +591,10 @@ NODES = [
         disease_type="Miscellaneous Bone Tumors",
     ),
     models.Case(
-        # submitted case in AWG project
+        # released case in AWG project
         node_id=get_node_id("processed-awg-case"),
         project_id="INTERNAL-AWG-ONE",
-        state="submitted",
+        state="released",
         submitter_id="INTERNAL-AWG-ONE-CASE-0002",
         primary_site="Bones, joints and articular cartilage of limbs",
         disease_type="Miscellaneous Bone Tumors",
