@@ -457,7 +457,7 @@ class ReleaseHelper:
     @lru_cache(1)
     def get_commit_hash():
         commit_hash = os.getenv("GIT_COMMIT_HASH")
-        if os.getenv("GIT_COMMIT_HASH"):
+        if commit_hash:
             return commit_hash
 
         git_dir = os.path.join(
