@@ -32,7 +32,7 @@ BUILD_COMMAND=(build \
   --build-arg GIT_COMMIT_HASH="${GIT_COMMIT_HASH}" \
   --ssh default \
   -t "$IMAGE_NAME:$GIT_BRANCH" \
-  -t "$IMAGE_NAME:$GIT_COMMIT_HASH}")
+  -t "$IMAGE_NAME:$GIT_COMMIT_HASH")
 
 docker "${BUILD_COMMAND[@]}" .
 
