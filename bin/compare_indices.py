@@ -279,7 +279,7 @@ class ESWorker:
     ) -> dict[str, int]:
         """Extract field counts from es index."""
         if not field_list:
-            field_list = {}
+            field_list = []
         total_docs = self.es.count(index=index_name, body={})["count"]
 
         counts = {"total": total_docs}
