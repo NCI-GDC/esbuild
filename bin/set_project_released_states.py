@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 import yaml
 from cdislogging import get_logger
-from gdcdatamodel.models import Program
+from gdcdatamodel2 import models
 from psqlgraph import PsqlGraphDriver
 
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     with pg.session_scope() as session:
         for program, data in current_data["PROGRAMS"].iteritems():
             log.info(f"Looking for {program}")
-            prog = pg.nodes(Program).props(name=program).scalar()
+            prog = pg.nodes(models.Program).props(name=program).scalar()
             if prog:
                 project_list = []
                 project_names = []

@@ -10,7 +10,7 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 
 """
 
-from gdcdatamodel import models  # noqa
+from gdcdatamodel2 import models  # noqa
 
 from ..common.mappings import ESMapper
 

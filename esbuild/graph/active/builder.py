@@ -21,7 +21,7 @@ from typing import Iterable, List, Optional, Sequence, Set
 
 import cdislogging
 import psqlgraph
-from gdcdatamodel import models
+from gdcdatamodel2 import models
 
 from esbuild.graph.active import mappings
 from esbuild.graph.common import builder, validators

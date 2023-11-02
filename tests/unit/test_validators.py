@@ -1,5 +1,5 @@
 import pytest
-from gdcdatamodel import models
+from gdcdatamodel2 import models
 
 from esbuild.graph.common import validators
 
