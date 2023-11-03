@@ -9,7 +9,7 @@ from unittest import mock
 
 import elasticsearch
 import pytest
-from gdcdatamodel.models import Demographic, File
+from gdcdatamodel2 import models
 
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
@@ -43,10 +43,10 @@ def make_gdc_es(pg_driver, es_client):
 def derived_file(pg_driver):
     with pg_driver.session_scope() as sxn:
         to_delete_file = (
-            pg_driver.nodes(File).ids([get_node_id("to-delete-file")]).one()
+            pg_driver.nodes(models.File).ids([get_node_id("to-delete-file")]).one()
         )
         derived_file = data.fuzzed(
-            File, state="live", file_name="foo-bar", file_size=1234
+            models.File, state="live", file_name="foo-bar", file_size=1234
         )
         to_delete_file.derived_files = [derived_file]
         sxn.merge(derived_file)
@@ -74,7 +74,7 @@ def verify_index_settings(es, index, replicas, shards):
 @pytest.fixture
 def patched_demographic(pg_driver):
     with pg_driver.session_scope() as s:
-        demographic = pg_driver.nodes(Demographic).one()
+        demographic = pg_driver.nodes(models.Demographic).one()
         s.execute(
             """
             UPDATE node_demographic
@@ -178,7 +178,7 @@ def test_doesnt_delete_file_with_derived_files(
 
     with pg_driver.session_scope():
         # verify that the to_delete file did not get deleted
-        node = pg_driver.nodes(File).get(get_node_id("to-delete-file"))
+        node = pg_driver.nodes(models.File).get(get_node_id("to-delete-file"))
         assert node
         # verify the filename is correct
         assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"

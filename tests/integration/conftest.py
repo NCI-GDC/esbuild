@@ -11,11 +11,12 @@ import pytest
 import yaml
 from datadog import statsd
 from elasticsearch.exceptions import ElasticsearchException
-from gdcdatamodel import models
-from gdcdatamodel.viz import create_graphviz
+from gdc_ng_models.models import misc, submission
+from gdcdatamodel2 import models
+from gdcdatamodel2.viz import create_graphviz
 from gdcdictionary import gdcdictionary
 from indexclient.types import IndexData
-from psqlgraph import Edge, Node, PsqlGraphDriver, mocks
+from psqlgraph import PsqlGraphDriver, mocks
 from pytest_elasticsearch import factories as es_factories
 from pytest_postgresql import factories
 
@@ -59,9 +60,9 @@ class Index(NamedTuple):
 
 def create_all(engine):
     psqlgraph.create_all(engine)
-    models.versioned_nodes.Base.metadata.create_all(engine)
-    models.submission.Base.metadata.create_all(engine)
-    models.FileReport.metadata.create_all(engine)
+    models.helpers.versioned_nodes.Base.metadata.create_all(engine)
+    submission.Base.metadata.create_all(engine)
+    misc.FileReport.metadata.create_all(engine)
 
 
 def db_loader(host, port, user, dbname, password):

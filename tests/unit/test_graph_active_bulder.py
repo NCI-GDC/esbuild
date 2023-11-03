@@ -3,7 +3,7 @@ import pprint
 import gdcmodels
 import jmespath
 import pytest
-from gdcdatamodel import models
+from gdcdatamodel2 import models
 
 from esbuild.graph.active import builder, mappings
 from tests.unit import utils

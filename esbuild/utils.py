@@ -11,8 +11,8 @@ import psqlgraph
 from cdislogging import get_logger
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
-from gdcdatamodel import models
-from gdcdatamodel.models.submission import TransactionSnapshot
+from gdc_ng_models.models.submission import TransactionSnapshot
+from gdcdatamodel2 import models
 from gdcmodels import esutils
 from indexclient.client import IndexClient
 from psqlgraph import PsqlGraphDriver
@@ -457,7 +457,7 @@ class ReleaseHelper:
     @lru_cache(1)
     def get_commit_hash():
         commit_hash = os.getenv("GIT_COMMIT_HASH")
-        if os.getenv("GIT_COMMIT_HASH"):
+        if commit_hash:
             return commit_hash
 
         git_dir = os.path.join(

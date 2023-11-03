@@ -16,12 +16,14 @@ RUN pip install --no-deps --no-cache-dir .
 
 FROM ${REGISTRY}/ncigdc/python3.9:${CURRENT_VERSION}
 
+# used by add_esbuild_log
 ARG GIT_COMMIT_HASH
 ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
 
 LABEL org.opencontainers.image.title="esbuild" \
       org.opencontainers.image.description="Docker image for building the GDC Elasticsearch indices." \
-      org.opencontainers.image.source="https://github.com/NCI-GDC/esbuild"
+      org.opencontainers.image.source="https://github.com/NCI-GDC/esbuild" \
+      org.opencontainers.image.vendor="NCI GDC"
 
 COPY --from=build /venv/lib/python3.9/site-packages /venv/lib/python3.9/site-packages
 COPY --from=build \

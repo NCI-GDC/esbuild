@@ -1,4 +1,4 @@
-from gdcdatamodel.models.submission import TransactionSnapshot
+from gdc_ng_models.models import submission
 
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
@@ -58,18 +58,18 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     # Query for TransactionSnapshots
     with pg_driver.session_scope():
         ar_ts = (
-            pg_driver.nodes(TransactionSnapshot)
+            pg_driver.nodes(submission.TransactionSnapshot)
             .filter(
-                TransactionSnapshot.id == ar_node.node_id,
-                TransactionSnapshot.action == "version",
+                submission.TransactionSnapshot.id == ar_node.node_id,
+                submission.TransactionSnapshot.action == "version",
             )
             .first()
         )
         ari_ts = (
-            pg_driver.nodes(TransactionSnapshot)
+            pg_driver.nodes(submission.TransactionSnapshot)
             .filter(
-                TransactionSnapshot.id == ari_node.node_id,
-                TransactionSnapshot.action == "version",
+                submission.TransactionSnapshot.id == ari_node.node_id,
+                submission.TransactionSnapshot.action == "version",
             )
             .first()
         )

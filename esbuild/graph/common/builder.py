@@ -31,7 +31,7 @@ import networkx as nx
 import psqlgraph
 from cdislogging import get_logger
 from datadog import statsd
-from gdcdatamodel import models as md
+from gdcdatamodel2 import models as md
 from indexclient import client
 from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node

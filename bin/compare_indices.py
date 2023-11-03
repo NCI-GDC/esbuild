@@ -275,11 +275,11 @@ class ESWorker:
         self.log = cdislogging.get_logger("ESWorker", log_level=log_level)
 
     def get_simple_counts(
-        self, index_name: str, field_list: Optional[dict] = None
+        self, index_name: str, field_list: Optional[list] = None
     ) -> dict[str, int]:
         """Extract field counts from es index."""
         if not field_list:
-            field_list = {}
+            field_list = []
         total_docs = self.es.count(index=index_name, body={})["count"]
 
         counts = {"total": total_docs}
