@@ -48,7 +48,7 @@ log = get_logger("graph_index", log_level="info")
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 FILE_MISSING_GENCODE = {"error": "no gencode_version for generated data files"}
 ENTRY_FOR_WRONG_GENCODE = {"ignore": "wrong gencode_version for generated data files"}
-FIELD_ALLOWLIST = frozenset({"wgs_coverage"})
+FIELD_ALLOWLIST = frozenset({"wgs_coverage", "specimen_type"})
 
 
 @lru_cache(maxsize=32)

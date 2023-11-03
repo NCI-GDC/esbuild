@@ -11,6 +11,7 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 """
 
 from copy import deepcopy
+from typing import Any
 
 from addict import Dict
 from normalizer import load_blacklist, load_normalizer, normalize
@@ -147,6 +148,8 @@ class ActiveESMapper(ESMapper):
                 include_file, is_root
             )
         )
+
+        case.properties.samples.properties.specimen_type = CLINICAL_NORMALIZER_KEYWORD
 
         # Add autocomplete and copy_to fields
         if is_root:
