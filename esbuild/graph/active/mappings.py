@@ -11,7 +11,6 @@ Defines the Elasticsearch mappings for the main GDC graph index.
 """
 
 from copy import deepcopy
-from typing import Any
 
 from addict import Dict
 from normalizer import load_blacklist, load_normalizer, normalize
