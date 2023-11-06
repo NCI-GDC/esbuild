@@ -148,6 +148,8 @@ class ActiveESMapper(ESMapper):
             )
         )
 
+        case.properties.samples.properties.specimen_type = CLINICAL_NORMALIZER_KEYWORD
+
         # Add autocomplete and copy_to fields
         if is_root:
             case = cls.add_case_autocomplete(case)
