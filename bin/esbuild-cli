@@ -9,6 +9,8 @@ import datadog
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.export import mapping_exporter
 
+datadog.initialize(statsd_host="172.17.0.1")
+
 
 def handle_mappings(args):
     exporter = mapping_exporter.MappingExporter()
