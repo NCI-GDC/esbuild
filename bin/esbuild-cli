@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from concurrent import futures
 
 import datadog
@@ -9,7 +10,7 @@ import datadog
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.export import mapping_exporter
 
-datadog.initialize(statsd_host="172.17.0.1")
+datadog.initialize(statsd_host=os.environ.get("DD_STATSD_HOST", "localhost"))
 
 
 def handle_mappings(args):

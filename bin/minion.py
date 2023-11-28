@@ -23,7 +23,7 @@ from esbuild.utils import (
     get_queue_client,
 )
 
-datadog.initialize(statsd_host="172.17.0.1")
+datadog.initialize(statsd_host=os.environ.get("DD_STATSD_HOST", "localhost"))
 
 logger = get_logger("esbuild_minion", log_level="info")
 
