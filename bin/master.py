@@ -14,7 +14,7 @@ import esbuild
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG, get_queue_client
 
-datadog.initialize(statsd_host=os.environ.get("DD_STATSD_HOST", "localhost"))
+datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
 
 logger = get_logger("esbuild_master", log_level="info")
 

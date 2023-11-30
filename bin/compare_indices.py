@@ -24,7 +24,7 @@ IGNORE_KEYS = (
     "releasable",  # System fields
 )
 
-datadog.initialize(statsd_host=os.environ.get("DD_STATSD_HOST", "localhost"))
+datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
 
 
 class DocPair(NamedTuple):
