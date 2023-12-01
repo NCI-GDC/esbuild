@@ -3,9 +3,11 @@ import argparse
 import collections
 import json
 import multiprocessing
+import os
 from typing import Iterator, NamedTuple, Optional
 
 import cdislogging
+import datadog
 import deepdiff
 import elasticsearch
 import elasticsearch.helpers
@@ -21,6 +23,8 @@ IGNORE_KEYS = (
     "state",
     "releasable",  # System fields
 )
+
+datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
 
 
 class DocPair(NamedTuple):

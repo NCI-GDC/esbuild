@@ -6,6 +6,7 @@ import time
 from importlib.resources import files
 from multiprocessing import Process
 
+import datadog
 import psqlgraph
 import yaml
 from cdislogging import get_logger
@@ -21,6 +22,8 @@ from esbuild.utils import (
     get_default_pg_driver,
     get_queue_client,
 )
+
+datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
 
 logger = get_logger("esbuild_minion", log_level="info")
 
