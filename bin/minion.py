@@ -5,10 +5,10 @@ import time
 from importlib.resources import files
 from multiprocessing import Process
 from typing import Any, Dict, Optional, cast
-from ddtrace import tracer
 
 import psqlgraph
 import yaml
+from ddtrace import tracer
 from elasticsearch import Elasticsearch
 from indexclient import client
 
@@ -25,6 +25,7 @@ from esbuild.utils import (
 
 _ = logging.init_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 

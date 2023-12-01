@@ -1,7 +1,6 @@
 import logging
+from logging import DEBUG, ERROR, INFO, WARNING, getLogger
 from typing import Optional
-
-from logging import WARNING, ERROR, INFO, DEBUG, getLogger
 
 import ddtrace
 
