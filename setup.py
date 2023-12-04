@@ -33,6 +33,7 @@ setup(
         "networkx",
         "progressbar2>=2.0,<4",
         "python-dotenv~=0.10.3",
+        "python-json-logger~=2.0",
         "requests~=2.7",
         "SQLAlchemy==1.3.3",
         "psqlgraph @ git+https://github.com/NCI-GDC/psqlgraph.git@3.4.0#egg=psqlgraph",

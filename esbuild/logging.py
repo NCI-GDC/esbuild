@@ -1,11 +1,10 @@
 import logging
-from logging import handlers
 import os
 import platform
+from logging import handlers
 from typing import Any
 
 from pythonjsonlogger import jsonlogger
-
 
 INFO = logging.INFO
 
