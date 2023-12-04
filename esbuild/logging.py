@@ -1,8 +1,12 @@
-import logging
-from logging import DEBUG, ERROR, INFO, WARNING, getLogger
 from typing import Optional
 
 import ddtrace
+
+ddtrace.patch(logging=True)
+
+import logging
+from logging import DEBUG, ERROR, INFO, WARNING, getLogger
+
 
 FORMAT = (
     "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] "
@@ -16,7 +20,6 @@ Level = int
 def init_logging(
     level: Level = logging.WARNING, filename: Optional[str] = None
 ) -> logging.Logger:
-    ddtrace.patch(logging=True)
     logging.basicConfig(format=FORMAT, level=level)
 
     logger = logging.getLogger()
