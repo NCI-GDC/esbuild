@@ -23,8 +23,8 @@ from esbuild.utils import (
     get_queue_client,
 )
 
-_ = logging.init_logging(level=logging.INFO)
-logger = logging.getLogger(__name__)
+root = logging.init_logging(level=logging.INFO)
+logger = root.getChild(__name__)
 
 
 config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())

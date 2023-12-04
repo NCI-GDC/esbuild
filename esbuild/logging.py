@@ -1,31 +1,52 @@
-from typing import Optional
-
-import ddtrace
-
-ddtrace.patch(logging=True)
-
 import logging
-from logging import DEBUG, ERROR, INFO, WARNING, getLogger
+from logging import handlers
+import os
+import platform
+from typing import Any
 
-FORMAT = (
-    "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] "
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-    "- %(message)s"
-)
-
-Level = int
+from pythonjsonlogger import jsonlogger
 
 
-def init_logging(
-    level: Level = logging.WARNING, filename: Optional[str] = None
-) -> logging.Logger:
-    logging.basicConfig(format=FORMAT, level=level)
+INFO = logging.INFO
 
-    logger = logging.getLogger()
 
-    if filename:
-        handler = logging.FileHandler(filename, mode="a+")
+class DatadogLogFormatter(jsonlogger.JsonFormatter):
+    def __init__(self) -> None:
+        super().__init__(
+            "%(asctime)s %(levelname)s %(name)s %(message)s",
+            rename_fields={
+                "levelname": "level",
+                "asctime": "timestamp",
+                "name": "logger.name",
+            },
+        )
 
-        logger.addHandler(handler)
+    def add_fields(
+        self,
+        log_record: dict[str, Any],
+        record: logging.LogRecord,
+        message_dict: dict[str, Any],
+    ) -> None:
+        super().add_fields(log_record, record, message_dict)
 
-    return logger
+        if record.exc_info:
+            exc_type, exception, _ = record.exc_info
+            log_record["error.stack"] = log_record.pop("exc_info", None)
+
+            if exc_type:
+                log_record[
+                    "error.kind"
+                ] = f"{exc_type.__module__}.{exc_type.__qualname__}"
+            if exception:
+                log_record["error.message"] = f"{exception}"
+
+        log_record["host"] = platform.node()
+
+
+def init_logging(level: int) -> logging.Logger:
+    log_handler = handlers.WatchedFileHandler(os.environ["DD_LOG_FILE"], mode="a+")
+
+    log_handler.setFormatter(DatadogLogFormatter())
+    logging.basicConfig(handlers=(log_handler,), level=level, force=True)
+
+    return logging.getLogger()
