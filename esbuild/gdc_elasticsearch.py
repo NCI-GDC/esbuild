@@ -370,7 +370,7 @@ class GDCElasticsearch:
         # self.converter.validate_docs(cases, files, annotations, projects)
 
         # Dump skipped nodes info into a file
-        logger_skipped_nodes(self.converter.skipped_nodes)
+        self.log_skipped_nodes(self.converter.skipped_nodes)
 
         if not self.es or self.skip_es:
             # Skip index upload and save the documents instead
