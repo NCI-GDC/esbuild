@@ -5,6 +5,7 @@ import os
 from importlib.resources import files
 from typing import Any, Iterable, List, Optional
 
+import datadog
 import yaml
 from elasticsearch import Elasticsearch
 
@@ -13,9 +14,10 @@ from esbuild import logging
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG, get_queue_client
 
+datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
+
 root = logging.init_logging(logging.INFO)
 logger = root.getChild("master")
-
 config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 
 
