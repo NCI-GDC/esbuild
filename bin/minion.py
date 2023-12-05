@@ -4,11 +4,9 @@ import argparse
 import time
 from importlib.resources import files
 from multiprocessing import Process
-from typing import Any, Dict, Optional, cast
 
 import psqlgraph
 import yaml
-from ddtrace import tracer
 from elasticsearch import Elasticsearch
 from indexclient import client
 
@@ -23,9 +21,8 @@ from esbuild.utils import (
     get_queue_client,
 )
 
-root = logging.init_logging(level=logging.INFO)
-logger = root.getChild(__name__)
-
+root = logging.init_logging(logging.INFO)
+logger = root.getChild("minion")
 
 config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 
@@ -78,27 +75,33 @@ def get_gdc_elasticsearch(
         indexd_client=indexd_client,
         pg_driver=pg_driver,
         es=es_client,
+        index_prefix=payload.get("index"),
+        index_replicas=payload.get("replicas", 0),
         build_projects=build_projects,
+        build_awg=payload.get("build-awg", False),
+        index_shards=payload.get("shards", 1),
         index_alias_prefix=alias,
+        selective_caching=payload.get("selective-caching", False),
+        cache_versioned=payload.get("cache-versioned", False),
         save_doc_path=save_doc_path,
         skip_es=skip_es,
-        **payload,
+        gencode_version=payload.get("gencode-version"),
     )
 
     return gdc_es
 
 
-@tracer.wrap(name="esbuild-minion", service="esbuild")
 def process_work(
     worker_id: int,
     queue_type: str,
     queue_id: str,
     skip_es: bool = False,
-    save_doc_path: str = "",
+    save_doc_path: str = None,
     sleep_time: int = 30,
     no_statsd: bool = False,
 ) -> None:
     running = True
+    found_work = False
 
     queue_client = get_queue_client(queue_type, queue_id)
     pg_driver = get_default_pg_driver()
@@ -110,11 +113,18 @@ def process_work(
     )
 
     while running:
-        payload = cast(Optional[dict], queue_client.dequeue())
+        payload = queue_client.dequeue()  # type: dict
 
         if not payload:
-            logger.info("No work found, exiting")
-            break
+            if found_work:
+                logger.info("No work found, exiting")
+                break
+
+            logger.info("No work found, waiting")
+            time.sleep(sleep_time)
+            continue
+
+        found_work = True
 
         try:
             gdc_es = get_gdc_elasticsearch(
@@ -182,7 +192,7 @@ if __name__ == "__main__":
     # create processes
     for i in range(0, args.num_procs):
         logger.info(f"Creating process {i}")
-        proc_info: Dict[str, Any] = dict(id=i)
+        proc_info: dict = dict(id=i)
 
         proc_info["process"] = Process(
             target=process_work,

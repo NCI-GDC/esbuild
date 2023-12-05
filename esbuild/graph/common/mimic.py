@@ -4,11 +4,10 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
+import logging
 from typing import Iterable, Union
 
-from cdislogging import get_logger
-
-log = get_logger(__name__, log_level="info")
+log = logging.getLogger(__name__)
 
 
 class CommonMimic:

@@ -6,14 +6,15 @@ from importlib.resources import files
 from typing import Any, Iterable, List, Optional
 
 import yaml
-from cdislogging import get_logger
 from elasticsearch import Elasticsearch
 
 import esbuild
+from esbuild import logging
 from esbuild.export.s3_repository import BackupHelper
 from esbuild.utils import ES_CONFIG, get_queue_client
 
-logger = get_logger("esbuild_master", log_level="info")
+root = logging.init_logging(logging.INFO)
+logger = root.getChild("master")
 
 config = yaml.safe_load(files(esbuild).joinpath("config.yml").read_text())
 

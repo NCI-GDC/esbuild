@@ -6,6 +6,7 @@ from typing import Any
 
 from pythonjsonlogger import jsonlogger
 
+DEBUG = logging.DEBUG
 INFO = logging.INFO
 
 

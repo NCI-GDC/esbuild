@@ -19,8 +19,6 @@ bytecode==0.15.1
     # via ddtrace
 cattrs==23.2.3
     # via ddtrace
-cdislogging==1.1.1
-    # via esbuild (setup.py)
 certifi==2023.11.17
     # via
     #   elasticsearch

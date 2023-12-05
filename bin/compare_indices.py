@@ -5,13 +5,17 @@ import json
 import multiprocessing
 from typing import Iterator, NamedTuple, Optional
 
-import cdislogging
 import deepdiff
 import elasticsearch
 import elasticsearch.helpers
 import more_itertools
 
 import esbuild.utils
+from esbuild import logging
+
+root = logging.init_logging(logging.INFO)
+logger = root.getChild("compare_indices")
+
 
 IGNORE_KEYS = (
     "updated_datetime",  # This might change when node is touched
@@ -49,9 +53,9 @@ class DataTester:
         self.args = self.parser.parse_args()
         self.index_suffixes = ["case", "file", "annotation", "project"]
 
-        log_level = "debug" if self.args.debug else "info"
-        self.log = cdislogging.get_logger("DataTester", log_level=log_level)
-        self.es_worker = ESWorker(self.args.page_size, log_level=log_level)
+        log_level = logging.DEBUG if self.args.debug else logging.INFO
+        logger.setLevel(log_level)
+        self.es_worker = ESWorker(self.args.page_size)
 
     def add_args(self) -> None:
         """Add extra arguments to a parser."""
@@ -81,7 +85,7 @@ class DataTester:
 
     def run(self) -> None:
         test_type = self.args.test_type
-        self.log.info(f"Running {test_type.upper()} test")
+        logger.info(f"Running {test_type.upper()} test")
         getattr(self, test_type)()
 
     def compare_counts(self) -> bool:
@@ -106,8 +110,8 @@ class DataTester:
 
         mismatches = deepdiff.DeepDiff(true_counts, test_counts)
         if mismatches:
-            self.log.warning("Mismatches found:")
-            self.log.warning(mismatches)
+            logger.warning("Mismatches found:")
+            logger.warning(mismatches)
 
         # Write counts to file
         report_filename = (
@@ -124,12 +128,12 @@ class DataTester:
         true_counts = self.get_counts(self.args.true_index)
         sizes = {k: v["counts"]["total"] for k, v in true_counts.items()}
 
-        self.log.info(
+        logger.info(
             f"Running full comparison of {self.args.true_index} and {self.args.test_index} indices:"
         )
         # TODO: incorporate functionality in
         # if IGNORE_KEYS:
-        #    self.log.warning("Ignoring {} fields".format(", ".join(IGNORE_KEYS)))
+        #    logger.warning("Ignoring {} fields".format(", ".join(IGNORE_KEYS)))
 
         # For each index name in active, iterate over entire index and compare
         result = {i: {} for i in self.index_suffixes}
@@ -139,14 +143,14 @@ class DataTester:
             current_true_index = f"{self.args.true_index}_{index_suffix}"
             current_test_index = f"{self.args.test_index}_{index_suffix}"
 
-            self.log.info(f"Comparing {index_suffix}s")
+            logger.info(f"Comparing {index_suffix}s")
 
             for true_doc_chunk in more_itertools.chunked(
                 self.es_worker.get_es_iterator(current_true_index),
                 self.args.page_size,
             ):
                 doc_count += len(true_doc_chunk)
-                self.log.debug(f"progress: {doc_count}/{sizes[index_suffix]}")
+                logger.debug(f"progress: {doc_count}/{sizes[index_suffix]}")
                 true_docs = {d["_id"]: d for d in true_doc_chunk}
                 test_docs = {
                     d["_id"]: d
@@ -168,10 +172,10 @@ class DataTester:
                         if diff:
                             result[index_suffix][true_did] = diff
 
-            self.log.info(f"Done working on {index_suffix}.")
+            logger.info(f"Done working on {index_suffix}.")
 
         for index_suffix, res in result.items():
-            self.log.info(f"Diff in {index_suffix}: {not all(res.values())}")
+            logger.info(f"Diff in {index_suffix}: {not all(res.values())}")
 
         report_filename = (
             f"compared_{self.args.true_index}_vs_{self.args.test_index}.json"
@@ -269,10 +273,9 @@ class DataTester:
 class ESWorker:
     """Works with elasticsearch indices, extracts data and counts."""
 
-    def __init__(self, page_size: int, log_level: str):
+    def __init__(self, page_size: int):
         self.es = esbuild.utils.get_elasticsearch_client()
         self._page_size = page_size
-        self.log = cdislogging.get_logger("ESWorker", log_level=log_level)
 
     def get_simple_counts(
         self, index_name: str, field_list: Optional[list] = None

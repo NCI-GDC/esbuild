@@ -5,12 +5,12 @@ Define functions to build graph indices and upload them to Elasticsearch
 """
 import datetime
 import json
+import logging
 import os
 import time
 from concurrent import futures
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
 
-import cdislogging
 import datadog
 import elasticsearch
 import progressbar
@@ -20,6 +20,8 @@ from indexclient import client
 
 from esbuild import utils
 from esbuild.graph.common import builder
+
+logger = logging.getLogger(__name__)
 
 # TODO: Play around with these values and find the sweet spot that
 #   minimizes the loading time without crashing the ES cluster
@@ -172,11 +174,9 @@ class GDCElasticsearch:
 
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
         self.skip_es = skip_es
-
-        self.log = cdislogging.get_logger("gdc_elasticsearch", log_level="info")
         self.converter = None
 
-        self.log.info(f"Build arguments: {kwargs}")
+        logger.info(f"Build arguments: {kwargs}")
 
         self.event_logger = no_op
 
@@ -230,7 +230,7 @@ class GDCElasticsearch:
             file_name = "{}/{}_{}.json".format(
                 self.doc_output_dir, file_name, time_stamp
             )
-            self.log.info(f"Saving to {file_name}")
+            logger.info(f"Saving to {file_name}")
             _save_docs(docs, file_name)
 
     def _cache_versioned_files(self) -> dict:
@@ -250,7 +250,7 @@ class GDCElasticsearch:
         self, converter: builder.GraphIndexBuilder
     ) -> Tuple[list, list, list, list]:
         with self.graph.session_scope() as session, session.no_autoflush:
-            self.log.info("Caching database")
+            logger.info("Caching database")
 
             self.event_logger(
                 "Caching", "Started postgres caching.", tags=["stage:caching"]
@@ -260,7 +260,7 @@ class GDCElasticsearch:
             converter.cache_database()
             cache_end_time = datetime.datetime.now()
 
-            self.log.info(
+            logger.info(
                 "ANALYSIS: Loaded data in %s", cache_end_time - cache_start_time
             )
 
@@ -274,13 +274,13 @@ class GDCElasticsearch:
 
             denom_end_time = datetime.datetime.now()
 
-            self.log.info(
+            logger.info(
                 "ANALYSIS: Denormalized data in %s", denom_end_time - cache_end_time
             )
 
             session.rollback()
 
-            self.log.info(
+            logger.info(
                 "ANALYSIS: %d case docs, %d file docs, %d annotation docs, %d project docs",
                 len(cases),
                 len(files),
@@ -296,7 +296,7 @@ class GDCElasticsearch:
         else:
             projects_to_build = "all"
 
-        self.log.info(
+        logger.info(
             "ANALYSIS: Preparing ES index to be updated "
             "with {} projects".format(projects_to_build)
         )
@@ -321,9 +321,7 @@ class GDCElasticsearch:
             )
 
     def _dump_locally(self, cases, files, annotations, projects):
-        self.log.info(
-            "Skipping ES index deploy and saving docs on local storage instead"
-        )
+        logger.info("Skipping ES index deploy and saving docs on local storage instead")
 
         self.event_logger("Dump to LS", "Started dumping to LS", tags=["stage:dump"])
 
@@ -362,7 +360,7 @@ class GDCElasticsearch:
 
         cases, files, annotations, projects = self._cache_database(self.converter)
 
-        self.log.info("Validating docs produced")
+        logger.info("Validating docs produced")
 
         self.event_logger("Validation", "Started validation", tags=["stage:validation"])
 
@@ -372,7 +370,7 @@ class GDCElasticsearch:
         # self.converter.validate_docs(cases, files, annotations, projects)
 
         # Dump skipped nodes info into a file
-        self.log_skipped_nodes(self.converter.skipped_nodes)
+        logger_skipped_nodes(self.converter.skipped_nodes)
 
         if not self.es or self.skip_es:
             # Skip index upload and save the documents instead
@@ -381,7 +379,7 @@ class GDCElasticsearch:
 
         self._prepare_indices()
 
-        self.log.info("Deploying new ES index with new docs")
+        logger.info("Deploying new ES index with new docs")
 
         self.event_logger("ES Upload", "Uploading indices", tags=["stage:upload"])
 
@@ -394,7 +392,7 @@ class GDCElasticsearch:
         try:
             self.deploy(cases, files, annotations, projects, roll_alias=roll_alias)
         except Exception as exception:
-            self.log.exception(
+            logger.exception(
                 "Unable to deploy documents to {}: {}, saving to {}"
                 "".format(self.index_prefix, exception, self.doc_output_dir),
                 exc_info=True,
@@ -409,8 +407,8 @@ class GDCElasticsearch:
             )
 
     def log_skipped_nodes(self, skipped_nodes):
-        self.log.info("Logging skipped nodes to log file in `save_doc_path`")
-        self.log_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
+        logger.info("Logging skipped nodes to log file in `save_doc_path`")
+        logger_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
 
     @staticmethod
     def log_into_file(entries: Union[List, Dict], path: str, file_nametag: str):
@@ -472,12 +470,12 @@ class GDCElasticsearch:
 
     def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
-            self.log.info(f"Creating new index: '{index_name}'")
+            logger.info(f"Creating new index: '{index_name}'")
             body = dict(mappings=mappings, **index_settings)
             self.es.indices.create(index=index_name, body=body)
             self.es.indices.refresh(index=index_name)
         else:
-            self.log.info(f"Using existing index: '{index_name}'")
+            logger.info(f"Using existing index: '{index_name}'")
 
     def create_and_populate_index(
         self,
@@ -512,10 +510,10 @@ class GDCElasticsearch:
         self._create_index(index_name, index_settings, mappings.to_dict())
 
         if not docs:
-            self.log.warning(f"There're no documents for '{index_type}' to populate")
+            logger.warning(f"There're no documents for '{index_type}' to populate")
             return
 
-        self.log.info("Populating index %s" % index_name)
+        logger.info("Populating index %s" % index_name)
 
         self.populate_index(index_type, docs, thread_count, chunk_size, max_chunk_bytes)
 
@@ -568,7 +566,7 @@ class GDCElasticsearch:
                 max_chunk_bytes=max_chunk_bytes,
             )
             if errors:
-                self.log.error(errors)
+                logger.error(errors)
         else:
             batches = helpers.parallel_bulk(
                 self.es,
@@ -597,7 +595,7 @@ class GDCElasticsearch:
         """
         self.drop_aliases(alias)
 
-        self.log.info(f"Adding new alias: '{alias}' for indices: '{new_index}'")
+        logger.info(f"Adding new alias: '{alias}' for indices: '{new_index}'")
 
         if not self.es:
             raise Exception(
@@ -639,7 +637,7 @@ class GDCElasticsearch:
         for index in indices:
             actions.append({"remove": {"index": index, "alias": alias}})
 
-        self.log.info(f"Removing alias: '{alias}', for indices: '{indices}'")
+        logger.info(f"Removing alias: '{alias}', for indices: '{indices}'")
 
         return self.es.indices.update_aliases({"actions": actions})
 
@@ -674,7 +672,7 @@ class GDCElasticsearch:
         Returns:
             None
         """
-        self.log.info("Deploying to index %s", self.index_prefix)
+        logger.info("Deploying to index %s", self.index_prefix)
 
         for index_type, index_docs in [
             ("project", project_docs),
@@ -692,7 +690,7 @@ class GDCElasticsearch:
             )
             self.es.indices.refresh(index=self.index_names[index_type])
 
-        self.log.info("Deployed to index %s", self.index_prefix)
+        logger.info("Deployed to index %s", self.index_prefix)
 
         # Create audit logs for this ESBuild run
         self.release_helper.add_esbuild_log(
@@ -710,7 +708,7 @@ class GDCElasticsearch:
         )
 
         if not roll_alias:
-            self.log.info("Skipping alias roll")
+            logger.info("Skipping alias roll")
             return
 
         for index_type, index_alias in self.index_aliases.items():

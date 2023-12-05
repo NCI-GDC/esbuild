@@ -23,7 +23,6 @@ setup(
     packages=find_packages(exclude=("tests",)),
     install_requires=[
         "addict",
-        "cdislogging~=1.0",
         "datadog~=0.32",
         "ddtrace~=2.3",
         "deepdiff~=6.5.0",  # required by compare_indices
