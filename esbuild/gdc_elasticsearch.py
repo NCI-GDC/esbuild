@@ -408,7 +408,7 @@ class GDCElasticsearch:
 
     def log_skipped_nodes(self, skipped_nodes):
         logger.info("Logging skipped nodes to log file in `save_doc_path`")
-        logger_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
+        self.log_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
 
     @staticmethod
     def log_into_file(entries: Union[List, Dict], path: str, file_nametag: str):
