@@ -24,7 +24,6 @@ setup(
     install_requires=[
         "addict",
         "datadog~=0.32",
-        "ddtrace~=2.3",
         "deepdiff~=6.5.0",  # required by compare_indices
         "dictdiffer~=0.8.0",
         "elasticsearch~=7.6",
