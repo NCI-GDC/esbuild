@@ -17,16 +17,16 @@ tied to the relevant aliquots during cache_database
 
 """
 import itertools
+import logging
 from typing import Iterable, List, Optional, Sequence, Set
 
-import cdislogging
 import psqlgraph
 from gdcdatamodel2 import models
 
 from esbuild.graph.active import mappings
 from esbuild.graph.common import builder, validators
 
-log = cdislogging.get_logger("graph_active_index", log_level="error")
+log = logging.getLogger(__name__)
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 

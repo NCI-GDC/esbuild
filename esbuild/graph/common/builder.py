@@ -6,6 +6,7 @@ graph index.
 """
 import hashlib
 import itertools
+import logging
 import random
 import re
 import traceback
@@ -29,7 +30,6 @@ from uuid import UUID, uuid5
 
 import networkx as nx
 import psqlgraph
-from cdislogging import get_logger
 from datadog import statsd
 from gdcdatamodel2 import models as md
 from indexclient import client
@@ -43,7 +43,7 @@ from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
 PTree = Dict[Node, "Ptree"]
 Document = Dict[str, Union[str, int]]
 
-log = get_logger("graph_index", log_level="info")
+log = logging.getLogger(__name__)
 
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 FILE_MISSING_GENCODE = {"error": "no gencode_version for generated data files"}
@@ -1403,7 +1403,6 @@ class GraphIndexBuilder:
         entities = self.get_file_associated_entities(node)
 
         for e in entities:
-
             if e not in self.entity_cases:
                 # Skip, the cases is likely missing because it is omitted
                 continue

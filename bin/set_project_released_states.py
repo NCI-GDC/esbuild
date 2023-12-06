@@ -2,9 +2,13 @@ import os
 from argparse import ArgumentParser
 
 import yaml
-from cdislogging import get_logger
 from gdcdatamodel2 import models
 from psqlgraph import PsqlGraphDriver
+
+from esbuild import logging
+
+root = logging.init_logging(logging.INFO)
+logger = root.getChild("set_project_released_states")
 
 
 def parse_cmd_args():
@@ -32,9 +36,7 @@ def parse_cmd_args():
 
 
 if __name__ == "__main__":
-
     args = parse_cmd_args()
-    log = get_logger("esbuild-set_project_released_states")
     # load yaml
     with open(args.state_file) as yaml_file:
         state_conf = yaml.safe_load(yaml_file)
@@ -51,7 +53,7 @@ if __name__ == "__main__":
     updated_states = 0
     with pg.session_scope() as session:
         for program, data in current_data["PROGRAMS"].iteritems():
-            log.info(f"Looking for {program}")
+            logger.info(f"Looking for {program}")
             prog = pg.nodes(models.Program).props(name=program).scalar()
             if prog:
                 project_list = []
@@ -65,15 +67,15 @@ if __name__ == "__main__":
                     if len(data["PROJECTS"]) != len(project_list):
                         for entry in data["PROJECTS"]:
                             if entry not in project_names:
-                                log.warning(f"{entry} not found")
+                                logger.warning(f"{entry} not found")
 
                 else:
                     project_list = prog.projects
 
-                log.info(f"{len(project_list)} programs found")
+                logger.info(f"{len(project_list)} programs found")
                 for proj in project_list:
                     if proj.props["released"] != data["RELEASED"]:
-                        log.info(
+                        logger.info(
                             "Changing released for {}-{} to {}".format(
                                 program, proj.props["code"], data["RELEASED"]
                             )
@@ -82,15 +84,15 @@ if __name__ == "__main__":
                         session.merge(proj)
                         updated_states += 1
                     else:
-                        log.info(
+                        logger.info(
                             "{}-{} released is ok as {}".format(
                                 program, proj.props["code"], proj.props["released"]
                             )
                         )
             else:
-                log.info(f"Unable to find {program}")
+                logger.info(f"Unable to find {program}")
 
         if args.dry_run:
             session.rollback()
 
-    log.info(f"Updated {updated_states} states")
+    logger.info(f"Updated {updated_states} states")
