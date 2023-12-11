@@ -1,3 +1,11 @@
+"""
+An extension of the logging module to be used to initialize logging in entry points.
+
+This module should only be used in entry points to the application. In all other places,
+use the builtin logging.getLogger(__name__) to create loggers in other (non-entry point)
+modules.
+"""
+
 import logging
 import os
 import platform
@@ -44,6 +52,17 @@ class DatadogLogFormatter(jsonlogger.JsonFormatter):
 
 
 def init_logging(level: int) -> logging.Logger:
+    """
+    Initialize the logging to log to the appropriate files/systems.
+
+    In the process, this also initializes the root logger and returns it.
+
+    Args:
+        level: The level to which loggers, including the root logger, will transmit.
+
+    Returns:
+        The root logger. In all cases a child logger should be used for actual logging.
+    """
     log_handler = handlers.WatchedFileHandler(os.environ["DD_LOG_FILE"], mode="a+")
 
     log_handler.setFormatter(DatadogLogFormatter())
