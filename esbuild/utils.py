@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import time
@@ -8,7 +9,6 @@ from reprlib import repr
 from typing import Dict, FrozenSet, Iterable, Optional
 
 import psqlgraph
-from cdislogging import get_logger
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from gdc_ng_models.models.submission import TransactionSnapshot
@@ -21,6 +21,8 @@ from requests import HTTPError
 
 from esbuild.graph.common import builder
 from esbuild.graph.common.builder import GraphIndexBuilder
+
+logger = logging.getLogger(__name__)
 
 
 def get_file_state(doc):
@@ -135,7 +137,6 @@ class VersionedNodesDiffCollector:
         self.i = indexd_client or get_default_index_client()
         self.allowed_gencode_versions = allowed_gencode_versions
         self.diffs = {}
-        self.logger = get_logger(__name__ + "." + self.__class__.__name__)
 
     def query_nodes(self):
         with self.g.session_scope():
@@ -196,7 +197,7 @@ class VersionedNodesDiffCollector:
             extra = [v for v in unreleased_all if v.did != latest_id]
 
             for e in extra:
-                self.logger.debug(f"Extra unreleased IndexD doc: '{e.did}'")
+                logger.debug(f"Extra unreleased IndexD doc: '{e.did}'")
 
         # Get latest released
         released = sorted(
@@ -237,7 +238,7 @@ class VersionedNodesDiffCollector:
                 versions = self.i.list_versions(node.node_id)
             except HTTPError as e:
                 if e.response and e.response.status_code != 404:
-                    self.logger.error(
+                    logger.error(
                         "Error while making request to IndexD: {}. Retrying".format(
                             str(e)
                         )
@@ -248,7 +249,7 @@ class VersionedNodesDiffCollector:
                 return []
             return versions
 
-        self.logger.debug(f"IndexD is being weird with: {node.project_id} '{node}'")
+        logger.debug(f"IndexD is being weird with: {node.project_id} '{node}'")
         # Return an empty list if unable to query IndexD
         return []
 
@@ -277,7 +278,7 @@ class VersionedNodesDiffCollector:
             transaction_props.update(indexd_props)
             return transaction_props
         else:  # harmonized file with wrong or none gencode_version
-            self.logger.debug(
+            logger.debug(
                 f"Found old version of {node.node_id}, omitting it due to"
                 f"undesired gencode_version: {gencode_from_indexd}"
             )
@@ -288,7 +289,7 @@ class VersionedNodesDiffCollector:
             node_diff = self.get_old_props(node)
             if node_diff:
                 self.diffs[node.node_id] = node_diff
-                self.logger.debug(f"Found old version of: {node.project_id} '{node}'")
+                logger.debug(f"Found old version of: {node.project_id} '{node}'")
         return self.diffs
 
 
@@ -311,7 +312,6 @@ class ReleaseHelper:
         self.es = es
         self.audit_index = audit_index
         self.audit = audit
-        self.log = get_logger("utils_releasehelper")
 
     @classmethod
     def get_project_docs_query(
@@ -373,7 +373,7 @@ class ReleaseHelper:
         try:
             self.es.delete_by_query(index=index_name, body={"query": q})
         except:
-            self.log.exception(
+            logger.exception(
                 "Unable to delete documents for projects: [{}] from: '{}'"
                 "".format(", ".join(projects_to_delete), index_name)
             )

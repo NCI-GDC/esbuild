@@ -1,3 +1,4 @@
+import logging
 import os
 import smtplib
 from datetime import datetime, timedelta
@@ -7,7 +8,6 @@ from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 
 import salt.client
-from cdislogging import get_logger
 from consulate import Consul
 from gdcdatamodel2 import models
 from psqlgraph import PsqlGraphDriver
@@ -15,6 +15,8 @@ from sqlalchemy import create_engine, desc
 from sqlalchemy.pool import NullPool
 
 from esbuild.reports.alignment_queries import exome, mirnaseq, rnaseq, wgs
+
+logger = logging.getLogger(__name__)
 
 
 def with_derived(q):
@@ -65,7 +67,6 @@ class AlignmentReporter:
         self.mailserver = mailserver
         self.toaddrs = toaddrs
         self._aligned = None
-        self.log = get_logger("alignment_report")
 
     @property
     def totals(self):
@@ -96,7 +97,7 @@ class AlignmentReporter:
     @property
     def aligned_files(self):
         if not self._aligned:
-            self.log.info("Querying for aligned files")
+            logger.info("Querying for aligned files")
             wgs_files = (
                 with_derived(wgs(self.graph, "tcga_cghub")).all()
                 + with_derived(wgs(self.graph, "target_cghub")).all()
@@ -127,7 +128,7 @@ class AlignmentReporter:
         }
 
     def generate_files_to_attach(self):
-        self.log.info("Generating files to attach")
+        logger.info("Generating files to attach")
         return {
             "alignment_numbers.txt": self.generate_numbers_file(),
             "analysis_ids_complete.txt": self.generate_aligned_analysis_ids_file(),
@@ -138,7 +139,7 @@ class AlignmentReporter:
         }
 
     def generate_numbers_file(self):
-        self.log.info("Generating file with aligned numbers")
+        logger.info("Generating file with aligned numbers")
         aligned_counts = self.aligned_file_counts()
         aligned_sizes = self.aligned_file_sizes()
         attachment = "Aligned Files (counts)\n"
@@ -240,7 +241,7 @@ class AlignmentReporter:
         return attachment
 
     def generate_aligned_analysis_ids_file(self):
-        self.log.info("Generating file with aligned analysis ids")
+        logger.info("Generating file with aligned analysis ids")
         analysis_ids = []
         for _, files in self.aligned_files.items():
             analysis_ids.extend([f.sysan["analysis_id"] for f in files])
@@ -248,13 +249,13 @@ class AlignmentReporter:
         return attachment
 
     def generate_in_progress_analysis_ids_file(self):
-        self.log.info("Generating file with in progress analysis ids")
+        logger.info("Generating file with in progress analysis ids")
         in_progres_gdc_ids = [
             k.split("/")[-1]
             for k in self.consul.kv.keys()
             if "align" in k and "current" in k
         ]
-        self.log.info("Querying for analysis ids of files currently being aligned")
+        logger.info("Querying for analysis ids of files currently being aligned")
         analysis_ids = [
             res[0]
             for res in self.graph.nodes(models.File._sysan["analysis_id"])
@@ -265,19 +266,19 @@ class AlignmentReporter:
         return attachment
 
     def generate_timings_file(self):
-        self.log.info("Generating wgs timings file")
+        logger.info("Generating wgs timings file")
         aligned_wgs_files = []
         for key, files in self.aligned_files.items():
             if "WGS" in key:
                 aligned_wgs_files.extend(files)
-        self.log.info("Getting uuid -> hostname mapping from gdc mysql")
+        logger.info("Getting uuid -> hostname mapping from gdc mysql")
         uuid_to_host = dict(
             self.os_mysql.execute("SELECT uuid, host from instances;").fetchall()
         )
         attachment = (
             "analysis_id,alignment_time,input_file_size,aligner_uuid,aligner_host\n"
         )
-        self.log.info("Generating rows")
+        logger.info("Generating rows")
         for file in aligned_wgs_files:
             edge = (
                 self.graph.edges(models.FileDataFromFile)
@@ -298,7 +299,7 @@ class AlignmentReporter:
         return attachment
 
     def generate_fixmate_problem_analysis_ids_file(self):
-        self.log.info("Generating file with in FixMateInformation failure analysis ids")
+        logger.info("Generating file with in FixMateInformation failure analysis ids")
         problem_files = (
             self.graph.nodes(models.File).sysan(alignment_fixmate_failure=True).all()
         )
@@ -307,7 +308,7 @@ class AlignmentReporter:
         return attachment
 
     def generate_markdups_failure_analysis_ids_file(self):
-        self.log.info("Generating file with in MarkDuplicates failure analysis ids")
+        logger.info("Generating file with in MarkDuplicates failure analysis ids")
         problem_files = (
             self.graph.nodes(models.File).sysan(alignment_markdups_failure=True).all()
         )
@@ -324,7 +325,7 @@ class AlignmentReporter:
             msg.attach(part)
 
     def send_email(self):
-        self.log.info("Building email")
+        logger.info("Building email")
         fromaddr = "alignmentreport@opensciencedatacloud.org"
         toaddrs = self.toaddrs
         msg = MIMEMultipart()
@@ -345,7 +346,7 @@ class AlignmentReporter:
         with self.graph.session_scope():
             files = self.generate_files_to_attach()
         self.attach_files(msg, files)
-        self.log.info("Connecting and sending email")
+        logger.info("Connecting and sending email")
         server = smtplib.SMTP(self.mailserver, 25)
         if len(toaddrs) == 1:
             server.sendmail(fromaddr, toaddrs[0], msg.as_string())
