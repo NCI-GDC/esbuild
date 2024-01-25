@@ -56,11 +56,6 @@ def get_gdc_elasticsearch(
     Raises:
         ValueError when build type is not active
     """
-    build_type = payload.get("build-type")
-
-    if build_type != "active":
-        raise ValueError(f"Unknown build-type: '{build_type}'")
-
     if not payload.get("projects"):
         build_projects = None
     else:
@@ -139,7 +134,7 @@ def process_work(
                 skip_es=skip_es,
             )
 
-            logger.info(f"Running build-type 'active', build_awg '{gdc_es.build_awg}'")
+            logger.info(f"Running build_awg=={gdc_es.build_awg}")
             logger.info(f"Payload: {payload}")
 
             gdc_es.go(

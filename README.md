@@ -10,7 +10,6 @@ Repository for building the GDC Elasticsearch indices.
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Running](#running)
-  - [build_graph_index.py](#build_graph_indexpy)
   - [compare_indices.py](#compare_indicespy)
     - [flags](#flags)
       - [`--test-type`](#--test-type)
@@ -33,52 +32,6 @@ Repository for building the GDC Elasticsearch indices.
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Running
-
-## build_graph_index.py
-
-```bash
-export PG_HOST=<REPLACE_ME>  # PostgreSQL hostname
-export PG_USER=<REPLACE_ME>  # PostgreSQL user
-export PG_PASS=<REPLACE_ME>  # PostgreSQL password
-export PG_NAME=<REPLACE_ME>  # PostgreSQL database name
-
-export ES_HOST=<REPLACE_ME>  # Elasticsearch hostname
-export ES_USER=<REPLACE_ME>  # Elasticsearch user
-export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
-
-python bin/build_graph_index.py
-```
-
-While running, we have a temporary fix in that allows the proper
-released states to be set per program/project for active vs legacy.
-
-This is a temporary solution that automates the setting of these
-flags. We have a PR in that fixes this at the root level, and when
-that is done, this code should be removed.
-
-This code is automatically run from the esbuild wrapper, so no
-extra execution is necessary.
-
-In the meantime, the format is this:
-```ACTIVE: # Which build is running, either ACTIVE or LEGACY
-    PROGRAMS: # The set of programs that are to be altered
-        CCLE: # The program name, all in caps
-            PROJECTS: '*' # Wildcard which means "do every project", this
-                          # should never be a list, just a single entry
-            RELEASED: False # The state to set released to for these programs
-        TARGET:
-            PROJECTS: # If wildcard isn't used, a list of project names
-                      # is expected, matching exactly the code in psql
-                      # This should always be a list, so dashes even
-                      # if there's only one project name
-                - ALL-P1
-                - ALL-P2
-            RELEASED: False
-```
-
-This data is checked in in a yaml file (project-program-release.yaml) in the
-bin directory of esbuild. It is deployed and can be edited on the esbuild
-machine to change as need be.
 
 ## compare_indices.py
 
@@ -140,9 +93,7 @@ produces (i.e. Legacy and Active).
 
 Most of the business logic for building indices is contained in the
 `graph.common.builder.GraphIndexBuilder` class, which is inherited by
-`graph.common.builder.ActiveGraphIndexBuilder` and
-`graph.common.builder.LegacyGraphIndexBuilder` to build the Active and
-Legacy indices respectively.
+`graph.common.builder.ActiveGraphIndexBuilder` to build the indices.
 
 Builders exclude nodes that shouldn't be in the index (and therefore
 public) based during the filtering step in the `is_node_indexed()`
