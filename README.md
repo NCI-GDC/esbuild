@@ -160,8 +160,7 @@ False
 
 Before continuing you must have the following programs installed:
 
-- [Python 2.7+](http://python.org/)
-- [graphviz](http://www.graphviz.org/) for optional test suite data visualization
+- [Python 3.9](http://python.org/)
 
 ## Pip
 
@@ -189,10 +188,7 @@ need to install it manually.  On OSX you can install Elasticsearch via
 
 ## Tests
 
-Tests can be found in `tests/` and can be run
-via [pytest](http://pytest.org/latest/getting-started.html).
-
-Or you can use [tox](https://tox.readthedocs.io/en/latest/) to run tests:
+Use [tox](https://tox.readthedocs.io/en/latest/) to run tests:
 
 ```
 pip install tox
