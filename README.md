@@ -93,7 +93,7 @@ annotation, file, and case.
 
 Most of the business logic for building indices is contained in the
 `graph.common.builder.GraphIndexBuilder` class, which is inherited by
-`graph.common.builder.ActiveGraphIndexBuilder` to impliment the actual
+`graph.common.builder.ActiveGraphIndexBuilder` to implement the actual
 build of the indices.
 
 Builders exclude nodes that shouldn't be in the index (and therefore
@@ -138,7 +138,7 @@ The mappers have three main functions to produce mappings:
 The properties of each Entity (Node class) are dynamically added to
 the mapping based on the GDC Dictionary.
 
-The traversal tree in the active mappings are a dynamic and based on
+The traversal tree in the active mappings is dynamic and based on
 the graph structure.
 
 # Trouble shooting
