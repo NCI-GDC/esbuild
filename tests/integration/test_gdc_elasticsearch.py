@@ -1,6 +1,5 @@
 """
-Tests the GDC Elasticsearch interaction for active and legacy
-indices.
+Tests the GDC Elasticsearch interaction for indices.
 
 """
 import json
@@ -15,7 +14,6 @@ from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
 from esbuild.graph.active import builder, mappings
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.legacy.builder import LegacyGraphIndexBuilder
 from tests.integration import data
 from tests.integration.conftest import get_all_indices
 from tests.integration.data import get_node_id
@@ -142,9 +140,7 @@ def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
     )
 
 
-@pytest.mark.parametrize(
-    "converter", [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder]
-)
+@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
 def test_unexpected_properties(
     setup_test, init_indexd, converter, make_gdc_es, patched_demographic
 ):
@@ -153,9 +149,7 @@ def test_unexpected_properties(
     assert len(get_all_indices(setup_test)) == len(gdces.index_names) + 1
 
 
-@pytest.mark.parametrize(
-    "converter", [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder]
-)
+@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
 def test_gdc_elasticsearch_with_audit_disabled(
     setup_test, init_indexd, converter, make_gdc_es
 ):
@@ -165,9 +159,7 @@ def test_gdc_elasticsearch_with_audit_disabled(
     assert len(get_all_indices(setup_test)) == len(gdces.index_names)
 
 
-@pytest.mark.parametrize(
-    "converter", [ActiveGraphIndexBuilder, LegacyGraphIndexBuilder]
-)
+@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
 def test_doesnt_delete_file_with_derived_files(
     setup_test, init_indexd, converter, pg_driver, derived_file, make_gdc_es
 ):

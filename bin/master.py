@@ -97,9 +97,7 @@ def esbuild_argparser() -> argparse.ArgumentParser:
     projects.add_argument(
         "--project-group",
         help="The name for the specific group of projects from the configuration "
-        "file to be built. Defaults to the complete 'active' or 'legacy' list of "
-        "projects based on the build-type argument. Cannot be used with the "
-        "projects argument.",
+        "file to be built. Cannot be used with the projects argument.",
         type=str,
     )
     projects.add_argument(
@@ -127,12 +125,6 @@ def esbuild_argparser() -> argparse.ArgumentParser:
         help="How many jobs to create (defaults to 1)",
         type=int,
         default=1,
-    )
-    es_args.add_argument(
-        "--build-type",
-        choices=["active", "legacy"],
-        default="active",
-        help='Choose "active" or "legacy" (defaults to "active")',
     )
     es_args.add_argument(
         "--split-by-program",
@@ -289,7 +281,7 @@ def load_user_configuration(path: Optional[str]) -> dict:
 
 
 def get_default_projects(args: Any, user_config: dict) -> Iterable[str]:
-    project_group = args.project_group or f"{args.build_type}_projects"
+    project_group = args.project_group
     projects = user_config.get(project_group) or config.get(project_group)
 
     if not projects:
@@ -336,9 +328,7 @@ if __name__ == "__main__":
     projects = args.projects
     if not projects:
         logger.info(
-            "No 'projects' have been provided, defaulting to '{}' projects from config: {}".format(
-                args.build_type, args.config or "DEFAULT"
-            )
+            f"No projects have been provided loading project group: {args.project_group}."
         )
         projects = get_default_projects(args, user_config)
 
@@ -347,11 +337,7 @@ if __name__ == "__main__":
         logger.info(f"Skipping projects: {args.skip_projects}")
         projects = [p for p in projects if p not in args.skip_projects]
 
-    logger.info(
-        "\n\n\tDelegating {} build with {} jobs\n\tES index: {}".format(
-            args.build_type.upper(), args.num_jobs, args.index
-        )
-    )
+    logger.info(f"Delegating build with {args.num_jobs} jobs ES index: {args.index}.")
 
     # Delegate a job for each project group:
     for group in split_projects(
@@ -367,7 +353,6 @@ if __name__ == "__main__":
             "projects": " ".join(group),
             "selective-caching": args.selective_caching,
             "build-awg": args.build_awg,
-            "build-type": args.build_type,
             "cache-versioned": args.cache_versioned,
             "gencode-version": args.gencode_version,
         }

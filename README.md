@@ -1,4 +1,4 @@
-# esbuild
+# ESBuild
 
 Repository for building the GDC Elasticsearch indices.
 
@@ -10,7 +10,6 @@ Repository for building the GDC Elasticsearch indices.
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Running](#running)
-  - [build_graph_index.py](#build_graph_indexpy)
   - [compare_indices.py](#compare_indicespy)
     - [flags](#flags)
       - [`--test-type`](#--test-type)
@@ -33,52 +32,6 @@ Repository for building the GDC Elasticsearch indices.
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Running
-
-## build_graph_index.py
-
-```bash
-export PG_HOST=<REPLACE_ME>  # PostgreSQL hostname
-export PG_USER=<REPLACE_ME>  # PostgreSQL user
-export PG_PASS=<REPLACE_ME>  # PostgreSQL password
-export PG_NAME=<REPLACE_ME>  # PostgreSQL database name
-
-export ES_HOST=<REPLACE_ME>  # Elasticsearch hostname
-export ES_USER=<REPLACE_ME>  # Elasticsearch user
-export ES_PASSWORD=<REPLACE_ME>  # Elasticsearch password
-
-python bin/build_graph_index.py
-```
-
-While running, we have a temporary fix in that allows the proper
-released states to be set per program/project for active vs legacy.
-
-This is a temporary solution that automates the setting of these
-flags. We have a PR in that fixes this at the root level, and when
-that is done, this code should be removed.
-
-This code is automatically run from the esbuild wrapper, so no
-extra execution is necessary.
-
-In the meantime, the format is this:
-```ACTIVE: # Which build is running, either ACTIVE or LEGACY
-    PROGRAMS: # The set of programs that are to be altered
-        CCLE: # The program name, all in caps
-            PROJECTS: '*' # Wildcard which means "do every project", this
-                          # should never be a list, just a single entry
-            RELEASED: False # The state to set released to for these programs
-        TARGET:
-            PROJECTS: # If wildcard isn't used, a list of project names
-                      # is expected, matching exactly the code in psql
-                      # This should always be a list, so dashes even
-                      # if there's only one project name
-                - ALL-P1
-                - ALL-P2
-            RELEASED: False
-```
-
-This data is checked in in a yaml file (project-program-release.yaml) in the
-bin directory of esbuild. It is deployed and can be edited on the esbuild
-machine to change as need be.
 
 ## compare_indices.py
 
@@ -108,7 +61,7 @@ compare_indices.py --true-index dr33_active_merged --test_index dr33_active_merg
 ```
 
 
-=======
+=========
 # Architecture
 
 ## Build and Upload Process
@@ -132,17 +85,16 @@ The index is uploaded to elasticsearch in the following steps:
 
 ## Builders and Mappers
 
-Esbuild consists of a `builder` and a `mapper` for each index it
-produces (i.e. Legacy and Active).
+Esbuild consists of a `builder` and a `mapper` for the four indices it produces: project,
+annotation, file, and case.
 
 * The `mapper` produces the Elasticsearch mapping and contains basic traversals
 * The `builder` produces JSON documents using the `mapper`
 
 Most of the business logic for building indices is contained in the
 `graph.common.builder.GraphIndexBuilder` class, which is inherited by
-`graph.common.builder.ActiveGraphIndexBuilder` and
-`graph.common.builder.LegacyGraphIndexBuilder` to build the Active and
-Legacy indices respectively.
+`graph.common.builder.ActiveGraphIndexBuilder` to implement the actual
+build of the indices.
 
 Builders exclude nodes that shouldn't be in the index (and therefore
 public) based during the filtering step in the `is_node_indexed()`
@@ -176,26 +128,24 @@ contain all the cases they are derived from. This is done as follows:
 ### Mappers
 
 The mappers (see the `graph.common.mappings` module) produce the
-_mapping_ (or schema) for Elasticsearch.  They are also setup in
-classes for code re-use, allowing easy extensibility of the Active and
-Legacy mappers which inherit functionality from the common mapper.
+_mapping_ (or schema) for Elasticsearch.  The common mappers is futher
+extended in the active mapper which is used to produce the main mappings
+for the indices which will be built in the builder.
+
 The mappers have three main functions to produce mappings:
 `get_{project,case,annotation,file}_es_mapping`.
 
 The properties of each Entity (Node class) are dynamically added to
 the mapping based on the GDC Dictionary.
 
-The traversal tree in the legacy mappings are static.
-
-The traversal tree in the active mappings are a dynamic extension of
-the static legacy mappings.
+The traversal tree in the active mappings is dynamic and based on
+the graph structure.
 
 # Trouble shooting
 
-Included in the module are two `mimic` builders, one for legacy and
-active.  These can be used to test functionality against nodes,
-e.g. testing `builder.is_node_indexed(node)` to troubleshoot nodes
-that are not showing up in the index.
+The active module contains a ActiveMimic builder which can be used
+to test functionality against nodes, e.g. testing `builder.is_node_indexed(node)`
+to troubleshoot nodes that are not showing up in the index.
 
 ```python
 >>> from esbuild.graph.active.mimic import ActiveMimic
@@ -210,8 +160,7 @@ False
 
 Before continuing you must have the following programs installed:
 
-- [Python 2.7+](http://python.org/)
-- [graphviz](http://www.graphviz.org/) for optional test suite data visualization
+- [Python 3.9](http://python.org/)
 
 ## Pip
 
@@ -219,14 +168,14 @@ Project dependencies are managed using
 [PIP](https://pip.readthedocs.org/en/latest/). You can install
 dependencies via
 
-```
-> pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
 ```
 
 And optionally any dev requirements via
 
-```
-> pip install -r dev-requirements.txt
+```bash
+pip install '.[dev]'
 ```
 
 ### Project Dependencies
@@ -239,10 +188,7 @@ need to install it manually.  On OSX you can install Elasticsearch via
 
 ## Tests
 
-Tests can be found in `tests/` and can be run
-via [pytest](http://pytest.org/latest/getting-started.html).
-
-Or you can use [tox](https://tox.readthedocs.io/en/latest/) to run tests:
+Use [tox](https://tox.readthedocs.io/en/latest/) to run tests:
 
 ```
 pip install tox
@@ -281,18 +227,18 @@ We use [pre-commit](https://pre-commit.com/) to setup pre-commit hooks for this 
 We use [detect-secrets](https://github.com/Yelp/detect-secrets) to search for secrets being committed into the repo.
 
 To install the pre-commit hook, run
-```
+```bash
 pre-commit install
 ```
 
 To update the .secrets.baseline file run
-```
+```bash
 detect-secrets scan --update .secrets.baseline
 ```
 
 `.secrets.baseline` contains all the string that were caught by detect-secrets but are not stored in plain text. Audit the baseline to view the secrets .
 
-```
+```bash
 detect-secrets audit .secrets.baseline
 ```
 
