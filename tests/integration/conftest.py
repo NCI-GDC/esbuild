@@ -1,11 +1,15 @@
 """
 Setup esbuild tests
 """
+
 import logging
 import os
 import time
-from typing import NamedTuple, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from typing import NamedTuple
 
+import elasticsearch
+import gdcmodels
 import psqlgraph
 import pytest
 import yaml
@@ -31,6 +35,7 @@ pytest_plugins = ("pytest_indexd.plugin",)
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 DATA_DIR = os.path.join(TEST_DIR, "data")
+INDEX_TYPES = ("annotation", "case", "file", "project")
 
 if os.getenv("USE_RUNNING_ES", "true").lower() == "true":
     elasticsearch_server_esbuild = es_factories.elasticsearch_noproc(
@@ -151,7 +156,7 @@ def init_indexd(indexd_client, create_indexd_documents):
 
 
 class TestError(Exception):
-    """Monkeypatch exception for testinting exception handling"""
+    """Monkeypatch exception for testing exception handling"""
 
     pass
 
@@ -295,60 +300,56 @@ def cleanup_indices(es, indices=None):
     es.indices.refresh()
 
 
-@pytest.fixture(scope="session")
-def index_types():
-    return ["annotation", "case", "file", "project"]
-
-
 @pytest.fixture
 def es_client(elasticsearch_esbuild):
     return elasticsearch_esbuild
 
 
+@pytest.fixture(scope="session")
+def graph_models() -> Mapping[str, gdcmodels.ModelMapper]:
+    return gdcmodels.get_es_models()["gdc_from_graph"]
+
+
 @pytest.fixture
-def test_index_data(index_types, es_client):
+def test_index_data(
+    es_client: elasticsearch.Elasticsearch,
+    graph_models: Mapping[str, gdcmodels.ModelMapper],
+) -> Iterator[tuple[elasticsearch.Elasticsearch, str]]:
     """Generate data index as a fixture for re-use between tests"""
 
     # Create test index with dummy docs
     index_prefix = "test_index_data"
-
-    index_names = get_index_names(index_prefix, index_types)
+    index_names = get_index_names(index_prefix, INDEX_TYPES)
 
     cleanup_indices(es_client, index_names.values())
 
     # Create dummy esbuild docs
-    for index_type in index_types:
-        mapping = es_data.get_mapping(index_type)
+    for index_type in INDEX_TYPES:
+        mapping = graph_models[index_type]
 
         es_client.indices.create(
-            index=index_names[index_type], ignore=400, body=es_data.get_index_settings()
+            index=index_names[index_type],
+            mappings=mapping.mappings,
+            settings=mapping.settings,
         )
         es_client.indices.refresh(index=index_names[index_type])
-        es_client.indices.put_mapping(index=index_names[index_type], body=mapping)
 
-        for doc in getattr(es_data, f"{index_type}_docs"):
+        for doc in es_data.DOCS[index_type]:
             doc_id = doc["project_id"] if index_type == "project" else None
 
             es_client.index(
                 index=index_names[index_type],
-                body=doc,
+                document=doc,
                 id=doc_id,
             )
 
     es_client.indices.refresh()
 
     # Make sure that docs are created:
-    for index_type, counts in [
-        ["case", len(es_data.case_docs)],
-        ["file", len(es_data.file_docs)],
-        ["project", len(es_data.project_docs)],
-        ["annotation", len(es_data.annotation_docs)],
-    ]:
-        while True:
-            count = es_client.count(index=index_names[index_type])["count"]
-            if count == counts:
-                break
-            time.sleep(0.1)
+    for index_type in INDEX_TYPES:
+        count = es_client.count(index=index_names[index_type])["count"]
+
+        assert count == len(es_data.DOCS[index_type])
 
     yield es_client, index_prefix
 
@@ -356,7 +357,7 @@ def test_index_data(index_types, es_client):
 
 
 @pytest.fixture
-def es_after_deletion(test_index_data, index_types):
+def es_after_deletion(test_index_data):
     """
     Deletes some projects from the index but not updates the metadata,
     leaving build_metadata inconsistent purposefully
@@ -370,7 +371,7 @@ def es_after_deletion(test_index_data, index_types):
     # Get project list before deletion
     projects_before = helper.get_project_ids(index_prefix)
 
-    index_names = get_index_names(index_prefix, index_types)
+    index_names = get_index_names(index_prefix, INDEX_TYPES)
     # Delete documents associated with selected projects from index
     for index_type, index_name in index_names.items():
         helper.delete_docs_from_index(index_name, index_type, projects_to_delete)

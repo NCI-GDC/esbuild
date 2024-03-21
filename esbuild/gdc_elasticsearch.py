@@ -3,6 +3,7 @@
 Define functions to build graph indices and upload them to Elasticsearch
 
 """
+
 import datetime
 import json
 import logging
@@ -10,6 +11,7 @@ import os
 import time
 from concurrent import futures
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
+from unittest import mock
 
 import datadog
 import elasticsearch
@@ -19,7 +21,7 @@ from elasticsearch import helpers
 from indexclient import client
 
 from esbuild import utils
-from esbuild.graph.common import builder
+from esbuild.graph.common import builder, mappings
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +32,11 @@ CHUNK_SIZE = 500
 MAX_CHUNK_BYTES = 104857600  # 100MB
 
 
-mapping_getters = {
-    "annotation": "get_annotation_es_mapping",
-    "case": "get_case_es_mapping",
-    "file": "get_file_es_mapping",
-    "project": "get_project_es_mapping",
+INDEX_MAPPINGS = {
+    "annotation": mappings.get_annotation_mapping(),
+    "case": mappings.get_case_mapping(),
+    "file": mappings.get_file_mapping(),
+    "project": mappings.get_project_mapping(),
 }
 
 
@@ -68,7 +70,7 @@ class Task(NamedTuple):
     total: int
     current: int
     failures: Iterable[dict]
-    error: dict
+    error: Optional[dict]
 
     def is_initailized(self) -> bool:
         return bool(self.completed or self.total)
@@ -121,8 +123,6 @@ class GDCElasticsearch:
                      nodes in all buld_projects is large enough)
         build_awg (bool): enable AWG specific logic
         gencode_version (str): gencode_version to be built
-        index_replicas (int): number of replicas to create when deploying index
-        index_shards (int): number of shards to allocate for a deployed index
         cache_versioned (bool): enable looking up versioned files that haven't been
             released yet
         save_doc_path (str): dump documents to this location
@@ -137,17 +137,15 @@ class GDCElasticsearch:
     def __init__(
         self,
         converter_class: Type[builder.GraphIndexBuilder],
-        indexd_client: Optional[client.IndexClient],
+        indexd_client: client.IndexClient,
         es: Optional[elasticsearch.Elasticsearch] = None,
         pg_driver: Optional[psqlgraph.PsqlGraphDriver] = None,
         index_prefix: Optional[str] = None,
         build_projects: Optional[List[str]] = None,
         # since we are setting default in master.py, why are we duplicating them here
-        gencode_version: Optional[str] = "all",
+        gencode_version: str = "all",
         selective_caching: bool = False,
         build_awg: bool = False,
-        index_replicas: int = 0,
-        index_shards: int = 1,
         cache_versioned: bool = False,
         save_doc_path: str = os.path.expanduser("~/esbuild_output"),
         skip_es: bool = False,
@@ -161,15 +159,13 @@ class GDCElasticsearch:
 
         self.graph = pg_driver or utils.get_default_pg_driver()
         self.index_prefix = index_prefix
-        self.build_projects = build_projects
+        self.build_projects = build_projects or []
         self.selective_caching = selective_caching
 
         self.allowed_gencode_versions = utils.get_all_gencode_versions(gencode_version)
 
         self.build_awg = build_awg
 
-        self.index_replicas = index_replicas
-        self.index_shards = index_shards
         self.cache_versioned = cache_versioned
 
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
@@ -181,22 +177,22 @@ class GDCElasticsearch:
         self.event_logger = no_op
 
         if self.skip_es:
-            self.es = None
+            self.es: elasticsearch.Elasticsearch = mock.MagicMock()
         else:
             self.es = es or elasticsearch.Elasticsearch(**utils.ES_CONFIG)
 
-        self.index_names = None
-        self.index_aliases = None
+        self.index_names = {}
+        self.index_aliases = {}
         self.no_parallel_bulk = kwargs.get("no_parallel_bulk", False)
 
         if index_prefix:
             self.index_names = utils.get_index_names(
-                index_prefix, mapping_getters.keys()
+                index_prefix, INDEX_MAPPINGS.keys()
             )
 
         if index_alias_prefix:
             self.index_aliases = utils.get_index_names(
-                index_alias_prefix, mapping_getters.keys()
+                index_alias_prefix, INDEX_MAPPINGS.keys()
             )
 
         # where to save docs if they fail
@@ -471,8 +467,9 @@ class GDCElasticsearch:
     def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
             logger.info(f"Creating new index: '{index_name}'")
-            body = dict(mappings=mappings, **index_settings)
-            self.es.indices.create(index=index_name, body=body)
+            self.es.indices.create(
+                index=index_name, settings=index_settings, mappings=mappings
+            )
             self.es.indices.refresh(index=index_name)
         else:
             logger.info(f"Using existing index: '{index_name}'")
@@ -503,11 +500,9 @@ class GDCElasticsearch:
             None
         """
         index_name = self.index_names[index_type]
-        mapping_getter = mapping_getters[index_type]
+        mapping = INDEX_MAPPINGS[index_type]
 
-        index_settings = self.get_index_settings()
-        mappings = getattr(self.converter.mapper, mapping_getter)()
-        self._create_index(index_name, index_settings, mappings.to_dict())
+        self._create_index(index_name, mappings.get_settings(), mapping)
 
         if not docs:
             logger.warning(f"There're no documents for '{index_type}' to populate")
@@ -613,20 +608,17 @@ class GDCElasticsearch:
 
         """
         try:
-            aliases = self.es.indices.get_alias(alias)
+            aliases = self.es.indices.get_alias(name=alias)
         except elasticsearch.NotFoundError:
             return []
 
         return list(aliases)
 
-    def drop_aliases(self, alias) -> Union[Dict, bool]:
+    def drop_aliases(self, alias) -> None:
         """Remove all index aliases for `alias`.
 
         Args:
             alias:  A comma-separated list of index names
-
-        Returns:
-            indexclient response
         """
         indices = self.lookup_index_by_alias(alias)
 
@@ -639,7 +631,7 @@ class GDCElasticsearch:
 
         logger.info(f"Removing alias: '{alias}', for indices: '{indices}'")
 
-        return self.es.indices.update_aliases({"actions": actions})
+        self.es.indices.update_aliases(body={"actions": actions})
 
     def deploy(
         self,
@@ -715,17 +707,3 @@ class GDCElasticsearch:
             self.swap_index_alias(
                 alias=index_alias, new_index=self.index_names[index_type]
             )
-
-    def get_index_settings(self):
-        """Get settings for a new index based on this instance's config."""
-        index_settings = self.converter_class.mapper.index_settings()
-
-        actual_settings = index_settings.setdefault("settings", {})
-
-        if self.index_replicas is not None:
-            actual_settings["index.number_of_replicas"] = self.index_replicas
-
-        if self.index_shards is not None:
-            actual_settings["index.number_of_shards"] = self.index_shards
-
-        return index_settings

@@ -10,7 +10,7 @@ def test_get_projects_list(test_index_data):
     es, index_name = test_index_data
     helper = ReleaseHelper(es, "foo")
 
-    projects = {d["project_id"] for d in es_data.project_docs}
+    projects = {d["project_id"] for d in es_data.DOCS["project"]}
 
     assert projects == helper.get_project_ids(index_name)
 

@@ -4,14 +4,24 @@ import os
 import time
 import uuid
 from concurrent import futures
-from typing import Any, Dict, Iterable, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import datadog
 import elasticsearch
 import progressbar
 
 from esbuild import gdc_elasticsearch, utils
-from esbuild.graph.active import builder, mappings
+from esbuild.graph.common import mappings
 
 
 def _extract_properties(mapping: dict, prefix: str = "") -> Iterable[str]:
@@ -29,25 +39,20 @@ def _get_index_type(index_name: str) -> str:
     return index_name.split("_")[-1]
 
 
-def _get_index_settings() -> Dict[str, Any]:
-    index_settings = mappings.ActiveESMapper.index_settings()
-    settings = index_settings.setdefault("settings", {})
-    settings["index.number_of_replicas"] = 0
-    settings["index.number_of_shards"] = 1
-
-    return index_settings
+def _get_index_settings() -> Mapping[str, Any]:
+    return mappings.get_settings()
 
 
-def _get_mappings() -> Dict[str, Any]:
+def _get_mappings() -> Mapping[str, Any]:
     return {
-        "annotation": mappings.ActiveESMapper.get_annotation_es_mapping(),
-        "case": mappings.ActiveESMapper.get_case_es_mapping(),
-        "file": mappings.ActiveESMapper.get_file_es_mapping(),
-        "project": mappings.ActiveESMapper.get_project_es_mapping(),
+        "annotation": mappings.get_annotation_mapping(),
+        "case": mappings.get_case_mapping(),
+        "file": mappings.get_file_mapping(),
+        "project": mappings.get_project_mapping(),
     }
 
 
-def _get_index_mappings(index_name: str, mappings: dict) -> dict:
+def _get_index_mappings(index_name: str, mappings: Mapping) -> dict:
     index_type = _get_index_type(index_name)
 
     if index_type not in mappings:
@@ -302,9 +307,11 @@ class Reindexer:
             for old_index, new_index in zip(old_indices, new_indices)
         )
 
-    def _create_new_index(self, args: Arguments, mappings: dict, settings: dict):
+    def _create_new_index(
+        self, args: Arguments, mappings: Mapping[str, Any], settings: Mapping[str, Any]
+    ):
         if not self._es.indices.exists(index=args.new_index):
-            body = dict(mappings=mappings, **settings)
+            body = dict(mappings=mappings, settings=settings)
 
             self._event_logger.log_info(
                 "Index Created",
@@ -378,8 +385,8 @@ class Reindexer:
     def _reindex(
         self,
         args: Arguments,
-        settings: dict,
-        mappings: dict,
+        settings: Mapping[str, Any],
+        mappings: Mapping[str, Any],
     ) -> str:
         mappings = _get_index_mappings(args.new_index, mappings)
         source = args.source or self._get_source(args.old_index, mappings)

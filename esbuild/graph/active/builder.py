@@ -16,6 +16,7 @@ case - jsm (2016-03-22)
 tied to the relevant aliquots during cache_database
 
 """
+
 import itertools
 import logging
 from typing import Iterable, List, Optional, Sequence, Set
@@ -23,7 +24,6 @@ from typing import Iterable, List, Optional, Sequence, Set
 import psqlgraph
 from gdcdatamodel2 import models
 
-from esbuild.graph.active import mappings
 from esbuild.graph.common import builder, validators
 
 log = logging.getLogger(__name__)
@@ -119,9 +119,8 @@ def subtree_paths_to_file(
 
 
 class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
-    mapper = mappings.ActiveESMapper
+    """The builder for the current graph indices.
 
-    """
     Since the Active index has more complicated paths from case to
     file, this is an attempt not to hard code them.  See module doc.
     """
