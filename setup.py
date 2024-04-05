@@ -33,15 +33,15 @@ setup(
         "python-dotenv~=0.10.3",
         "python-json-logger~=2.0",
         "requests~=2.7",
-        "SQLAlchemy==1.3.3",
-        "psqlgraph @ git+https://github.com/NCI-GDC/psqlgraph.git@3.4.0#egg=psqlgraph",
+        "SQLAlchemy<1.4",
+        "psqlgraph",
         "gdcdictionary @ git+ssh://git@github.com/NCI-GDC/gdcdictionary.git@2.4.0#egg=gdcdictionary",
         "gdcdatamodel2 @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.4.0#egg=gdcdatamodel2",
         "gdc_ng_models @ git+ssh://git@github.com/NCI-GDC/gdc-ng-models.git@1.6.3#egg=gdc_ng_models",
-        "indexclient @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.4.0#egg=indexclient",
-        "queueclient @ git+ssh://git@github.com/NCI-GDC/queueclient.git@1.2.0#egg=queueclient",
+        "indexclient",
+        "queueclient",
         "gdcmodels @ git+https://github.com/NCI-GDC/gdc-models.git@4.1.2#egg=gdcmodels",
-        "normalizer @ git+ssh://git@github.com/NCI-GDC/normalizer.git@4.0.3#egg=normalizer",
+        "normalizer",
     ],
     extras_require={
         "dev": [
@@ -53,10 +53,10 @@ setup(
             "pytest-elasticsearch",
             "pytest-postgresql",  # this should not be needed
             "graphviz~=0.19.1",  # this should not be needed
-            "gdcdatamodel2[visualization] @ git+ssh://git@github.com/NCI-GDC/gdcdatamodel2.git@2.4.0",
-            "indexdmodels @ git+ssh://git@github.com/NCI-GDC/indexdmodels.git@0.2.0",  # this should not be needed
-            "indexd @ git+ssh://git@github.com/NCI-GDC/indexd.git@2.13.0",
-            "indexclient[pytest_indexd] @ git+ssh://git@github.com/NCI-GDC/indexclient.git@2.4.0",
+            "gdcdatamodel2[visualization]",
+            "indexdmodels",  # this should not be needed
+            "indexd",
+            "indexclient[pytest_indexd]",
         ]
     },
     scripts=[
