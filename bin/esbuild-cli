@@ -8,14 +8,8 @@ from concurrent import futures
 import datadog
 
 from esbuild import gdc_elasticsearch, reindexing, utils
-from esbuild.export import mapping_exporter
 
 datadog.initialize(statsd_host=os.environ.get("DD_DOGSTATSD_HOST", "localhost"))
-
-
-def handle_mappings(args):
-    exporter = mapping_exporter.MappingExporter()
-    exporter.export(args.output_dir)
 
 
 def handle_reindex(args):
@@ -71,18 +65,6 @@ def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
     subparser = parser.add_subparsers(title="subcommands")
-
-    # MAPPINGS
-    mappings_sub = subparser.add_parser(
-        "mappings", help=mapping_exporter.MappingExporter.__doc__
-    )
-    mappings_sub.add_argument(
-        "-o",
-        "--output-dir",
-        default="mappings",
-        help="Directory to which to write the new mappings (./mappings by default)",
-    )
-    mappings_sub.set_defaults(func=handle_mappings)
 
     # REINDEX
     reindex_sub = subparser.add_parser(
