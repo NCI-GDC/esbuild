@@ -9,8 +9,9 @@ import json
 import logging
 import os
 import time
+from collections.abc import Iterable
 from concurrent import futures
-from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Type, Union
+from typing import NamedTuple, Optional, Union
 from unittest import mock
 
 import datadog
@@ -94,7 +95,7 @@ class TaskFactory:
         total = status["total"]
         current = updated + created + deleted + noops
         failures: Iterable[dict] = task.get("response", {}).get("failures") or ()
-        error = task.get("error")
+        error = task.get("error", {})
 
         return Task(task_id, task["completed"], total, current, failures, error)
 
@@ -136,12 +137,12 @@ class GDCElasticsearch:
 
     def __init__(
         self,
-        converter_class: Type[builder.GraphIndexBuilder],
+        converter_class: type[builder.GraphIndexBuilder],
         indexd_client: client.IndexClient,
         es: Optional[elasticsearch.Elasticsearch] = None,
         pg_driver: Optional[psqlgraph.PsqlGraphDriver] = None,
         index_prefix: Optional[str] = None,
-        build_projects: Optional[List[str]] = None,
+        build_projects: Optional[list[str]] = None,
         # since we are setting default in master.py, why are we duplicating them here
         gencode_version: str = "all",
         selective_caching: bool = False,
@@ -170,14 +171,16 @@ class GDCElasticsearch:
 
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
         self.skip_es = skip_es
-        self.converter = None
+        self.converter: Optional[builder.GraphIndexBuilder] = None
 
         logger.info(f"Build arguments: {kwargs}")
 
         self.event_logger = no_op
 
         if self.skip_es:
-            self.es: elasticsearch.Elasticsearch = mock.MagicMock()
+            self.es: elasticsearch.Elasticsearch = mock.MagicMock(
+                spec=elasticsearch.Elasticsearch
+            )
         else:
             self.es = es or elasticsearch.Elasticsearch(**utils.ES_CONFIG)
 
@@ -244,7 +247,7 @@ class GDCElasticsearch:
 
     def _cache_database(
         self, converter: builder.GraphIndexBuilder
-    ) -> Tuple[list, list, list, list]:
+    ) -> tuple[list, list, list, list]:
         with self.graph.session_scope() as session, session.no_autoflush:
             logger.info("Caching database")
 
@@ -407,7 +410,7 @@ class GDCElasticsearch:
         self.log_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
 
     @staticmethod
-    def log_into_file(entries: Union[List, Dict], path: str, file_nametag: str):
+    def log_into_file(entries: Union[list, dict], path: str, file_nametag: str):
         """Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`.
 
         Extension depends on whether `entries` is list or dict
@@ -477,7 +480,7 @@ class GDCElasticsearch:
     def create_and_populate_index(
         self,
         index_type: str,
-        docs: List[dict],
+        docs: list[dict],
         thread_count: int = THREAD_COUNT,
         chunk_size: int = CHUNK_SIZE,
         max_chunk_bytes: int = MAX_CHUNK_BYTES,
@@ -499,6 +502,8 @@ class GDCElasticsearch:
         Returns:
             None
         """
+        assert self.converter
+
         index_name = self.index_names[index_type]
         mapping = INDEX_MAPPINGS[index_type]
 
@@ -515,7 +520,7 @@ class GDCElasticsearch:
     def populate_index(
         self,
         index_type: str,
-        docs: List[Dict],
+        docs: list[dict],
         thread_count: int,
         chunk_size: int,
         max_chunk_bytes: int,
@@ -599,7 +604,7 @@ class GDCElasticsearch:
 
         return self.es.indices.put_alias(index=new_index, name=alias)
 
-    def lookup_index_by_alias(self, alias: str):
+    def lookup_index_by_alias(self, alias: str) -> Iterable[str]:
         """
         Find a set of indices that an Elasticsearch alias is pointing to.
 
@@ -610,11 +615,11 @@ class GDCElasticsearch:
         try:
             aliases = self.es.indices.get_alias(name=alias)
         except elasticsearch.NotFoundError:
-            return []
+            return ()
 
-        return list(aliases)
+        return tuple(aliases)
 
-    def drop_aliases(self, alias) -> None:
+    def drop_aliases(self, alias: str) -> None:
         """Remove all index aliases for `alias`.
 
         Args:
@@ -635,10 +640,10 @@ class GDCElasticsearch:
 
     def deploy(
         self,
-        case_docs: List[Dict],
-        file_docs: List[Dict],
-        ann_docs: List[Dict],
-        project_docs: List[Dict],
+        case_docs: list[dict],
+        file_docs: list[dict],
+        ann_docs: list[dict],
+        project_docs: list[dict],
         roll_alias: bool = True,
         thread_count: int = THREAD_COUNT,
         chunk_size: int = CHUNK_SIZE,

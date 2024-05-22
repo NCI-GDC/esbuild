@@ -43,9 +43,10 @@ def make_gdc_es(
             converter_class=builder.ActiveGraphIndexBuilder,
             es=es_client,
             indexd_client=indexd_client,
-            index_prefix=kwargs.get("index_prefix", "gdc_es_test"),
-            index_alias_prefix=kwargs.get("index_alias_prefix", "gdc_from_graph"),
             pg_driver=pg_driver,
+            index_prefix=kwargs.pop("index_prefix", "gdc_es_test"),
+            index_alias_prefix=kwargs.pop("index_alias_prefix", "gdc_from_graph"),
+            build_projects=kwargs.pop("build_projects", ["TARGET-RT", "TCGA-MESO"]),
             **kwargs,
         )
 

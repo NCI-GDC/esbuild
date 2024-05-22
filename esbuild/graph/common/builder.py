@@ -237,13 +237,11 @@ class GraphIndexBuilder:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
         # As of Jan 2018, this is true only for newest active projects
-        self.build_awg: bool = kwargs.get("build_awg", False)
-        self.selective_caching: bool = kwargs.get("selective_caching", False)
-
-        # Populate self.build_projects
-        self.build_projects: Iterable[tuple[str, str]] = tuple(
-            tuple(p.split("-", 1)) for p in kwargs.get("build_projects", ())
-        )
+        self.build_awg = kwargs.get("build_awg")
+        self.selective_caching = kwargs.get("selective_caching")
+        self.build_projects = [
+            tuple(p.split("-", 1)) for p in kwargs.get("build_projects", [])
+        ]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -2285,7 +2283,7 @@ class GraphIndexBuilder:
             }
 
             # Add relevant Project nodes to relevant nodes set:
-            projects = list({p[1] for p in self.build_projects})
+            projects = [p[1] for p in self.build_projects]
             relevant_projects = self.g.nodes(md.Project).prop_in("code", projects)
 
             relevant_node_ids.update([p.node_id for p in relevant_projects])
