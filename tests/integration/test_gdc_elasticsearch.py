@@ -2,6 +2,7 @@
 Tests the GDC Elasticsearch interaction for indices.
 
 """
+
 import json
 from concurrent import futures
 from unittest import mock
@@ -9,10 +10,11 @@ from unittest import mock
 import elasticsearch
 import pytest
 from gdcdatamodel2 import models
+from indexclient import client
 
 from esbuild import gdc_elasticsearch, reindexing, utils
 from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.active import builder, mappings
+from esbuild.graph.active import mappings
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from tests.integration import data
 from tests.integration.conftest import get_all_indices
@@ -23,14 +25,15 @@ GRAPH_INDEX_DOC_TYPES = ["project", "case", "annotation", "file"]
 
 @pytest.fixture
 def make_gdc_es(pg_driver, es_client):
-    def wrapper(indexd_client, converter, **kwargs):
+    def wrapper(indexd_client, **kwargs):
         return GDCElasticsearch(
-            converter_class=converter,
+            converter_class=ActiveGraphIndexBuilder,
             es=es_client,
             indexd_client=indexd_client,
-            index_prefix=kwargs.get("index_prefix", "gdc_es_test"),
-            index_alias_prefix=kwargs.get("index_alias_prefix", "gdc_from_graph"),
             pg_driver=pg_driver,
+            index_prefix=kwargs.pop("index_prefix", "gdc_es_test"),
+            index_alias_prefix=kwargs.pop("index_alias_prefix", "gdc_from_graph"),
+            build_projects=kwargs.pop("build_projects", ["TARGET-RT", "TCGA-MESO"]),
             **kwargs,
         )
 
@@ -50,23 +53,6 @@ def derived_file(pg_driver):
         sxn.merge(derived_file)
 
     yield derived_file
-
-
-def verify_index_settings(es, index, replicas, shards):
-    """Assert that the given index has the expected settings."""
-
-    # Confirm the settings are as expected.
-    settings_response = es.indices.get_settings(
-        index, name=["index.number_of_replicas", "index.number_of_shards"]
-    )
-    settings = settings_response[index]["settings"]
-    assert int(settings["index"]["number_of_replicas"]) == replicas
-    assert int(settings["index"]["number_of_shards"]) == shards
-
-    # Confirm the actual number of replicas/shards matches the settings.
-    stats = es.indices.stats(index, level="shards")
-    assert stats["_shards"]["total"] == (replicas + 1) * shards
-    assert len(stats["indices"][index]["shards"]) == shards
 
 
 @pytest.fixture
@@ -102,10 +88,9 @@ def patched_demographic(pg_driver):
         flag_modified(demographic, "_props")
 
 
-@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
-def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
+def test_basic_es_generate(setup_test, init_indexd, make_gdc_es):
     es = setup_test
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd, build_projects=[])
     gdces.go()
 
     all_indices = get_all_indices(setup_test)
@@ -113,10 +98,6 @@ def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
 
     assert set(all_indices) == expected_indices
     assert len(all_indices) == len(expected_indices)
-
-    # check that we esbuilt the index with the expected default settings
-    for index in gdces.index_names.values():
-        verify_index_settings(setup_test, index=index, replicas=0, shards=1)
 
     # also verify that the to_delete file is not in the index and
     # got deleted
@@ -140,30 +121,25 @@ def test_basic_es_generate(setup_test, init_indexd, converter, make_gdc_es):
     )
 
 
-@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
 def test_unexpected_properties(
-    setup_test, init_indexd, converter, make_gdc_es, patched_demographic
+    setup_test, init_indexd, make_gdc_es, patched_demographic
 ):
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd)
     gdces.go()
     assert len(get_all_indices(setup_test)) == len(gdces.index_names) + 1
 
 
-@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
-def test_gdc_elasticsearch_with_audit_disabled(
-    setup_test, init_indexd, converter, make_gdc_es
-):
-    gdces = make_gdc_es(init_indexd, converter, audit=False)
+def test_gdc_elasticsearch_with_audit_disabled(setup_test, init_indexd, make_gdc_es):
+    gdces = make_gdc_es(init_indexd, audit=False)
     gdces.go()
 
     assert len(get_all_indices(setup_test)) == len(gdces.index_names)
 
 
-@pytest.mark.parametrize("converter", [ActiveGraphIndexBuilder])
 def test_doesnt_delete_file_with_derived_files(
-    setup_test, init_indexd, converter, pg_driver, derived_file, make_gdc_es
+    setup_test, init_indexd, pg_driver, derived_file, make_gdc_es
 ):
-    gdces = make_gdc_es(init_indexd, converter)
+    gdces = make_gdc_es(init_indexd)
     gdces.go()
 
     assert len(get_all_indices(setup_test)) == len(gdces.index_names) + 1
@@ -176,32 +152,16 @@ def test_doesnt_delete_file_with_derived_files(
         assert init_indexd.get(node.node_id).file_name == "a_file_to_be_deleted.txt"
 
 
-@pytest.mark.parametrize("replicas, shards", [(0, 1), (2, 6)])
-def test_index_settings(setup_test, init_indexd, make_gdc_es, replicas, shards):
-    """Test configuring settings for an index created by esbuild."""
-    gdces = make_gdc_es(
-        indexd_client=init_indexd,
-        converter=ActiveGraphIndexBuilder,
-        index_replicas=replicas,
-        index_shards=shards,
-    )
-    gdces.go()
-
-    all_indices = get_all_indices(setup_test)
-    assert len(all_indices) == len(gdces.index_names) + 1
-
-    for index in gdces.index_names.values():
-        verify_index_settings(
-            es=setup_test, index=index, replicas=replicas, shards=shards
-        )
-
-
 # TT-1053 index redaction
-def test_redaction_annotation_indexed(setup_test, init_indexd, make_gdc_es):
+def test_redaction_annotation_indexed(
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    make_gdc_es,
+):
 
     es = setup_test
 
-    gdces = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdces = make_gdc_es(init_indexd, build_projects=[])
     gdces.go()
 
     assert not es.exists(  # The case needs to be unindexed
@@ -252,7 +212,7 @@ def get_modified_mapping():
 
 
 def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
-    gdc_es = make_gdc_es(init_indexd, ActiveGraphIndexBuilder)
+    gdc_es = make_gdc_es(init_indexd)
     aggs_query = {
         "aggs": {"projects": {"terms": {"field": "project.project_id", "size": 100}}},
         "_source": False,
@@ -389,22 +349,22 @@ def test_reindex_per_project(
 
     es_client.index(
         index="reindex_test_project",
-        body={"project_id": "GDC-MISC"},
+        document={"project_id": "GDC-MISC"},
         id="GDC-MISC",
     )
     es_client.index(
         index="reindex_test_project",
-        body={"project_id": "FALSE"},
+        document={"project_id": "FALSE"},
         id="FALSE",
     )
     es_client.index(
         index="reindex_test_case",
-        body={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-1"},
+        document={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-1"},
         id="gdc-misc-case-1",
     )
     es_client.index(
         index="reindex_test_case",
-        body={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-2"},
+        document={"project": {"project_id": "GDC-MISC"}, "case_id": "gdc-misc-case-2"},
         id="gdc-misc-case-2",
     )
     es_client.indices.refresh(index=["reindex_test_case", "reindex_test_project"])

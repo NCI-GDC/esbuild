@@ -4,6 +4,7 @@ Defines :class:`GraphIndexBuilder` for use building the primary GDC
 graph index.
 
 """
+
 import hashlib
 import itertools
 import logging
@@ -40,7 +41,7 @@ from sqlalchemy.orm import joinedload
 from esbuild.graph.common import validators
 from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
 
-PTree = Dict[Node, "Ptree"]
+PTree = Dict[Node, "PTree"]
 Document = Dict[str, Union[str, int]]
 
 log = logging.getLogger(__name__)
@@ -239,22 +240,11 @@ class GraphIndexBuilder:
         # NOTE: Selective caching only works when all the non-project nodes
         # that are expected to be picked up are populated with project_id
         # As of Jan 2018, this is true only for newest active projects
-        optional_arguments = [
-            "build_projects",
-            "build_awg",
-            "selective_caching",
+        self.build_awg = kwargs.get("build_awg")
+        self.selective_caching = kwargs.get("selective_caching")
+        self.build_projects = [
+            tuple(p.split("-", 1)) for p in kwargs.get("build_projects", [])
         ]
-        for argname in optional_arguments:
-            setattr(self, argname, kwargs.get(argname))
-
-        # Populate self.build_projects
-        if self.build_projects is not None:
-            if len(self.build_projects) == 0:
-                self.build_projects = [("TARGET", "RT"), ("TCGA", "MESO")]
-            else:
-                self.build_projects = [
-                    tuple(p.split("-", 1)) for p in self.build_projects
-                ]
 
         # Verify required attributes are set
         for required_attr in self.required_attrs:
@@ -2304,7 +2294,7 @@ class GraphIndexBuilder:
             }
 
             # Add relevant Project nodes to relevant nodes set:
-            projects = list({p[1] for p in self.build_projects})
+            projects = [p[1] for p in self.build_projects]
             relevant_projects = self.g.nodes(md.Project).prop_in("code", projects)
 
             relevant_node_ids.update([p.node_id for p in relevant_projects])

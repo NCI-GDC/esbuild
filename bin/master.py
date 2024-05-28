@@ -48,18 +48,6 @@ def esbuild_argparser() -> argparse.ArgumentParser:
         help="Index alias to use for index swap",
     )
     parser.add_argument(
-        "--replicas",
-        help="Number of replicas to set when creating an index (default: 0)",
-        type=int,
-        default=0,
-    )
-    parser.add_argument(
-        "--shards",
-        help="Number of shards to set when creating an index (default: 1)",
-        type=int,
-        default=1,
-    )
-    parser.add_argument(
         "--selective-caching",
         action="store_true",
         help="If set, only caches nodes for projects needed. "
@@ -346,8 +334,6 @@ if __name__ == "__main__":
         job_json = {
             "index": args.index,
             "alias": args.alias,
-            "replicas": args.replicas,
-            "shards": args.shards,
             "no-roll": args.no_roll,
             "no-cleanup": args.no_cleanup,
             "projects": " ".join(group),
