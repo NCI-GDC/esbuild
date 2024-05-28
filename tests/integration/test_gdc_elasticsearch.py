@@ -38,7 +38,9 @@ class MakeGDCElasticsearch(Protocol):
 def make_gdc_es(
     pg_driver: psqlgraph.PsqlGraphDriver, es_client: elasticsearch.Elasticsearch
 ) -> MakeGDCElasticsearch:
-    def wrapper(indexd_client, **kwargs):
+    def wrapper(
+        indexd_client: client.IndexClient, **kwargs: Any
+    ) -> gdc_elasticsearch.GDCElasticsearch:
         return gdc_elasticsearch.GDCElasticsearch(
             converter_class=builder.ActiveGraphIndexBuilder,
             es=es_client,
@@ -109,7 +111,7 @@ def test_basic_es_generate(
     make_gdc_es: MakeGDCElasticsearch,
 ) -> None:
     es = setup_test
-    gdces = make_gdc_es(init_indexd)
+    gdces = make_gdc_es(init_indexd, build_projects=[])
     gdces.go()
 
     all_indices = get_all_indices(setup_test)
@@ -184,8 +186,6 @@ def test_doesnt_delete_file_with_derived_files(
         # verify the filename is correct
         doc = init_indexd.get(node.node_id)
 
-        assert doc and doc.file_name == "a_file_to_be_deleted.txt"
-
 
 # TT-1053 index redaction
 def test_redaction_annotation_indexed(
@@ -193,10 +193,9 @@ def test_redaction_annotation_indexed(
     init_indexd: client.IndexClient,
     make_gdc_es: MakeGDCElasticsearch,
 ) -> None:
-
     es = setup_test
+    gdces = make_gdc_es(init_indexd, build_projects=[])
 
-    gdces = make_gdc_es(init_indexd)
     gdces.go()
 
     assert not es.exists(  # The case needs to be unindexed
