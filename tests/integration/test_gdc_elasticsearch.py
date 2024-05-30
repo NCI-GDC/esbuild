@@ -3,19 +3,23 @@ Tests the GDC Elasticsearch interaction for indices.
 
 """
 
+import copy
 import json
+from collections.abc import Iterable, Iterator, Mapping
 from concurrent import futures
+from typing import Any, Protocol, cast
 from unittest import mock
 
 import elasticsearch
+import psqlgraph
 import pytest
 from gdcdatamodel2 import models
+from gdcmodels import esmodels
 from indexclient import client
 
 from esbuild import gdc_elasticsearch, reindexing, utils
-from esbuild.gdc_elasticsearch import GDCElasticsearch
-from esbuild.graph.active import mappings
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
+from esbuild.graph.active import builder
+from esbuild.graph.common import mappings
 from tests.integration import data
 from tests.integration.conftest import get_all_indices
 from tests.integration.data import get_node_id
@@ -23,11 +27,22 @@ from tests.integration.data import get_node_id
 GRAPH_INDEX_DOC_TYPES = ["project", "case", "annotation", "file"]
 
 
+class MakeGDCElasticsearch(Protocol):
+    def __call__(
+        self, indexd_client: client.IndexClient, **kwargs: Any
+    ) -> gdc_elasticsearch.GDCElasticsearch:
+        ...
+
+
 @pytest.fixture
-def make_gdc_es(pg_driver, es_client):
-    def wrapper(indexd_client, **kwargs):
-        return GDCElasticsearch(
-            converter_class=ActiveGraphIndexBuilder,
+def make_gdc_es(
+    pg_driver: psqlgraph.PsqlGraphDriver, es_client: elasticsearch.Elasticsearch
+) -> MakeGDCElasticsearch:
+    def wrapper(
+        indexd_client: client.IndexClient, **kwargs: Any
+    ) -> gdc_elasticsearch.GDCElasticsearch:
+        return gdc_elasticsearch.GDCElasticsearch(
+            converter_class=builder.ActiveGraphIndexBuilder,
             es=es_client,
             indexd_client=indexd_client,
             pg_driver=pg_driver,
@@ -41,7 +56,7 @@ def make_gdc_es(pg_driver, es_client):
 
 
 @pytest.fixture()
-def derived_file(pg_driver):
+def derived_file(pg_driver: psqlgraph.PsqlGraphDriver) -> Iterator[models.File]:
     with pg_driver.session_scope() as sxn:
         to_delete_file = (
             pg_driver.nodes(models.File).ids([get_node_id("to-delete-file")]).one()
@@ -56,9 +71,11 @@ def derived_file(pg_driver):
 
 
 @pytest.fixture
-def patched_demographic(pg_driver):
+def patched_demographic(pg_driver: psqlgraph.PsqlGraphDriver) -> Iterator:
     with pg_driver.session_scope() as s:
-        demographic = pg_driver.nodes(models.Demographic).one()
+        demographic = cast(
+            models.Demographic, pg_driver.nodes(models.Demographic).one()
+        )
         s.execute(
             """
             UPDATE node_demographic
@@ -88,7 +105,11 @@ def patched_demographic(pg_driver):
         flag_modified(demographic, "_props")
 
 
-def test_basic_es_generate(setup_test, init_indexd, make_gdc_es):
+def test_basic_es_generate(
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     es = setup_test
     gdces = make_gdc_es(init_indexd, build_projects=[])
     gdces.go()
@@ -106,6 +127,7 @@ def test_basic_es_generate(setup_test, init_indexd, make_gdc_es):
 
     # Test Case exists by id
     case_index = gdces.index_names["case"]
+    print(sorted(h["_id"] for h in es.search(index=case_index)["hits"]["hits"]))
     assert es.exists(index=case_index, id=get_node_id("case-tcga-brca-breast"))
 
     # Test blocking release annotation does not exist in index
@@ -121,24 +143,35 @@ def test_basic_es_generate(setup_test, init_indexd, make_gdc_es):
     )
 
 
+@pytest.mark.usefixtures("patched_demographic")
 def test_unexpected_properties(
-    setup_test, init_indexd, make_gdc_es, patched_demographic
-):
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     gdces = make_gdc_es(init_indexd)
     gdces.go()
     assert len(get_all_indices(setup_test)) == len(gdces.index_names) + 1
 
 
-def test_gdc_elasticsearch_with_audit_disabled(setup_test, init_indexd, make_gdc_es):
+def test_gdc_elasticsearch_with_audit_disabled(
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    make_gdc_es: MakeGDCElasticsearch,
+):
     gdces = make_gdc_es(init_indexd, audit=False)
     gdces.go()
 
     assert len(get_all_indices(setup_test)) == len(gdces.index_names)
 
 
+@pytest.mark.usefixtures("derived_file")
 def test_doesnt_delete_file_with_derived_files(
-    setup_test, init_indexd, pg_driver, derived_file, make_gdc_es
-):
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    pg_driver: psqlgraph.PsqlGraphDriver,
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     gdces = make_gdc_es(init_indexd)
     gdces.go()
 
@@ -156,9 +189,8 @@ def test_doesnt_delete_file_with_derived_files(
 def test_redaction_annotation_indexed(
     setup_test: elasticsearch.Elasticsearch,
     init_indexd: client.IndexClient,
-    make_gdc_es,
-):
-
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     es = setup_test
 
     gdces = make_gdc_es(init_indexd, build_projects=[])
@@ -194,7 +226,11 @@ def test_redaction_annotation_indexed(
     )
 
 
-def get_graph_counts(es, index_prefix, index_types):
+def get_graph_counts(
+    es: elasticsearch.Elasticsearch,
+    index_prefix: str,
+    index_types: Iterable[str],
+) -> Mapping[str, int]:
     counts = {}
     for index_type in index_types:
         index = f"{index_prefix}_{index_type}"
@@ -204,14 +240,19 @@ def get_graph_counts(es, index_prefix, index_types):
     return counts
 
 
-def get_modified_mapping():
-    mapping = mappings.ActiveESMapper.get_case_es_mapping().to_dict()
-    mapping["properties"]["project"]["properties"]["project_id"]["type"] = "text"
+def get_modified_mapping() -> esmodels.ESMapping:
+    mapping = copy.deepcopy(mappings.get_case_mapping())
+    project_properties = mapping["properties"]["project"].setdefault("properties", {})
+    project_properties["project_id"]["type"] = "text"
 
     return mapping
 
 
-def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
+def test_reindex_change_field_type(
+    setup_test: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     gdc_es = make_gdc_es(init_indexd)
     aggs_query = {
         "aggs": {"projects": {"terms": {"field": "project.project_id", "size": 100}}},
@@ -239,11 +280,14 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
     new_index_prefix = "new_gdc_es_test"
     new_case_index = new_index_prefix + "_case"
     modified_mapping = get_modified_mapping()
-    settings = mappings.ActiveESMapper.index_settings()
+    settings = mappings.get_settings()
 
-    with mock.patch(
-        "esbuild.graph.active.mappings.ActiveESMapper"
-    ) as mapper, futures.ThreadPoolExecutor() as executor:
+    with mock.patch.multiple(
+        "esbuild.graph.common.mappings",
+        get_case_mapping=mock.MagicMock(return_value=modified_mapping),
+        get_file_mapping=mock.MagicMock(return_value={}),
+        get_settings=mock.MagicMock(return_value=settings),
+    ), futures.ThreadPoolExecutor() as executor:
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
         progress_manager = reindexing.TaskProgressManager(
             task_factory, mock.MagicMock()
@@ -251,10 +295,6 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
         reindexer = reindexing.Reindexer(
             es, mock.MagicMock(), progress_manager, mock.MagicMock(), executor
         )
-
-        mapper.get_case_es_mapping.return_value = modified_mapping
-        mapper.get_file_es_mapping.return_value = {}
-        mapper.index_settings.return_value = settings
 
         reindexer.reindex(case_index, new_case_index)
 
@@ -275,7 +315,11 @@ def test_reindex_change_field_type(setup_test, init_indexd, make_gdc_es):
 
 
 @pytest.mark.usefixtures("setup_test")
-def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
+def test_build_from_readonly(
+    ro_pg_driver: psqlgraph.PsqlGraphDriver,
+    init_indexd: client.IndexClient,
+    es_client: elasticsearch.Elasticsearch,
+) -> None:
     """
     Make sure that no write attempts are made during ESBuild run and also that
     correct indices/aliases were created
@@ -283,8 +327,8 @@ def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
     # Making sure ES is empty
     assert len(es_client.indices.get_alias()) == 0
 
-    gdc_es = GDCElasticsearch(
-        ActiveGraphIndexBuilder,
+    gdc_es = gdc_elasticsearch.GDCElasticsearch(
+        builder.ActiveGraphIndexBuilder,
         init_indexd,
         es=es_client,
         pg_driver=ro_pg_driver,
@@ -294,7 +338,7 @@ def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
     gdc_es.go()
 
     all_aliases = es_client.indices.get_alias()
-    graph_aliases = es_client.indices.get_alias("graph_from_*")
+    graph_aliases = es_client.indices.get_alias(index="graph_from_*")
 
     expected_names = gdc_es.index_names.values()
 
@@ -310,14 +354,18 @@ def test_build_from_readonly(ro_pg_driver, init_indexd, es_client):
 
 
 @pytest.mark.usefixtures("setup_test")
-def test_build_index_no_alias(pg_driver, init_indexd, es_client):
+def test_build_index_no_alias(
+    pg_driver: psqlgraph.PsqlGraphDriver,
+    init_indexd: client.IndexClient,
+    es_client: elasticsearch.Elasticsearch,
+) -> None:
     """Make sure no alias was set if roll_alias was False"""
 
     # Making sure ES is empty
     assert len(es_client.indices.get_alias()) == 0
 
-    gdc_es = GDCElasticsearch(
-        ActiveGraphIndexBuilder,
+    gdc_es = gdc_elasticsearch.GDCElasticsearch(
+        builder.ActiveGraphIndexBuilder,
         init_indexd,
         es=es_client,
         pg_driver=pg_driver,
@@ -326,7 +374,7 @@ def test_build_index_no_alias(pg_driver, init_indexd, es_client):
     )
     gdc_es.go(roll_alias=False)
 
-    graph_aliases = es_client.indices.get_alias("graph_from_*")
+    graph_aliases = es_client.indices.get_alias(index="graph_from_*")
 
     assert graph_aliases.keys() == set(gdc_es.index_names.values())
 
@@ -336,10 +384,12 @@ def test_build_index_no_alias(pg_driver, init_indexd, es_client):
 
 @pytest.mark.usefixtures("setup_test")
 def test_reindex_per_project(
-    pg_driver, es_client: elasticsearch.Elasticsearch, init_indexd
-):
-    gdc_es = GDCElasticsearch(
-        ActiveGraphIndexBuilder,
+    pg_driver: psqlgraph.PsqlGraphDriver,
+    es_client: elasticsearch.Elasticsearch,
+    init_indexd: client.IndexClient,
+) -> None:
+    gdc_es = gdc_elasticsearch.GDCElasticsearch(
+        builder.ActiveGraphIndexBuilder,
         init_indexd,
         es=es_client,
         pg_driver=pg_driver,
@@ -396,11 +446,15 @@ def test_reindex_per_project(
     assert project_results["hits"]["total"]["value"] == 1
 
 
-def test_es_with_gencode(pg_driver, setup_test, apply_gencode_to_indexd, make_gdc_es):
+def test_es_with_gencode(
+    pg_driver: psqlgraph.PsqlGraphDriver,
+    setup_test: elasticsearch.Elasticsearch,
+    apply_gencode_to_indexd: client.IndexClient,
+    make_gdc_es: MakeGDCElasticsearch,
+) -> None:
     es = setup_test
     gdc_es = make_gdc_es(
         indexd_client=apply_gencode_to_indexd,
-        converter=ActiveGraphIndexBuilder,
         gencode_version="v22",
     )
     gdc_es.go()

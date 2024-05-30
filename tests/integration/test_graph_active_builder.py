@@ -5,6 +5,7 @@ test_graph_index.py
 Test the builder for graph ES index
 
 """
+
 import operator
 from functools import reduce
 
@@ -67,17 +68,6 @@ def aligned_reads(index):
 @pytest.fixture
 def simple_somatic_mutations(index):
     return [d for d in index.files if d["type"] == "simple_somatic_mutation"]
-
-
-@pytest.fixture(scope="session")
-def mappings():
-    mapper = ActiveGraphIndexBuilder.mapper
-    return {
-        "file": mapper.get_file_es_mapping().to_dict(),
-        "annotation": mapper.get_annotation_es_mapping().to_dict(),
-        "case": mapper.get_case_es_mapping().to_dict(),
-        "project": mapper.get_project_es_mapping().to_dict(),
-    }
 
 
 @pytest.fixture

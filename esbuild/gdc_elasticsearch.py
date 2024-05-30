@@ -22,7 +22,7 @@ from elasticsearch import helpers
 from indexclient import client
 
 from esbuild import utils
-from esbuild.graph.common import builder
+from esbuild.graph.common import builder, mappings
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +33,11 @@ CHUNK_SIZE = 500
 MAX_CHUNK_BYTES = 104857600  # 100MB
 
 
-mapping_getters = {
-    "annotation": "get_annotation_es_mapping",
-    "case": "get_case_es_mapping",
-    "file": "get_file_es_mapping",
-    "project": "get_project_es_mapping",
+INDEX_MAPPINGS = {
+    "annotation": mappings.get_annotation_mapping(),
+    "case": mappings.get_case_mapping(),
+    "file": mappings.get_file_mapping(),
+    "project": mappings.get_project_mapping(),
 }
 
 
@@ -71,7 +71,7 @@ class Task(NamedTuple):
     total: int
     current: int
     failures: Iterable[dict]
-    error: dict
+    error: Optional[dict]
 
     def is_initailized(self) -> bool:
         return bool(self.completed or self.total)
@@ -124,8 +124,6 @@ class GDCElasticsearch:
                      nodes in all buld_projects is large enough)
         build_awg (bool): enable AWG specific logic
         gencode_version (str): gencode_version to be built
-        index_replicas (int): number of replicas to create when deploying index
-        index_shards (int): number of shards to allocate for a deployed index
         cache_versioned (bool): enable looking up versioned files that haven't been
             released yet
         save_doc_path (str): dump documents to this location
@@ -149,8 +147,6 @@ class GDCElasticsearch:
         gencode_version: str = "all",
         selective_caching: bool = False,
         build_awg: bool = False,
-        index_replicas: int = 0,
-        index_shards: int = 1,
         cache_versioned: bool = False,
         save_doc_path: str = os.path.expanduser("~/esbuild_output"),
         skip_es: bool = False,
@@ -171,8 +167,6 @@ class GDCElasticsearch:
 
         self.build_awg = build_awg
 
-        self.index_replicas = index_replicas
-        self.index_shards = index_shards
         self.cache_versioned = cache_versioned
 
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
@@ -196,12 +190,12 @@ class GDCElasticsearch:
 
         if index_prefix:
             self.index_names = utils.get_index_names(
-                index_prefix, mapping_getters.keys()
+                index_prefix, INDEX_MAPPINGS.keys()
             )
 
         if index_alias_prefix:
             self.index_aliases = utils.get_index_names(
-                index_alias_prefix, mapping_getters.keys()
+                index_alias_prefix, INDEX_MAPPINGS.keys()
             )
 
         # where to save docs if they fail
@@ -476,8 +470,9 @@ class GDCElasticsearch:
     def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
             logger.info(f"Creating new index: '{index_name}'")
-            body = dict(mappings=mappings, **index_settings)
-            self.es.indices.create(index=index_name, body=body)
+            self.es.indices.create(
+                index=index_name, settings=index_settings, mappings=mappings
+            )
             self.es.indices.refresh(index=index_name)
         else:
             logger.info(f"Using existing index: '{index_name}'")
@@ -510,11 +505,9 @@ class GDCElasticsearch:
         assert self.converter
 
         index_name = self.index_names[index_type]
-        mapping_getter = mapping_getters[index_type]
+        mapping = INDEX_MAPPINGS[index_type]
 
-        index_settings = self.converter.mapper.index_settings()
-        mappings = getattr(self.converter.mapper, mapping_getter)()
-        self._create_index(index_name, index_settings, mappings.to_dict())
+        self._create_index(index_name, mappings.get_settings(), mapping)
 
         if not docs:
             logger.warning(f"There're no documents for '{index_type}' to populate")
@@ -631,9 +624,6 @@ class GDCElasticsearch:
 
         Args:
             alias:  A comma-separated list of index names
-
-        Returns:
-            indexclient response
         """
         indices = self.lookup_index_by_alias(alias)
 

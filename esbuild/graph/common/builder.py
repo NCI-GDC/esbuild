@@ -22,6 +22,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Set,
     Tuple,
@@ -38,8 +39,7 @@ from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node
 from sqlalchemy.orm import joinedload
 
-from esbuild.graph.common import validators
-from esbuild.graph.common.mappings import ONE_TO_MANY, ONE_TO_ONE, ESMapper
+from esbuild.graph.common import mappings, validators
 
 PTree = Dict[Node, "PTree"]
 Document = Dict[str, Union[str, int]]
@@ -161,12 +161,10 @@ class GraphIndexBuilder:
     data_file_categories = ["data_file", "metadata_file"]
     data_file_indexd_fields = ["acl", "file_size", "file_name", "file_state", "md5sum"]
 
-    mapper = None
-
     # This defines the possible ways to get from case to indexed
     # files. Should be an iterable of iterables, i.e.
     # [['file'], ['sample', 'aliquot', 'file']]
-    case_to_file_paths = None
+    case_to_file_paths = []
 
     # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
@@ -194,7 +192,6 @@ class GraphIndexBuilder:
     INDEXD_URL_TYPE = "cleversafe"
 
     required_attrs = [
-        "mapper",
         "case_to_file_paths",
         "file_labels",
     ]
@@ -258,14 +255,6 @@ class GraphIndexBuilder:
             log.info(f"Projects: {self.build_projects}")
         else:
             log.info("Running full build")
-
-        # Load mapper tree representations
-        self.ptree_mapping = {"case": self.mapper.get_case_tree().to_dict()}
-        self.ftree_mapping = {"file": self.mapper.get_file_tree().to_dict()}
-        self.atree_mapping = {"annotation": self.mapper.get_annotation_tree().to_dict()}
-
-        # Get the actual case mapping to validate against
-        self.case_es_mapping = self.mapper.get_case_es_mapping().to_dict()
 
         self.g = psqlgraph_driver
         self.G = nx.Graph()
@@ -451,7 +440,7 @@ class GraphIndexBuilder:
 
         for child in tree[node]:
             child_corr, child_plural = mapping[node.label][child.label]["corr"]
-            if child_plural not in subdoc and child_corr == ONE_TO_ONE:
+            if child_plural not in subdoc and child_corr == mappings.ONE_TO_ONE:
                 subdoc[child_plural] = {}
             elif child_plural not in subdoc:
                 subdoc[child_plural] = []
@@ -465,14 +454,13 @@ class GraphIndexBuilder:
             )
 
             # Aggregate ids as we walk the tree
-            top_level_ids = self.mapper.top_level_ids
-            if ids is not None and child.label in top_level_ids:
+            if ids is not None and child.label in mappings.TOP_LEVEL_IDS:
                 ids[f"{child.label}_ids"].add(child.node_id)
                 sub_id = child._props.get("submitter_id")
                 if sub_id is not None:
                     ids[f"submitter_{child.label}_ids"].add(sub_id)
 
-        if corr == ONE_TO_MANY:
+        if corr == mappings.ONE_TO_MANY:
             doc.append(subdoc)
         else:
             doc.update(subdoc)
@@ -594,7 +582,7 @@ class GraphIndexBuilder:
         """
         ptree = self.get_case_ptree(node)
         visited_ids = defaultdict(set)
-        doc = self.walk_tree(node, ptree, self.ptree_mapping, [], ids=visited_ids)[0]
+        doc = self.walk_tree(node, ptree, mappings.CASE_TREE, [], ids=visited_ids)[0]
 
         # Convert to list for later serialization
         visited_ids = {key: list(ids) for key, ids in visited_ids.items()}
@@ -620,7 +608,7 @@ class GraphIndexBuilder:
 
     def get_case_ptree(self, node):
         """Walk graph naturally for tree of node objects."""
-        return {node: self.create_tree(node, self.ptree_mapping, {})}
+        return {node: self.create_tree(node, mappings.CASE_TREE, {})}
 
     def get_relevant_annotations(self, file_docs, relevant_ids):
         """Return a flat list of annotations who describe entities in relevant_ids."""
@@ -794,7 +782,7 @@ class GraphIndexBuilder:
         """For each sample.aliquot or sample.slide, reconstruct entire path.
 
         Note: the path is culled in common/mappings.py
-        in get_case_es_mapping. The new path(s) need to be popped
+        in get_case_mapping. The new path(s) need to be popped
         there or tests will fail.
         """
         # Get all the "correct" aliquots and slides, save them
@@ -886,8 +874,7 @@ class GraphIndexBuilder:
 
     def patch_project(self, project_doc):
         # Delete some keys from project document
-        keys_to_delete = ESMapper.project_keys_to_hide
-        for key in keys_to_delete:
+        for key in mappings.HIDDEN_PROJECT_KEYS:
             project_doc.pop(key, None)
 
         # Populate project_id
@@ -1089,11 +1076,11 @@ class GraphIndexBuilder:
         """
         auto_neighbors = [
             n
-            for n in dict(self.ftree_mapping["file"]).keys()
+            for n in mappings.FILE_TREE["file"].keys()
             if n not in ["archive", "portion", "file"]
         ]
         for neighbor in set(self.neighbors_labeled(node, auto_neighbors)):
-            corr, label = self.ftree_mapping["file"][neighbor.label]["corr"]
+            corr, label = mappings.FILE_TREE["file"][neighbor.label]["corr"]
             if neighbor.label in self.flatten:
                 base = neighbor[self.flatten[neighbor.label]]
             else:
@@ -1115,7 +1102,7 @@ class GraphIndexBuilder:
                         node.node_id,
                     )
 
-            if corr == ONE_TO_ONE:
+            if corr == mappings.ONE_TO_ONE:
                 if label in doc:
                     self.warning(
                         f"Duplicate edge on {node.node_id}",
@@ -1337,7 +1324,7 @@ class GraphIndexBuilder:
         self.prune_case(relevant, ptree, prune_keys)
 
         doc["cases"] = [
-            self.walk_tree(path, ptree, self.ptree_mapping, [])[0] for path in ptree
+            self.walk_tree(path, ptree, mappings.CASE_TREE, [])[0] for path in ptree
         ]
 
         for case in doc["cases"]:
@@ -1921,7 +1908,9 @@ class GraphIndexBuilder:
                     tags=["case_id:{}".format(case.get("case_id", "?"))],
                 )
 
-    def validate_against_mapping(self, doc: Union[dict, list], mapping: dict) -> None:
+    def validate_against_mapping(
+        self, doc: Union[dict, list], mapping: Mapping[str, Any]
+    ) -> None:
         """Validate keys in the document are in the mapping.
 
         Recursively verify that all keys in the document are in the
@@ -1965,7 +1954,7 @@ class GraphIndexBuilder:
             )
 
         # Check for keys that are in the doc but not in the mapping
-        self.validate_against_mapping(case, self.case_es_mapping)
+        self.validate_against_mapping(case, mappings.get_case_mapping())
 
     ###################################################################
     #                       Caching functions

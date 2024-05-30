@@ -14,12 +14,10 @@ class TestIndexBuilder(builder.GraphIndexBuilder):
         psqlgraph_driver: psqlgraph.PsqlGraphDriver,
         indexd_client: client.IndexClient,
         index_prefix: Optional[str] = "",
-        mapper: Optional[mappings.ESMapper] = None,
         case_to_file_paths=(),
         file_labels=frozenset(()),
         **kwargs: Any
     ) -> None:
-        self.mapper = mapper or mock.MagicMock()
         self.case_to_file_paths = case_to_file_paths
         self.file_labels = file_labels
 
