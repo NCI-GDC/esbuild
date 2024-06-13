@@ -1,14 +1,13 @@
 import pytest
 
-from esbuild.graph.common.builder import get_namespaced_uuid, get_uuid_namespace
-from esbuild.utils import ReleaseHelper, get_index_names
+from esbuild import utils
+from esbuild.graph.common import builder
 from tests.integration import es_data
-from tests.integration.data import DATA_FILE_INDEXD_FIELDS
 
 
 def test_get_projects_list(test_index_data):
     es, index_name = test_index_data
-    helper = ReleaseHelper(es, "foo")
+    helper = utils.ReleaseHelper(es, "foo")
 
     projects = {d["project_id"] for d in es_data.DOCS["project"]}
 
@@ -40,7 +39,7 @@ def validate_file_metadata(key, value):
                 validate_file_metadata(subkey, output_files)
         return
 
-    if key in DATA_FILE_INDEXD_FIELDS:
+    if key in builder.DATA_FILE_INDEXD_FIELDS:
         error_msg = f'"{key}" is loaded from graph instead of indexd'
         if isinstance(value, str):
             assert value != "error", error_msg
@@ -58,7 +57,7 @@ def validate_file_metadata(key, value):
 
 def test_projects_deleted(es_after_deletion):
     es, index_name, projects_before, deleted_projects = es_after_deletion
-    helper = ReleaseHelper(es, audit_index="build_metadata_test")
+    helper = utils.ReleaseHelper(es, audit_index="build_metadata_test")
     expected_projects = {p for p in projects_before if p not in deleted_projects}
     assert helper.get_project_ids(index_name) == expected_projects
 
@@ -74,7 +73,7 @@ def test_delete_project_docs(es_after_deletion):
         "annotation": "project.project_id",
     }
 
-    index_names = get_index_names(index_prefix, path_to_id.keys())
+    index_names = utils.get_index_names(index_prefix, path_to_id.keys())
 
     # Check files
     projects = set()
@@ -111,7 +110,7 @@ def test_delete_project_docs(es_after_deletion):
     ],
 )
 def test_get_uuid_namespace(namespace, expectation):
-    u = get_uuid_namespace(namespace)
+    u = builder.get_uuid_namespace(namespace)
     assert expectation == str(u)
 
 
@@ -136,5 +135,5 @@ def test_get_uuid_namespace(namespace, expectation):
     ],
 )
 def test_get_namespaced_uuid(namespace, seed, expectation):
-    u = get_namespaced_uuid(namespace, seed)
+    u = builder.get_namespaced_uuid(namespace, seed)
     assert expectation == str(u)

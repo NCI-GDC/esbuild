@@ -102,7 +102,7 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     ar_props = (
         ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props
     )  # noqa
-    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS + ["updated_datetime"])
+    assert_inclusion(ar_props, ar_hit, (*INDEXD_METADATA_FIELDS, "updated_datetime"))
 
     ari_props = (
         ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props
@@ -110,7 +110,7 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     assert_inclusion(
         ari_props,
         ar_hit["index_files"][0],
-        INDEXD_METADATA_FIELDS + ["updated_datetime"],
+        (*INDEXD_METADATA_FIELDS, "updated_datetime"),
     )
 
 
@@ -137,7 +137,7 @@ def test_esbuild_versioning(
     es_expectations = versioned_reads_expectations
     nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
 
-    source = INDEXD_METADATA_FIELDS + ["index_files"]
+    source = (*INDEXD_METADATA_FIELDS, "index_files")
     res = es.search(
         index="gdc_es_test_file",
         body={

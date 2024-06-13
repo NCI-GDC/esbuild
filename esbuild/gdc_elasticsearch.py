@@ -357,6 +357,12 @@ class GDCElasticsearch:
             index_prefix=self.index_prefix,
         )
 
+        if self.build_projects:
+            logger.info("Running partial build")
+            logger.info(f"Projects: {self.build_projects}")
+        else:
+            logger.info("Running full build")
+
         cases, files, annotations, projects = self._cache_database(self.converter)
 
         logger.info("Validating docs produced")

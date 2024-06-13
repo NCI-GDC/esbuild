@@ -19,10 +19,21 @@ tied to the relevant aliquots during cache_database
 
 import itertools
 import logging
-from typing import Iterable, List, Optional, Sequence, Set
+from collections.abc import (
+    Collection,
+    Container,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+    Set,
+)
+from typing import Any, Optional
 
+import more_itertools
 import psqlgraph
 from gdcdatamodel2 import models
+from indexclient import client
 
 from esbuild.graph.common import builder, validators
 
@@ -30,46 +41,35 @@ log = logging.getLogger(__name__)
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
 
 
-def reverse_and_skip_first_entry(path: List) -> List:
-    """Return a path that.
-
-    1. is reversed and
-    2. has the first step (in reversed order) removed
-
-    This was created to traverse paths in reverse order such that the
-    first entry in the path is skipped because we are already visiting
-    that node. Example: ``['a', 'b', 'c'] -> ['b', 'a']``
-
-    """
-    return path[-2::-1]
-
-
-def list_product(roots: List, subtrees: List) -> List:
+def _path_product(
+    roots: Iterable[Iterable[str]], subtrees: Iterable[Iterable[str]]
+) -> Iterable[Sequence[str]]:
     """Append each subtree to each root.
 
     It's not quite a cartesian product, example::
 
         roots = [['a', 'b'], ['-', '#']]
         subtrees = [range(0, 2), range(2, 4), range(4, 8)]
-        list(list_product(roots, subtrees))
-        [['a', 'b', 0, 1],
-         ['a', 'b', 2, 3],
-         ['a', 'b', 4, 5, 6, 7],
-         ['-', '#', 0, 1],
-         ['-', '#', 2, 3],
-         ['-', '#', 4, 5, 6, 7]]
+        _path_product(roots, subtrees) ->
+        (
+            ('a', 'b', 0, 1),
+            ('a', 'b', 2, 3),
+            ('a', 'b', 4, 5, 6, 7),
+            ('-', '#', 0, 1),
+            ('-', '#', 2, 3),
+            ('-', '#', 4, 5, 6, 7)
+        )
 
     """
-    return [root + subtree for root in roots for subtree in subtrees]
+    return tuple((*p0, *p1) for p0 in roots for p1 in subtrees)
 
 
-def subtree_paths_to_file(
-    cls,
-    paths: Optional[List[List[str]]] = None,
-    visited: Optional[List[str]] = None,
-    categories: Optional[Set[str]] = None,
-    exclude_paths_through: Optional[set] = None,
-) -> List[List[str]]:
+def _subtree_paths_to_file(
+    cls: type[models.Node],
+    visited: tuple[str, ...] = (),
+    categories: Container[str] = frozenset(("data_file", "analysis")),
+    exclude_paths_through: Container[str] = frozenset(),
+) -> Iterator[Sequence[str]]:
     """Find paths to file nodes in subtree.
 
     Recurse through all child nodes in categories :param:`categories`
@@ -86,17 +86,8 @@ def subtree_paths_to_file(
     Returns:
         paths to file nodes
     """
-    if categories is None:
-        categories = {"data_file", "analysis"}
-
-    if exclude_paths_through is None:
-        exclude_paths_through = set()
-
-    visited = visited if visited is not None else []
-    paths = paths if paths is not None else []
-
     if cls._dictionary["category"] == "data_file":
-        paths.append(visited)
+        yield visited
 
     for backref in cls._pg_backrefs.values():
         child = backref["src_type"]
@@ -108,56 +99,39 @@ def subtree_paths_to_file(
         )
 
         if should_recur:
-            subtree_paths_to_file(
+            yield from _subtree_paths_to_file(
                 child,
-                paths,
-                visited=visited + [child.label],
+                visited=(*visited, child.label),
                 exclude_paths_through=exclude_paths_through,
             )
 
-    return paths
 
+def _get_case_to_file_paths() -> Iterable[Sequence[str]]:
+    """Build all paths from case to files.
 
-class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
-    """The builder for the current graph indices.
+    Since the Active index has more complicated paths from case to file, this is an
+    attempt not to hard code them. This process, with the exception of files related to
+    read groups, builds the paths manually.
 
-    Since the Active index has more complicated paths from case to
-    file, this is an attempt not to hard code them.  See module doc.
+    TODO: DEV-2768: Currently this is done completely manually. However, we can and prob
+        should build these paths using the same logic we currently use for read groups
+        but start at the case node and walk all possible paths to our set of desired
+        file types. We should create a whitelist of files which should be included in
+        the build (preferably configurable) which will insure only the intended files
+        are release. This will help us from accidentally forgetting a path or missing a
+        path that is later introduced to the graph, but still be able to control which
+        files types are released.
+
+    Returns:
+        A collection of string sequences which each represent a path (label to label;
+        node to node) starting with the expected child of a case node and traversing to
+        the file node label.
     """
-
-    # Skip any paths that traverse through nodes in
-    # ``exclude_paths_through``.
-    #
-    # In the index, AlignedReads were associated with two aliquots
-    # because they go through the Alignment Cocleaning
-    # Workflow. However, they should have edges directly back to a
-    # single SubmittedAlignedReads that goes back to a single
-    # aliquot. They should only be associated with this aliquot.
-    #
-    # The impact is that the user can not filter properly on the
-    # sample types, e.g. tumor versus normal as it returns all of the
-    # AlignedReads.
-    #
-    # The solution applied here is to simply remove paths through
-    # specific nodes and rely on the shortcut edges when traversing to
-    # Read Groups.
-    #
-    # See PGDC-2349 for details.
-    exclude_paths_through = {
-        "alignment_cocleaning_workflow",
-    }
-
-    # Filter nodes out if their properties are a superset of any of
-    # the dictionaries listed here by label
-    unindexed_by_property = {
-        "annotation": [{"status": "Rescinded"}, {"classification": "Blocking Release"}],
-    }
-
-    case_to_aliquot = [
-        ["sample", "aliquot"],
-        ["sample", "analyte", "aliquot"],
-        ["sample", "portion", "analyte", "aliquot"],
-    ]
+    case_to_aliquot = (
+        ("sample", "aliquot"),
+        ("sample", "analyte", "aliquot"),
+        ("sample", "portion", "analyte", "aliquot"),
+    )
 
     # BREADCRUMB
     # Holy hell. Ok, the following lists are paths to where
@@ -168,10 +142,27 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     # a list below, then add it to the case_to_file_paths
     # - a very tired joe sislow (3/15/2018)
 
-    readgroup_subtree = list_product(
-        [[models.ReadGroup.label]],
-        subtree_paths_to_file(
-            models.ReadGroup, exclude_paths_through=exclude_paths_through
+    readgroup_subtree = _path_product(
+        ((models.ReadGroup.label,),),
+        _subtree_paths_to_file(
+            models.ReadGroup,
+            # Skip any paths that traverse through nodes in
+            # ``exclude_paths_through``.
+            #
+            # In the index, AlignedReads were associated with two aliquots
+            # because they go through the Alignment Cocleaning
+            # Workflow. However, they should have edges directly back to a
+            # single SubmittedAlignedReads that goes back to a single
+            # aliquot. They should only be associated with this aliquot.
+            #
+            # The impact is that the user can not filter properly on the
+            # sample types, e.g. tumor versus normal as it returns all of the
+            # AlignedReads.
+            #
+            # The solution applied here is to simply remove paths through
+            # specific nodes and rely on the shortcut edges when traversing to
+            # Read Groups.
+            exclude_paths_through=("alignment_cocleaning_workflow",),
         ),
     )
 
@@ -187,203 +178,215 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     # should be used.
     # - joe sislow (11/27/2018)
 
-    aliquot_to_copy_number_segment_paths = [
-        [
+    aliquot_to_copy_number_segment_paths = (
+        (
             "submitted_tangent_copy_number",
             "copy_number_liftover_workflow",
             "copy_number_segment",
-        ],
-        [
+        ),
+        (
             "submitted_genotyping_array",
             "somatic_copy_number_workflow",
             "copy_number_segment",
-        ],
-    ]
+        ),
+    )
 
-    aliquot_to_copy_number_estimate_paths = [
-        [
+    aliquot_to_copy_number_estimate_paths = (
+        (
             "submitted_tangent_copy_number",
             "copy_number_liftover_workflow",
             "copy_number_segment",
             "copy_number_variation_workflow",
             "copy_number_estimate",
-        ],
-        [
+        ),
+        (
             "submitted_genotyping_array",
             "somatic_copy_number_workflow",
             "copy_number_estimate",
-        ],
-    ]
+        ),
+    )
 
-    aliquot_to_methylation_value_paths = [
-        [
+    aliquot_to_methylation_value_paths = (
+        (
             "submitted_methylation_beta_value",
             "methylation_liftover_workflow",
             "methylation_beta_value",
-        ],
-        [
+        ),
+        (
             "raw_methylation_array",
             "methylation_array_harmonization_workflow",
             "methylation_beta_value",
-        ],
-    ]
+        ),
+    )
 
     # added for slide_image by joe, 3/18
-    case_to_slide_image_path = [
-        ["sample", "slide", "slide_image"],
-        ["sample", "portion", "slide", "slide_image"],
-    ]
+    case_to_slide_image_path = (
+        ("sample", "slide", "slide_image"),
+        ("sample", "portion", "slide", "slide_image"),
+    )
 
-    case_to_file_paths = [
-        ["biospecimen_supplement"],
-        ["clinical_supplement"],
-        ["sample", "pathology_report"],
-    ]
-
-    case_to_copy_number_segment_paths = list_product(
+    case_to_copy_number_segment_paths = _path_product(
         case_to_aliquot, aliquot_to_copy_number_segment_paths
     )
 
-    case_to_copy_number_estimate_paths = list_product(
+    case_to_copy_number_estimate_paths = _path_product(
         case_to_aliquot, aliquot_to_copy_number_estimate_paths
     )
 
-    case_to_protein_expression = [
-        ["sample", "protein_expression"],
-        ["sample", "portion", "protein_expression"],
-    ]
+    case_to_protein_expression = (
+        ("sample", "protein_expression"),
+        ("sample", "portion", "protein_expression"),
+    )
 
-    case_to_methylation_value_paths = list_product(
+    case_to_methylation_value_paths = _path_product(
         case_to_aliquot, aliquot_to_methylation_value_paths
     )
 
-    case_to_raw_methylation_array_paths = list_product(
-        case_to_aliquot, [["raw_methylation_array"]]
+    case_to_raw_methylation_array_paths = _path_product(
+        case_to_aliquot, (("raw_methylation_array",),)
     )
 
-    case_to_masked_methylation_array_paths = list_product(
+    case_to_masked_methylation_array_paths = _path_product(
         case_to_aliquot,
-        [
-            [
+        (
+            (
                 "raw_methylation_array",
                 "methylation_array_harmonization_workflow",
                 "masked_methylation_array",
-            ]
-        ],
+            ),
+        ),
     )
 
-    case_to_genotyping_array_paths = list_product(
-        case_to_aliquot, [["submitted_genotyping_array"]]
+    case_to_genotyping_array_paths = _path_product(
+        case_to_aliquot, (("submitted_genotyping_array",),)
     )
-    case_to_germline_variation_paths = list_product(
+    case_to_germline_variation_paths = _path_product(
         case_to_genotyping_array_paths,
-        [["germline_mutation_calling_workflow", "simple_germline_variation"]],
+        (("germline_mutation_calling_workflow", "simple_germline_variation"),),
     )
 
-    case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-    case_to_file_paths += case_to_copy_number_segment_paths
-    case_to_file_paths += case_to_copy_number_estimate_paths
-    case_to_file_paths += case_to_methylation_value_paths
-    case_to_file_paths += case_to_slide_image_path
-    case_to_file_paths += case_to_protein_expression
-    case_to_file_paths += case_to_raw_methylation_array_paths
-    case_to_file_paths += case_to_masked_methylation_array_paths
-    case_to_file_paths += case_to_genotyping_array_paths
-    case_to_file_paths += case_to_germline_variation_paths
-
-    file_labels = builder.GraphIndexBuilder.node_labels_by_category(
-        [
-            "data_file",
-            "index_file",
-        ]
+    return tuple(
+        itertools.chain(
+            (
+                ("biospecimen_supplement",),
+                ("clinical_supplement",),
+                ("sample", "pathology_report"),
+            ),
+            _path_product(case_to_aliquot, readgroup_subtree),
+            case_to_copy_number_segment_paths,
+            case_to_copy_number_estimate_paths,
+            case_to_methylation_value_paths,
+            case_to_slide_image_path,
+            case_to_protein_expression,
+            case_to_raw_methylation_array_paths,
+            case_to_masked_methylation_array_paths,
+            case_to_genotyping_array_paths,
+            case_to_germline_variation_paths,
+        )
     )
 
-    # Do not create file docs for archives
-    file_labels.remove("archive")
 
-    # Do not include files that are of the general legacy File type
-    file_labels.remove("file")
+def _get_file_labels() -> Collection[str]:
+    """Get the file labels for the build.
 
-    # Specify which analysis nodes get which types of
-    # `analysis.metadata` {'metadata type': set({'labels'})}
-    analysis_metadata = {
-        "read_groups": {
-            "alignment_workflow",
-            "alignment_cocleaning_workflow",
-        },
-    }
+    This will return all nodes with a category of `data_file` & `index_file` except for
+    the Archive and File node.
 
-    # Pre-calculate the paths to read_group from each type of file
-    file_to_read_group_paths = {}
-    for path in readgroup_subtree:
-        file_to_read_group_paths.setdefault(path[-1], []).append(path[-2::-1])
+    Returns:
+        The node labels associated with the file types to include in the build.
+    """
+    file_categories = frozenset(("data_file", "index_file"))
+    excluded_labels = frozenset(("archive", "file"))
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    return frozenset(
+        n.label
+        for n in models.Node.get_subclasses()
+        if n._dictionary["category"] in file_categories
+        and n.label not in excluded_labels
+    )
 
-        # Omit entities from these projects
-        self.omitted_projects.add(("CCLE", "CCLE_V2"))
-        self.omitted_projects.add(("CCLE", "ALL-P1"))
-        self.omitted_projects.add(("CCLE", "ACC"))
-        self.omitted_projects.add(("CCLE", "DLBC"))
-        self.omitted_projects.add(("CCLE", "READ"))
-        self.omitted_projects.add(("CCLE", "GBM"))
-        self.omitted_projects.add(("CCLE", "THCA"))
-        self.omitted_projects.add(("CCLE", "BLCA"))
-        self.omitted_projects.add(("CCLE", "UCEC"))
-        self.omitted_projects.add(("CCLE", "PCPG"))
-        self.omitted_projects.add(("CCLE", "LCML"))
-        self.omitted_projects.add(("CCLE", "CESC"))
-        self.omitted_projects.add(("CCLE", "UCS"))
-        self.omitted_projects.add(("CCLE", "THYM"))
-        self.omitted_projects.add(("CCLE", "LIHC"))
-        self.omitted_projects.add(("CCLE", "CHOL"))
-        self.omitted_projects.add(("CCLE", "HNSC"))
-        self.omitted_projects.add(("CCLE", "STAD"))
-        self.omitted_projects.add(("CCLE", "SKCM"))
-        self.omitted_projects.add(("CCLE", "COAD"))
-        self.omitted_projects.add(("CCLE", "UVM"))
-        self.omitted_projects.add(("CCLE", "PAAD"))
-        self.omitted_projects.add(("CCLE", "TGCT"))
-        self.omitted_projects.add(("CCLE", "LUSC"))
-        self.omitted_projects.add(("CCLE", "CNTL"))
-        self.omitted_projects.add(("CCLE", "MISC"))
-        self.omitted_projects.add(("CCLE", "MESO"))
-        self.omitted_projects.add(("CCLE", "FPPP"))
-        self.omitted_projects.add(("CCLE", "OV"))
-        self.omitted_projects.add(("CCLE", "ESCA"))
-        self.omitted_projects.add(("CCLE", "LCLL"))
-        self.omitted_projects.add(("CCLE", "MM"))
-        self.omitted_projects.add(("CCLE", "SARC"))
-        self.omitted_projects.add(("CCLE", "KIRP"))
-        self.omitted_projects.add(("CCLE", "LGG"))
-        self.omitted_projects.add(("CCLE", "LAML"))
-        self.omitted_projects.add(("CCLE", "PRAD"))
-        self.omitted_projects.add(("CCLE", "LUAD"))
-        self.omitted_projects.add(("CCLE", "BRCA"))
-        self.omitted_projects.add(("CCLE", "KIRC"))
-        self.omitted_projects.add(("CCLE", "KICH"))
 
-    def denormalize_all(self):
-        cases, files, annotations, projects = super().denormalize_all()
+def _get_paths_from_files(
+    paths_to_files: Iterable[Sequence[str]],
+    destination: str,
+    included_files: Optional[Container[str]] = None,
+) -> Mapping[str, Iterable[Sequence[str]]]:
+    def restructure_path(path: Sequence[str]) -> Sequence[str]:
+        restructured_path: Iterable[str] = reversed(path[:-1])
+        restructured_path = more_itertools.takewhile_inclusive(
+            lambda e: e != destination, restructured_path
+        )
 
-        # Copy `primary_site` and `disease_type` from projects to cases.project:
-        projects_map = {
-            p["project_id"]: {
-                "primary_site": p["primary_site"],
-                "disease_type": p["disease_type"],
-            }
-            for p in projects
-        }
+        return tuple(restructured_path)
 
-        for case in cases:
-            project_id = case["project"]["project_id"]
-            case["project"]["primary_site"] = projects_map[project_id]["primary_site"]
-            case["project"]["disease_type"] = projects_map[project_id]["disease_type"]
+    def is_path_included(path: Sequence[str]) -> bool:
+        if included_files and path[-1] not in included_files:
+            return False
 
-        return cases, files, annotations, projects
+        return destination in path
 
-    def get_case_files(self, node):
+    paths_to_files = filter(is_path_included, paths_to_files)
+
+    return more_itertools.map_reduce(
+        paths_to_files, keyfunc=lambda p: p[-1], valuefunc=restructure_path
+    )
+
+
+class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
+    """The builder for the current graph indices.
+
+    Args:
+        psqlgraph_driver: The driver for interacting with the graph.
+        indexd_client: The client for accessing indexd documents.
+        index_prefix: The prefix of the index name being created (used for logging
+            only.)
+        build_projects: The projects which should be included in the build.
+        build_awg: A flag indicating if this is an AWG build.
+        selective_caching: A flag indicating if selective caching functionality
+            should be used.
+        versioned_files: Versioned files that haven't been released yet.
+        allowed_gencode_versions: The gencode version allowed when selecting file
+            objects to index.
+    """
+
+    def __init__(
+        self,
+        psqlgraph_driver: psqlgraph.PsqlGraphDriver,
+        indexd_client: client.IndexClient,
+        index_prefix: Optional[str],
+        build_projects: Iterable[str],
+        build_awg: bool,
+        selective_caching: bool,
+        versioned_files: Mapping[str, Mapping[str, Any]],
+        allowed_gencode_versions: Set[str],
+    ) -> None:
+        super().__init__(
+            psqlgraph_driver,
+            indexd_client,
+            index_prefix,
+            build_projects,
+            build_awg,
+            selective_caching,
+            versioned_files,
+            allowed_gencode_versions,
+            case_to_file_paths=_get_case_to_file_paths(),
+            file_labels=_get_file_labels(),
+            unindexed_by_property={
+                "annotation": (
+                    {"status": "Rescinded"},
+                    {"classification": "Blocking Release"},
+                ),
+            },
+        )
+
+        self._file_to_aliquot_paths = _get_paths_from_files(
+            self.case_to_file_paths, destination=models.Aliquot.label
+        )
+        self._file_to_read_group_paths = _get_paths_from_files(
+            self.case_to_file_paths, destination=models.ReadGroup.label
+        )
+
+    def get_case_files(self, node: models.Node) -> Collection[models.Node]:
         def file_filter(file) -> bool:
             metadata = self.file_metadata.get(file.node_id, {})
 
@@ -392,42 +395,46 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         unfiltered_files = super().get_case_files(node)
         return set(filter(file_filter, unfiltered_files))
 
-    def denormalize_file(self, node, ptree):
+    def denormalize_file(self, node: models.Node, ptree: builder.PTree) -> dict:
         doc = super().denormalize_file(node, ptree)
 
         self.add_file_analysis(node, doc)
         self.add_file_downstream_analyses(node, doc)
         return doc
 
-    def get_file_index_files(self, node):
+    def get_file_index_files(self, node: models.Node) -> Iterator[models.Node]:
         """Given a file, return any neighboring index files."""
-        return [
+        return (
             n
-            for n in list(self.get_child_with_category(node, "index_file"))
+            for n in self.get_child_with_category(node, "index_file")
             if self.is_index_file(n)
-        ]
+        )
 
-    def get_parent_with_category(self, node, category):
+    def get_parent_with_category(
+        self, node: models.Node, category: str
+    ) -> Iterator[models.Node]:
         """Return iterable of neighbors from outbound edges with category."""
-        labels = [
+        labels = (
             l["dst_type"].label
             for l in node._pg_links.values()
             if l["dst_type"]._dictionary["category"] == category
-        ]
+        )
 
         return self.neighbors_labeled(node, labels)
 
-    def get_child_with_category(self, node, category):
+    def get_child_with_category(
+        self, node: models.Node, category: str
+    ) -> Iterator[models.Node]:
         """Return iterable of neighbors from inbound edges with category."""
-        labels = [
+        labels = (
             l["src_type"].label
             for l in node._pg_backrefs.values()
             if l["src_type"]._dictionary["category"] == category
-        ]
+        )
 
         return self.neighbors_labeled(node, labels)
 
-    def add_file_analysis(self, node, doc):
+    def add_file_analysis(self, node: models.Node, doc: dict) -> None:
         """Add the 'analysis' that produced the current file."""
         analyses = list(self.get_parent_with_category(node, "analysis"))
 
@@ -450,16 +457,16 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
                 tags=[f"file_id:{node.node_id}"],
             )
 
-    def add_file_downstream_analyses(self, node, doc):
+    def add_file_downstream_analyses(self, node: models.Node, doc: dict) -> None:
         """Add the 'analysis' that produced the current file."""
-        analyses = list(self.get_child_with_category(node, "analysis"))
+        analyses = self.get_child_with_category(node, "analysis")
 
         for analysis in analyses:
             analysis_doc = self._get_base_doc(analysis)
             self.add_analysis_output_files(analysis, analysis_doc)
             doc.setdefault("downstream_analyses", []).append(analysis_doc)
 
-    def add_analysis_input_files(self, node, doc):
+    def add_analysis_input_files(self, node: models.Node, doc: dict) -> None:
         """For a given analysis node, add the input_files to the doc."""
         input_files = [
             f
@@ -471,7 +478,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         if input_file_docs:
             doc.setdefault("input_files", []).extend(input_file_docs)
 
-    def add_analysis_output_files(self, node, doc):
+    def add_analysis_output_files(self, node: models.Node, doc: dict) -> None:
         """For a given analysis node, add the output_files to the doc."""
         output_files = [
             f
@@ -483,17 +490,23 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         if output_file_docs:
             doc.setdefault("output_files", []).extend(output_file_docs)
 
-    def add_analysis_metadata(self, analysis, read_groups, doc):
+    def add_analysis_metadata(
+        self, analysis: models.Node, read_groups: Iterable[models.Node], doc: dict
+    ) -> None:
         """For a given analysis node, add the metadata to the doc."""
-        metadata_doc = {}
+        metadata_doc: dict = {}
 
-        if analysis.label in self.analysis_metadata["read_groups"]:
+        # Specify which analysis nodes get which types of
+        # `analysis.metadata` {'metadata type': set({'labels'})}
+        if analysis.label in ("alignment_workflow", "alignment_cocleaning_workflow"):
             self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
 
         if metadata_doc:
             doc["metadata"] = metadata_doc
 
-    def add_analysis_metadata_read_groups(self, read_groups, doc):
+    def add_analysis_metadata_read_groups(
+        self, read_groups: Iterable[models.Node], doc: dict
+    ) -> None:
         """For a given analysis node, add read_groups to the metadata subdoc."""
         read_group_docs = []
 
@@ -509,7 +522,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         if read_group_docs:
             doc["read_groups"] = read_group_docs
 
-    def get_read_group_qc_docs(self, read_group):
+    def get_read_group_qc_docs(self, read_group: models.Node) -> list[dict]:
         """Return a list of documents for Read Group QCs."""
         read_group_qc_docs = []
         rg_qcs = self.neighbors_labeled(read_group, "read_group_qc")
@@ -518,28 +531,16 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
         return read_group_qc_docs
 
-    def get_file_read_groups(self, node):
+    def get_file_read_groups(self, node: models.Node) -> Set[models.Node]:
         """Given a data_file node, traverse up the tree to read_groups.
 
         :returns: set of read_groups
 
         """
-        paths = self.file_to_read_group_paths.get(node.label, [])
-        return set(self.walk_paths(node, paths))
+        paths = self._file_to_read_group_paths.get(node.label, ())
+        return self.walk_paths(node, paths)
 
-    def get_analysis_read_groups(self, node):
-        """Given a analysis node, traverse up the tree to read_groups.
-
-        :returns: set of read_groups
-
-        """
-        return {
-            path
-            for file_ in self.get_parent_with_category(node, "data_file")
-            for path in self.get_file_read_groups(file_)
-        }
-
-    def get_simple_file_doc(self, node):
+    def get_simple_file_doc(self, node: models.Node) -> dict:
         """Create a simple file doc for {input,output}_files."""
         doc = self._get_base_doc(node)
 
@@ -553,55 +554,25 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
         return doc
 
-    def _get_custom_associated_entity_paths(
-        self, node: psqlgraph.Node
-    ) -> Iterable[Sequence[str]]:
-        # Special case paths to be traversed to possible associated entities
-        if node.label == "copy_number_segment":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_copy_number_segment_paths
-                )
-            )
-        elif node.label == "copy_number_estimate":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_copy_number_estimate_paths
-                )
-            )
-        elif node.label == "methylation_beta_value":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_methylation_value_paths
-                )
-            )
-        else:
-            return ()
-
     def _get_associated_entities_via_read_group(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
+        self, node: models.Node
+    ) -> Iterable[models.Node]:
         return itertools.chain.from_iterable(
-            self.neighbors_labeled(rg, self.possible_associated_entities)
+            self.neighbors_labeled(rg, builder.POSSIBLE_ASSOCIATED_ENTITIES)
             for rg in self.get_file_read_groups(node)
         )
 
     def _get_associated_entities_via_data_files(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
+        self, node: models.Node
+    ) -> Iterable[models.Node]:
         return itertools.chain.from_iterable(
-            self.neighbors_labeled(parent, self.possible_associated_entities)
+            self.neighbors_labeled(parent, builder.POSSIBLE_ASSOCIATED_ENTITIES)
             for parent in self.get_parent_with_category(node, "data_file")
         )
 
-    def get_file_associated_entities(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
+    def get_file_associated_entities(self, node: models.Node) -> Iterable[models.Node]:
         """Return all entities that are 'associated' with a file."""
-        custom_paths = self._get_custom_associated_entity_paths(node)
+        custom_paths = self._file_to_aliquot_paths.get(node.label, ())
         entities = super().get_file_associated_entities(node)
         entities = itertools.chain(
             entities, self._get_associated_entities_via_read_group(node)

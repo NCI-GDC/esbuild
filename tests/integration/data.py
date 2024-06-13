@@ -15,10 +15,9 @@ from gdcdatamodel2 import models
 from gdcdictionary import gdcdictionary
 from psqlgraph.mocks import NodeFactory
 
-from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.common import builder
 
-DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
-DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
+DATA_FILE_CATEGORIES = ("data_file", "metadata_file")
 # Populated each time get_node_id is called, Used for debugging missing ids
 NODE_ID_TO_STRING = {}
 # Defaults for the node factory
@@ -76,7 +75,7 @@ def patch_test_data_get_indexd(nodes):
                 "node_id": node.node_id,
             }
 
-            for key in DATA_FILE_INDEXD_FIELDS:
+            for key in builder.DATA_FILE_INDEXD_FIELDS:
                 key_value = getattr(node, key, None)
                 if key_value is None:
                     continue
