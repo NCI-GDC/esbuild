@@ -5,54 +5,174 @@ graph index.
 
 """
 
+import collections
+import copy
+import functools
 import hashlib
 import itertools
 import logging
-import random
 import re
 import traceback
+import types
 import uuid
-from collections import defaultdict
-from copy import deepcopy
-from functools import lru_cache
-from typing import (
-    Any,
-    Dict,
-    Generator,
+from collections.abc import (
+    Collection,
+    Container,
     Iterable,
     Iterator,
-    List,
     Mapping,
-    Optional,
+    Sequence,
     Set,
-    Tuple,
-    Union,
 )
-from uuid import UUID, uuid5
+from typing import Any, Optional, TypeVar, Union, cast
 
+import more_itertools
 import networkx as nx
+import progressbar
 import psqlgraph
-from datadog import statsd
-from gdcdatamodel2 import models as md
+from datadog.dogstatsd.base import statsd
+from gdcdatamodel2 import models
 from indexclient import client
-from progressbar import ETA, Bar, Percentage, ProgressBar
-from psqlgraph import Edge, Node
-from sqlalchemy.orm import joinedload
+from sqlalchemy import orm
 
 from esbuild.graph.common import mappings, validators
 
-PTree = Dict[Node, "PTree"]
-Document = Dict[str, Union[str, int]]
+PTree = dict[models.Node, "PTree"]
+TDocument = TypeVar("TDocument", dict, list[dict])
 
 log = logging.getLogger(__name__)
 
 AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
-FILE_MISSING_GENCODE = {"error": "no gencode_version for generated data files"}
+"""All possible gencode versions."""
+FILE_MISSING_GENCODE: dict[str, str] = {
+    "error": "no gencode_version for generated data files"
+}
+"""The error message associated with file which have no associated gencode version."""
 ENTRY_FOR_WRONG_GENCODE = {"ignore": "wrong gencode_version for generated data files"}
+"""The error message associated with file which have no document associated with an
+appropriate gencode version.
+"""
 FIELD_ALLOWLIST = frozenset({"wgs_coverage", "specimen_type"})
+"""Special fields which must be whitelisted to be included.
+NOTE: New models should make this redundant.
+"""
+INDEX_FILE_EXTENSIONS: Set[str] = frozenset(
+    (
+        ".bai",
+        ".tbi",
+    )
+)
+"""File extensions associated with index files."""
+POSSIBLE_ASSOCIATED_ENTITIES: Collection[str] = (
+    "portion",
+    "aliquot",
+    "case",
+    "slide",
+)
+"""All possible node types which can be considered associated entities."""
+DATA_FILE_INDEXD_FIELDS = ("acl", "file_size", "file_name", "file_state", "md5sum")
+"""The fields associated with indexd records which should be included in the file
+document.
+"""
+DIFFERENTIATED_EDGES: Set[tuple[str, str, str]] = frozenset(
+    (
+        ("file", "member_of", "archive"),
+        ("archive", "member_of", "file"),
+        ("file", "describes", "case"),
+        ("case", "describes", "file"),
+        ("file", "related_to", "file"),
+    )
+)
+"""Edges which will need extra data associated with them cached."""
+INDEXD_URL_TYPE = "cleversafe"
+"""The url type associated with files to be indexed in the build."""
+FLATTENED_OBJECTS = types.MappingProxyType(
+    {
+        "tag": "name",
+        "platform": "name",
+        "data_format": "name",
+        "data_subtype": "name",
+        "experimental_strategy": "name",
+        "data_level": "name",
+    }
+)
+"""Nested object's who's associated property will be included in the indexed document of
+the parent. E.g. the tag node's name property will be pulled up into the parent node's
+document representation in the final indexed document.
+"""
+OMITTED_PROJECTS: Set[tuple[str, str]] = frozenset(
+    (
+        ("TCGA", "CNTL"),
+        ("TCGA", "MISC"),
+        ("TCGA", "TEST"),
+        ("TCGA", "DEV1"),
+        ("TCGA", "DEV2"),
+        ("TCGA", "DEV3"),
+        ("TCGA", "FPPP"),
+        ("GDC", "INTERNAL"),
+        ("UAT08", "BROAD-BCR"),
+        ("TARGET", "AML-IF"),
+        ("CCLE", "CCLE_V2"),
+        ("CCLE", "ALL-P1"),
+        ("CCLE", "ACC"),
+        ("CCLE", "DLBC"),
+        ("CCLE", "READ"),
+        ("CCLE", "GBM"),
+        ("CCLE", "THCA"),
+        ("CCLE", "BLCA"),
+        ("CCLE", "UCEC"),
+        ("CCLE", "PCPG"),
+        ("CCLE", "LCML"),
+        ("CCLE", "CESC"),
+        ("CCLE", "UCS"),
+        ("CCLE", "THYM"),
+        ("CCLE", "LIHC"),
+        ("CCLE", "CHOL"),
+        ("CCLE", "HNSC"),
+        ("CCLE", "STAD"),
+        ("CCLE", "SKCM"),
+        ("CCLE", "COAD"),
+        ("CCLE", "UVM"),
+        ("CCLE", "PAAD"),
+        ("CCLE", "TGCT"),
+        ("CCLE", "LUSC"),
+        ("CCLE", "CNTL"),
+        ("CCLE", "MISC"),
+        ("CCLE", "MESO"),
+        ("CCLE", "FPPP"),
+        ("CCLE", "OV"),
+        ("CCLE", "ESCA"),
+        ("CCLE", "LCLL"),
+        ("CCLE", "MM"),
+        ("CCLE", "SARC"),
+        ("CCLE", "KIRP"),
+        ("CCLE", "LGG"),
+        ("CCLE", "LAML"),
+        ("CCLE", "PRAD"),
+        ("CCLE", "LUAD"),
+        ("CCLE", "BRCA"),
+        ("CCLE", "KIRC"),
+        ("CCLE", "KICH"),
+    )
+)
+"""Projects which should always be omitted from the build."""
+SUPPLEMENT_PATTERNS = tuple(
+    map(
+        lambda s: re.compile(s),
+        (
+            r"nationwidechildrens.org_biospecimen.([a-zA-Z0-9-]+).xml",
+            r"nationwidechildrens.org_control.([a-zA-Z0-9-]+).xml",
+            r"genome.wustl.edu_biospecimen.([a-zA-Z0-9-]+).xml",
+            r"genome.wustl.edu_control.([a-zA-Z0-9-]+).xml",
+            r"nationwidechildrens.org_clinical.([a-zA-Z0-9-]+).xml",
+            r"genome.wustl.edu_clinical.([a-zA-Z0-9-]+).xml",
+        ),
+    )
+)
+"""The patterns which match older supplement file names."""
 
 
-@lru_cache(maxsize=32)
+@functools.lru_cache(maxsize=32)
 def dfs_to_parent(node, target="case"):
     if node.label == target:
         return node
@@ -72,8 +192,25 @@ def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
     return gencode_version
 
 
+def _load_hidden_properties() -> Iterator[tuple[str, Set[str]]]:
+    default_properties = frozenset(("batch_id", "file_state"))
+    labels = (t.label for t in models.Node.get_subclasses() if t.label != "annotation")
+
+    for label in labels:
+        yield label, default_properties
+
+    yield "annotation", frozenset(("creator", *default_properties))
+
+
+HIDDEN_PROPERTIES = types.MappingProxyType(dict(_load_hidden_properties()))
+"""A mapping of node types to the properties which should be omitted from the final
+indexed document."""
+
+
 class GraphIndexBuilder:
     """Build graph index from gdc psqlgraph.
+
+    The Process Explained:
 
     This class handles all the JSON production for the GDC
     portal. Currently, the entire postgresql database is cached to
@@ -113,227 +250,111 @@ class GraphIndexBuilder:
     remembering which nodes are walked through a lot and remembering
     which neighbors they have with a given label.
 
-    NOTE: An attempt was made to do this whole thing in parallel,
-    however the memory footprint grew to large.  The best method for
-    doing this is to use the main process as a workload distributer,
-    and have child processes denormalizing cases.  This way,
-    the main thread can upsert files on an outbound queue from child
-    processes.
-
-    - Josh (jsmiller@uchicago.edu)
-
-    TODOS:
-      - figure out a way to parallelize without excess copies
-
-    ===============
-    Transformations
-    ===============
-
-    In order to update features in the index without propagating
-    renames, re-nestings, flattenings etc through the datamodel, the
-    denormalization process will reformat the data in (but not limited
-    to) the following ways:
-
-    * flattening:
-        Some nodes are flattened into properties.  These are typically
-        nodes like ``tag`` that only have a ``name`` property. See
-        ``self.flatten`` for a complete list.
-
-    * hidden_properties:
-        Some nodes should have properties hidden, e.g.
-        ``annotation.creator``. In addition, ``project_id`` will be
-        hidden on all nodes.
-
-    * s/data_type/data_category/g:
-        data_type is renamed data_category, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    * s/data_subtype/data_type/g:
-        data_subtype is renamed data_type, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1472
-
-    * s/related_files/metadata_files/g
-        related_files is renamed metadata_files, viz.
-        https://jira.opensciencedatacloud.org/browse/PGDC-1838
-
+    Args:
+        psqlgraph_driver: The driver for interacting with the graph.
+        indexd_client: The client for accessing indexd documents.
+        index_prefix: The prefix of the index name being created (used for logging
+            only.)
+        build_projects: The projects which should be included in the build.
+        build_awg: A flag indicating if this is an AWG build.
+        selective_caching: A flag indicating if selective caching functionality
+            should be used.
+        versioned_files: Versioned files that haven't been released yet.
+        allowed_gencode_versions: The gencode version allowed when selecting file
+            objects to index.
+        case_to_file_paths: All possible paths from a case node to all relevant file
+            nodes.
+        file_labels: All of the node labels which are associated with files to be
+            included in the build.
+        unindexed_by_property: A mapping of filtered nodes which if their properties
+            are a superset of any of the dictionaries listed here are removed from
+            being indexed.
     """
-
-    data_file_categories = ["data_file", "metadata_file"]
-    data_file_indexd_fields = ["acl", "file_size", "file_name", "file_state", "md5sum"]
-
-    # This defines the possible ways to get from case to indexed
-    # files. Should be an iterable of iterables, i.e.
-    # [['file'], ['sample', 'aliquot', 'file']]
-    case_to_file_paths = []
-
-    # in addition, project_id will be hidden on all nodes
-    # {node.label: {set of property keys}}
-    hidden_properties = {
-        "annotation": {
-            "creator",
-        }
-    }
-    # Set of properties to add to hidden_properties for all nodes
-    hidden_properties_for_all = {
-        "batch_id",
-        "file_state",
-    }
-
-    for node_type in md.Node.get_subclasses():
-        hidden_properties.setdefault(node_type.label, set())
-        hidden_properties[node_type.label].update(hidden_properties_for_all)
-
-    # Filter nodes out if their properties are a superset of any of
-    # the dictionaries listed here by label
-    unindexed_by_property = {
-        # "label": [{"key1": "value1", "key2": "value2"}]
-    }
-
-    INDEXD_URL_TYPE = "cleversafe"
-
-    required_attrs = [
-        "case_to_file_paths",
-        "file_labels",
-    ]
-
-    supplement_regexes = [
-        re.compile(regex)
-        for regex in [
-            "nationwidechildrens.org_biospecimen.([a-zA-Z0-9-]+).xml",
-            "nationwidechildrens.org_control.([a-zA-Z0-9-]+).xml",
-            "genome.wustl.edu_biospecimen.([a-zA-Z0-9-]+).xml",
-            "genome.wustl.edu_control.([a-zA-Z0-9-]+).xml",
-            "nationwidechildrens.org_clinical.([a-zA-Z0-9-]+).xml",
-            "genome.wustl.edu_clinical.([a-zA-Z0-9-]+).xml",
-        ]
-    ]
 
     def __init__(
         self,
         psqlgraph_driver: psqlgraph.PsqlGraphDriver,
         indexd_client: client.IndexClient,
-        index_prefix: Optional[str] = "",
-        **kwargs: Any,
+        index_prefix: Optional[str],
+        build_projects: Iterable[str],
+        build_awg: bool,
+        selective_caching: bool,
+        versioned_files: Mapping[str, Mapping[str, Any]],
+        allowed_gencode_versions: Set[str],
+        case_to_file_paths: Iterable[Sequence[str]] = (),
+        file_labels: Collection[str] = (),
+        unindexed_by_property: Mapping[
+            str, Iterable[Mapping[str, Any]]
+        ] = types.MappingProxyType({}),
     ) -> None:
-        """Walk the graph to produce elasticsearch json documents."""
+        self.g = psqlgraph_driver
         self.indexd = indexd_client
         self.index_prefix = index_prefix
-        self.file_metadata = {}  # Cache of file metadata from indexd
-        self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
-        # Versioned files that haven't been released yet
-        self.versioned_files = kwargs.pop("versioned_files", {})
+        self.versioned_files = versioned_files
 
-        self.allowed_gencode_versions = kwargs.pop(
-            "allowed_gencode_versions", AVAILABLE_GENCODE_VERSIONS
-        )
-        if not self.allowed_gencode_versions.issubset(AVAILABLE_GENCODE_VERSIONS):
+        if not (allowed_gencode_versions <= AVAILABLE_GENCODE_VERSIONS):
             raise NotImplementedError(
-                f"{self.allowed_gencode_versions} is not a valid gencode_version requirement"
+                f"{allowed_gencode_versions} is not a valid gencode_version requirement"
                 f"The available gencode_versions are {AVAILABLE_GENCODE_VERSIONS}"
             )
 
-        # Set all optional arguments as attributes:
-        # NOTE: Selective caching only works when all the non-project nodes
-        # that are expected to be picked up are populated with project_id
-        # As of Jan 2018, this is true only for newest active projects
-        self.build_awg = kwargs.get("build_awg")
-        self.selective_caching = kwargs.get("selective_caching")
-        self.build_projects = [
-            tuple(p.split("-", 1)) for p in kwargs.get("build_projects", [])
-        ]
+        self.allowed_gencode_versions = allowed_gencode_versions
+        self.build_awg = build_awg
+        self.selective_caching = selective_caching
+        # The original project ids are split into program/project name as tuples
+        # E.g. "TCGA-ACC" -> ("TCGA", "ACC")
+        self.build_projects: Iterable[tuple[str, str]] = tuple(
+            cast(tuple[str, str], tuple(p.split("-", 1))) for p in build_projects
+        )
 
-        # Verify required attributes are set
-        for required_attr in self.required_attrs:
-            if getattr(self, required_attr) is None:
-                raise NotImplementedError(
-                    f"{self.__class__.__name__} must set {required_attr}"
-                )
+        self.case_to_file_paths = case_to_file_paths
+        self.file_to_case_paths = tuple(
+            tuple(more_itertools.value_chain(reversed(l[:-1]), "case"))
+            for l in self.case_to_file_paths
+        )
+        """A calculated field based on the case to file paths reversed."""
+        self.file_labels = file_labels
+        self.unindexed_by_property = unindexed_by_property
 
-        if self.build_projects:
-            log.info("Running partial build")
-            log.info(f"Projects: {self.build_projects}")
-        else:
-            log.info("Running full build")
-
-        self.g = psqlgraph_driver
+        # VARIOUS CACHES
+        self.annotation_entities: dict[models.Node, dict[str, dict]] = {}
+        """A cache mapping a node to to a mapping of annotation ids which are mapped
+        themselves to their denormalized doc.
+        """
+        self.annotations: Collection[models.Node] = ()
+        """A cache of the annotations for the build."""
+        self.cases: Sequence[models.Node] = ()
+        """A cache of the cases for the build."""
+        self.data_categories: dict[str, set[models.Node]] = collections.defaultdict(set)
+        """A cache of data categories mapped to their associated files nodes."""
+        self.entity_cases: dict[models.Node, models.Node] = {}
+        """A cache possible associated entities mapped to their associated case."""
+        self.experimental_strategies: dict[
+            str, set[models.Node]
+        ] = collections.defaultdict(set)
+        """A cache of experimental strategies mapped to their associated files."""
+        self.file_metadata: dict[str, dict] = {}
+        """A cache of file metadata from indexd."""
         self.G = nx.Graph()
+        """A cache of the data within the actual gdc graph."""
+        self.popular_nodes: dict[
+            models.Node, dict[tuple[str, ...], Set[models.Node]]
+        ] = collections.defaultdict(dict)
+        """A cache of common neighbors to a particular node. The node is mapped to a
+        mapping of particular sets of labels which in turn are mapped to the nodes of
+        those types associated with the original node.
+        """
+        self.projects: Collection[models.Node] = ()
+        """A cache of project nodes."""
+        self.relevant_nodes: dict[models.Node, Set[models.Node]] = {}
+        """A cache which maps file nodes to their associated cased nodes."""
+        self.skipped_nodes: dict[
+            str, list[Union[models.Node, tuple[models.Node, str]]]
+        ] = collections.defaultdict(list)
+        """A cache of nodes skipped in the build and the reason for skipping them."""
 
-        self.leaf_nodes = ["center", "tissue_source_site"]
-        self.experimental_strategies = defaultdict(set)
-        self.data_categories = defaultdict(set)
-        self.popular_nodes = {}
-        self.cases = None
-        self.projects: Optional[Iterable[Node]] = None
-        self.relevant_nodes: Dict[Node, Set[Node]] = None
-        self.annotations = None
-        self.annotation_entities: Dict[Node, Dict[uuid.UUID, dict]] = None
-        self.entity_cases = None
-
-        # Different from ``self.data_categories`` in that it's a
-        # replacement for a hardcoded dict of data_type, data_subtype
-        # relationships.  This is populated by
-        # ``self._cache_file_properties``
-        self.existing_data_types = set()
-
-        # Suppress entities with redaction annotation if
-        # entity.annotation.category not in this list
-        self.redacted_but_not_suppressed = ["Subject withdrew consent"]
-
-        # Omit entities from these projects
-        self.omitted_projects = {
-            ("TCGA", "CNTL"),
-            ("TCGA", "MISC"),
-            ("TCGA", "TEST"),
-            ("TCGA", "DEV1"),
-            ("TCGA", "DEV2"),
-            ("TCGA", "DEV3"),
-            ("TCGA", "FPPP"),
-            ("GDC", "INTERNAL"),
-            ("UAT08", "BROAD-BCR"),
-            ("TARGET", "AML-IF"),
-        }
-
-        # The body of these nested documents will be flattened into
-        # the parent document using the given key's value
-        self.flatten = {
-            "tag": "name",
-            "platform": "name",
-            "data_format": "name",
-            "data_subtype": "name",
-            "experimental_strategy": "name",
-            "data_level": "name",
-        }
-
-        # The edges below will maintain labels in the in memory graph,
-        # all others will be discarded
-        self.differentiated_edges = [
-            ("file", "member_of", "archive"),
-            ("archive", "member_of", "file"),
-            ("file", "describes", "case"),
-            ("case", "describes", "file"),
-            ("file", "related_to", "file"),
-        ]
-
-        self.file_to_case_paths = [
-            list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
-        ]
-
-        self.possible_associated_entities = [
-            "portion",
-            "aliquot",
-            "case",
-            "slide",
-        ]
-
-        self.index_file_extensions = {
-            ".bai",
-            ".tbi",
-        }
-
-    def warning(
-        self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs
-    ) -> None:
+    def warning(self, title: str, text: str, tags: Optional[list[str]] = None) -> None:
         tags = tags or []
         tags.append(f"index_group:{self.index_prefix}")
 
@@ -346,9 +367,7 @@ class GraphIndexBuilder:
             tags=tags,
         )
 
-    def error(
-        self, title: str, text: str, tags: Optional[List[str]] = None, *args, **kwargs
-    ):
+    def error(self, title: str, text: str, tags: Optional[list[str]] = None):
         tags = tags or []
         tags.append(f"index_group:{self.index_prefix}")
 
@@ -361,7 +380,7 @@ class GraphIndexBuilder:
             tags=tags,
         )
 
-    def pbar(self, title, maxval):
+    def pbar(self, title: str, maxval: int) -> progressbar.ProgressBar:
         """Create and initialize a custom progressbar.
 
         :param str title: The text of the progress bar
@@ -369,14 +388,14 @@ class GraphIndexBuilder:
 
         """
         maxval = maxval or 1  # prevent maxal of 0
-        pbar = ProgressBar(
+        pbar = progressbar.ProgressBar(
             widgets=[
                 title,
-                Percentage(),
+                progressbar.Percentage(),
                 " ",
-                Bar(marker="#", left="[", right="]"),
+                progressbar.Bar(marker="#", left="[", right="]"),
                 " ",
-                ETA(),
+                progressbar.ETA(),
                 " ",
             ],
             max_value=maxval,
@@ -388,22 +407,9 @@ class GraphIndexBuilder:
     #                        Tree functions
     ###################################################################
 
-    def parse_tree(self, tree, result):
-        """Generate a simpler tree with just node labels.
-
-        Recursively walk a mapping tree and generate a simpler tree with
-        just node labels and not correspondences.
-
-        """
-        for key in tree:
-            if key != "corr":
-                result[key] = {}
-                self.parse_tree(tree[key], result[key])
-        return result
-
-    def create_tree(self, node, mapping, tree):
+    def create_tree(self, node: models.Node, mapping: Mapping, tree: PTree) -> PTree:
         """Recursively walk a mapping to create a walkable tree."""
-        if node.label in self.leaf_nodes:
+        if node.label in ("center", "tissue_source_site"):
             return {}
         submap = mapping[node.label]
         corr, plural = submap["corr"]
@@ -416,13 +422,13 @@ class GraphIndexBuilder:
 
     def walk_tree(
         self,
-        node: Node,
-        tree: Dict[Node, dict],
-        mapping: Dict[str, dict],
-        doc: Document,
-        level=0,
-        ids=None,
-    ):
+        node: models.Node,
+        tree: dict[models.Node, dict],
+        mapping: dict[str, dict],
+        doc: TDocument,
+        level: int = 0,
+        ids: Optional[Mapping[str, set[str]]] = None,
+    ) -> TDocument:
         """Add the properties of node neighbors to doc.
 
         Recursively walk from a node to all possible neighbors that are
@@ -461,8 +467,10 @@ class GraphIndexBuilder:
                     ids[f"submitter_{child.label}_ids"].add(sub_id)
 
         if corr == mappings.ONE_TO_MANY:
+            assert isinstance(doc, list)
             doc.append(subdoc)
         else:
+            assert isinstance(doc, dict)
             doc.update(subdoc)
         return doc
 
@@ -473,7 +481,7 @@ class GraphIndexBuilder:
             self.copy_tree(original[node], new[node])
         return new
 
-    def _get_base_doc(self, node: Node, include_id: bool = True) -> Document:
+    def _get_base_doc(self, node: models.Node, include_id: bool = True) -> dict:
         """Create a dictionary with all the properties of a node.
 
         This is the basic document generator.  Take all the properties of a
@@ -501,7 +509,7 @@ class GraphIndexBuilder:
                 # Also include manually included fields form allowlist.
                 if (key in node.__pg_properties__ or key in FIELD_ALLOWLIST)
                 # Ignore certain keys by type
-                and key not in self.hidden_properties.get(node.label, [])
+                and key not in HIDDEN_PROPERTIES.get(node.label, ())
                 # Hide project_id for all nodes but project, viz. PGDC-1550
                 and (key != "project_id" or node.label == "project")
             }
@@ -514,8 +522,8 @@ class GraphIndexBuilder:
     ###################################################################
 
     def walk_path(
-        self, node: Node, path: List[str], whole=False
-    ) -> Generator[Node, None, None]:
+        self, node: models.Node, path: Sequence[str], whole: bool = False
+    ) -> Iterator[models.Node]:
         """Get a node from end of a path or all the nodes along the path.
 
         Given a list of strings, treat it as a path, and yield the end of
@@ -530,28 +538,29 @@ class GraphIndexBuilder:
 
                 yield from self.walk_path(neighbor, path[1:], whole)
 
-    def walk_paths(self, node: Node, paths: List[List[str]], whole=False) -> Set[Node]:
+    def walk_paths(
+        self, node: models.Node, paths: Iterable[Sequence[str]], whole: bool = False
+    ) -> Set[models.Node]:
         """Get nodes from walking paths.
 
         Given a list of paths, yield the result of walking each path. If
         `whole` is true, return every node along each traversal.
 
         """
-        return {
-            n
-            for n in itertools.chain(
-                *[self.walk_path(node, path, whole=whole) for path in paths]
+        return frozenset(
+            itertools.chain.from_iterable(
+                self.walk_path(node, path, whole=whole) for path in paths
             )
-        }
+        )
 
-    def remove_bam_index_files(self, files):
+    def remove_bam_index_files(self, files: Iterable[models.Node]) -> Set[models.Node]:
         return {f for f in files if not self.is_index_file(f)}
 
     ###################################################################
     #                          Cases
     ##################################################################
 
-    def remove_hidden_nodes(self, nodes):
+    def remove_hidden_nodes(self, nodes: Iterable[models.Node]) -> Set[models.Node]:
         """Get subset of nodes whose self.is_node_hidden(node) is False.
 
         Returns a subset of :param:`nodes` for which
@@ -563,9 +572,9 @@ class GraphIndexBuilder:
         """
         return {node for node in nodes if not validators.is_node_hidden(node)}
 
-    def get_case_files(self, node):
+    def get_case_files(self, node: models.Node) -> Collection[models.Node]:
         """Return a list of file nodes by walking out from case."""
-        files = self.walk_paths(node, self.case_to_file_paths)
+        files: Iterable[models.Node] = self.walk_paths(node, self.case_to_file_paths)
         # Set file metadata fields from indexd as node properties
         files = (self.add_file_metadata_from_indexd(f) for f in files)
 
@@ -574,60 +583,30 @@ class GraphIndexBuilder:
 
         return files
 
-    def get_case_tree(self, node):
+    def get_case_tree(self, node: models.Node) -> tuple[dict, PTree]:
         """Use tree to create nested json.
 
         :returns: doc, ptree, visited_ids
 
         """
         ptree = self.get_case_ptree(node)
-        visited_ids = defaultdict(set)
-        doc = self.walk_tree(node, ptree, mappings.CASE_TREE, [], ids=visited_ids)[0]
-
-        # Convert to list for later serialization
-        visited_ids = {key: list(ids) for key, ids in visited_ids.items()}
+        visited_ids: Mapping[str, set[str]] = collections.defaultdict(set)
+        doc = self.walk_tree(
+            node, ptree, mappings.CASE_TREE, cast(list[dict], []), ids=visited_ids
+        )[0]
 
         # Inject a dictionary of ids for each visited entity (in
         # TOP_LEVEL_IDS)
-        doc.update(visited_ids)
+        # Convert to list for later serialization
+        doc.update((key, list(ids)) for key, ids in visited_ids.items())
 
-        return doc, ptree, visited_ids
+        return doc, ptree
 
-    def get_relevant_ids(self, node, visited_ids):
-        """Create flattened copy of visited_ids.
-
-        Create a flattened copy of visited_ids to filter relevant
-        annotations by entity id
-
-        """
-        return [
-            _entity_id
-            for _entity_type in visited_ids.values()
-            for _entity_id in _entity_type
-        ] + [node.node_id]
-
-    def get_case_ptree(self, node):
+    def get_case_ptree(self, node: models.Node) -> PTree:
         """Walk graph naturally for tree of node objects."""
         return {node: self.create_tree(node, mappings.CASE_TREE, {})}
 
-    def get_relevant_annotations(self, file_docs, relevant_ids):
-        """Return a flat list of annotations who describe entities in relevant_ids."""
-        return [
-            annotation
-            for file_ in file_docs
-            for annotation in file_.get("annotations", [])
-            if annotation["entity_id"] in relevant_ids
-        ]
-
-    def get_diagnosis_annotations(self, node):
-        """Return a flat list of annotations describing a case's diagnoses."""
-        return [
-            ann_doc
-            for diagnosis in self.neighbors_labeled(node, "diagnosis")
-            for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
-        ]
-
-    def denormalize_case(self, node: Node) -> Tuple[dict, List[dict], List]:
+    def denormalize_case(self, node: models.Node) -> tuple[dict, list[dict], list]:
         """Get the entire case document for a case node.
 
         Given a case node, return the entire case document,
@@ -637,13 +616,13 @@ class GraphIndexBuilder:
         """
         # Walk from case to leaves (not files) and create a case doc,
         # a participant tree, and a list of visited ids
-        case, ptree, visited_ids = self.get_case_tree(node)
+        case, ptree = self.get_case_tree(node)
 
         # Get the file nodes related to the case
         files = self.get_case_files(node)
 
         # Create case summary
-        case["summary"] = self.get_case_summary(node, files)
+        case["summary"] = self.get_case_summary(files)
 
         # Take any out of place nodes and put then in correct place in tree
         self.reconstruct_biospecimen_paths(case)
@@ -653,7 +632,7 @@ class GraphIndexBuilder:
         project = self.patch_project(case["project"])
 
         # Denormalize the cases files
-        returned_files = self.get_case_file_docs(node, ptree, files)
+        returned_files = self.get_case_file_docs(ptree, files)
 
         # Add files to cases
         # Do not add cases, annotations and associated entities to case.files
@@ -663,7 +642,7 @@ class GraphIndexBuilder:
                 for k in f
                 if k not in ["cases", "annotations", "associated_entities"]
             }
-            for f in deepcopy(returned_files)
+            for f in copy.deepcopy(returned_files)
         ]
 
         # Do not include input_files in case.files.analysis (TT-928)
@@ -676,19 +655,12 @@ class GraphIndexBuilder:
         return case, returned_files, []
 
     def get_case_file_docs(
-        self, node: Node, ptree: PTree, files: Set[Node]
-    ) -> List[dict]:
+        self, ptree: PTree, files: Iterable[models.Node]
+    ) -> list[dict]:
         """Given a list of files, return a list of file docs."""
         return [self.denormalize_file(file_, ptree) for file_ in files]
 
-    def patch_annotations(self, annotations, node, project):
-        """Add misc properties to annotations in-place."""
-        for annotation in annotations:
-            annotation["project"] = project
-            annotation["case_id"] = node.node_id
-            annotation["case_submitter_id"] = node.submitter_id
-
-    def get_exp_strats(self, files):
+    def get_exp_strats(self, files: Iterable[models.Node]) -> Iterator[dict]:
         """Get files experimental strategies.
 
         Get the set of experimental_strategies where intersection of the
@@ -697,14 +669,14 @@ class GraphIndexBuilder:
 
         """
         for exp_strat, file_list in self.experimental_strategies.items():
-            intersection = file_list & files
+            intersection = file_list.intersection(files)
             if intersection:
                 yield {
                     "experimental_strategy": exp_strat,
                     "file_count": len(intersection),
                 }
 
-    def get_data_categories(self, files):
+    def get_data_categories(self, files: Iterable[models.Node]) -> Iterator[dict]:
         """Get files data category.
 
         Get the set of data_categories where intersection of the
@@ -713,7 +685,7 @@ class GraphIndexBuilder:
 
         """
         for data_category, file_list in self.data_categories.items():
-            intersection = file_list & files
+            intersection = file_list.intersection(files)
             if intersection:
                 yield {
                     # data_type is renamed data_category, viz.
@@ -722,7 +694,7 @@ class GraphIndexBuilder:
                     "file_count": len(intersection),
                 }
 
-    def get_case_summary(self, node: Node, files):
+    def get_case_summary(self, files: Collection[models.Node]) -> dict:
         """Create a dictionary with summary information about case files.
 
         Generate a dictionary containing a summary of a cases files
@@ -739,7 +711,7 @@ class GraphIndexBuilder:
         }
 
     @staticmethod
-    def reconstruct_diagnoses_paths(case: Document) -> Document:
+    def reconstruct_diagnoses_paths(case: dict) -> dict:
         """Reconstruct path for molecular tests.
 
         There are two different paths from diagnoses to molecular tests:
@@ -754,7 +726,7 @@ class GraphIndexBuilder:
         Returns:
             updated case dictionary
         """
-        case_copy = deepcopy(case)
+        case_copy = copy.deepcopy(case)
         correct_molecular_tests = set()
         for follow_up in case_copy.get("follow_ups", []):
             for molecular_test in follow_up.get("molecular_tests", []):
@@ -845,7 +817,7 @@ class GraphIndexBuilder:
                         ns="aliquots", seed=aliquot["aliquot_id"]
                     )
                     portion_id = get_namespaced_uuid(ns="analytes", seed=analyte_id)
-                    new_dict = {
+                    new_dict: dict = {
                         "analytes": [{"analyte_id": analyte_id, "aliquots": [aliquot]}]
                     }
                     # check if another entry already added the fake id
@@ -872,7 +844,7 @@ class GraphIndexBuilder:
                             ]
                         )
 
-    def patch_project(self, project_doc):
+    def patch_project(self, project_doc: dict) -> dict:
         # Delete some keys from project document
         for key in mappings.HIDDEN_PROJECT_KEYS:
             project_doc.pop(key, None)
@@ -889,7 +861,7 @@ class GraphIndexBuilder:
     #                       File denormalization
     ###################################################################
 
-    def denormalize_file(self, node: Node, ptree: PTree) -> Dict[str, Union[int, str]]:
+    def denormalize_file(self, node: models.Node, ptree: PTree) -> dict:
         """Given a cases tree and a file node, create the file json document."""
         # Add file metadata fields from indexd
         node = self.add_file_metadata_from_indexd(node)
@@ -911,15 +883,15 @@ class GraphIndexBuilder:
         self.add_archives(node, doc)
         doc["cases"] = []
         relevant = self.add_cases(node, ptree, doc)
-        self.add_file_associated_entities(node, doc, case_id)
-        self.add_annotations(node, relevant, doc)
+        self.add_file_associated_entities(node, doc)
+        self.add_annotations(relevant, doc)
         self.add_acl(node, doc)
         self.add_file_data_format(node, doc)
 
         return doc
 
     def has_allowed_gencode_version(
-        self, node: Node, gencode_version: Optional[str]
+        self, node: models.Node, gencode_version: Optional[str]
     ) -> bool:
         # submittable nodes should always be included
         if node._dictionary.get("submittable", False):
@@ -927,21 +899,19 @@ class GraphIndexBuilder:
 
         return gencode_version in self.allowed_gencode_versions
 
-    def add_file_metadata_from_indexd(self, node: Node) -> Node:
+    def add_file_metadata_from_indexd(self, node: models.Node) -> models.Node:
         """Read file metadata from indexd and sets it to node."""
         if node.node_id in self.versioned_files:
             for key, value in self.versioned_files[node.node_id].items():
                 setattr(node, key, value)
             return node
 
-        # Try to get cached metadata value
-        record = self.file_metadata.get(node.node_id)
+        if node.node_id in self.file_metadata:
+            record = self.file_metadata[node.node_id]
+        else:
+            document = self.indexd.get(node.node_id)
 
-        # If not found, get it from indexd
-        if not record:
-            record = self.indexd.get(node.node_id)
-
-            if not record:
+            if not document:
                 if node.sysan.get("to_delete"):
                     self.file_metadata[node.node_id] = {"error": "to_delete file"}
                 else:
@@ -953,7 +923,7 @@ class GraphIndexBuilder:
                     self.file_metadata[node.node_id] = {"error": "no indexd record"}
                 return node
 
-            gencode_version = _get_gencode_version(record)
+            gencode_version = _get_gencode_version(document)
             if not self.has_allowed_gencode_version(node, gencode_version):
                 if gencode_version:
                     self.file_metadata[node.node_id] = ENTRY_FOR_WRONG_GENCODE
@@ -967,26 +937,22 @@ class GraphIndexBuilder:
                     self.file_metadata[node.node_id] = FILE_MISSING_GENCODE
                     return node
 
-            record = record.to_json()
             # Cache indexd record
-            self.file_metadata[node.node_id] = record
+            record = self.file_metadata.setdefault(node.node_id, document.to_json())
 
         # for to_delete nodes and nodes with wrong gencode_version
         if "error" in record or "ignore" in record:
             return node
 
         # Set node file metadata attributes according to indexd record
-        for key in self.data_file_indexd_fields:
+        for key in DATA_FILE_INDEXD_FIELDS:
             # Try to pick basic value
             value = record.get(key)
             if value is None:
                 value = record["metadata"].get(key)
             if key == "file_state":
                 for s3_url in record["urls_metadata"].keys():
-                    if (
-                        record["urls_metadata"][s3_url].get("type")
-                        == self.INDEXD_URL_TYPE
-                    ):
+                    if record["urls_metadata"][s3_url].get("type") == INDEXD_URL_TYPE:
                         value = record["urls_metadata"][s3_url].get("state")
 
             # Special values
@@ -999,10 +965,10 @@ class GraphIndexBuilder:
 
         return node
 
-    def add_node_type(self, node: Node, doc: Document) -> None:
+    def add_node_type(self, node: models.Node, doc: dict) -> None:
         doc["type"] = node.label
 
-    def get_data_format(self, node: Node) -> str:
+    def get_data_format(self, node: models.Node) -> Optional[str]:
         """Get data format of a file node.
 
         Return the ``data_format`` given a file node based on
@@ -1037,7 +1003,9 @@ class GraphIndexBuilder:
 
         return format_
 
-    def prune_case(self, relevant_nodes, ptree, keys):
+    def prune_case(
+        self, relevant_nodes: Set[models.Node], ptree: PTree, keys: Container[str]
+    ) -> None:
         """Remove node (whose label in keys but is not in relavent_nodes) from ptree.
 
         Start with whole case tree and remove any nodes that did not
@@ -1045,15 +1013,11 @@ class GraphIndexBuilder:
 
         .. note:: :param:`ptree` is edited **in place*
 
-        :param relevant_nodes:
-            The ancestors that should not be pruned from the tree
-            (most likely self.relevant_nodes[some_file])
-        :param ptree:
-            The canonical ptree dict tree containing a the descendents
-            of a case
-        :param keys:
-           Only prune a given node ``node`` if ``node.label`` in keys
-
+        Args:
+            relevant_nodes: The ancestors that should not be pruned from the tree (most
+                likely self.relevant_nodes[some_file])
+            ptree: The canonical ptree dict tree containing a the descendents of a case.
+            keys: Only prune a given node ``node`` if ``node.label`` in keys.
         """
         for node in list(ptree.keys()):
             if ptree[node]:
@@ -1061,13 +1025,13 @@ class GraphIndexBuilder:
             if node.label in keys and node not in relevant_nodes:
                 ptree.pop(node)
 
-    def add_file_data_format(self, node, doc):
+    def add_file_data_format(self, node: models.Node, doc: dict) -> None:
         """Add (or overwrite) the data format if found."""
         data_format = self.get_data_format(node)
         if data_format:
             doc["data_format"] = data_format
 
-    def add_file_neighbors(self, node: Node, doc: Document) -> None:
+    def add_file_neighbors(self, node: models.Node, doc: dict) -> None:
         """Add specified neighbors to file doc[label].
 
         Given a file, walk to all of its neighbors specified by the schema
@@ -1080,9 +1044,9 @@ class GraphIndexBuilder:
             if n not in ["archive", "portion", "file"]
         ]
         for neighbor in set(self.neighbors_labeled(node, auto_neighbors)):
-            corr, label = mappings.FILE_TREE["file"][neighbor.label]["corr"]
-            if neighbor.label in self.flatten:
-                base = neighbor[self.flatten[neighbor.label]]
+            corr, label = mappings.FILE_TREE["file"][neighbor.label]["corr"]  # type: ignore
+            if neighbor.label in FLATTENED_OBJECTS:
+                base = neighbor[FLATTENED_OBJECTS[neighbor.label]]
             else:
                 base = self._get_base_doc(neighbor)
 
@@ -1120,7 +1084,7 @@ class GraphIndexBuilder:
                     doc[label] = []
                 doc[label].append(base)
 
-    def is_index_file(self, node):
+    def is_index_file(self, node: models.Node) -> bool:
         """Given a node, return whether it is considered an 'index file'.
 
         :returns: bool
@@ -1135,22 +1099,21 @@ class GraphIndexBuilder:
             # Set file metadata fields
             node = self.add_file_metadata_from_indexd(node)
 
-            for extension in self.index_file_extensions:
+            for extension in INDEX_FILE_EXTENSIONS:
                 if getattr(node, "file_name", "").endswith(extension):
                     return True
 
-        else:
-            return False
+        return False
 
-    def get_file_index_files(self, node):
+    def get_file_index_files(self, node: models.Node) -> Iterator[models.Node]:
         """Given a file, return any neighboring index files."""
-        return [
+        return (
             n
             for n in list(self.neighbors_labeled(node, "file"))
             if self.G[node][n].get("label") == "related_to" and self.is_index_file(n)
-        ]
+        )
 
-    def add_index_files(self, node, doc):
+    def add_index_files(self, node: models.Node, doc: dict) -> None:
         """Add neighboring index files to file doc["index_files"].
 
         Given a file, walk to any neighboring index files and add
@@ -1159,8 +1122,6 @@ class GraphIndexBuilder:
         """
         index_file_docs = []
         index_files = self.get_file_index_files(node)
-
-        log.debug(f"Found index files for {node}: {index_files}")
 
         for index_file in index_files:
             index_file_doc = self._get_base_doc(index_file)
@@ -1171,7 +1132,7 @@ class GraphIndexBuilder:
         if index_file_docs:
             doc["index_files"] = index_file_docs
 
-    def add_related_files(self, node: Node, doc: dict) -> None:
+    def add_related_files(self, node: models.Node, doc: dict) -> None:
         """Add neighboring files to file doc["metadata_files"].
 
         Given a file, walk to any (non data-from) neighboring files and add
@@ -1184,11 +1145,11 @@ class GraphIndexBuilder:
         """
         rf_docs = []
 
-        metadata_labels = [
+        metadata_labels = (
             "analysis_metadata",
             "run_metadata",
             "experiment_metadata",
-        ]
+        )
 
         # Get related_files
         related_files = [
@@ -1256,7 +1217,7 @@ class GraphIndexBuilder:
             # viz. https://jira.opensciencedatacloud.org/browse/PGDC-1838
             doc["metadata_files"] = rf_docs
 
-    def add_archives(self, node, doc):
+    def add_archives(self, node: models.Node, doc: dict) -> None:
         """Add attached archive to file doc["archive"].
 
         For each archive attached to a given file node, multixplex on
@@ -1290,7 +1251,7 @@ class GraphIndexBuilder:
 
             doc["archive"] = archive_doc
 
-    def add_data_category(self, node, doc):
+    def add_data_category(self, node: models.Node, doc: dict) -> None:
         """Add the data_subtype to the file document with child data_category."""
         data_categories = [
             data_category
@@ -1302,7 +1263,9 @@ class GraphIndexBuilder:
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
             doc["data_category"] = data_categories[0]
 
-    def add_cases(self, node: Node, ptree: Dict[Node, dict], doc: dict) -> Set[Node]:
+    def add_cases(
+        self, node: models.Node, ptree: dict[models.Node, dict], doc: dict
+    ) -> Collection[models.Node]:
         """Add cases to file doc['cases'].
 
         Given a file and a case tree, re-insert the case as a
@@ -1312,11 +1275,11 @@ class GraphIndexBuilder:
         """
         if not ptree:
             log.warning("No ptree (case tree) for %s", node)
-            return []
+            return ()
 
         if node not in self.relevant_nodes:
             log.warning("No relevant cases for %s", node)
-            return []
+            return ()
 
         relevant = self.relevant_nodes[node]
         prune_keys = ["sample", "portion", "analyte", "aliquot", "file"]
@@ -1324,7 +1287,8 @@ class GraphIndexBuilder:
         self.prune_case(relevant, ptree, prune_keys)
 
         doc["cases"] = [
-            self.walk_tree(path, ptree, mappings.CASE_TREE, [])[0] for path in ptree
+            self.walk_tree(path, ptree, mappings.CASE_TREE, cast(list[dict], []))[0]
+            for path in ptree
         ]
 
         for case in doc["cases"]:
@@ -1335,7 +1299,7 @@ class GraphIndexBuilder:
 
         return relevant
 
-    def add_annotations(self, node, relevant, doc):
+    def add_annotations(self, relevant: Iterable[models.Node], doc: dict) -> None:
         """Loop relevant, get all annotation docs and add them to doc["annotations"].
 
         Given a file node, aggregate all the annotations from a pruned
@@ -1352,12 +1316,12 @@ class GraphIndexBuilder:
         if annotations:
             doc["annotations"] = annotations
 
-    def add_acl(self, node, doc):
+    def add_acl(self, node: models.Node, doc: dict) -> None:
         """Add the protection status of a file to the file document."""
         self.add_file_access(node, doc)
         doc["acl"] = node.acl
 
-    def add_file_access(self, node: Node, doc: dict) -> None:
+    def add_file_access(self, node: models.Node, doc: dict) -> None:
         """Summarize file ACL and Add it to doc["access"].
 
         Summarizes whether the ACL implies that the file is either ``open``
@@ -1369,11 +1333,11 @@ class GraphIndexBuilder:
         else:
             doc["access"] = "controlled"
 
-    def get_file_associated_entities(self, node: Node) -> Iterable[Node]:
+    def get_file_associated_entities(self, node: models.Node) -> Iterable[models.Node]:
         """Return a list of entities that are 'associated' with a file."""
-        return self.neighbors_labeled(node, self.possible_associated_entities)
+        return self.neighbors_labeled(node, POSSIBLE_ASSOCIATED_ENTITIES)
 
-    def add_file_associated_entities(self, node: Node, doc, case_id):
+    def add_file_associated_entities(self, node: models.Node, doc: dict) -> None:
         self._cache_entity_cases()
 
         docs = []
@@ -1400,7 +1364,7 @@ class GraphIndexBuilder:
         if docs:
             doc["associated_entities"] = docs
 
-    def upsert_file_into_dict(self, files, file_doc):
+    def upsert_file_into_dict(self, files: dict[str, dict], file_doc: dict) -> None:
         did = file_doc["file_id"]
         if did not in files:
             files[did] = file_doc
@@ -1416,7 +1380,7 @@ class GraphIndexBuilder:
     #                       Project summaries
     ###################################################################
 
-    def denormalize_project(self, p: Node) -> dict:
+    def denormalize_project(self, p: models.Node) -> dict:
         """Summarize a project."""
         self._cache_all()
         doc = self._get_base_doc(p)
@@ -1435,7 +1399,7 @@ class GraphIndexBuilder:
 
         # Get files
         log.info("Getting files")
-        files = set()
+        files: set[models.Node] = set()
         case_files = {}
         for case in cases:
             case_files[case] = self.remove_bam_index_files(
@@ -1509,11 +1473,14 @@ class GraphIndexBuilder:
         doc["primary_site"] = list(primary_sites)
 
         # Compile summary
-        doc["summary"] = {
-            "case_count": len(cases),
-            "file_count": len(files),
-            "file_size": sum(f["file_size"] or 0 for f in files),
-        }
+        doc["summary"] = cast(
+            dict,
+            {
+                "case_count": len(cases),
+                "file_count": len(files),
+                "file_size": sum(f["file_size"] or 0 for f in files),
+            },
+        )
 
         if exp_strat_summaries:
             doc["summary"]["experimental_strategies"] = exp_strat_summaries
@@ -1530,8 +1497,8 @@ class GraphIndexBuilder:
     ###################################################################
 
     def denormalize_cases(
-        self, cases: Iterable[Node] = None
-    ) -> Tuple[List[dict], List[dict], List[dict]]:
+        self, cases: Collection[models.Node] = ()
+    ) -> tuple[list[dict], list[dict], list[dict]]:
         """Denormalize specified cases or all cases in graph.
 
         If cases is not specified, denormalize all cases in
@@ -1539,11 +1506,12 @@ class GraphIndexBuilder:
         given.
 
         :returns:
-            Tuple containing (case docs, file docs, annotation docs)
+            tuple containing (case docs, file docs, annotation docs)
 
         """
         self._cache_all()
-        case_docs, ann_docs, file_docs = [], {}, {}
+        case_docs, ann_docs = [], {}
+        file_docs: dict[str, dict] = {}
         if not cases:
             cases = self.cases
         pbar = self.pbar("Denormalizing cases ", len(cases))
@@ -1560,7 +1528,9 @@ class GraphIndexBuilder:
         pbar.finish()
         return case_docs, list(file_docs.values()), list(ann_docs.values())
 
-    def denormalize_projects(self, projects: Iterable[Node] = None) -> List[dict]:
+    def denormalize_projects(
+        self, projects: Collection[models.Node] = ()
+    ) -> list[dict]:
         """Denormalize specified projects or all projects in graph.
 
         If projects is not specified, denormalize all projects in
@@ -1579,7 +1549,7 @@ class GraphIndexBuilder:
         pbar.finish()
         return project_docs
 
-    def denormalize_annotation(self, node):
+    def denormalize_annotation(self, node: models.Node) -> dict:
         """Denormalize a specific annotation.
 
         .. note: The project of an annotation will be injected during
@@ -1622,27 +1592,42 @@ class GraphIndexBuilder:
 
         with self.g.session_scope() as sxn, sxn.no_autoflush:
             annotation = self.g.nodes().get(node.node_id)
-            cases = [e for e in annotation.edges_out if e.label == "relates_to"]
 
-            if cases:
-                ann_doc["case_id"] = cases[0].dst_id
+            case = more_itertools.first(
+                (
+                    e
+                    for e in annotation.edges_out  # type: ignore
+                    if e.label == "relates_to"
+                ),
+                default=None,
+            )
+
+            if case:
+                ann_doc["case_id"] = case.dst_id
 
         return ann_doc
 
-    def denormalize_annotations(self, annotations, projects=None):
+    def denormalize_annotations(
+        self,
+        annotations: Iterable[models.Node],
+        projects: Mapping[str, dict] = types.MappingProxyType({}),
+    ) -> list[dict]:
         g = self.g
         annotation_ids = [node.node_id for node in annotations]
 
         if not annotation_ids:
             return []
 
-        projects = projects or {}
+        # NOTE: This santiy check is required as the linter thinks that Edges could be None.
+        assert models.Edge
 
         with g.session_scope(can_inherit=False) as sxn, sxn.no_autoflush:
-            edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
+            edges_q = g.edges().filter(models.Edge.src_id.in_(annotation_ids))
             entities = dict()
             ann_to_entity = dict()
             ann_to_case = dict()
+
+            assert edges_q
 
             for edge in edges_q:
                 # Can't query on label since it's a hybrid property
@@ -1711,7 +1696,7 @@ class GraphIndexBuilder:
 
         return docs
 
-    def denormalize_all(self):
+    def denormalize_all(self) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         """Return an entire index worth of case, file, annotation, and project documents."""
         cases, files, _ = self.denormalize_cases()
         projects = self.denormalize_projects()
@@ -1729,34 +1714,32 @@ class GraphIndexBuilder:
                     ),
                 )
 
-        self.annotations = self.annotations or []
+        self.annotations = self.annotations or ()
         annotations = self.denormalize_annotations(
             self.annotations, projects=project_lookup
         )
 
-        return cases, files, annotations, projects
+        # NOTE: This is new logic from the active builder.
+        projects_map = {
+            p["project_id"]: {
+                "primary_site": p["primary_site"],
+                "disease_type": p["disease_type"],
+            }
+            for p in projects
+        }
 
-    def denormalize_cases_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation documents."""
-        self._cache_all()
-        cases = random.sample(self.cases, k)
-        cases, files, annotations = self.denormalize_cases(cases)
-        return cases, files, annotations
+        for case in cases:
+            project_id = case["project"]["project_id"]
+            case["project"]["primary_site"] = projects_map[project_id]["primary_site"]
+            case["project"]["disease_type"] = projects_map[project_id]["disease_type"]
 
-    def denormalize_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation, and project documents."""
-        cases, files, annotations = self.denormalize_sample_cases(k)
-        projs = random.sample(self.projects, 1)
-        projects = self.denormalize_projects(projs)
         return cases, files, annotations, projects
 
     ###################################################################
     #                         Graph functions
     ###################################################################
 
-    def nodes_labeled(
-        self, labels: Union[Iterable, str]
-    ) -> Generator[Node, None, None]:
+    def nodes_labeled(self, labels: Union[Iterable, str]) -> Iterator[models.Node]:
         """Return an iterator over the edges in the graph with label `label`.
 
         Args:
@@ -1776,25 +1759,12 @@ class GraphIndexBuilder:
             if n.label in labels:
                 yield n
 
-    @staticmethod
-    def node_labels_by_category(categories: Union[Iterable, str]) -> List[str]:
-        """Return an iterator of node labels that are files."""
-        categories = (
-            tuple(categories) if hasattr(categories, "__iter__") else (categories,)
-        )
-
-        return [
-            n.label
-            for n in Node.get_subclasses()
-            if n._dictionary["category"] in categories
-        ]
-
     def neighbors_labeled(
         self,
-        node: Node,
+        node: models.Node,
         labels: Union[str, Iterable[str]],
         expected: Optional[int] = None,
-    ) -> Generator[Node, None, None]:
+    ) -> Iterator[models.Node]:
         """Get neighbors of node, with desired labels.
 
         For a given node, return an iterator with generates neighbors to
@@ -1844,70 +1814,6 @@ class GraphIndexBuilder:
     #                       Validation functions
     ###################################################################
 
-    def validate_project_file_counts(self, project_doc, file_docs):
-        log.info("Validating {}".format(project_doc["project_id"]))
-        actual = len(
-            [
-                f
-                for f in file_docs
-                if project_doc["project_id"]
-                in {p["project"]["project_id"] for p in f["cases"]}
-            ]
-        )
-        expected = project_doc["summary"]["file_count"]
-        if actual != expected:
-            self.error(
-                "File count mismatch",
-                "{} file count mismatch: {} != {}".format(
-                    project_doc["project_id"], actual, expected
-                ),
-                tags=["project_id:{}".format(project_doc["project_id"])],
-            )
-
-    def validate_docs(self, case_docs, file_docs, ann_docs, project_docs):
-        for project_doc in project_docs:
-            self.validate_project_file_counts(project_doc, file_docs)
-            case_sample = random.sample(case_docs, min(len(case_docs), 100))
-            for case_doc in case_sample:
-                self.verify_data_category_count(case_doc)
-        self.validate_annotations(ann_docs)
-
-    def validate_annotations(self, ann_docs):
-        for ann_doc in ann_docs:
-            if ann_doc["entity_type"] == "case":
-                if ann_doc["entity_id"] != ann_doc["case_id"]:
-                    self.error(
-                        "Annotation case_id does not match entity_id",
-                        "case_id/entity_id mismatch: {} != {}".format(
-                            ann_doc["entity_id"], ann_doc["case_id"]
-                        ),
-                        tags=[
-                            "annotation_id:{}".format(ann_doc.get("annotation_id", "?"))
-                        ],
-                    )
-
-    def verify_data_category_count(self, case):
-        for data_category in self.existing_data_types:
-            calc = len(
-                [f for f in case["files"] if f.get("data_category") == data_category]
-            )
-
-            act = (
-                [
-                    d["file_count"]
-                    for d in case["summary"]["data_categories"]
-                    if d["data_category"] == data_category
-                ][:1]
-                or [0]
-            )[0]
-
-            if act != calc:
-                self.error(
-                    "Inconsistent data_category count",
-                    f"{data_category}: {act} != {calc}",
-                    tags=["case_id:{}".format(case.get("case_id", "?"))],
-                )
-
     def validate_against_mapping(
         self, doc: Union[dict, list], mapping: Mapping[str, Any]
     ) -> None:
@@ -1942,7 +1848,7 @@ class GraphIndexBuilder:
             for list_entry in doc:
                 self.validate_against_mapping(list_entry, mapping)
 
-    def validate_case(self, node, case):
+    def validate_case(self, node: models.Node, case: dict) -> None:
         # Check that file count = summary.file_count
         if len(case["files"]) != case["summary"]["file_count"]:
             self.error(
@@ -1961,21 +1867,20 @@ class GraphIndexBuilder:
     ###################################################################
 
     @staticmethod
-    def is_harmonized_file(node):
+    def is_harmonized_file(node: models.Node) -> bool:
         return node.label == "file" and node._sysan.get("source", "").endswith(
             "_alignment"
         )
 
-    def is_old_supplement_file(self, node):
+    def is_old_supplement_file(self, node: models.Node) -> bool:
         if node.label == "file":
             node = self.add_file_metadata_from_indexd(node)
             return any(
-                p.match(node._props.get("file_name", ""))
-                for p in self.supplement_regexes
+                p.match(node._props.get("file_name", "")) for p in SUPPLEMENT_PATTERNS
             )
         return False
 
-    def is_file_indexed(self, node):
+    def is_file_indexed(self, node: models.Node) -> bool:
         """Return false if node is a file that is not supposed to be indexed."""
         # This function should test only file nodes
         if node.label not in self.file_labels:
@@ -2016,7 +1921,7 @@ class GraphIndexBuilder:
 
         return True
 
-    def is_omitted_project_or_neighbor_case(self, node: Node) -> bool:
+    def is_omitted_project_or_neighbor_case(self, node: models.Node) -> bool:
         """Return false if the node is a project that is not supposed to be indexed."""
         if node.label == "project":
             projects = [node]
@@ -2042,7 +1947,7 @@ class GraphIndexBuilder:
         # Check project and program against omitted_projects
         for program_name in program_names:
             for project_code in project_codes:
-                if (program_name, project_code) in self.omitted_projects:
+                if (program_name, project_code) in OMITTED_PROJECTS:
                     return True
                 elif self.build_projects:
                     if (program_name, project_code) in self.build_projects:
@@ -2057,7 +1962,7 @@ class GraphIndexBuilder:
             self.neighbors_labeled(node, "project", 1)
         )
 
-    def is_node_unindexed_by_property(self, node: Node) -> bool:
+    def is_node_unindexed_by_property(self, node: models.Node) -> bool:
         """Check if node properties specified in self.unindexed_by_property.
 
         Returns True if node should be removed because its properties are
@@ -2075,7 +1980,7 @@ class GraphIndexBuilder:
 
         return False
 
-    def is_node_public(self, node: Node) -> bool:
+    def is_node_public(self, node: models.Node) -> bool:
         """Return whether a node is public.
 
         A node is public if:
@@ -2124,17 +2029,17 @@ class GraphIndexBuilder:
 
         return False
 
-    def cache_skipped_node(self, node, reason):
+    def cache_skipped_node(
+        self, node: Union[models.Node, tuple[models.Node, str]], reason: str
+    ) -> None:
         """Cache skipped node in self.skipped_nodes['{reason-for-skipping}']."""
-        # TODO: Use defaultdict for skipped_nodes
-        self.skipped_nodes.setdefault(reason, [])
         self.skipped_nodes[reason].append(str(node))
 
-    def is_node_indexed(self, node):
+    def is_node_indexed(self, node: models.Node) -> bool:
         """Return false if the node is not supposed to be indexed."""
         # Is the node allowed to be displayed publicly
         if not self.is_node_public(node):
-            self.cache_skipped_node([node, node._props.get("state")], "not-public")
+            self.cache_skipped_node((node, node._props.get("state")), "not-public")
             return False
 
         if self.is_unindexed_case(node):
@@ -2159,7 +2064,7 @@ class GraphIndexBuilder:
         return True
 
     @staticmethod
-    def truncate_path(path: List[str], label: str) -> List[str]:
+    def truncate_path(path: Sequence[str], label: str) -> Sequence[str]:
         """Truncate a path, so it starts from next value of the given label.
 
         Given a path (a list of node labels), "truncate" it from the left
@@ -2178,42 +2083,43 @@ class GraphIndexBuilder:
         for i, currlabel in enumerate(path):
             if currlabel == label:
                 return path[i + 1 :]
-        return []
+        return ()
 
-    def get_suppressed_children(self, redacted):
+    def get_suppressed_children(self, redacted: models.Node) -> Iterator[models.Node]:
         """Get the children of a redacted node."""
-        to_suppress = []
         if redacted.label == "case":
             paths = self.case_to_file_paths
         else:
-            paths = [
+            paths = (
                 self.truncate_path(p, redacted.label) for p in self.case_to_file_paths
-            ]
+            )
             # filter empty paths
-            paths = [p for p in paths if p]
+            paths = tuple(filter(None, paths))
         log.info("suppressing %s, which is redacted directly.", redacted)
-        to_suppress.append(redacted)
+        yield redacted
+
         log.info("Walking down towards file with paths %s", paths)
         extra = self.walk_paths(redacted, paths, whole=True)
+
         log.info(
             "Found %s other things to suppress by walking from %s", extra, redacted
         )
-        to_suppress.extend(extra)
-        return to_suppress
+        yield from extra
 
-    def get_redaction_annotations(self):
+    def get_redaction_annotations(self) -> Iterator[models.Node]:
         """Return an iterator of annotations that should cause redactions."""
         return (
             annotation
             for annotation in self.nodes_labeled("annotation")
             if annotation.classification == "Redaction"
             and annotation.status != "Rescinded"
-            and annotation.category not in self.redacted_but_not_suppressed
+            # Suppress entities with redaction annotation if
+            # entity.annotation.category not in this list
+            and annotation.category not in ("Subject withdrew consent",)  #
         )
 
-    def suppressed_nodes(self):
+    def suppressed_nodes(self) -> Iterator[models.Node]:
         """Find all nodes that need to be suppressed due to redactions."""
-        to_suppress = []
         for redaction in self.get_redaction_annotations():
             redacted_list = list(self.G.neighbors(redaction))
 
@@ -2240,9 +2146,7 @@ class GraphIndexBuilder:
                 )
 
             for redacted in redacted_list:
-                to_suppress += self.get_suppressed_children(redacted)
-
-        return to_suppress
+                yield from self.get_suppressed_children(redacted)
 
     def remove_unindexed_nodes_from_graph(self) -> None:
         """Remove unindexed nodes and suppressed nodes from cached networkx graph.
@@ -2252,17 +2156,17 @@ class GraphIndexBuilder:
         - suppressed_nodes()
         """
         log.info("Selecting entities to be removed from cache...")
-        removed_nodes = [
+        removed_nodes = tuple(
             node for node in self.G.nodes() if not self.is_node_indexed(node)
-        ]
+        )
         log.info(f"Removing {len(removed_nodes)} nodes from cache")
         self.G.remove_nodes_from(removed_nodes)
         log.info("Finding and removing suppressed nodes")
-        suppressed = self.suppressed_nodes()
+        suppressed = tuple(self.suppressed_nodes())
         log.info("Removing %s suppressed nodes", len(suppressed))
         self.G.remove_nodes_from(suppressed)
 
-    def iter_database_edges(self) -> Iterator[Edge]:
+    def iter_database_edges(self) -> Iterator[models.Edge]:  # type: ignore
         """Return an iterable of edges to load from the database.
 
         Eagerly (with join) loads the source and destination of the edge.
@@ -2279,33 +2183,31 @@ class GraphIndexBuilder:
             log.info(f"Getting {project_ids} from database")
 
             relevant_node_ids = {
-                nd.node_id for nd in self.g.nodes().prop_in("project_id", project_ids)
+                nd.node_id for nd in self.g.nodes().prop_in("project_id", project_ids)  # type: ignore
             }
 
             # Add relevant Project nodes to relevant nodes set:
             projects = [p[1] for p in self.build_projects]
-            relevant_projects = self.g.nodes(md.Project).prop_in("code", projects)
+            relevant_projects = self.g.nodes(models.Project).prop_in("code", projects)  # type: ignore
 
-            relevant_node_ids.update([p.node_id for p in relevant_projects])
+            relevant_node_ids.update(p.node_id for p in relevant_projects)
 
             # Query only relevant edges
-            query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
+            query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)  # type: ignore
 
         else:
             # Query all edges
             query = lambda node_type: self.g.edges(node_type)
 
-        return itertools.chain(
-            *[
-                query(subclass)
-                .options(joinedload(subclass.src))
-                .options(joinedload(subclass.dst))
-                .yield_per(int(1e5))
-                for subclass in Edge.__subclasses__()
-            ]
+        return itertools.chain.from_iterable(
+            query(subclass)
+            .options(orm.joinedload(subclass.src))
+            .options(orm.joinedload(subclass.dst))  # type: ignore
+            .yield_per(int(1e5))
+            for subclass in models.Edge.get_subclasses()  # type: ignore
         )
 
-    def cache_database(self):
+    def cache_database(self) -> None:
         """Cache database psqlgraph into memory.
 
         Load the database into memory and remember only edge labels that we
@@ -2320,7 +2222,7 @@ class GraphIndexBuilder:
             for e in self.iter_database_edges():
                 pbar.update(pbar.value + 1)
                 triple = (e.src.label, e.label, e.dst.label)
-                needs_differentiation = triple in self.differentiated_edges
+                needs_differentiation = triple in DIFFERENTIATED_EDGES
                 if triple == ("file", "data_from", "file"):
                     # for files that are "data_from" other files, the
                     # centers and aliquots of the source files count
@@ -2369,14 +2271,14 @@ class GraphIndexBuilder:
         """Cache a list of all Case nodes."""
         if not self.cases:
             log.info("Caching cases...")
-            self.cases = list(self.nodes_labeled("case"))
+            self.cases = tuple(self.nodes_labeled("case"))
 
-    def _cache_entity_cases(self):
+    def _cache_entity_cases(self) -> None:
         """Cache the related Case nodes for each file."""
         if self.entity_cases:
             return
 
-        entities = list(self.nodes_labeled(self.possible_associated_entities))
+        entities = list(self.nodes_labeled(POSSIBLE_ASSOCIATED_ENTITIES))
         pbar = self.pbar("Caching entity cases: ", len(entities))
         self.entity_cases = {}
 
@@ -2404,12 +2306,12 @@ class GraphIndexBuilder:
                 continue
 
             if len(cases) != 0:
-                self.entity_cases[e] = cases.pop()
+                self.entity_cases[e] = more_itertools.first(cases)
 
             pbar.update(pbar.value + 1)
         pbar.finish()
 
-    def get_cls_file_to_case_paths(self, cls: Node) -> Iterable[List[str]]:
+    def get_cls_file_to_case_paths(self, cls: models.Node) -> Iterable[Sequence[str]]:
         """Given a node, return the paths the lead monotonically up to case.
 
         Args:
@@ -2418,7 +2320,9 @@ class GraphIndexBuilder:
         Returns:
             generator of paths from node to case
         """
-        parent_labels = {link["dst_type"].label for link in cls._pg_links.values()}
+        parent_labels = frozenset(
+            link["dst_type"].label for link in cls._pg_links.values()
+        )
         return (
             path
             for path in self.file_to_case_paths
@@ -2450,10 +2354,10 @@ class GraphIndexBuilder:
 
         pbar.finish()
 
-    def _cache_annotations(self):
+    def _cache_annotations(self) -> None:
         if not self.annotations:
             # cache what nodes are annotations
-            self.annotations = list(self.nodes_labeled("annotation"))
+            self.annotations = tuple(self.nodes_labeled("annotation"))
         if self.annotation_entities:
             # we've already cached the related entities
             return
@@ -2473,13 +2377,18 @@ class GraphIndexBuilder:
             pbar.update(pbar.value + 1)
         pbar.finish()
 
-    def _cache_popular_neighbor(self, node, neighbors, labels):
-        if node not in self.popular_nodes:
-            self.popular_nodes[node] = {}
-        self.popular_nodes[node][labels] = {n for n in neighbors if n.label in labels}
+    def _cache_popular_neighbor(
+        self,
+        node: models.Node,
+        neighbors: Iterable[models.Node],
+        labels: tuple[str, ...],
+    ) -> Set[models.Node]:
+        self.popular_nodes[node][labels] = frozenset(
+            n for n in neighbors if n.label in labels
+        )
         return self.popular_nodes[node][labels]
 
-    def _cache_experimental_strategies(self):
+    def _cache_experimental_strategies(self) -> None:
         """Cache files classified in each experimental strategy.
 
         Looking up the files that are classified in each
@@ -2498,7 +2407,7 @@ class GraphIndexBuilder:
                 self.walk_path(exp_strat, ["file"])
             )
 
-    def _cache_data_categories(self):
+    def _cache_data_categories(self) -> None:
         log.info("Caching data categories/types")
 
         if self.data_categories:
@@ -2510,7 +2419,7 @@ class GraphIndexBuilder:
                 set(self.walk_path(data_category, ["data_subtype", "file"]))
             )
 
-    def _cache_file_properties(self):
+    def _cache_file_properties(self) -> None:
         """Cache file nodes by some properties.
 
         Cache file nodes by the following properties: experimental_strategy,
@@ -2524,30 +2433,29 @@ class GraphIndexBuilder:
             if strategy:
                 self.experimental_strategies[strategy].add(file_)
 
-            data_type = file_._props.get("data_type")
-            if data_type:
-                self.existing_data_types.add(data_type)
-
             category = file_._props.get("data_category")
             if category:
                 self.data_categories[category].add(file_)
 
 
-def get_namespaced_uuid(ns, seed):
+def get_namespaced_uuid(ns: str, seed: str) -> str:
     """Create a consistent UUID5 string using the provided args.
 
     Args:
-        ns (str): namespace
-        seed (str): seed value
+        ns: namespace
+        seed: seed value
 
     Returns:
         str: uuid5 string
     """
     namespace = get_uuid_namespace(ns)
-    return str(uuid5(namespace, seed))
+    return str(uuid.uuid5(namespace, seed))
 
 
-def get_uuid_namespace(label):
+UUID_NAMESPACES: dict[str, uuid.UUID] = {}
+
+
+def get_uuid_namespace(label: str) -> uuid.UUID:
     """Return a consistent uuid4 string for a given label.
 
     Args:
@@ -2559,12 +2467,8 @@ def get_uuid_namespace(label):
     if label in UUID_NAMESPACES:
         return UUID_NAMESPACES[label]
 
-    namespace = hashlib.sha1(bytes(label, "utf-8")).hexdigest()
+    namespace = hashlib.sha1(bytes(label, "utf-8"), usedforsecurity=False).hexdigest()
     namespace = namespace[:32]
-    namespace_uuid = UUID(hex=namespace, version=4)
+    namespace_uuid = uuid.UUID(hex=namespace, version=4)
 
-    UUID_NAMESPACES[label] = namespace_uuid
-    return namespace_uuid
-
-
-UUID_NAMESPACES = {}
+    return UUID_NAMESPACES.setdefault(label, namespace_uuid)

@@ -57,4 +57,4 @@ def test_methylation_array_counts(methylation_index, index_type, path, expectati
     counts = Counter(results)
 
     for value, count in expectations.items():
-        assert counts[value] == count, counts
+        assert counts[value] == count, f"{value}: {counts[value]} != {count}"

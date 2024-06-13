@@ -28,12 +28,12 @@ logger = logging.getLogger(__name__)
 def get_file_state(doc):
     state = None
     for url, meta in doc.urls_metadata.items():
-        if meta.get("type") == GraphIndexBuilder.INDEXD_URL_TYPE:
+        if meta.get("type") == builder.INDEXD_URL_TYPE:
             state = state or meta.get("state")
     return state
 
 
-INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ["file_id"]
+INDEXD_METADATA_FIELDS = (*builder.DATA_FILE_INDEXD_FIELDS, "file_id")
 INDEXD_METADATA_VALUE_GETTERS = {
     "file_id": lambda doc: doc.did,
     "md5sum": lambda doc: doc.hashes["md5"],

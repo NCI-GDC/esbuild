@@ -19,7 +19,16 @@ def genotyping_array_index(
     init_indexd: client.IndexClient,
     genotyping_array_graph: None,
 ) -> conftest.Index:
-    active_builder = builder.ActiveGraphIndexBuilder(pg_driver, init_indexd)
+    active_builder = builder.ActiveGraphIndexBuilder(
+        pg_driver,
+        init_indexd,
+        index_prefix="",
+        build_projects=(),
+        build_awg=False,
+        selective_caching=False,
+        versioned_files={},
+        allowed_gencode_versions=frozenset({"neutral", "v36"}),
+    )
     with pg_driver.session_scope():
         active_builder.cache_database()
     index = active_builder.denormalize_all()

@@ -8,26 +8,19 @@ from indexclient import client
 from esbuild.graph.common import builder, mappings
 
 
-class TestIndexBuilder(builder.GraphIndexBuilder):
-    def __init__(
-        self,
-        psqlgraph_driver: psqlgraph.PsqlGraphDriver,
-        indexd_client: client.IndexClient,
-        index_prefix: Optional[str] = "",
-        case_to_file_paths=(),
-        file_labels=frozenset(()),
-        **kwargs: Any
-    ) -> None:
-        self.case_to_file_paths = case_to_file_paths
-        self.file_labels = file_labels
-
-        super().__init__(psqlgraph_driver, indexd_client, index_prefix, **kwargs)
-
-
 def test__denormalize_annotations__no_annotations() -> None:
     graph = mock.MagicMock()
     annotations = ()
-    index_builder = TestIndexBuilder(graph, mock.MagicMock(), "")
+    index_builder = builder.GraphIndexBuilder(
+        psqlgraph_driver=graph,
+        indexd_client=mock.MagicMock(),
+        index_prefix="",
+        build_projects=(),
+        build_awg=False,
+        selective_caching=False,
+        versioned_files={},
+        allowed_gencode_versions=frozenset(("neutral", "v36")),
+    )
 
     result = index_builder.denormalize_annotations(annotations=annotations)
 
@@ -47,7 +40,16 @@ def test__denormalize_annotations__annotated_case_node() -> None:
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = TestIndexBuilder(graph, mock.MagicMock(), "")
+    index_builder = builder.GraphIndexBuilder(
+        psqlgraph_driver=graph,
+        indexd_client=mock.MagicMock(),
+        index_prefix="",
+        build_projects=(),
+        build_awg=False,
+        selective_caching=False,
+        versioned_files={},
+        allowed_gencode_versions=frozenset(("neutral", "v36")),
+    )
 
     result = index_builder.denormalize_annotations(annotations=(annotation,))
 
@@ -95,7 +97,16 @@ def test__denormalize_annotations__annotated_workflow_with_linked_case() -> None
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = TestIndexBuilder(graph, mock.MagicMock(), "")
+    index_builder = builder.GraphIndexBuilder(
+        psqlgraph_driver=graph,
+        indexd_client=mock.MagicMock(),
+        index_prefix="",
+        build_projects=(),
+        build_awg=False,
+        selective_caching=False,
+        versioned_files={},
+        allowed_gencode_versions=frozenset(("neutral", "v36")),
+    )
 
     result = index_builder.denormalize_annotations(annotations=(annotation,))
     result_doc = more_itertools.one(result)
@@ -139,7 +150,16 @@ def test__denormalize_annotations__annotated_workflow_without_linked_case() -> N
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = TestIndexBuilder(graph, mock.MagicMock(), "")
+    index_builder = builder.GraphIndexBuilder(
+        psqlgraph_driver=graph,
+        indexd_client=mock.MagicMock(),
+        index_prefix="",
+        build_projects=(),
+        build_awg=False,
+        selective_caching=False,
+        versioned_files={},
+        allowed_gencode_versions=frozenset(("neutral", "v36")),
+    )
 
     result = index_builder.denormalize_annotations(annotations=(annotation,))
     result_doc = more_itertools.one(result)
