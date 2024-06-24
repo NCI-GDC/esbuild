@@ -24,6 +24,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Union,
@@ -198,11 +199,6 @@ class GraphIndexBuilder:
     data_file_categories = ["data_file", "metadata_file"]
     data_file_indexd_fields = ["acl", "file_size", "file_name", "file_state", "md5sum"]
 
-    # This defines the possible ways to get from case to indexed
-    # files. Should be an iterable of iterables, i.e.
-    # [['file'], ['sample', 'aliquot', 'file']]
-    case_to_file_paths = []
-
     # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
     hidden_properties = {
@@ -249,12 +245,14 @@ class GraphIndexBuilder:
         self,
         psqlgraph_driver: psqlgraph.PsqlGraphDriver,
         indexd_client: client.IndexClient,
-        index_prefix: Optional[str] = "",
+        index_prefix: str,
+        case_to_file_paths: Iterable[Sequence[str]],
         **kwargs: Any,
     ) -> None:
         """Walk the graph to produce elasticsearch json documents."""
         self.indexd = indexd_client
         self.index_prefix = index_prefix
+        self.case_to_file_paths = case_to_file_paths
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
@@ -551,7 +549,7 @@ class GraphIndexBuilder:
     ###################################################################
 
     def walk_path(
-        self, node: Node, path: List[str], whole=False
+        self, node: Node, path: Sequence[str], whole=False
     ) -> Generator[Node, None, None]:
         """Get a node from end of a path or all the nodes along the path.
 
@@ -567,19 +565,20 @@ class GraphIndexBuilder:
 
                 yield from self.walk_path(neighbor, path[1:], whole)
 
-    def walk_paths(self, node: Node, paths: List[List[str]], whole=False) -> Set[Node]:
+    def walk_paths(
+        self, node: Node, paths: Iterable[Sequence[str]], whole=False
+    ) -> Set[Node]:
         """Get nodes from walking paths.
 
         Given a list of paths, yield the result of walking each path. If
         `whole` is true, return every node along each traversal.
 
         """
-        return {
-            n
-            for n in itertools.chain(
-                *[self.walk_path(node, path, whole=whole) for path in paths]
+        return set(
+            itertools.chain.from_iterable(
+                self.walk_path(node, path, whole=whole) for path in paths
             )
-        }
+        )
 
     def remove_bam_index_files(self, files):
         return {f for f in files if not self.is_index_file(f)}
@@ -1321,8 +1320,7 @@ class GraphIndexBuilder:
         self.prune_case(relevant, ptree, prune_keys)
 
         doc["cases"] = [
-            deepcopy(self.walk_tree(path, ptree, mappings.CASE_TREE, [])[0])
-            for path in ptree
+            self.walk_tree(path, ptree, mappings.CASE_TREE, [])[0] for path in ptree
         ]
 
         for case in doc["cases"]:
@@ -2156,7 +2154,7 @@ class GraphIndexBuilder:
         return True
 
     @staticmethod
-    def truncate_path(path: List[str], label: str) -> List[str]:
+    def truncate_path(path: Sequence[str], label: str) -> Sequence[str]:
         """Truncate a path, so it starts from next value of the given label.
 
         Given a path (a list of node labels), "truncate" it from the left
@@ -2175,7 +2173,7 @@ class GraphIndexBuilder:
         for i, currlabel in enumerate(path):
             if currlabel == label:
                 return path[i + 1 :]
-        return []
+        return ()
 
     def get_suppressed_children(self, redacted):
         """Get the children of a redacted node."""
@@ -2183,11 +2181,11 @@ class GraphIndexBuilder:
         if redacted.label == "case":
             paths = self.case_to_file_paths
         else:
-            paths = [
+            paths = (
                 self.truncate_path(p, redacted.label) for p in self.case_to_file_paths
-            ]
+            )
             # filter empty paths
-            paths = [p for p in paths if p]
+            paths = tuple(filter(None, paths))
         log.info("suppressing %s, which is redacted directly.", redacted)
         to_suppress.append(redacted)
         log.info("Walking down towards file with paths %s", paths)

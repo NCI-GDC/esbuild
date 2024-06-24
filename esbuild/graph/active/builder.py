@@ -17,105 +17,65 @@ tied to the relevant aliquots during cache_database
 
 """
 
-import itertools
 import logging
-from typing import Iterable, List, Optional, Sequence, Set
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import psqlgraph
 from gdcdatamodel2 import models
+from indexclient import client
 
-from esbuild.graph.common import builder, validators
+from esbuild.graph.common import builder, path_tools, validators
 
 log = logging.getLogger(__name__)
 FILTERED_FILE_STATUSES = frozenset(("ignore", "error"))
-
-
-def reverse_and_skip_first_entry(path: List) -> List:
-    """Return a path that.
-
-    1. is reversed and
-    2. has the first step (in reversed order) removed
-
-    This was created to traverse paths in reverse order such that the
-    first entry in the path is skipped because we are already visiting
-    that node. Example: ``['a', 'b', 'c'] -> ['b', 'a']``
-
-    """
-    return path[-2::-1]
-
-
-def list_product(roots: List, subtrees: List) -> List:
-    """Append each subtree to each root.
-
-    It's not quite a cartesian product, example::
-
-        roots = [['a', 'b'], ['-', '#']]
-        subtrees = [range(0, 2), range(2, 4), range(4, 8)]
-        list(list_product(roots, subtrees))
-        [['a', 'b', 0, 1],
-         ['a', 'b', 2, 3],
-         ['a', 'b', 4, 5, 6, 7],
-         ['-', '#', 0, 1],
-         ['-', '#', 2, 3],
-         ['-', '#', 4, 5, 6, 7]]
-
-    """
-    return [root + subtree for root in roots for subtree in subtrees]
-
-
-def subtree_paths_to_file(
-    cls,
-    paths: Optional[List[List[str]]] = None,
-    visited: Optional[List[str]] = None,
-    categories: Optional[Set[str]] = None,
-    exclude_paths_through: Optional[set] = None,
-) -> List[List[str]]:
-    """Find paths to file nodes in subtree.
-
-    Recurse through all child nodes in categories :param:`categories`
-    and return all paths from :param:`cls` to destination child file
-    nodes.
-
-    Args:
-        cls: The originating node class
-        paths: Paths to file nodes
-        visited: visited child labels
-        categories: The set of categories through which recursion is allowed
-        exclude_paths_through: child labels to skip
-
-    Returns:
-        paths to file nodes
-    """
-    if categories is None:
-        categories = {"data_file", "analysis"}
-
-    if exclude_paths_through is None:
-        exclude_paths_through = set()
-
-    visited = visited if visited is not None else []
-    paths = paths if paths is not None else []
-
-    if cls._dictionary["category"] == "data_file":
-        paths.append(visited)
-
-    for backref in cls._pg_backrefs.values():
-        child = backref["src_type"]
-
-        should_recur = (
-            child._dictionary["category"] in categories
-            and child.label not in visited
-            and child.label not in exclude_paths_through
-        )
-
-        if should_recur:
-            subtree_paths_to_file(
-                child,
-                paths,
-                visited=visited + [child.label],
-                exclude_paths_through=exclude_paths_through,
-            )
-
-    return paths
+FILE_NODES = frozenset(
+    {
+        models.AggregatedSomaticMutation,
+        models.AlignedReads,
+        models.AnnotatedSomaticMutation,
+        models.BiospecimenSupplement,
+        models.ClinicalSupplement,
+        models.CopyNumberAuxiliaryFile,
+        models.CopyNumberEstimate,
+        models.CopyNumberSegment,
+        models.GeneExpression,
+        models.MaskedMethylationArray,
+        models.MaskedSomaticMutation,
+        models.MethylationBetaValue,
+        models.MirnaExpression,
+        models.PathologyReport,
+        models.ProteinExpression,
+        models.RawMethylationArray,
+        models.SecondaryExpressionAnalysis,
+        models.SimpleGermlineVariation,
+        models.SimpleSomaticMutation,
+        models.SlideImage,
+        models.StructuralVariation,
+        models.SubmittedAlignedReads,
+        models.SubmittedGenomicProfile,
+        models.SubmittedGenotypingArray,
+        models.SubmittedUnalignedReads,
+    }
+)
+EXCLUDED_FILE_PATHS = frozenset(
+    {
+        models.AlignmentCocleaningWorkflow,
+        models.Archive,
+        models.Diagnosis,
+        models.File,
+    }
+)
+BIOSPECIMEN_ENTITIES = frozenset(
+    {
+        models.Case.label,
+        models.Sample.label,
+        models.Portion.label,
+        models.Slide.label,
+        models.Analyte.label,
+        models.Aliquot.label,
+    }
+)
 
 
 class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
@@ -125,184 +85,17 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     file, this is an attempt not to hard code them.  See module doc.
     """
 
-    # Skip any paths that traverse through nodes in
-    # ``exclude_paths_through``.
-    #
-    # In the index, AlignedReads were associated with two aliquots
-    # because they go through the Alignment Cocleaning
-    # Workflow. However, they should have edges directly back to a
-    # single SubmittedAlignedReads that goes back to a single
-    # aliquot. They should only be associated with this aliquot.
-    #
-    # The impact is that the user can not filter properly on the
-    # sample types, e.g. tumor versus normal as it returns all of the
-    # AlignedReads.
-    #
-    # The solution applied here is to simply remove paths through
-    # specific nodes and rely on the shortcut edges when traversing to
-    # Read Groups.
-    #
-    # See PGDC-2349 for details.
-    exclude_paths_through = {
-        "alignment_cocleaning_workflow",
-    }
-
-    # Filter nodes out if their properties are a superset of any of
-    # the dictionaries listed here by label
-    unindexed_by_property = {
-        "annotation": [{"status": "Rescinded"}, {"classification": "Blocking Release"}],
-    }
-
-    case_to_aliquot = [
-        ["sample", "aliquot"],
-        ["sample", "analyte", "aliquot"],
-        ["sample", "portion", "analyte", "aliquot"],
-    ]
-
-    # BREADCRUMB
-    # Holy hell. Ok, the following lists are paths to where
-    # the builder *will* walk (and ONLY will walk) to find
-    # file nodes. If your path is not here, you will not
-    # get picked up. Be sure to add any paths here to
-    # get data_file nodes to show up. You'll need to create
-    # a list below, then add it to the case_to_file_paths
-    # - a very tired joe sislow (3/15/2018)
-
-    readgroup_subtree = list_product(
-        [[models.ReadGroup.label]],
-        subtree_paths_to_file(
-            models.ReadGroup, exclude_paths_through=exclude_paths_through
-        ),
+    file_labels = list(
+        filter(
+            lambda c: c not in ("archive", "file"),
+            builder.GraphIndexBuilder.node_labels_by_category(
+                (
+                    "data_file",
+                    "index_file",
+                )
+            ),
+        )
     )
-
-    # Even more fun
-    # It seems that the walk will walk differently
-    # somehow. In some cases, it will walk to the
-    # end of a path, but in others, it will stop or
-    # ignore parents. The reason the following two are
-    # overlapping is because it looks like extending
-    # the path caused it to skip copy_number_segment
-    # when walking to copy_number_estimate. We still
-    # need to get to the bottom of how this logic
-    # should be used.
-    # - joe sislow (11/27/2018)
-
-    aliquot_to_copy_number_segment_paths = [
-        [
-            "submitted_tangent_copy_number",
-            "copy_number_liftover_workflow",
-            "copy_number_segment",
-        ],
-        [
-            "submitted_genotyping_array",
-            "somatic_copy_number_workflow",
-            "copy_number_segment",
-        ],
-    ]
-
-    aliquot_to_copy_number_estimate_paths = [
-        [
-            "submitted_tangent_copy_number",
-            "copy_number_liftover_workflow",
-            "copy_number_segment",
-            "copy_number_variation_workflow",
-            "copy_number_estimate",
-        ],
-        [
-            "submitted_genotyping_array",
-            "somatic_copy_number_workflow",
-            "copy_number_estimate",
-        ],
-    ]
-
-    aliquot_to_methylation_value_paths = [
-        [
-            "submitted_methylation_beta_value",
-            "methylation_liftover_workflow",
-            "methylation_beta_value",
-        ],
-        [
-            "raw_methylation_array",
-            "methylation_array_harmonization_workflow",
-            "methylation_beta_value",
-        ],
-    ]
-
-    # added for slide_image by joe, 3/18
-    case_to_slide_image_path = [
-        ["sample", "slide", "slide_image"],
-        ["sample", "portion", "slide", "slide_image"],
-    ]
-
-    case_to_file_paths = [
-        ["biospecimen_supplement"],
-        ["clinical_supplement"],
-        ["sample", "pathology_report"],
-    ]
-
-    case_to_copy_number_segment_paths = list_product(
-        case_to_aliquot, aliquot_to_copy_number_segment_paths
-    )
-
-    case_to_copy_number_estimate_paths = list_product(
-        case_to_aliquot, aliquot_to_copy_number_estimate_paths
-    )
-
-    case_to_protein_expression = [
-        ["sample", "protein_expression"],
-        ["sample", "portion", "protein_expression"],
-    ]
-
-    case_to_methylation_value_paths = list_product(
-        case_to_aliquot, aliquot_to_methylation_value_paths
-    )
-
-    case_to_raw_methylation_array_paths = list_product(
-        case_to_aliquot, [["raw_methylation_array"]]
-    )
-
-    case_to_masked_methylation_array_paths = list_product(
-        case_to_aliquot,
-        [
-            [
-                "raw_methylation_array",
-                "methylation_array_harmonization_workflow",
-                "masked_methylation_array",
-            ]
-        ],
-    )
-
-    case_to_genotyping_array_paths = list_product(
-        case_to_aliquot, [["submitted_genotyping_array"]]
-    )
-    case_to_germline_variation_paths = list_product(
-        case_to_genotyping_array_paths,
-        [["germline_mutation_calling_workflow", "simple_germline_variation"]],
-    )
-
-    case_to_file_paths += list_product(case_to_aliquot, readgroup_subtree)
-    case_to_file_paths += case_to_copy_number_segment_paths
-    case_to_file_paths += case_to_copy_number_estimate_paths
-    case_to_file_paths += case_to_methylation_value_paths
-    case_to_file_paths += case_to_slide_image_path
-    case_to_file_paths += case_to_protein_expression
-    case_to_file_paths += case_to_raw_methylation_array_paths
-    case_to_file_paths += case_to_masked_methylation_array_paths
-    case_to_file_paths += case_to_genotyping_array_paths
-    case_to_file_paths += case_to_germline_variation_paths
-
-    file_labels = builder.GraphIndexBuilder.node_labels_by_category(
-        [
-            "data_file",
-            "index_file",
-        ]
-    )
-
-    # Do not create file docs for archives
-    file_labels.remove("archive")
-
-    # Do not include files that are of the general legacy File type
-    file_labels.remove("file")
 
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
@@ -313,13 +106,24 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         },
     }
 
-    # Pre-calculate the paths to read_group from each type of file
-    file_to_read_group_paths = {}
-    for path in readgroup_subtree:
-        file_to_read_group_paths.setdefault(path[-1], []).append(path[-2::-1])
+    def __init__(
+        self,
+        psqlgraph_driver: psqlgraph.PsqlGraphDriver,
+        indexd_client: client.IndexClient,
+        index_prefix: str = "",
+        **kwargs: Any,
+    ) -> None:
+        case_to_file_paths = tuple(
+            path_tools.find_paths(
+                models.Case,
+                destinations=FILE_NODES,
+                excluded_paths=EXCLUDED_FILE_PATHS,
+            )
+        )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            psqlgraph_driver, indexd_client, index_prefix, case_to_file_paths, **kwargs
+        )
 
         # Omit entities from these projects
         self.omitted_projects.add(("CCLE", "CCLE_V2"))
@@ -363,6 +167,17 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         self.omitted_projects.add(("CCLE", "BRCA"))
         self.omitted_projects.add(("CCLE", "KIRC"))
         self.omitted_projects.add(("CCLE", "KICH"))
+
+        self._file_to_read_group_paths = path_tools.get_entity_paths(
+            (models.ReadGroup.label,), self.case_to_file_paths
+        )
+        """A mapping of file labels and the paths to their associated read group."""
+        self._file_to_associated_entities_paths = path_tools.get_entity_paths(
+            BIOSPECIMEN_ENTITIES, (("case", *p) for p in self.case_to_file_paths)
+        )
+        """A mapping of file labels to the paths associated with their associated
+        entity nodes.
+        """
 
     def denormalize_all(self):
         cases, files, annotations, projects = super().denormalize_all()
@@ -485,7 +300,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
     def add_analysis_metadata(self, analysis, read_groups, doc):
         """For a given analysis node, add the metadata to the doc."""
-        metadata_doc = {}
+        metadata_doc: dict = {}
 
         if analysis.label in self.analysis_metadata["read_groups"]:
             self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
@@ -524,7 +339,9 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         :returns: set of read_groups
 
         """
-        paths = self.file_to_read_group_paths.get(node.label, [])
+        paths: Iterable[Sequence[str]] = self._file_to_read_group_paths.get(
+            node.label, ()
+        )
         return set(self.walk_paths(node, paths))
 
     def get_analysis_read_groups(self, node):
@@ -553,62 +370,10 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
         return doc
 
-    def _get_custom_associated_entity_paths(
-        self, node: psqlgraph.Node
-    ) -> Iterable[Sequence[str]]:
-        # Special case paths to be traversed to possible associated entities
-        if node.label == "copy_number_segment":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_copy_number_segment_paths
-                )
-            )
-        elif node.label == "copy_number_estimate":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_copy_number_estimate_paths
-                )
-            )
-        elif node.label == "methylation_beta_value":
-            return (
-                reverse_and_skip_first_entry(path)
-                for path in list_product(
-                    [["aliquot"]], self.aliquot_to_methylation_value_paths
-                )
-            )
-        else:
-            return ()
-
-    def _get_associated_entities_via_read_group(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
-        return itertools.chain.from_iterable(
-            self.neighbors_labeled(rg, self.possible_associated_entities)
-            for rg in self.get_file_read_groups(node)
-        )
-
-    def _get_associated_entities_via_data_files(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
-        return itertools.chain.from_iterable(
-            self.neighbors_labeled(parent, self.possible_associated_entities)
-            for parent in self.get_parent_with_category(node, "data_file")
-        )
-
     def get_file_associated_entities(
         self, node: psqlgraph.Node
     ) -> Iterable[psqlgraph.Node]:
         """Return all entities that are 'associated' with a file."""
-        custom_paths = self._get_custom_associated_entity_paths(node)
-        entities = super().get_file_associated_entities(node)
-        entities = itertools.chain(
-            entities, self._get_associated_entities_via_read_group(node)
-        )
-        entities = itertools.chain(
-            entities, self._get_associated_entities_via_data_files(node)
-        )
-        entities = itertools.chain(entities, self.walk_paths(node, custom_paths))
+        paths_to_entities = self._file_to_associated_entities_paths.get(node.label, ())
 
-        return frozenset(entities)
+        return self.walk_paths(node, paths_to_entities)
