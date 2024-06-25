@@ -85,6 +85,12 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     file, this is an attempt not to hard code them.  See module doc.
     """
 
+    # Filter nodes out if their properties are a superset of any of
+    # the dictionaries listed here by label
+    unindexed_by_property = {
+        "annotation": [{"status": "Rescinded"}, {"classification": "Blocking Release"}],
+    }
+
     file_labels = list(
         filter(
             lambda c: c not in ("archive", "file"),
