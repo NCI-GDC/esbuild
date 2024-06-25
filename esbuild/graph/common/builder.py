@@ -2173,7 +2173,7 @@ class GraphIndexBuilder:
         for i, currlabel in enumerate(path):
             if currlabel == label:
                 return path[i + 1 :]
-        return ()
+        return []
 
     def get_suppressed_children(self, redacted):
         """Get the children of a redacted node."""
@@ -2181,11 +2181,11 @@ class GraphIndexBuilder:
         if redacted.label == "case":
             paths = self.case_to_file_paths
         else:
-            paths = (
+            paths = [
                 self.truncate_path(p, redacted.label) for p in self.case_to_file_paths
-            )
+            ]
             # filter empty paths
-            paths = tuple(filter(None, paths))
+            paths = [p for p in paths if p]
         log.info("suppressing %s, which is redacted directly.", redacted)
         to_suppress.append(redacted)
         log.info("Walking down towards file with paths %s", paths)
