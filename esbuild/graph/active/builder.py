@@ -66,16 +66,6 @@ EXCLUDED_FILE_PATHS = frozenset(
         models.File,
     }
 )
-BIOSPECIMEN_ENTITIES = frozenset(
-    {
-        models.Case.label,
-        models.Sample.label,
-        models.Portion.label,
-        models.Slide.label,
-        models.Analyte.label,
-        models.Aliquot.label,
-    }
-)
 
 
 class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
@@ -178,12 +168,6 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
             (models.ReadGroup.label,), self.case_to_file_paths
         )
         """A mapping of file labels and the paths to their associated read group."""
-        self._file_to_associated_entities_paths = path_tools.get_entity_paths(
-            BIOSPECIMEN_ENTITIES, (("case", *p) for p in self.case_to_file_paths)
-        )
-        """A mapping of file labels to the paths associated with their associated
-        entity nodes.
-        """
 
     def denormalize_all(self):
         cases, files, annotations, projects = super().denormalize_all()
@@ -375,11 +359,3 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
             doc["data_type"] = dst["name"]
 
         return doc
-
-    def get_file_associated_entities(
-        self, node: psqlgraph.Node
-    ) -> Iterable[psqlgraph.Node]:
-        """Return all entities that are 'associated' with a file."""
-        paths_to_entities = self._file_to_associated_entities_paths.get(node.label, ())
-
-        return self.walk_paths(node, paths_to_entities)
