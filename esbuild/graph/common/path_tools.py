@@ -1,6 +1,13 @@
 import functools
-from collections.abc import Collection, Container, Iterable, Iterator, Sequence, Set
-from typing import Mapping
+from collections.abc import (
+    Collection,
+    Container,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+    Set,
+)
 
 import more_itertools
 from gdcdatamodel2 import models
@@ -9,18 +16,31 @@ from gdcdatamodel2 import models
 def _get_entity_path(
     entities: Container[str], file_path: Sequence[str]
 ) -> Sequence[str]:
-    specimen_path: Iterable[str] = reversed(file_path[:-1])
-    specimen_path = more_itertools.takewhile_inclusive(
-        lambda p: p not in entities, specimen_path
+    """Get the first valid entity path from given file_path.
+
+    NOTE: this function assumes that the file path contains at least one of the given
+    entities
+
+    Args:
+        entities: The entities to be searched for as a source for the new path.
+        file_path: A super path from a some entity to the file which includes one of the
+            given entities.
+
+    Returns:
+        The path from the file to one of the given entities.
+    """
+    entity_path: Iterable[str] = reversed(file_path[:-1])
+    entity_path = more_itertools.takewhile_inclusive(
+        lambda p: p not in entities, entity_path
     )
 
-    return tuple(specimen_path)
+    return tuple(entity_path)
 
 
 def get_entity_paths(
     entities: Collection[str], file_paths: Iterable[Sequence[str]]
 ) -> Mapping[str, Iterable[Sequence[str]]]:
-    """Build a mapping of a file to all paths to the given entities.
+    """Build a mapping of a file to all unique paths to the given entities.
 
     Args:
         entities: The entities that should be found at the end of the resulting paths.
@@ -35,6 +55,7 @@ def get_entity_paths(
         file_paths,
         keyfunc=more_itertools.last,
         valuefunc=functools.partial(_get_entity_path, entities),
+        reducefunc=frozenset,
     )
 
 
