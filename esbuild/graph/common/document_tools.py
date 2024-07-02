@@ -23,7 +23,12 @@ class DocumentNode:
 
     name: str
     id_property: str
-    is_removed: bool = False
+    _is_removed: bool = False
+
+    @property
+    def is_removed(self) -> bool:
+        """Flag marking that the node is removed when traversing the parent document."""
+        return self._is_removed
 
     def remove(self) -> "DocumentNode":
         """Mark the node in a path as one that should be removed when it is traversed.
@@ -31,7 +36,7 @@ class DocumentNode:
         Returns:
             A copy of the node but marked for removal.
         """
-        return DocumentNode(self.name, self.id_property, is_removed=True)
+        return DocumentNode(self.name, self.id_property, _is_removed=True)
 
 
 def _get_uuid_namespace(label: str) -> uuid.UUID:
