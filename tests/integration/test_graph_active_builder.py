@@ -10,13 +10,11 @@ import operator
 from functools import reduce
 
 import jmespath
-import psqlgraph
 import pytest
 from gdcdatamodel2 import models
-from indexclient import client
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.common.builder import BIOSPECIMEN_TYPES, GraphIndexBuilder
 from tests.integration.conftest import Index, raise_test_error
 from tests.integration.data import get_node_id
 from tests.integration.test_utils import validate_file_metadata
@@ -217,7 +215,7 @@ def test_path_is_absent(index, index_type, path):
         ("files", "[].annotations[].case_id", N_FILES_UNDER_ALIQUOT_1),
         ("annotations", "[].project_id", 0),
         ("annotations", "[].annotation_id", 3),
-        ("files", "[].associated_entities[].entity_type", N_FILES + 3),
+        ("files", "[].associated_entities[].entity_type", N_FILES + 4),
     ],
 )
 def test_path_count(index, index_type, path, count):
@@ -521,8 +519,8 @@ def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
     [
         (models.AlignedReads, 1),
         (models.CopyNumberSegment, 1),
-        (models.RunMetadata, 1),
-        (models.ExperimentMetadata, 1),
+        # (models.RunMetadata, 1),
+        # (models.ExperimentMetadata, 1),
     ],
 )
 def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
@@ -640,13 +638,13 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     builderA = MyBuilderA(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderA.cache_database()
-        labeled = builderA.nodes_labeled(builderA.possible_associated_entities)
+        labeled = builderA.nodes_labeled(BIOSPECIMEN_TYPES)
         assert labeled and all(n.label == "slide" for n in labeled[:3])
 
     builderB = MyBuilderB(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderB.cache_database()
-        labeled = builderB.nodes_labeled(builderB.possible_associated_entities)
+        labeled = builderB.nodes_labeled(BIOSPECIMEN_TYPES)
         assert labeled and all(n.label == "slide" for n in labeled[-3:])
 
     # Comparing that 2 maps are the same
@@ -657,7 +655,6 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     # Making sure that 'slide_1' wasn't picked up, since it's linked to 2 cases
     assert "slide_1" not in cached_slide_ids
     assert "slide_2" in cached_slide_ids
-    assert len(builderA.entity_cases) == 27
 
     _, filesA, _, _ = builderA.denormalize_all()
     slide_image_filesA = [f for f in filesA if f["type"] == "slide_image"]

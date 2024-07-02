@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 from unittest import mock
 
 import more_itertools
@@ -13,15 +13,16 @@ class TestIndexBuilder(builder.GraphIndexBuilder):
         self,
         psqlgraph_driver: psqlgraph.PsqlGraphDriver,
         indexd_client: client.IndexClient,
-        index_prefix: Optional[str] = "",
+        index_prefix: str = "",
         case_to_file_paths=(),
         file_labels=frozenset(()),
         **kwargs: Any
     ) -> None:
-        self.case_to_file_paths = case_to_file_paths
         self.file_labels = file_labels
 
-        super().__init__(psqlgraph_driver, indexd_client, index_prefix, **kwargs)
+        super().__init__(
+            psqlgraph_driver, indexd_client, index_prefix, case_to_file_paths, **kwargs
+        )
 
 
 def test__denormalize_annotations__no_annotations() -> None:

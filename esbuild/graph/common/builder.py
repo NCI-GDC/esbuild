@@ -24,6 +24,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Union,
@@ -39,7 +40,7 @@ from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node
 from sqlalchemy.orm import joinedload
 
-from esbuild.graph.common import mappings, validators
+from esbuild.graph.common import mappings, path_tools, validators
 
 PTree = Dict[Node, "PTree"]
 Document = Dict[str, Union[str, int]]
@@ -50,6 +51,18 @@ AVAILABLE_GENCODE_VERSIONS = frozenset(["neutral", "v22", "v36"])
 FILE_MISSING_GENCODE = {"error": "no gencode_version for generated data files"}
 ENTRY_FOR_WRONG_GENCODE = {"ignore": "wrong gencode_version for generated data files"}
 FIELD_ALLOWLIST = frozenset({"wgs_coverage", "specimen_type"})
+
+BIOSPECIMEN_TYPES = frozenset(
+    {
+        md.Case.label,
+        md.Sample.label,
+        md.Portion.label,
+        md.Slide.label,
+        md.Analyte.label,
+        md.Aliquot.label,
+    }
+)
+"""A collection of all possible biospecimen types."""
 
 
 @lru_cache(maxsize=32)
@@ -161,11 +174,6 @@ class GraphIndexBuilder:
     data_file_categories = ["data_file", "metadata_file"]
     data_file_indexd_fields = ["acl", "file_size", "file_name", "file_state", "md5sum"]
 
-    # This defines the possible ways to get from case to indexed
-    # files. Should be an iterable of iterables, i.e.
-    # [['file'], ['sample', 'aliquot', 'file']]
-    case_to_file_paths = []
-
     # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
     hidden_properties = {
@@ -212,12 +220,14 @@ class GraphIndexBuilder:
         self,
         psqlgraph_driver: psqlgraph.PsqlGraphDriver,
         indexd_client: client.IndexClient,
-        index_prefix: Optional[str] = "",
+        index_prefix: str,
+        case_to_file_paths: Iterable[Sequence[str]],
         **kwargs: Any,
     ) -> None:
         """Walk the graph to produce elasticsearch json documents."""
         self.indexd = indexd_client
         self.index_prefix = index_prefix
+        self.case_to_file_paths = case_to_file_paths
         self.file_metadata = {}  # Cache of file metadata from indexd
         self.skipped_nodes = {}  # Cache of skipped nodes and reason for skipping
 
@@ -319,12 +329,12 @@ class GraphIndexBuilder:
             list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
         ]
 
-        self.possible_associated_entities = [
-            "portion",
-            "aliquot",
-            "case",
-            "slide",
-        ]
+        self._file_to_associated_entities_paths = path_tools.get_entity_paths(
+            BIOSPECIMEN_TYPES, (("case", *p) for p in self.case_to_file_paths)
+        )
+        """A mapping of file labels to the paths associated with their associated
+        entity nodes.
+        """
 
         self.index_file_extensions = {
             ".bai",
@@ -514,11 +524,11 @@ class GraphIndexBuilder:
     ###################################################################
 
     def walk_path(
-        self, node: Node, path: List[str], whole=False
+        self, node: Node, path: Sequence[str], whole=False
     ) -> Generator[Node, None, None]:
         """Get a node from end of a path or all the nodes along the path.
 
-        Given a list of strings, treat it as a path, and yield the end of
+        Given a sequence of strings, treat it as a path, and yield the end of
         possible traversals.  If `whole` is true, return every node
         along the traversal.
 
@@ -530,19 +540,20 @@ class GraphIndexBuilder:
 
                 yield from self.walk_path(neighbor, path[1:], whole)
 
-    def walk_paths(self, node: Node, paths: List[List[str]], whole=False) -> Set[Node]:
+    def walk_paths(
+        self, node: Node, paths: Iterable[Sequence[str]], whole=False
+    ) -> Set[Node]:
         """Get nodes from walking paths.
 
-        Given a list of paths, yield the result of walking each path. If
+        Given a collection of paths, yield the result of walking each path. If
         `whole` is true, return every node along each traversal.
 
         """
-        return {
-            n
-            for n in itertools.chain(
-                *[self.walk_path(node, path, whole=whole) for path in paths]
+        return set(
+            itertools.chain.from_iterable(
+                self.walk_path(node, path, whole=whole) for path in paths
             )
-        }
+        )
 
     def remove_bam_index_files(self, files):
         return {f for f in files if not self.is_index_file(f)}
@@ -1371,7 +1382,9 @@ class GraphIndexBuilder:
 
     def get_file_associated_entities(self, node: Node) -> Iterable[Node]:
         """Return a list of entities that are 'associated' with a file."""
-        return self.neighbors_labeled(node, self.possible_associated_entities)
+        paths_to_entities = self._file_to_associated_entities_paths.get(node.label, ())
+
+        return self.walk_paths(node, paths_to_entities)
 
     def add_file_associated_entities(self, node: Node, doc, case_id):
         self._cache_entity_cases()
@@ -2159,7 +2172,7 @@ class GraphIndexBuilder:
         return True
 
     @staticmethod
-    def truncate_path(path: List[str], label: str) -> List[str]:
+    def truncate_path(path: Sequence[str], label: str) -> Sequence[str]:
         """Truncate a path, so it starts from next value of the given label.
 
         Given a path (a list of node labels), "truncate" it from the left
@@ -2376,7 +2389,7 @@ class GraphIndexBuilder:
         if self.entity_cases:
             return
 
-        entities = list(self.nodes_labeled(self.possible_associated_entities))
+        entities = list(self.nodes_labeled(BIOSPECIMEN_TYPES))
         pbar = self.pbar("Caching entity cases: ", len(entities))
         self.entity_cases = {}
 
