@@ -1,0 +1,34 @@
+---
+nodes:
+  - label: case
+    submitter_id: oca_case_0
+
+  - label: follow_up
+    submitter_id: follow_up_0
+  - label: diagnosis
+    submitter_id: diagnosis_0
+
+  - label: clinical_supplement
+    submitter_id: clinical_supplement_0
+
+  - label: other_clinical_attribute
+    submitter_id: oca_0
+  - label: other_clinical_attribute
+    submitter_id: oca_1
+
+edges:
+  - src: oca_case_0
+    dst: oca_0
+
+  - src: oca_case_0
+    dst: diagnosis_0
+  - src: diagnosis_0
+    dst: follow_up_0
+
+  - src: oca_case_0
+    dst: clinical_supplement_0
+
+  - src: oca_case_0
+    dst: follow_up_0
+  - src: follow_up_0
+    dst: oca_1
