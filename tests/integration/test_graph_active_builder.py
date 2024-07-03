@@ -515,13 +515,8 @@ def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
 
 
 @pytest.mark.parametrize(
-    "cls,count",
-    [
-        (models.AlignedReads, 1),
-        (models.CopyNumberSegment, 1),
-        # (models.RunMetadata, 1),
-        # (models.ExperimentMetadata, 1),
-    ],
+    ("cls", "count"),
+    ((models.AlignedReads, 1), (models.CopyNumberSegment, 1)),
 )
 def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
     for node in pg_driver.nodes(cls).all():

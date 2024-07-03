@@ -1,3 +1,5 @@
+"""A module for finding and manipulating paths within the GDC graph."""
+
 import functools
 from collections.abc import (
     Collection,

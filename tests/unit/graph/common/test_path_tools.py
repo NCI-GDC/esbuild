@@ -6,6 +6,18 @@ from esbuild.graph.common import path_tools
 
 
 def test__find_paths__simple_path() -> None:
+    """Test a simple path w/o loops or excluded paths.
+
+    Given:
+        Graph:
+            grand_parent -> parent -> child
+
+    When:
+        find_paths(source=child, destinations=(grand_parent,))
+
+    Then:
+        ("parent", "grand_parent")
+    """
     grand_parent = mock.MagicMock(label="grand_parent", _pg_backrefs={})
     parent = mock.MagicMock(
         label="parent", _pg_backrefs={"grand-parent-parent": {"src_type": grand_parent}}
@@ -22,6 +34,19 @@ def test__find_paths__simple_path() -> None:
 
 
 def test__find_paths__circular_path() -> None:
+    """Test that a circular path is not followed.
+
+    Given:
+        Graph:
+            grand_parent -> parent -> child;
+            parent -> grand_parent;
+
+    When:
+        find_paths(source=child, destinations=(grand_parent,))
+
+    Then:
+        ("parent", "grand_parent")
+    """
     grand_parent = mock.MagicMock(label="grand_parent")
     parent = mock.MagicMock(
         label="parent", _pg_backrefs={"grand-parent-parent": {"src_type": grand_parent}}
@@ -41,6 +66,23 @@ def test__find_paths__circular_path() -> None:
 
 
 def test__find_paths__exclude_path() -> None:
+    """Test graph with a path that needs to be excluded.
+
+    Given:
+        Graph:
+            grand_parent -> parent -> child;
+            grand_parent -> bad_node -> child;
+
+    When:
+        find_paths(
+            source=child,
+            destinations=(grand_parent,),
+            excluded_paths=(bad_node,),
+        )
+
+    Then:
+        ("parent", "grand_parent")
+    """
     grand_parent = mock.MagicMock(label="grand_parent", _pg_backrefs={})
     parent = mock.MagicMock(
         label="parent", _pg_backrefs={"grand-parent-parent": {"src_type": grand_parent}}
