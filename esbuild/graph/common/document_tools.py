@@ -22,8 +22,11 @@ class DocumentNode:
     """A node with in a nested dictionary/document object."""
 
     name: str
+    """The name of the node in the parent document."""
     id_property: str
+    """The ID property within the node."""
     _is_removed: bool = False
+    """Flag marking that the node is removed when traversing the parent document."""
 
     @property
     def is_removed(self) -> bool:
