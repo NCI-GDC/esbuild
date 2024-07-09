@@ -1,0 +1,18 @@
+---
+nodes:
+  - label: case
+    submitter_id: ea_case_0
+  - label: sample
+    submitter_id: ea_sample_0
+  - label: aliquot
+    submitter_id: ea_aliquot_0
+  - label: submitted_expression_array
+    submitter_id: ea_0
+
+edges:
+  - src: ea_case_0
+    dst: ea_sample_0
+  - src: ea_sample_0
+    dst: ea_aliquot_0
+  - src: ea_aliquot_0
+    dst: ea_0

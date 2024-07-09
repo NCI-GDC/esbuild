@@ -35,12 +35,12 @@ setup(
         "requests~=2.7",
         "SQLAlchemy",
         "psqlgraph",
-        "gdcdictionary~=3.0.0",
-        "gdcdatamodel2~=3.0.0",
+        "gdcdictionary",
+        "gdcdatamodel2",
         "gdc-ng-models",
         "indexclient",
         "queueclient",
-        "gdcmodels~=5.0.0",
+        "gdcmodels",
     ],
     extras_require={
         "dev": [

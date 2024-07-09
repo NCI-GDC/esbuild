@@ -1,7 +1,12 @@
-import pytest
+from collections.abc import Callable
+from typing import Any
 
-from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from tests.integration.conftest import Index
+import psqlgraph
+import pytest
+from indexclient import client
+
+from esbuild.graph.active import builder
+from tests.integration import conftest
 
 
 @pytest.fixture
@@ -11,9 +16,28 @@ def pathology_report_graph(generate_scenario):
 
 @pytest.fixture
 def pathology_index(pg_driver, init_indexd, pathology_report_graph):
-    builder = ActiveGraphIndexBuilder(pg_driver, init_indexd)
+    active_builder = builder.ActiveGraphIndexBuilder(pg_driver, init_indexd)
     with pg_driver.session_scope():
-        builder.cache_database()
-    index = builder.denormalize_all()
+        active_builder.cache_database()
+    index = active_builder.denormalize_all()
 
-    return Index._make(index)
+    return conftest.Index._make(index)
+
+
+@pytest.fixture
+def submitted_expression_array_graph(generate_scenario: Callable[[str], Any]) -> None:
+    generate_scenario("submitted_expression_array_scenario.yaml")
+
+
+@pytest.fixture
+def submitted_expression_array_index(
+    pg_driver: psqlgraph.PsqlGraphDriver,
+    init_indexd: client.IndexClient,
+    submitted_expression_array_graph: Any,
+) -> conftest.Index:
+    active_builder = builder.ActiveGraphIndexBuilder(pg_driver, init_indexd)
+    with pg_driver.session_scope():
+        active_builder.cache_database()
+    index = active_builder.denormalize_all()
+
+    return conftest.Index(*index)
