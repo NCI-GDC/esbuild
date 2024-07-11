@@ -76,7 +76,8 @@ def restructure_follow_up_data(case: dict) -> None:
         1. other clinical attributes
         2. follow up -> other clinical attributes
 
-    In both cases we want to move all cases of 1 to the standard 2.
+    For both molecular tests and other clinical attributes, all instances of the data at
+    path (1) need to be moved to the standard follow up path (2).
 
     Args:
         case: dictionary of case node
