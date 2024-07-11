@@ -10,35 +10,32 @@ from tests.integration import conftest
 @pytest.mark.parametrize(
     "index_type, path, expectations",
     [
-        (
-            "files",
-            "[].type",
-            {
-                "submitted_expression_array": 1,
-            },
-        ),
-        (
+        pytest.param(
             "files",
             "[].submitter_id",
             {
                 "ea_0": 1,
             },
+            id="file-index",
         ),
-        (
+        pytest.param(
             "cases",
-            "[].files[].type",
+            "[].files[].submitter_id",
             {
-                "submitted_expression_array": 1,
+                "ea_0": 1,
             },
+            id="case-index",
         ),
     ],
 )
-def test_submitted_expression_array_counts(
+def test__submitted_expression_array__indexed_as_file(
     submitted_expression_array_index: conftest.Index,
     index_type: Literal["files", "cases"],
     path: str,
     expectations: Mapping[str, int],
 ):
+    """Tests that the submitted gene expression arrays are indexed as files in both the
+    file index as well as in the files node of the case index."""
     results = jmespath.search(
         path, getattr(submitted_expression_array_index, index_type)
     )

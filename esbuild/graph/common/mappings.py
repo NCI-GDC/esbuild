@@ -107,8 +107,14 @@ CASE_TREE = {
         "follow_up": {
             "corr": (ONE_TO_MANY, "follow_ups"),
             "molecular_test": {"corr": (ONE_TO_MANY, "molecular_tests")},
+            "other_clinical_attribute": {
+                "corr": (ONE_TO_MANY, "other_clinical_attributes")
+            },
         },
         "family_history": {"corr": (ONE_TO_MANY, "family_histories")},
+        "other_clinical_attribute": {
+            "corr": (ONE_TO_MANY, "other_clinical_attributes")
+        },
     }
 }
 
