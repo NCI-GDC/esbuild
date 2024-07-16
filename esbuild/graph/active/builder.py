@@ -53,6 +53,7 @@ FILE_NODES = frozenset(
         models.SlideImage,
         models.StructuralVariation,
         models.SubmittedAlignedReads,
+        models.SubmittedExpressionArray,
         models.SubmittedGenomicProfile,
         models.SubmittedGenotypingArray,
         models.SubmittedUnalignedReads,

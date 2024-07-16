@@ -1,3 +1,6 @@
+VISIBLE_NODES = frozenset({"submitted_genotyping_array", "submitted_expression_array"})
+
+
 def is_node_hidden(node):
     """Check whether node should be traversed but should not in any documents.
 
@@ -5,10 +8,10 @@ def is_node_hidden(node):
     remain in the cache) but should not appear in any documents
 
     """
-    # Hide all submitted_* node types from indices
-    if node.label == "submitted_genotyping_array":
+    if node.label in VISIBLE_NODES:
         return False
 
+    # Hide all submitted_* node types from indices
     return node.label.startswith("submitted_") or node.label in [
         "archive",
         "raw_methylation_array",
