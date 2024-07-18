@@ -31,6 +31,7 @@ from typing import (
 )
 from uuid import UUID, uuid5
 
+import more_itertools
 import networkx as nx
 import psqlgraph
 from datadog import statsd
@@ -1590,7 +1591,7 @@ class GraphIndexBuilder:
         pbar.finish()
         return project_docs
 
-    def denormalize_annotation(self, node):
+    def denormalize_annotation(self, node: md.Node) -> dict:
         """Denormalize a specific annotation.
 
         .. note: The project of an annotation will be injected during
@@ -1633,10 +1634,12 @@ class GraphIndexBuilder:
 
         with self.g.session_scope() as sxn, sxn.no_autoflush:
             annotation = self.g.nodes().get(node.node_id)
-            cases = [e for e in annotation.edges_out if e.label == "relates_to"]
+            cases = (e.dst for e in annotation.edges_out if e.label == "relates_to")
+            case = more_itertools.first(cases, default=None)
 
-            if cases:
-                ann_doc["case_id"] = cases[0].dst_id
+            if case:
+                ann_doc["case_id"] = case.node_id
+                ann_doc["case_submitter_id"] = case.submitter_id
 
         return ann_doc
 

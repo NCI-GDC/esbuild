@@ -15,6 +15,7 @@ from gdcdatamodel2 import models
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import BIOSPECIMEN_TYPES, GraphIndexBuilder
+from tests.integration import conftest
 from tests.integration.conftest import Index, raise_test_error
 from tests.integration.data import get_node_id
 from tests.integration.test_utils import validate_file_metadata
@@ -212,13 +213,21 @@ def test_path_is_absent(index, index_type, path):
         ("files", "[].uploaded_datetime", 0),
         ("files", "[].project_id", 0),
         ("files", "[].cases[].project_id", 0),
-        ("files", "[].annotations[].case_id", N_FILES_UNDER_ALIQUOT_1),
+        pytest.param(
+            "files",
+            "[].annotations[].[case_id,case_submitter_id][]",
+            N_FILES_UNDER_ALIQUOT_1 * 2,
+            id="file-annotations-associated-with-case",
+        ),
         ("annotations", "[].project_id", 0),
         ("annotations", "[].annotation_id", 3),
         ("files", "[].associated_entities[].entity_type", N_FILES + 4),
     ],
 )
-def test_path_count(index, index_type, path, count):
+def test_path_count(
+    index: conftest.Index, index_type: str, path: str, count: int
+) -> None:
+    """Insure that the various structures/properties are built by verifying counts."""
     results = jmespath.search(path, getattr(index, index_type))
     assert len(results) == count
 
