@@ -172,7 +172,7 @@ def render_database(pg_driver):
 
     with pg_driver.session_scope():
         dot = create_graphviz(pg_driver.nodes())
-        dot.render("test_suite_data.gv")
+        dot.render("tests/integration/test_suite_data.gv")
 
 
 # ======================================================================
