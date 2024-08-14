@@ -10,7 +10,6 @@ import itertools
 import logging
 import random
 import re
-import traceback
 import uuid
 from collections import defaultdict
 from copy import deepcopy
@@ -1535,6 +1534,8 @@ class GraphIndexBuilder:
             # https://jira.opensciencedatacloud.org/browse/PGDC-1472
             doc["summary"]["data_categories"] = data_category_summaries
 
+        log.info("PROJECT DONE!!")
+
         return doc
 
     ###################################################################
@@ -1644,6 +1645,7 @@ class GraphIndexBuilder:
         return ann_doc
 
     def denormalize_annotations(self, annotations, projects=None):
+        log.info("STARTING ANNOTATION DENORM")
         g = self.g
         annotation_ids = [node.node_id for node in annotations]
 
@@ -1652,6 +1654,7 @@ class GraphIndexBuilder:
 
         projects = projects or {}
 
+        log.info("ANNOTATIONS GETTING GRAPH DATA")
         with g.session_scope(can_inherit=False) as sxn, sxn.no_autoflush:
             edges_q = g.edges().filter(Edge.src_id.in_(annotation_ids))
             entities = dict()
@@ -1677,6 +1680,7 @@ class GraphIndexBuilder:
 
         docs = []
 
+        log.info("ANNOTATIONS CREATING DOCS")
         for annotation in annotations:
             try:
                 doc = self._get_base_doc(annotation)
@@ -1713,16 +1717,14 @@ class GraphIndexBuilder:
                 docs.append(doc)
 
             except Exception as e:
-                exception = "".join(
-                    traceback.format_exception(type(e), e, e.__traceback__, limit=1)
-                )
-
-                self.error(
-                    "denormalize_annotations",
-                    f"Annotation: {annotation.node_id} encountered an exception:\n{exception}",
+                log.error(
+                    "Annotation(%s): encountered an exception.",
+                    annotation.node_id,
+                    exc_info=e,
                 )
                 continue
 
+        log.info("ANNOATATIONS DONE")
         return docs
 
     def denormalize_all(self):
