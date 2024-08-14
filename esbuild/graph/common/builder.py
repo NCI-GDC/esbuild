@@ -1670,7 +1670,10 @@ class GraphIndexBuilder:
                 ann_to_entity[annotation.node_id] = entity.node_id
                 entities[entity.node_id] = entity
                 if case:
-                    ann_to_case[annotation.node_id] = case
+                    ann_to_case[annotation.node_id] = {
+                        "case_id": case.node_id,
+                        "case_submitter_id": case.submitter_id,
+                    }
 
         docs = []
 
@@ -1705,10 +1708,7 @@ class GraphIndexBuilder:
                     }
 
                 # Handle case info
-                case = ann_to_case.get(annotation.node_id)
-                if case:
-                    doc["case_id"] = case.node_id
-                    doc["case_submitter_id"] = case.submitter_id
+                doc.update(ann_to_case.get(annotation.node_id, {}))
 
                 docs.append(doc)
 
