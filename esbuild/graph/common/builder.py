@@ -2329,12 +2329,11 @@ class GraphIndexBuilder:
 
         """
         with self.g.session_scope() as sxn, sxn.no_autoflush:
-            pbar = self.pbar("Caching Database: ", self.g.edges().count())
+            # with self.pbar("Caching Database: ", self.g.edges().count()) as pbar:
             # Cache graph to self.G
             # NOTE: if build_awg or selective_caching are set, will only iterate
             #   over relevant edges
             for e in self.iter_database_edges():
-                pbar.update(pbar.value + 1)
                 triple = (e.src.label, e.label, e.dst.label)
                 needs_differentiation = triple in self.differentiated_edges
                 if triple == ("file", "data_from", "file"):
@@ -2355,7 +2354,6 @@ class GraphIndexBuilder:
                     self.G.add_edge(e.src, e.dst, props=e._props)
                 else:
                     self.G.add_edge(e.src, e.dst)
-            pbar.finish()
 
         # Prune graph
         log.info(f"Cached {self.G.number_of_nodes()} nodes")
