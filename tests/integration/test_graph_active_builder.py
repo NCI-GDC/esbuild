@@ -6,6 +6,7 @@ Test the builder for graph ES index
 
 """
 
+import collections
 import operator
 from functools import reduce
 
@@ -16,7 +17,7 @@ from gdcdatamodel2 import models
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
 from esbuild.graph.common.builder import BIOSPECIMEN_TYPES, GraphIndexBuilder
 from tests.integration import conftest
-from tests.integration.conftest import Index, raise_test_error
+from tests.integration.conftest import Index
 from tests.integration.data import get_node_id
 from tests.integration.test_utils import validate_file_metadata
 
@@ -469,16 +470,31 @@ def test_aligned_reads_analysis_read_group(index, aligned_reads):
             assert rg["read_group_id"]
 
 
-def test_project_file_counts(index, builder, monkeypatch):
-    monkeypatch.setattr(builder, "error", raise_test_error)
+def test_project_file_counts(index: conftest.Index) -> None:
+    actual_counts = collections.Counter(
+        c["project"]["project_id"] for f in index.files for c in f["cases"]
+    )
+
     for project in index.projects:
-        builder.validate_project_file_counts(project, index.files)
+        actual_count = actual_counts.get(project["project_id"], 0)
+        summary_count = project["summary"]["file_count"]
+
+        assert (
+            actual_count == summary_count
+        ), f"File count mismatch {project['project_id']} file count mismatch: {actual_count} != {summary_count}"
 
 
-def test_data_category_count(index, builder, monkeypatch):
-    monkeypatch.setattr(builder, "error", raise_test_error)
+def test_data_category_count(index: conftest.Index) -> None:
     for case in index.cases:
-        builder.verify_data_category_count(case)
+        actual_counts = collections.Counter(
+            f["data_category"] for f in case["files"] if "data_category" in f
+        )
+        summary = {
+            s["data_category"]: s["file_count"]
+            for s in case["summary"]["data_categories"]
+        }
+
+        assert actual_counts == summary
 
 
 def test_case_summary_data_category_counts(index):
