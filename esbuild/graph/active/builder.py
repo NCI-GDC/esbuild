@@ -18,7 +18,7 @@ tied to the relevant aliquots during cache_database
 """
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
 import psqlgraph
@@ -69,6 +69,17 @@ EXCLUDED_FILE_PATHS = frozenset(
 )
 
 
+def _node_labels_by_category(
+    *categories: str, excluded: Container[str] = ()
+) -> list[str]:
+    """Return an iterator of node labels that are files."""
+    return [
+        n.label
+        for n in psqlgraph.Node.get_subclasses()
+        if n._dictionary["category"] in categories and n.label not in excluded
+    ]
+
+
 class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     """The builder for the current graph indices.
 
@@ -82,18 +93,9 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         "annotation": [{"status": "Rescinded"}, {"classification": "Blocking Release"}],
     }
 
-    file_labels = builder.GraphIndexBuilder.node_labels_by_category(
-        [
-            "data_file",
-            "index_file",
-        ]
+    file_labels = _node_labels_by_category(
+        "data_file", "index_file", excluded=("archive", "file")
     )
-
-    # Do not create file docs for archives
-    file_labels.remove("archive")
-
-    # Do not include files that are of the general legacy File type
-    file_labels.remove("file")
 
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
@@ -190,31 +192,23 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
         return cases, files, annotations, projects
 
-    def get_case_files(self, node):
+    def _get_case_files(self, node):
         def file_filter(file) -> bool:
             metadata = self.file_metadata.get(file.node_id, {})
 
             return not FILTERED_FILE_STATUSES.intersection(metadata)
 
-        unfiltered_files = super().get_case_files(node)
+        unfiltered_files = super()._get_case_files(node)
         return set(filter(file_filter, unfiltered_files))
 
-    def denormalize_file(self, node, ptree):
-        doc = super().denormalize_file(node, ptree)
+    def _denormalize_file(self, node, ptree):
+        doc = super()._denormalize_file(node, ptree)
 
-        self.add_file_analysis(node, doc)
-        self.add_file_downstream_analyses(node, doc)
+        self._add_file_analysis(node, doc)
+        self._add_file_downstream_analyses(node, doc)
         return doc
 
-    def get_file_index_files(self, node):
-        """Given a file, return any neighboring index files."""
-        return [
-            n
-            for n in list(self.get_child_with_category(node, "index_file"))
-            if self.is_index_file(n)
-        ]
-
-    def get_parent_with_category(self, node, category):
+    def _get_parent_with_category(self, node, category):
         """Return iterable of neighbors from outbound edges with category."""
         labels = [
             l["dst_type"].label
@@ -222,34 +216,24 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
             if l["dst_type"]._dictionary["category"] == category
         ]
 
-        return self.neighbors_labeled(node, labels)
+        return self._neighbors_labeled(node, labels)
 
-    def get_child_with_category(self, node, category):
-        """Return iterable of neighbors from inbound edges with category."""
-        labels = [
-            l["src_type"].label
-            for l in node._pg_backrefs.values()
-            if l["src_type"]._dictionary["category"] == category
-        ]
-
-        return self.neighbors_labeled(node, labels)
-
-    def add_file_analysis(self, node, doc):
+    def _add_file_analysis(self, node, doc):
         """Add the 'analysis' that produced the current file."""
-        analyses = list(self.get_parent_with_category(node, "analysis"))
+        analyses = list(self._get_parent_with_category(node, "analysis"))
 
         if analyses:
             # Add the first analysis
             analysis = analyses.pop()
             analysis_doc = self._get_base_doc(analysis)
-            read_groups = self.get_file_read_groups(node)
-            self.add_analysis_input_files(analysis, analysis_doc)
-            self.add_analysis_metadata(analysis, read_groups, analysis_doc)
+            read_groups = self._get_file_read_groups(node)
+            self._add_analysis_input_files(analysis, analysis_doc)
+            self._add_analysis_metadata(analysis, read_groups, analysis_doc)
             doc["analysis"] = analysis_doc
 
         # If there are remaining analysis, record a warning and skip
         if analyses:
-            self.warning(
+            self._warning(
                 f"Multiple analysis on {node}",
                 "{} has multiple analyses {}, this is unexpected.".format(
                     node, analyses
@@ -257,57 +241,57 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
                 tags=[f"file_id:{node.node_id}"],
             )
 
-    def add_file_downstream_analyses(self, node, doc):
+    def _add_file_downstream_analyses(self, node, doc):
         """Add the 'analysis' that produced the current file."""
-        analyses = list(self.get_child_with_category(node, "analysis"))
+        analyses = list(self._get_child_with_category(node, "analysis"))
 
         for analysis in analyses:
             analysis_doc = self._get_base_doc(analysis)
-            self.add_analysis_output_files(analysis, analysis_doc)
+            self._add_analysis_output_files(analysis, analysis_doc)
             doc.setdefault("downstream_analyses", []).append(analysis_doc)
 
-    def add_analysis_input_files(self, node, doc):
+    def _add_analysis_input_files(self, node, doc):
         """For a given analysis node, add the input_files to the doc."""
         input_files = [
             f
-            for f in self.get_parent_with_category(node, "data_file")
+            for f in self._get_parent_with_category(node, "data_file")
             if not validators.is_node_hidden(f)
         ]
-        input_file_docs = [self.get_simple_file_doc(f) for f in input_files]
+        input_file_docs = [self._get_simple_file_doc(f) for f in input_files]
 
         if input_file_docs:
             doc.setdefault("input_files", []).extend(input_file_docs)
 
-    def add_analysis_output_files(self, node, doc):
+    def _add_analysis_output_files(self, node, doc):
         """For a given analysis node, add the output_files to the doc."""
         output_files = [
             f
-            for f in self.get_child_with_category(node, "data_file")
+            for f in self._get_child_with_category(node, "data_file")
             if not validators.is_node_hidden(f)
         ]
-        output_file_docs = [self.get_simple_file_doc(f) for f in output_files]
+        output_file_docs = [self._get_simple_file_doc(f) for f in output_files]
 
         if output_file_docs:
             doc.setdefault("output_files", []).extend(output_file_docs)
 
-    def add_analysis_metadata(self, analysis, read_groups, doc):
+    def _add_analysis_metadata(self, analysis, read_groups, doc):
         """For a given analysis node, add the metadata to the doc."""
         metadata_doc: dict = {}
 
         if analysis.label in self.analysis_metadata["read_groups"]:
-            self.add_analysis_metadata_read_groups(read_groups, metadata_doc)
+            self._add_analysis_metadata_read_groups(read_groups, metadata_doc)
 
         if metadata_doc:
             doc["metadata"] = metadata_doc
 
-    def add_analysis_metadata_read_groups(self, read_groups, doc):
+    def _add_analysis_metadata_read_groups(self, read_groups, doc):
         """For a given analysis node, add read_groups to the metadata subdoc."""
         read_group_docs = []
 
         for read_group in read_groups:
             read_group_doc = self._get_base_doc(read_group)
 
-            read_group_qc_docs = self.get_read_group_qc_docs(read_group)
+            read_group_qc_docs = self._get_read_group_qc_docs(read_group)
             if read_group_qc_docs:
                 read_group_doc["read_group_qcs"] = read_group_qc_docs
 
@@ -316,16 +300,16 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         if read_group_docs:
             doc["read_groups"] = read_group_docs
 
-    def get_read_group_qc_docs(self, read_group):
+    def _get_read_group_qc_docs(self, read_group):
         """Return a list of documents for Read Group QCs."""
         read_group_qc_docs = []
-        rg_qcs = self.neighbors_labeled(read_group, "read_group_qc")
+        rg_qcs = self._neighbors_labeled(read_group, "read_group_qc")
         for read_group_qc in rg_qcs:
             read_group_qc_docs.append(self._get_base_doc(read_group_qc))
 
         return read_group_qc_docs
 
-    def get_file_read_groups(self, node):
+    def _get_file_read_groups(self, node):
         """Given a data_file node, traverse up the tree to read_groups.
 
         :returns: set of read_groups
@@ -334,30 +318,18 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         paths: Iterable[Sequence[str]] = self._file_to_read_group_paths.get(
             node.label, ()
         )
-        return set(self.walk_paths(node, paths))
+        return set(self._walk_paths(node, paths))
 
-    def get_analysis_read_groups(self, node):
-        """Given a analysis node, traverse up the tree to read_groups.
-
-        :returns: set of read_groups
-
-        """
-        return {
-            path
-            for file_ in self.get_parent_with_category(node, "data_file")
-            for path in self.get_file_read_groups(file_)
-        }
-
-    def get_simple_file_doc(self, node):
+    def _get_simple_file_doc(self, node):
         """Create a simple file doc for {input,output}_files."""
         doc = self._get_base_doc(node)
 
-        self.add_data_category(node, doc)
-        self.add_file_access(node, doc)
+        self._add_data_category(node, doc)
+        self._add_file_access(node, doc)
 
-        doc["data_format"] = self.get_data_format(node)
+        doc["data_format"] = self._get_data_format(node)
 
-        for dst in self.neighbors_labeled(node, "data_subtype"):
+        for dst in self._neighbors_labeled(node, "data_subtype"):
             doc["data_type"] = dst["name"]
 
         return doc
