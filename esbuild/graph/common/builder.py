@@ -8,7 +8,6 @@ graph index.
 import hashlib
 import itertools
 import logging
-import random
 import re
 import traceback
 import uuid
@@ -437,19 +436,6 @@ class GraphIndexBuilder:
     #                        Tree functions
     ###################################################################
 
-    def parse_tree(self, tree, result):
-        """Generate a simpler tree with just node labels.
-
-        Recursively walk a mapping tree and generate a simpler tree with
-        just node labels and not correspondences.
-
-        """
-        for key in tree:
-            if key != "corr":
-                result[key] = {}
-                self.parse_tree(tree[key], result[key])
-        return result
-
     def create_tree(self, node, mapping, tree):
         """Recursively walk a mapping to create a walkable tree."""
         if node.label in self.leaf_nodes:
@@ -643,39 +629,9 @@ class GraphIndexBuilder:
 
         return doc, ptree, visited_ids
 
-    def get_relevant_ids(self, node, visited_ids):
-        """Create flattened copy of visited_ids.
-
-        Create a flattened copy of visited_ids to filter relevant
-        annotations by entity id
-
-        """
-        return [
-            _entity_id
-            for _entity_type in visited_ids.values()
-            for _entity_id in _entity_type
-        ] + [node.node_id]
-
     def get_case_ptree(self, node):
         """Walk graph naturally for tree of node objects."""
         return {node: self.create_tree(node, mappings.CASE_TREE, {})}
-
-    def get_relevant_annotations(self, file_docs, relevant_ids):
-        """Return a flat list of annotations who describe entities in relevant_ids."""
-        return [
-            annotation
-            for file_ in file_docs
-            for annotation in file_.get("annotations", [])
-            if annotation["entity_id"] in relevant_ids
-        ]
-
-    def get_diagnosis_annotations(self, node):
-        """Return a flat list of annotations describing a case's diagnoses."""
-        return [
-            ann_doc
-            for diagnosis in self.neighbors_labeled(node, "diagnosis")
-            for ann_doc in self.annotation_entities.get(diagnosis, {}).values()
-        ]
 
     def denormalize_case(self, node: Node) -> Tuple[dict, List[dict], List]:
         """Get the entire case document for a case node.
@@ -730,13 +686,6 @@ class GraphIndexBuilder:
     ) -> List[dict]:
         """Given a list of files, return a list of file docs."""
         return [self.denormalize_file(file_, ptree) for file_ in files]
-
-    def patch_annotations(self, annotations, node, project):
-        """Add misc properties to annotations in-place."""
-        for annotation in annotations:
-            annotation["project"] = project
-            annotation["case_id"] = node.node_id
-            annotation["case_submitter_id"] = node.submitter_id
 
     def get_exp_strats(self, files):
         """Get files experimental strategies.
@@ -1750,20 +1699,6 @@ class GraphIndexBuilder:
 
         return cases, files, annotations, projects
 
-    def denormalize_cases_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation documents."""
-        self._cache_all()
-        cases = random.sample(self.cases, k)
-        cases, files, annotations = self.denormalize_cases(cases)
-        return cases, files, annotations
-
-    def denormalize_sample(self, k=10):
-        """Return an entire index worth of case, file, annotation, and project documents."""
-        cases, files, annotations = self.denormalize_sample_cases(k)
-        projs = random.sample(self.projects, 1)
-        projects = self.denormalize_projects(projs)
-        return cases, files, annotations, projects
-
     ###################################################################
     #                         Graph functions
     ###################################################################
@@ -1857,70 +1792,6 @@ class GraphIndexBuilder:
     ###################################################################
     #                       Validation functions
     ###################################################################
-
-    def validate_project_file_counts(self, project_doc, file_docs):
-        log.info("Validating {}".format(project_doc["project_id"]))
-        actual = len(
-            [
-                f
-                for f in file_docs
-                if project_doc["project_id"]
-                in {p["project"]["project_id"] for p in f["cases"]}
-            ]
-        )
-        expected = project_doc["summary"]["file_count"]
-        if actual != expected:
-            self.error(
-                "File count mismatch",
-                "{} file count mismatch: {} != {}".format(
-                    project_doc["project_id"], actual, expected
-                ),
-                tags=["project_id:{}".format(project_doc["project_id"])],
-            )
-
-    def validate_docs(self, case_docs, file_docs, ann_docs, project_docs):
-        for project_doc in project_docs:
-            self.validate_project_file_counts(project_doc, file_docs)
-            case_sample = random.sample(case_docs, min(len(case_docs), 100))
-            for case_doc in case_sample:
-                self.verify_data_category_count(case_doc)
-        self.validate_annotations(ann_docs)
-
-    def validate_annotations(self, ann_docs):
-        for ann_doc in ann_docs:
-            if ann_doc["entity_type"] == "case":
-                if ann_doc["entity_id"] != ann_doc["case_id"]:
-                    self.error(
-                        "Annotation case_id does not match entity_id",
-                        "case_id/entity_id mismatch: {} != {}".format(
-                            ann_doc["entity_id"], ann_doc["case_id"]
-                        ),
-                        tags=[
-                            "annotation_id:{}".format(ann_doc.get("annotation_id", "?"))
-                        ],
-                    )
-
-    def verify_data_category_count(self, case):
-        for data_category in self.existing_data_types:
-            calc = len(
-                [f for f in case["files"] if f.get("data_category") == data_category]
-            )
-
-            act = (
-                [
-                    d["file_count"]
-                    for d in case["summary"]["data_categories"]
-                    if d["data_category"] == data_category
-                ][:1]
-                or [0]
-            )[0]
-
-            if act != calc:
-                self.error(
-                    "Inconsistent data_category count",
-                    f"{data_category}: {act} != {calc}",
-                    tags=["case_id:{}".format(case.get("case_id", "?"))],
-                )
 
     def validate_against_mapping(
         self, doc: Union[dict, list], mapping: Mapping[str, Any]
