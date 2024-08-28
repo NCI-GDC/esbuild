@@ -72,7 +72,16 @@ EXCLUDED_FILE_PATHS = frozenset(
 def _node_labels_by_category(
     *categories: str, excluded: Container[str] = ()
 ) -> list[str]:
-    """Return an iterator of node labels that are files."""
+    """Get the node labels which belong to the given categories.
+
+    Args:
+        categories: The categories of nodes for which all labels should be collected.
+        excluded: A container for all labels which need to be excluded from the
+            collected labels.
+
+    Returns:
+        A list of node labels belonging to the given categories.
+    """
     return [
         n.label
         for n in psqlgraph.Node.get_subclasses()
