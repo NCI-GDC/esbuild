@@ -15,7 +15,7 @@ import pytest
 from gdcdatamodel2 import models
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder
-from esbuild.graph.common.builder import BIOSPECIMEN_TYPES, GraphIndexBuilder
+from esbuild.graph.common.builder import GraphIndexBuilder
 from tests.integration import conftest
 from tests.integration.conftest import Index
 from tests.integration.data import get_node_id
@@ -33,6 +33,7 @@ N_INPUT_FILES = 9
 # Whenever a new file is added under Aliquot.node_id == get_node_id('aliquot-1')
 # this needs to be updated
 N_FILES_UNDER_ALIQUOT_1 = 10
+
 
 # ======================================================================
 # Fixtures
@@ -56,7 +57,7 @@ def cached_builder(init_indexd, pg_driver):
 
 
 @pytest.fixture()
-def builder(init_indexd, pg_driver):
+def builder(init_indexd, pg_driver) -> ActiveGraphIndexBuilder:
     return ActiveGraphIndexBuilder(pg_driver, init_indexd)
 
 
@@ -525,63 +526,73 @@ def test_get_file_read_groups(pg_driver, index):
 
 
 @pytest.mark.parametrize(
-    "cls,count",
-    [
-        (models.AlignmentWorkflow, 2),
-        (models.SomaticMutationCallingWorkflow, 2),
-    ],
+    ("file_type", "count"),
+    (("aligned_reads", 1), ("copy_number_segment", 1)),
 )
-def test_get_analysis_read_groups(pg_driver, cached_builder, cls, count):
-    for workflow in pg_driver.nodes(cls).all():
-        read_groups = list(cached_builder.get_analysis_read_groups(workflow))
-        assert len(read_groups) == count
-        for read_group in read_groups:
-            assert read_group.label == "read_group"
+def test_get_file_associated_entities(
+    index: conftest.Index,
+    file_type: str,
+    count: int,
+) -> None:
+    files = tuple(f for f in index.files if f["type"] in file_type)
+
+    assert files, f"There are no files indexed of type: {file_type}"
+
+    for file in files:
+        associated_entities = file.get("associated_entities", ())
+
+        assert len(associated_entities) == count
 
 
 @pytest.mark.parametrize(
-    ("cls", "count"),
-    ((models.AlignedReads, 1), (models.CopyNumberSegment, 1)),
-)
-def test_get_file_associated_entities(pg_driver, cached_builder, cls, count):
-    for node in pg_driver.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
-            entities = list(cached_builder.get_file_associated_entities(node))
-            assert len(entities) == count
-
-
-@pytest.mark.parametrize(
-    "cls,count",
-    [
-        (models.BiospecimenSupplement, 0),
-        (models.ClinicalSupplement, 0),
-    ],
+    ("file_type", "count"),
+    (
+        ("biospecimen_supplement", 0),
+        ("clinical_supplement", 0),
+    ),
     scope="module",
 )
-def test_add_related_files(pg_driver, cached_builder, cls, count):
-    for node in pg_driver.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
-            doc = {}
-            cached_builder.add_related_files(node, doc)
-            assert len(doc.get("metadata_files", [])) == count
+def test_add_related_files(
+    index: conftest.Index,
+    file_type: str,
+    count: int,
+) -> None:
+    files = tuple(f for f in index.files if f["type"] in file_type)
+
+    assert files, f"There are no files indexed of type: {file_type}"
+
+    for file in files:
+        metadata_files = file.get("metadata_files", ())
+
+        assert len(metadata_files) == count, f"File "
 
 
 @pytest.mark.parametrize(
-    "cls,has_archive",
-    [
-        (models.BiospecimenSupplement, True),
-        (models.ClinicalSupplement, True),
-        (models.AlignedReads, False),
-        (models.CopyNumberSegment, False),
-    ],
+    ("file_type", "has_archive"),
+    (
+        ("biospecimen_supplement", True),
+        ("clinical_supplement", True),
+        ("aligned_reads", False),
+        ("copy_number_segment", False),
+    ),
     scope="module",
 )
-def test_add_archive(pg_driver, cached_builder, cls, has_archive):
-    for node in pg_driver.nodes(cls).all():
-        if cached_builder.is_file_indexed(node):
-            doc = {}
-            cached_builder.add_archives(node, doc)
-            assert ("archive" in doc) == has_archive
+def test_add_archive(
+    index: conftest.Index,
+    file_type: str,
+    has_archive: bool,
+):
+    files = tuple(f for f in index.files if f["type"] in file_type)
+
+    assert files, f"There are no files indexed of type: {file_type}"
+
+    for file in files:
+        if has_archive:
+            assert "archive" in file, f"file {file['file_id']} missing archive."
+        else:
+            assert (
+                "archive" not in file
+            ), f"file {file['file_id']} has erroneous archive."
 
 
 def test_aligned_reads_count(aligned_reads):
@@ -640,17 +651,17 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     """
 
     class MyBuilderA(ActiveGraphIndexBuilder):
-        def nodes_labeled(self, labels):
+        def _nodes_labeled(self, labels):
             # always returns Slide nodes first
-            results = [n for n in super().nodes_labeled(labels)]
+            results = [n for n in super()._nodes_labeled(labels)]
             slides = [n for n in results if n.label == "slide"]
             results = slides + [n for n in results if n.label != "slide"]
             return results
 
     class MyBuilderB(ActiveGraphIndexBuilder):
-        def nodes_labeled(self, labels):
+        def _nodes_labeled(self, labels):
             # always returns Slide nodes last
-            results = [n for n in super().nodes_labeled(labels)]
+            results = [n for n in super()._nodes_labeled(labels)]
             slides = [n for n in results if n.label == "slide"]
             results = [n for n in results if n.label != "slide"] + slides
             return results
@@ -658,14 +669,10 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
     builderA = MyBuilderA(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderA.cache_database()
-        labeled = builderA.nodes_labeled(BIOSPECIMEN_TYPES)
-        assert labeled and all(n.label == "slide" for n in labeled[:3])
 
     builderB = MyBuilderB(pg_driver, init_indexd)
     with pg_driver.session_scope():
         builderB.cache_database()
-        labeled = builderB.nodes_labeled(BIOSPECIMEN_TYPES)
-        assert labeled and all(n.label == "slide" for n in labeled[-3:])
 
     # Comparing that 2 maps are the same
     assert builderA.entity_cases == builderB.entity_cases
