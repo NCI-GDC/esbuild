@@ -112,6 +112,13 @@ def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
 
 
 def _is_edge_cached(edge: type[psqlgraph.Edge]) -> bool:
+    """Determine if an edge is cached from the database.
+
+    Currently, any node->relates to->case edge is excluded from the cache.
+
+    Returns:
+        True if the edge should be included when caching.
+    """
     if edge.label == "relates_to" and edge.__dst_class__ == md.Case.__name__:  # type: ignore
         return False
 
