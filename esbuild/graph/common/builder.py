@@ -2185,7 +2185,7 @@ class GraphIndexBuilder:
                 queries = (q.src(relevant_node_ids) for q in queries)
 
             for query in queries:
-                yield from query.yield_per(2_000)
+                yield from query.yield_per(10_000)
 
     def cache_database(self) -> None:
         """Cache the database into memory to use when denormalizing data."""
