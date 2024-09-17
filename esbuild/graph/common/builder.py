@@ -2136,7 +2136,7 @@ class GraphIndexBuilder:
         log.info("Removing %s suppressed nodes", len(suppressed))
         self.G.remove_nodes_from(suppressed)
 
-    def _load_relivant_node_ids(self) -> Iterator[str]:
+    def _load_relevent_node_ids(self) -> Iterator[str]:
         """Load the node ids associated with the configured build_projects.
 
         Yields:
@@ -2180,7 +2180,7 @@ class GraphIndexBuilder:
 
         with self.g.session_scope():
             if (self.build_awg or self.selective_caching) and self.build_projects:
-                relevant_node_ids = list(self._load_relivant_node_ids())
+                relevant_node_ids = list(self._load_relevent_node_ids())
 
                 queries = (q.src(relevant_node_ids) for q in queries)
 
