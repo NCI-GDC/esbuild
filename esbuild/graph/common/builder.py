@@ -15,7 +15,7 @@ from collections import defaultdict
 from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 from uuid import UUID, uuid5
 
 import more_itertools
@@ -26,7 +26,7 @@ from gdcdatamodel2 import models as md
 from indexclient import client
 from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node
-from sqlalchemy.orm import joinedload
+from sqlalchemy import orm
 
 from esbuild.graph.common import document_tools, mappings, path_tools, validators
 
@@ -109,6 +109,20 @@ def _get_gencode_version(doc: Optional[client.Document]) -> Optional[str]:
     gencode_version = doc.to_json().get("metadata", {}).get("gencode_version")
 
     return gencode_version
+
+
+def _is_edge_cached(edge: type[psqlgraph.Edge]) -> bool:
+    """Determine if an edge is cached from the database.
+
+    Currently, any node->relates to->case edge is excluded from the cache.
+
+    Returns:
+        True if the edge should be included when caching.
+    """
+    if edge.label == "relates_to" and edge.__dst_class__ == md.Case.__name__:  # type: ignore
+        return False
+
+    return True
 
 
 class GraphIndexBuilder:
@@ -340,16 +354,6 @@ class GraphIndexBuilder:
             "experimental_strategy": "name",
             "data_level": "name",
         }
-
-        # The edges below will maintain labels in the in memory graph,
-        # all others will be discarded
-        self.differentiated_edges = [
-            ("file", "member_of", "archive"),
-            ("archive", "member_of", "file"),
-            ("file", "describes", "case"),
-            ("case", "describes", "file"),
-            ("file", "related_to", "file"),
-        ]
 
         self.file_to_case_paths = [
             list(reversed(l))[1:] + ["case"] for l in self.case_to_file_paths
@@ -2132,87 +2136,79 @@ class GraphIndexBuilder:
         log.info("Removing %s suppressed nodes", len(suppressed))
         self.G.remove_nodes_from(suppressed)
 
-    def _iter_database_edges(self) -> Iterator[Edge]:
-        """Return an iterable of edges to load from the database.
+    def _load_relevant_node_ids(self) -> Iterator[str]:
+        """Load the node ids associated with the configured build_projects.
 
-        Eagerly (with join) loads the source and destination of the edge.
-        NOTE: All nodes that are not Project and expected to be picked up
-        must have project_id field corresponding to project they are part of
-        As of Jan 2018, this is not true for Legacy and old Active nodes
-
-        NOTE: [AWG build mode] If self.build_awg is set, will return only edges
-        that are connected to nodes that are part of awg_review == True projects
+        Yields:
+            A node id associated with the build projects.
         """
-        if (self.build_awg or self.selective_caching) and self.build_projects:
-            # Load only node ids with relevant project_id's
-            project_ids = ["-".join(p) for p in self.build_projects]
-            log.info(f"Getting {project_ids} from database")
+        project_ids = ["-".join(p) for p in self.build_projects]
+        projects = [p[1] for p in self.build_projects]
 
-            relevant_node_ids = {
-                nd.node_id for nd in self.g.nodes().prop_in("project_id", project_ids)
-            }
+        log.info("Getting %s from database", project_ids)
 
-            # Add relevant Project nodes to relevant nodes set:
-            projects = [p[1] for p in self.build_projects]
-            relevant_projects = self.g.nodes(md.Project).prop_in("code", projects)
+        with self.g.session_scope():
+            yield from itertools.chain.from_iterable(
+                self.g.nodes(md.Node.node_id).prop_in("project_id", project_ids)
+            )
+            yield from itertools.chain.from_iterable(
+                self.g.nodes(md.Project.node_id).prop_in("code", projects)
+            )
 
-            relevant_node_ids.update([p.node_id for p in relevant_projects])
+    def _load_edges(self) -> Iterator[psqlgraph.Edge]:
+        """Load the edges of the graph required for the build.
 
-            # Query only relevant edges
-            query = lambda node_type: self.g.edges(node_type).src(relevant_node_ids)
+        Notes:
+            - This generates a series of queries for each edge type.
+            - The src/dst nodes are eagerly loaded.
+            - If selective_caching/awg_build set only nodes from the configured
+              projects are loaded.
 
-        else:
-            # Query all edges
-            query = lambda node_type: self.g.edges(node_type)
-
-        return itertools.chain(
-            *[
-                query(subclass)
-                .options(joinedload(subclass.src))
-                .options(joinedload(subclass.dst))
-                .yield_per(int(1e5))
-                for subclass in Edge.__subclasses__()
-            ]
+        Yields:
+            Edges loaded from the database.
+        """
+        edge_types = filter(
+            _is_edge_cached,
+            cast(Iterable[type[psqlgraph.Edge]], psqlgraph.Edge.get_subclasses()),
+        )
+        queries = (
+            self.g.edges(e)
+            .options(orm.joinedload(e.src))
+            .options(orm.joinedload(e.dst))
+            for e in edge_types
         )
 
-    def cache_database(self):
-        """Cache database psqlgraph into memory.
+        with self.g.session_scope():
+            if (self.build_awg or self.selective_caching) and self.build_projects:
+                relevant_node_ids = list(self._load_relevant_node_ids())
 
-        Load the database into memory and remember only edge labels that we
-        will need to distinguish later.
+                queries = (q.src(relevant_node_ids) for q in queries)
 
-        """
-        with self.g.session_scope() as sxn, sxn.no_autoflush:
-            pbar = self._pbar("Caching Database: ", self.g.edges().count())
-            # Cache graph to self.G
-            # NOTE: if build_awg or selective_caching are set, will only iterate
-            #   over relevant edges
-            for e in self._iter_database_edges():
-                pbar.update(pbar.value + 1)
-                triple = (e.src.label, e.label, e.dst.label)
-                needs_differentiation = triple in self.differentiated_edges
-                if triple == ("file", "data_from", "file"):
-                    # for files that are "data_from" other files, the
-                    # centers and aliquots of the source files count
-                    # as neighbors of the dst files
-                    for center in e.src.centers:
-                        self.G.add_edge(e.dst, center)
-                    for aliquot in e.src.aliquots:
-                        self.G.add_edge(e.dst, aliquot)
-                if e.label == "relates_to" and e.__dst_class__ == "Case":
-                    pass
-                elif needs_differentiation and e._props:
-                    self.G.add_edge(e.src, e.dst, label=e.label, props=e._props)
-                elif needs_differentiation and not e._props:
-                    self.G.add_edge(e.src, e.dst, label=e.label)
-                elif e._props:
-                    self.G.add_edge(e.src, e.dst, props=e._props)
-                else:
-                    self.G.add_edge(e.src, e.dst)
-            pbar.finish()
+            for query in queries:
+                yield from query.yield_per(10_000)
+
+    def cache_database(self) -> None:
+        """Cache the database into memory to use when denormalizing data."""
+        # these edges' labels are needed later in:
+        # - _add_related_files
+        # - _add_archives
+        labeled_edges = frozenset((md.FileMemberOfArchive, md.FileRelatedToFile))
+
+        for edge in self._load_edges():
+            if isinstance(edge, md.FileDataFromFile):
+                # for files that are "data_from" other files, the centers and aliquots
+                # of the source files count as neighbors of the dst files.
+                for additional_neighbor in itertools.chain(
+                    edge.src.centers, edge.src.aliquots
+                ):
+                    self.G.add_edge(edge.dst, additional_neighbor)
+            elif type(edge) in labeled_edges:
+                self.G.add_edge(edge.src, edge.dst, label=edge.label)
+            else:
+                self.G.add_edge(edge.src, edge.dst)
 
         # Prune graph
-        log.info(f"Cached {self.G.number_of_nodes()} nodes")
+        log.info("Cached %s nodes", self.G.number_of_nodes())
         self._remove_unindexed_nodes_from_graph()
 
         # Aggressively cache relationships, nodes by type, traversals, etc.
