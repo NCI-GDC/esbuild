@@ -8,7 +8,8 @@ long_description = (this_directory / "README.md").read_text()
 setup(
     name="esbuild",
     description="Repository for building the GDC Elasticsearch indices.",
-    license="Apache",
+    license="Apache-2.0",
+    license_files=("LICENSE",),
     author="NCI GDC",
     author_email="gdc_dev_questions-aaaaae2lhsbell56tlvh3upgoq@cdis.slack.com",
     url="https://github.com/NCI-GDC/esbuild",
