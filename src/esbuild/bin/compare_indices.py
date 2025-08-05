@@ -344,6 +344,6 @@ class ESWorker:
         )
 
 
-if __name__ == "__main__":
+def main() -> None:
     tester = DataTester()
     tester.run()

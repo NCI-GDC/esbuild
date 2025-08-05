@@ -77,8 +77,7 @@ def _read_json_file(path: Optional[str]) -> Optional[dict]:
         return json.load(f)
 
 
-class ReindexingException(Exception):
-    ...
+class ReindexingException(Exception): ...
 
 
 class Arguments(NamedTuple):

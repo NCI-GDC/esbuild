@@ -1,13 +1,77 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
+requires = ["setuptools>=78", "wheel", "setuptools_scm>=7.1.0", "versionista>=1.1.0"]
 
-[tool.pytest.ini_options]
-testpaths = [
-    "tests/unit",
-    "tests/integration"
+[project]
+authors = [
+  {name = "NCI GDC", email = "gdc_dev_questions-aaaaae2lhsbell56tlvh3upgoq@cdis.slack.com"}
+]
+classifiers = [
+  "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9"
+]
+dependencies = [
+  "addict",
+  "datadog",
+  "deepdiff", # required by compare_indices
+  "dictdiffer",
+  "elasticsearch",
+  "more-itertools",
+  "networkx",
+  "progressbar2",
+  "python-dotenv",
+  "python-json-logger",
+  "requests",
+  "SQLAlchemy",
+  "psqlgraph",
+  "gdcdictionary",
+  "gdcdatamodel2",
+  "gdc-ng-models",
+  "indexclient",
+  "queueclient",
+  "gdcmodels"
+]
+description = "Repository for building the GDC Elasticsearch indices."
+dynamic = ["version"]
+license-files = ["LICENSE"]
+name = "esbuild"
+readme = "README.md"
+requires-python = "~=3.9.0"
+
+[project.optional-dependencies]
+dev = [
+  "jmespath~=0.10",
+  "mock~=3.0",
+  "pytest>=7.0.0", # older version will not work with pytest-elasticsearch 4.0.1
+  "pytest-cov~=2.8",
+  "python-dateutil<2.8.1,>=2.1",
+  "pytest-elasticsearch",
+  "pytest-postgresql", # this should not be needed
+  "graphviz~=0.19.1", # this should not be needed
+  "gdcdatamodel2[visualization]",
+  "indexdmodels", # this should not be needed
+  "indexd",
+  "indexclient[pytest_indexd]"
 ]
 
+[project.scripts]
+"compare_indices.py" = "esbuild.bin.compare_indices:main"
+esbuild-cli = "esbuild.bin.esbuild_cli:main"
+"master.py" = "esbuild.bin.master:main"
+"minion.py" = "esbuild.bin.minion:main"
+
+[project.urls]
+Repository = "https://github.com/NCI-GDC/esbuild"
+
+[tool.coverage.html]
+directory = "docs/htmlcov"
+title = "esbuild coverage report"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/integration"]
+
 [tool.setuptools_scm]
-local_scheme = "no-local-version"
-write_to = 'esbuild/_version.py'
+local_scheme = "versionista-local-format"
+version_scheme = "versionista-format"

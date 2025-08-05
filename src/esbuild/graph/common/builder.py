@@ -2425,7 +2425,7 @@ def get_uuid_namespace(label):
     if label in UUID_NAMESPACES:
         return UUID_NAMESPACES[label]
 
-    namespace = hashlib.sha1(bytes(label, "utf-8")).hexdigest()
+    namespace = hashlib.sha1(bytes(label, "utf-8"), usedforsecurity=False).hexdigest()
     namespace = namespace[:32]
     namespace_uuid = UUID(hex=namespace, version=4)
 

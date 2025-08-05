@@ -1,27 +1,22 @@
 ---
-
 include:
   - project: nci-gdc/gitlab-templates
-    ref: 0.3.1
+    ref: master
     file:
-      - templates/global/full.yaml
-      - templates/python/full.yaml
-      - templates/common/python.yaml
-      - templates/common/docker.yaml
-      - templates/deployments/salt-service.yaml
+      - templates/artifacts/python-docker-service.yaml
 
 .services:
   allow_failure: true
-  stage: deploy
   when: manual
   parallel:
     matrix:
       - DEPLOY_SERVICE_LIST: [esbuild]
 
+variables:
+  BASE_CONTAINER_VERSION: 3.1.0
+  LANGUAGE_VERSION: python3.9
+
 tox:
-  parallel:
-    matrix:
-      - BUILD_PY_VERSION: [python3.9]
   services:
     - name: docker.osdc.io/ncigdc/ci-postgres-13:${BASE_CONTAINER_VERSION}
       alias: postgres
@@ -37,25 +32,3 @@ tox:
     PG_ESBUILD_HOST: postgres
     PG_INDEXD_HOST: postgres
     ES_HOST: elasticsearch
-  script:
-    - pip install "tox<4"
-    - tox -r -e py
-
-
-release:
-  variables:
-    RELEASE_PY_VERSION: python3.9
-  before_script:
-    - git fetch --unshallow || true
-  after_script:
-    - python setup.py --version > VERSION.txt
-  artifacts:
-    paths:
-      - VERSION.txt
-    expire_in: 1 week
-
-Docker build git tag:
-  script:
-    - docker pull docker.osdc.io/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_SHA}
-    - docker tag docker.osdc.io/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_SHA} $DOCKER_RELEASE_REGISTRY/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_TAG}
-    - docker push $DOCKER_RELEASE_REGISTRY/ncigdc/$CI_PROJECT_NAME:${CI_COMMIT_TAG}

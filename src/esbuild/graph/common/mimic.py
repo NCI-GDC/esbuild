@@ -4,6 +4,7 @@ Mimics the isolation of functionality such as filtering nodes from the
 index.
 
 """
+
 import logging
 from typing import Iterable, Union
 

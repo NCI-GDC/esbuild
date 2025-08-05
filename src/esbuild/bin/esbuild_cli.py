@@ -167,7 +167,7 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = get_parser().parse_args()
     try:
         args.func(args)

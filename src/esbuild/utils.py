@@ -421,7 +421,7 @@ class ReleaseHelper:
         project_ids_string = ",".join(sorted(project_ids))
         id_string = "-".join([index_prefix, action, project_ids_string, commit_hash])
 
-        md5hash = md5(id_string.encode("utf-8"))
+        md5hash = md5(id_string.encode("utf-8"), usedforsecurity=False)
 
         return md5hash.hexdigest()
 
