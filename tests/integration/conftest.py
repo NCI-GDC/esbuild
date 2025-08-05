@@ -159,11 +159,17 @@ def containers() -> Iterator[Any]:
 def indexd_client(
     containers: Any,
     # refresh_indexd_database: Any
-) -> client.IndexClient:
-    return client.IndexClient(
+) -> Iterator[client.IndexClient]:
+    indexd = client.IndexClient(
         baseurl=os.environ["INDEXD_HOST"],
         auth=(os.environ["INDEXD_USER"], os.environ["INDEXD_PASS"]),
     )
+
+    try:
+        yield indexd
+    finally:
+        for doc in indexd.list():
+            doc.delete()
 
 
 CreateIndexdDocuments = Callable[[Iterable[dict]], Sequence[client.Document]]
@@ -172,7 +178,7 @@ CreateIndexdDocuments = Callable[[Iterable[dict]], Sequence[client.Document]]
 @pytest.fixture
 def create_indexd_documents(
     indexd_client: client.IndexClient,
-) -> Iterator[CreateIndexdDocuments]:
+) -> CreateIndexdDocuments:
     def _inner(records: Iterable[dict]) -> Sequence[client.Document]:
         docs = []
 
@@ -201,11 +207,7 @@ def create_indexd_documents(
 
         return docs
 
-    try:
-        yield _inner
-    finally:
-        for doc in indexd_client.list():
-            doc.delete()
+    return _inner
 
 
 @pytest.fixture
@@ -437,9 +439,7 @@ def generate_scenario(
     graph_factory: hydrator.GraphFactory,
     pg_driver: psqlgraph.PsqlGraphDriver,
     create_indexd_documents: CreateIndexdDocuments,
-) -> Iterator[GenerateScenario]:
-    node_ids = []
-
+) -> GenerateScenario:
     def _from_file(
         scenario: str,
     ) -> tuple[Sequence[psqlgraph.Node], Sequence[client.Document]]:
@@ -468,17 +468,9 @@ def generate_scenario(
 
             session.commit()
 
-        node_ids = [n.node_id for n in nodes]
-
         return nodes, docs
 
-    yield _from_file
-
-    with pg_driver.session_scope() as session:
-        for node in pg_driver.nodes().filter(psqlgraph.Node.node_id.in_(node_ids)):
-            session.delete(node)
-
-        session.commit()
+    return _from_file
 
 
 ScenarioIndex = Callable[[str], Index]
