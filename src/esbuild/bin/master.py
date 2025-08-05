@@ -282,7 +282,7 @@ def get_default_projects(args: Any, user_config: dict) -> Iterable[str]:
     return projects
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = parse_args()
 
     if not args.index:

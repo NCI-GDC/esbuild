@@ -181,7 +181,7 @@ def minion_argparser() -> argparse.ArgumentParser:
     return parser
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = minion_argparser().parse_args()
     procs = []
 

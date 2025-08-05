@@ -2,10 +2,11 @@
 Setup esbuild tests
 """
 
+import itertools
 import logging
 import os
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence, Set
 from typing import NamedTuple
 
 import elasticsearch
@@ -264,13 +265,17 @@ def graph_factory():
 # Elasticsearch test index
 
 
-def get_all_indices(es):
-    return (
-        # closed indices
-        list(es.cluster.state()["blocks"].get("indices", {}).keys())
-        +
-        # opened indices:
-        list(es.indices.stats()["indices"].keys())
+def get_all_indices(es: elasticsearch.Elasticsearch) -> Set[str]:
+    return frozenset(
+        index
+        for index in itertools.chain(
+            # closed indices
+            es.cluster.state()["blocks"].get("indices", {}).keys(),
+            # opened indices:
+            es.indices.stats()["indices"].keys(),
+        )
+        # An index which is automatically included w/in the docker's elasticsearch instance.
+        if index != ".geoip_databases"
     )
 
 

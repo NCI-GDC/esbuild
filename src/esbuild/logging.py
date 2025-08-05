@@ -42,9 +42,9 @@ class DatadogLogFormatter(jsonlogger.JsonFormatter):
             log_record["error.stack"] = log_record.pop("exc_info", None)
 
             if exc_type:
-                log_record[
-                    "error.kind"
-                ] = f"{exc_type.__module__}.{exc_type.__qualname__}"
+                log_record["error.kind"] = (
+                    f"{exc_type.__module__}.{exc_type.__qualname__}"
+                )
             if exception:
                 log_record["error.message"] = f"{exception}"
 

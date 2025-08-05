@@ -20,7 +20,7 @@ class TestIndexBuilder(builder.GraphIndexBuilder):
         cases: Collection[psqlgraph.Node] = (),
         projects: Collection[psqlgraph.Node] = (),
         annotations: Collection[psqlgraph.Node] = (),
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self.file_labels = file_labels
 

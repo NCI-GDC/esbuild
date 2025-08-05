@@ -30,8 +30,7 @@ GRAPH_INDEX_DOC_TYPES = ["project", "case", "annotation", "file"]
 class MakeGDCElasticsearch(Protocol):
     def __call__(
         self, indexd_client: client.IndexClient, **kwargs: Any
-    ) -> gdc_elasticsearch.GDCElasticsearch:
-        ...
+    ) -> gdc_elasticsearch.GDCElasticsearch: ...
 
 
 @pytest.fixture
@@ -115,9 +114,9 @@ def test_basic_es_generate(
     gdces.go()
 
     all_indices = get_all_indices(setup_test)
-    expected_indices = set(gdces.index_names.values()) | {"build_metadata"}
+    expected_indices = frozenset(gdces.index_names.values()) | {"build_metadata"}
 
-    assert set(all_indices) == expected_indices
+    assert all_indices == expected_indices
     assert len(all_indices) == len(expected_indices)
 
     # also verify that the to_delete file is not in the index and
@@ -282,12 +281,15 @@ def test_reindex_change_field_type(
     modified_mapping = get_modified_mapping()
     settings = mappings.get_settings()
 
-    with mock.patch.multiple(
-        "esbuild.graph.common.mappings",
-        get_case_mapping=mock.MagicMock(return_value=modified_mapping),
-        get_file_mapping=mock.MagicMock(return_value={}),
-        get_settings=mock.MagicMock(return_value=settings),
-    ), futures.ThreadPoolExecutor() as executor:
+    with (
+        mock.patch.multiple(
+            "esbuild.graph.common.mappings",
+            get_case_mapping=mock.MagicMock(return_value=modified_mapping),
+            get_file_mapping=mock.MagicMock(return_value={}),
+            get_settings=mock.MagicMock(return_value=settings),
+        ),
+        futures.ThreadPoolExecutor() as executor,
+    ):
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
         progress_manager = reindexing.TaskProgressManager(
             task_factory, mock.MagicMock()
@@ -460,8 +462,8 @@ def test_es_with_gencode(
     gdc_es.go()
 
     all_indices = get_all_indices(setup_test)
-    expected_indices = set(gdc_es.index_names.values()) | {"build_metadata"}
-    assert set(all_indices) == expected_indices
+    expected_indices = frozenset(gdc_es.index_names.values()) | {"build_metadata"}
+    assert all_indices == expected_indices
 
     file_index = gdc_es.index_names["file"]
     with pg_driver.session_scope():
