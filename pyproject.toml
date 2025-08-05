@@ -42,18 +42,12 @@ requires-python = "~=3.9.0"
 
 [project.optional-dependencies]
 dev = [
-  "jmespath~=0.10",
-  "mock~=3.0",
-  "pytest>=7.0.0", # older version will not work with pytest-elasticsearch 4.0.1
-  "pytest-cov~=2.8",
-  "python-dateutil<2.8.1,>=2.1",
-  "pytest-elasticsearch",
-  "pytest-postgresql", # this should not be needed
-  "graphviz~=0.19.1", # this should not be needed
+  "jmespath",
+  "mock",
+  "pytest",
+  "pytest-cov",
   "gdcdatamodel2[visualization]",
-  "indexdmodels", # this should not be needed
-  "indexd",
-  "indexclient[pytest_indexd]"
+  "testcontainers"
 ]
 
 [project.scripts]
