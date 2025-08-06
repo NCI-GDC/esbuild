@@ -5,7 +5,7 @@ ARG PYTHON_VERSION=python3.9
 FROM ${REGISTRY}/${PYTHON_VERSION}-builder:${BASE_VERSION} AS build
 ARG PIP_INDEX_URL
 ENV PIP_INDEX_URL=$PIP_INDEX_URL
-ARG SERVICE_NAME=esbuild
+ARG SERVICE_NAME
 
 # avoids used detach heads in computing versions in gitlab
 ARG GIT_BRANCH_NAME
