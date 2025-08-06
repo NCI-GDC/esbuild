@@ -29,12 +29,12 @@ ARG BUILD_DATE
 ARG COMMIT
 ARG GIT_BRANCH
 ARG PYTHON_VERSION
-ARG SERVICE_NAME=esbuild
+ENV SERVICE_NAME=esbuild
 ENV GIT_COMMIT=$COMMIT
 
-LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
+LABEL org.opencontainers.image.title="esbuild" \
       org.opencontainers.image.description="Docker image for building the GDC Elasticsearch indices." \
-      org.opencontainers.image.source="https://github.com/NCI-GDC/${SERVICE_NAME}" \
+      org.opencontainers.image.source="https://github.com/NCI-GDC/esbuild" \
       org.opencontainers.image.vendor="NCI GDC" \
       org.opencontainers.image.ref.name="esbuild:${GIT_BRANCH}" \
       org.opencontainers.image.revision="${COMMIT}" \
