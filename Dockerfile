@@ -5,7 +5,7 @@ ARG PYTHON_VERSION=python3.13
 FROM ${REGISTRY}/${PYTHON_VERSION}-builder:${BASE_VERSION} AS build
 ARG PIP_INDEX_URL
 ENV PIP_INDEX_URL=$PIP_INDEX_URL
-ARG SERVICE_NAME=esbuild
+ARG SERVICE_NAME="esbuild"
 
 # avoids used detach heads in computing versions in gitlab
 ARG GIT_BRANCH_NAME
@@ -29,7 +29,7 @@ ARG BUILD_DATE
 ARG COMMIT
 ARG GIT_BRANCH
 ARG PYTHON_VERSION
-ENV SERVICE_NAME=esbuild
+ARG SERVICE_NAME="esbuild"
 ENV GIT_COMMIT=$COMMIT
 
 LABEL org.opencontainers.image.title="esbuild" \
