@@ -16,7 +16,6 @@ from unittest import mock
 
 import datadog
 import elasticsearch
-import progressbar
 import psqlgraph
 from elasticsearch import helpers
 from indexclient import client
@@ -442,31 +441,6 @@ class GDCElasticsearch:
             elif isinstance(entries, dict):
                 f.write(json.dumps(entries, indent=2))
 
-    def pbar(self, title: str, max_value: int) -> progressbar.ProgressBar:
-        """Create and initialize a custom progressbar.
-
-        Args:
-            title: The text of the progress bar
-            max_value: The maximum value of the progress bar
-
-        Returns:
-            ProgressBar
-        """
-        pbar = progressbar.ProgressBar(
-            widgets=[
-                title,
-                progressbar.Percentage(),
-                " ",
-                progressbar.Bar(marker="#", left="[", right="]"),
-                " ",
-                progressbar.ETA(),
-                " ",
-            ],
-            max_value=max_value,
-        )
-        pbar.update(0)
-        return pbar
-
     def _create_index(self, index_name, index_settings, mappings):
         if not self.es.indices.exists(index=index_name):
             logger.info(f"Creating new index: '{index_name}'")
@@ -543,7 +517,6 @@ class GDCElasticsearch:
         """
         index_name = self.index_names[index_type]
         id_field = index_type + "_id"
-        pbar = self.pbar(f"{index_name} upload ", len(docs))
 
         def action_gen():
             for doc in docs:
@@ -554,8 +527,6 @@ class GDCElasticsearch:
                 )
 
                 yield action
-
-                pbar.update(pbar.value + 1)
 
         actions = action_gen()
         if self.no_parallel_bulk:
@@ -583,8 +554,6 @@ class GDCElasticsearch:
                             indent=2,
                         )
                     )
-
-        pbar.finish()
 
     def swap_index_alias(self, alias: str, new_index: str):
         """Switch the resolution of alias from old indices to new_index.
