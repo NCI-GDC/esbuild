@@ -36,7 +36,7 @@ LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
       org.opencontainers.image.description="Docker image for building the GDC Elasticsearch indices." \
       org.opencontainers.image.source="https://github.com/NCI-GDC/${SERVICE_NAME}" \
       org.opencontainers.image.vendor="NCI GDC" \
-      org.opencontainers.image.ref.name="${SERVICE_NAME}:${GIT_BRANCH}" \
+      org.opencontainers.image.ref.name="esbuild:${GIT_BRANCH}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
