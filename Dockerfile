@@ -5,7 +5,7 @@ ARG PYTHON_VERSION=python3.13
 FROM ${REGISTRY}/${PYTHON_VERSION}-builder:${BASE_VERSION} AS build
 ARG PIP_INDEX_URL
 ENV PIP_INDEX_URL=$PIP_INDEX_URL
-ARG SERVICE_NAME="esbuild"
+ARG SERVICE_NAME=esbuild
 
 # avoids used detach heads in computing versions in gitlab
 ARG GIT_BRANCH_NAME
@@ -28,15 +28,15 @@ FROM ${REGISTRY}/${PYTHON_VERSION}:${BASE_VERSION}
 ARG BUILD_DATE
 ARG COMMIT
 ARG GIT_BRANCH
+ARG SERVICE_NAME
 ARG PYTHON_VERSION
-ARG SERVICE_NAME="esbuild"
 ENV GIT_COMMIT=$COMMIT
 
-LABEL org.opencontainers.image.title="esbuild" \
+LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
       org.opencontainers.image.description="Docker image for building the GDC Elasticsearch indices." \
-      org.opencontainers.image.source="https://github.com/NCI-GDC/esbuild" \
+      org.opencontainers.image.source="https://github.com/NCI-GDC/${SERVICE_NAME}" \
       org.opencontainers.image.vendor="NCI GDC" \
-      org.opencontainers.image.ref.name="esbuild:${GIT_BRANCH}" \
+      org.opencontainers.image.ref.name="${SERVICE_NAME}:${GIT_BRANCH}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
