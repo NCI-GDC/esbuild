@@ -140,10 +140,8 @@ def test_esbuild_versioning(
     source = INDEXD_METADATA_FIELDS + ["index_files"]
     res = es.search(
         index="gdc_es_test_file",
-        body={
-            "query": {"terms": {"submitter_id": ["ar_sar1", "ar_sur1"]}},
-            "_source": source,
-        },
+        query={"terms": {"submitter_id": ["ar_sar1", "ar_sur1"]}},
+        _source=source,
     )
 
     total = res["hits"]["total"]

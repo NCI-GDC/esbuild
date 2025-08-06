@@ -264,7 +264,7 @@ def test_reindex_change_field_type(
     # We have to use the old service to set up all of the test indices
     gdc_es.go(roll_alias=False)
     # project.project_id is a keyword type and aggregations are possible
-    aggs_resp1 = es.search(index=case_index, body=aggs_query)
+    aggs_resp1 = es.search(index=case_index, **aggs_query)
 
     # get counts before reindexing
     counts1 = get_graph_counts(es, "gdc_es_test", ("case",))
@@ -313,7 +313,7 @@ def test_reindex_change_field_type(
     r"the inverted index\. Note that this can use significant memory.*"
 
     with pytest.raises(elasticsearch.RequestError, match=error_message):
-        es.search(index=new_case_index, body=aggs_query)
+        es.search(index=new_case_index, **aggs_query)
 
 
 @pytest.mark.usefixtures("setup_test")

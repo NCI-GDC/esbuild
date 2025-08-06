@@ -385,7 +385,7 @@ class ReleaseHelper:
             return
 
         # If audit index doesn't exist, create one
-        if not self.es.indices.exists(self.audit_index):
+        if not self.es.indices.exists(index=self.audit_index):
             self.es.indices.create(index=self.audit_index)
             self.es.indices.refresh(index=self.audit_index)
 
@@ -402,7 +402,7 @@ class ReleaseHelper:
 
         self.es.index(
             index=self.audit_index,
-            body=dict(
+            document=dict(
                 input_hash=metadata_id,
                 index_prefix=index_prefix,
                 action=action,
@@ -431,7 +431,7 @@ class ReleaseHelper:
 
         project_index = index_prefix + "_project"
 
-        res = self.es.search(index=project_index, size=10000, body=query)
+        res = self.es.search(index=project_index, size=10000, **query)
 
         hits = res["hits"]["hits"]
         if hits:

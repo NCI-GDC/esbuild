@@ -10,37 +10,97 @@ import hashlib
 import random
 import re
 import uuid
+from collections.abc import Iterable, Iterator, Sequence
+from typing import Any, Protocol, runtime_checkable
 
+import gdcdictionary
+import psqlgraph
 from gdcdatamodel2 import models
-from gdcdictionary import gdcdictionary
-from psqlgraph.mocks import NodeFactory
+from psqlgraph import hydrator
 
-from esbuild.graph.common.builder import GraphIndexBuilder
+from esbuild.graph.common import builder
 
-DATA_FILE_CATEGORIES = GraphIndexBuilder.data_file_categories
-DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
+DATA_FILE_CATEGORIES = builder.GraphIndexBuilder.data_file_categories
+DATA_FILE_INDEXD_FIELDS = builder.GraphIndexBuilder.data_file_indexd_fields
 # Populated each time get_node_id is called, Used for debugging missing ids
-NODE_ID_TO_STRING = {}
+NODE_ID_TO_STRING: dict[str, str] = {}
 # Defaults for the node factory
-node_factory = NodeFactory(models, gdcdictionary.schema)
+node_factory = hydrator.NodeFactory(models, gdcdictionary.gdcdictionary.schema)
 
 
-def fuzzed(node_class, node_id=None, **kwargs):
+def fuzzed(
+    node_class: type[models.Node], node_id: str | None = None, **kwargs: Any
+) -> models.Node:
     # Set some required properties if not provided
     kwargs["acl"] = kwargs.get("acl", ["phs000178"])
     kwargs["node_id"] = node_id or str(uuid.uuid4())
     kwargs["state"] = kwargs.get("state") or "released"
 
-    return node_factory.create(node_class.label, override=kwargs, all_props=True)
+    return node_factory.create(node_class.get_label(), override=kwargs, all_props=True)
 
 
-def get_node_id(string_id):
+def get_node_id(string_id: str) -> str:
     node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, string_id))
     NODE_ID_TO_STRING[node_id] = string_id  # need this side-effect for debugging =\
     return node_id
 
 
-def patch_test_data_get_indexd(nodes):
+@runtime_checkable
+class FileNode(Protocol):
+    node_id: str
+    md5sum: str
+    file_name: str
+    file_size: int
+
+    @property
+    def _dictionary(self) -> dict: ...
+
+
+def _add_index_data(file_nodes: Iterable[FileNode]) -> Iterator[dict[str, Any]]:
+    for node in file_nodes:
+        urls = [f"s3://bucket/{node.md5sum}/{node.file_name}"]
+
+        # Replace illegal md5sum with legal one:
+        md5sum = str(getattr(node, "md5sum", None))
+        if not re.findall(r"([a-fA-F\d]{32})", md5sum):
+            node.md5sum = hashlib.md5(
+                md5sum.encode("utf-8"), usedforsecurity=False
+            ).hexdigest()
+
+        # Patch file_size if none provided:
+        if not getattr(node, "file_size", None):
+            node.file_size = random.randint(int(1e6), int(1e7))
+
+        indexd_did = node.node_id
+        indexd_record = {
+            "urls": urls,
+            "did": indexd_did,
+            "node_id": node.node_id,
+        }
+
+        for key in DATA_FILE_INDEXD_FIELDS:
+            key_value = getattr(node, key, None)
+            if key_value is None:
+                continue
+            # populate indexd record with the value from the node
+            indexd_record[key] = key_value
+
+            # Patch node.key with error value:
+            if isinstance(key_value, str):
+                setattr(node, key, "error")
+            elif isinstance(key_value, list):
+                setattr(node, key, ["error" for _ in getattr(node, key)])
+            elif isinstance(key_value, int):
+                setattr(node, key, -1)
+            else:
+                raise ValueError("Can not process the value:", getattr(node, key))
+
+        yield indexd_record
+
+
+def patch_test_data_get_indexd(
+    nodes: Sequence[models.Node],
+) -> tuple[Sequence[models.Node], Sequence[dict[str, Any]]]:
     """
     Takes effect only for file nodetypes:
 
@@ -50,57 +110,18 @@ def patch_test_data_get_indexd(nodes):
     3. Will patch illegal md5sum fields with random legal ones for all file nodes
 
     """
-
-    indexd_data = []
-    for i_node, node in enumerate(nodes):
-        node_is_file = node.__class__._dictionary["category"] in DATA_FILE_CATEGORIES
-
-        # If the node is file category and the key is supposed to be in indexd:
-        if node_is_file:
-            # Make up urls for the file:
-            urls = [f"s3://bucket/{node.md5sum}/{node.file_name}"]
-
-            # Replace illegal md5sum with legal one:
-            md5sum = str(getattr(node, "md5sum", None))
-            if not re.findall(r"([a-fA-F\d]{32})", md5sum):
-                node.md5sum = hashlib.md5(
-                    md5sum.encode("utf-8"), usedforsecurity=False
-                ).hexdigest()
-
-            # Patch file_size if none provided:
-            if not getattr(node, "file_size", None):
-                node.file_size = random.randint(1e6, 1e7)
-
-            indexd_did = node.node_id
-            indexd_record = {
-                "urls": urls,
-                "did": indexd_did,
-                "node_id": node.node_id,
-            }
-
-            for key in DATA_FILE_INDEXD_FIELDS:
-                key_value = getattr(node, key, None)
-                if key_value is None:
-                    continue
-                # populate indexd record with the value from the node
-                indexd_record[key] = key_value
-
-                # Patch node.key with error value:
-                if isinstance(key_value, str):
-                    setattr(node, key, "error")
-                elif isinstance(key_value, list):
-                    setattr(node, key, ["error" for _ in getattr(node, key)])
-                elif isinstance(key_value, int):
-                    setattr(node, key, -1)
-                else:
-                    raise ValueError("Can not process the value:", getattr(node, key))
-
-            indexd_data.append(indexd_record)
+    file_nodes = (
+        n
+        for n in nodes
+        if isinstance(n, FileNode)
+        and n._dictionary.get("category") in DATA_FILE_CATEGORIES
+    )
+    indexd_data = tuple(_add_index_data(file_nodes))
 
     return nodes, indexd_data
 
 
-NODES = [
+NODES = (
     fuzzed(
         models.File,
         node_id=get_node_id("file-only-attached-to-archive-1"),
@@ -416,7 +437,6 @@ NODES = [
         cigarettes_per_day=10.3,
         project_id="TCGA-BRCA",
         submitter_id="TCGA-49-AARO_exposure",
-        years_smoked=-1,
     ),
     models.FamilyHistory(
         node_id=get_node_id("family-history-1"),
@@ -481,17 +501,13 @@ NODES = [
         freezing_method=None,
         initial_weight=250.0,
         intermediate_dimension=None,
-        is_ffpe=False,
         longest_dimension=None,
-        oct_embedded="true",
         pathology_report_uuid="747FB91B-F523-4FA0-91DD-6014EF55643D",
         sample_type="Primary Tumor",
-        sample_type_id="01",
         shortest_dimension=None,
         submitter_id="TCGA-AR-A1AR-01A",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code=None,
         tumor_code_id=None,
     ),
     models.Aliquot(
@@ -519,7 +535,6 @@ NODES = [
         a260_a280_ratio=None,
         amount=None,
         analyte_type="Repli-G (Qiagen) DNA",
-        analyte_type_id="W",
         concentration=None,
         spectrophotometer_method=None,
         submitter_id="TCGA-AR-A1AR-01A-31W",
@@ -532,7 +547,6 @@ NODES = [
         state="released",
         amount=22.25,
         analyte_type="DNA",
-        analyte_type_id="D",
         concentration=0.18,
         spectrophotometer_method="UV Spec",
         submitter_id="TCGA-AR-A1AR-10A-01D",
@@ -545,7 +559,6 @@ NODES = [
         a260_a280_ratio=None,
         amount=None,
         analyte_type="Repli-G (Qiagen) DNA",
-        analyte_type_id="W",
         concentration=None,
         spectrophotometer_method=None,
         submitter_id="TCGA-AR-A1AR-10A-01W",
@@ -699,7 +712,6 @@ NODES = [
         a260_a280_ratio=1.98,
         amount=48.62,
         analyte_type="DNA",
-        analyte_type_id="D",
         concentration=0.16,
         spectrophotometer_method="UV Spec",
         submitter_id="TCGA-AR-A1AR-01A-31D",
@@ -804,7 +816,6 @@ NODES = [
         a260_a280_ratio=1.82,
         amount=29.44,
         analyte_type="RNA",
-        analyte_type_id="R",
         concentration=0.16,
         spectrophotometer_method="UV Spec",
         submitter_id="TCGA-AR-A1AR-01A-31R",
@@ -820,17 +831,13 @@ NODES = [
         freezing_method=None,
         initial_weight=None,
         intermediate_dimension=None,
-        is_ffpe=False,
         longest_dimension=None,
-        oct_embedded="false",
         pathology_report_uuid="91C655D1-C777-41A9-B759-7ED12C72CF30",
         sample_type="Blood Derived Normal",
-        sample_type_id="10",
         shortest_dimension=None,
         submitter_id="TCGA-AR-A1AR-10A",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code=None,
         tumor_code_id=None,
     ),
     models.ProteinExpression(
@@ -884,17 +891,13 @@ NODES = [
         days_to_sample_procurement=None,
         freezing_method=None,
         intermediate_dimension=None,
-        is_ffpe=False,
         longest_dimension=None,
-        oct_embedded="false",
         pathology_report_uuid="ae0a5d09-2b5d-4ec5-9ff8-c591e0f77c83",
         sample_type="Additional Metastatic",
-        sample_type_id="01",
         shortest_dimension=None,
         submitter_id="TCGA-AR-A1AR-10A-02",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code=None,
         tumor_code_id=None,
     ),
     models.Annotation(
@@ -1350,10 +1353,10 @@ NODES = [
         data_category="Somatic Structural Variation",
         file_name="genie-struct-var-submitted.ext",
     ),
-]
+)
 
 
-EDGES = [
+EDGES = (
     models.SampleDerivedFromCase(
         src_id=get_node_id("tt-260-sample"),
         dst_id=get_node_id("fake_active_case_2"),
@@ -1605,7 +1608,6 @@ EDGES = [
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-9"),
         dst_id=get_node_id("analyte-dna"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-attached-to-sample"),
@@ -1618,38 +1620,14 @@ EDGES = [
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-6"),
         dst_id=get_node_id("center-genome-wustl-ed"),
-        properties={
-            "plate_column": "11",
-            "plate_id": "A135",
-            "plate_row": "B",
-            "shipment_center_id": "09",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-3"),
         dst_id=get_node_id("center-bcgsc-ca"),
-        properties={
-            "plate_column": "6",
-            "plate_id": "A136",
-            "plate_row": "C",
-            "shipment_center_id": "13",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-5"),
         dst_id=get_node_id("center-genome-wustl-ed"),
-        properties={
-            "plate_column": "11",
-            "plate_id": "A14P",
-            "plate_row": "B",
-            "shipment_center_id": "09",
-            "shipment_datetime": 1304380800,
-            "shipment_reason": None,
-        },
     ),
     models.AnalyteDerivedFromPortion(
         src_id=get_node_id("analyte-2"), dst_id=get_node_id("portion-01"), properties={}
@@ -1660,83 +1638,56 @@ EDGES = [
     models.AnalyteDerivedFromPortion(
         src_id=get_node_id("analyte-dna"),
         dst_id=get_node_id("portion-31"),
-        properties={},
     ),
     models.FileDataFromCase(
         # Added for regression of removing case.files from the active
         # index
         src_id=get_node_id("snv-file"),
         dst_id=get_node_id("case-tcga-brca-breast"),
-        properties={},
     ),
     models.SampleDerivedFromCase(
         src_id=get_node_id("sample-blood-derived-normal"),
         dst_id=get_node_id("case-tcga-brca-breast"),
-        properties={},
     ),
     models.SampleDerivedFromCase(
         src_id=get_node_id("sample-unreleased"),
         dst_id=get_node_id("unreleased-case-in-released-project"),
-        properties={},
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-8"),
         dst_id=get_node_id("center-genome-wustl-ed"),
-        properties={
-            "plate_column": "5",
-            "plate_id": "A135",
-            "plate_row": "B",
-            "shipment_center_id": "09",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.SlideDerivedFromPortion(
         src_id=get_node_id("slide-top-1"),
         dst_id=get_node_id("portion-31"),
-        properties={},
     ),
     models.CaseMemberOfProject(
         src_id=get_node_id("case-tcga-brca-breast"),
         dst_id=get_node_id("project-legacy-brca"),
-        properties={},
     ),
     models.CaseMemberOfProject(
         src_id=get_node_id("unsubmitted-case"),
         dst_id=get_node_id("project-legacy-brca"),
-        properties={},
     ),
     models.CaseMemberOfProject(
         src_id=get_node_id("released-case-in-unreleased-project"),
         dst_id=get_node_id("unreleased-project"),
-        properties={},
     ),
     models.CaseMemberOfProject(
         src_id=get_node_id("submitted-awg-case"),
         dst_id=get_node_id("awg-one-project"),
-        properties={},
     ),
     models.CaseMemberOfProject(
         src_id=get_node_id("processed-awg-case"),
         dst_id=get_node_id("awg-one-project"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-6"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-9"),
         dst_id=get_node_id("center-jhu-usc-edu"),
-        properties={
-            "plate_column": "5",
-            "plate_id": "A138",
-            "plate_row": "B",
-            "shipment_center_id": "05",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-1"), dst_id=get_node_id("analyte-1"), properties={}
@@ -1744,34 +1695,22 @@ EDGES = [
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-8"),
         dst_id=get_node_id("analyte-dna"),
-        properties={},
     ),
     models.AnalyteDerivedFromPortion(
         src_id=get_node_id("analyte-repli-g-qiagen-dna"),
         dst_id=get_node_id("portion-31"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-1"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-8"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-1"),
         dst_id=get_node_id("center-hms-harvard-edu"),
-        properties={
-            "plate_column": "11",
-            "plate_id": "A133",
-            "plate_row": "B",
-            "shipment_center_id": "02",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-6"), dst_id=get_node_id("analyte-1"), properties={}
@@ -1779,62 +1718,50 @@ EDGES = [
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-4"),
         dst_id=get_node_id("analyte-dna"),
-        properties={},
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-2"),
         dst_id=get_node_id("analyte-dna"),
-        properties={},
     ),
     models.CaseProcessedAtTissueSourceSite(
         src_id=get_node_id("case-tcga-brca-breast"),
         dst_id=get_node_id("tissue-source-site-breast-invasive-carcinoma"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-without-downstream"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-3"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-without-downstream"),
         dst_id=get_node_id("analyte-dna"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-5"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-2"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-10"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.PortionDerivedFromSample(
         src_id=get_node_id("portion-31"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.PortionDerivedFromSample(
         src_id=get_node_id("portion-01"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-4"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-3"), dst_id=get_node_id("analyte-3"), properties={}
@@ -1845,31 +1772,14 @@ EDGES = [
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-without-downstream"),
         dst_id=get_node_id("center-broad-mit-edu"),
-        properties={
-            "plate_column": "5",
-            "plate_id": "A134",
-            "plate_row": "B",
-            "shipment_center_id": "01",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-7"),
         dst_id=get_node_id("center-unc-edu"),
-        properties={
-            "plate_column": "6",
-            "plate_id": "A137",
-            "plate_row": "C",
-            "shipment_center_id": "07",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.SampleDerivedFromCase(
         src_id=get_node_id("sample-primary-tumor"),
         dst_id=get_node_id("case-tcga-brca-breast"),
-        properties={},
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-7"), dst_id=get_node_id("analyte-3"), properties={}
@@ -1877,14 +1787,6 @@ EDGES = [
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-2"),
         dst_id=get_node_id("center-broad-mit-edu"),
-        properties={
-            "plate_column": "11",
-            "plate_id": "A134",
-            "plate_row": "B",
-            "shipment_center_id": "01",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AnalyteDerivedFromPortion(
         src_id=get_node_id("analyte-1"), dst_id=get_node_id("portion-01"), properties={}
@@ -1892,41 +1794,22 @@ EDGES = [
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-4"),
         dst_id=get_node_id("center-hms-harvard-edu"),
-        properties={
-            "plate_column": "5",
-            "plate_id": "A133",
-            "plate_row": "B",
-            "shipment_center_id": "02",
-            "shipment_datetime": 1299542400,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotDerivedFromAnalyte(
         src_id=get_node_id("aliquot-10"),
         dst_id=get_node_id("analyte-repli-g-qiagen-dna"),
-        properties={},
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-9"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AliquotShippedToCenter(
         src_id=get_node_id("aliquot-10"),
         dst_id=get_node_id("center-genome-wustl-ed"),
-        properties={
-            "plate_column": "5",
-            "plate_id": "A14P",
-            "plate_row": "B",
-            "shipment_center_id": "09",
-            "shipment_datetime": 1304380800,
-            "shipment_reason": None,
-        },
     ),
     models.AliquotDerivedFromSample(
         src_id=get_node_id("aliquot-7"),
         dst_id=get_node_id("sample-primary-tumor"),
-        properties={},
     ),
     models.AnalysisMetadataDerivedFromFile(
         src_id=get_node_id("analysis-metadata-1"),
@@ -2046,17 +1929,14 @@ EDGES = [
     models.ProteinExpressionDerivedFromSample(
         src_id=get_node_id("protein-expression-from-sample-released"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.PortionDerivedFromSample(
         src_id=get_node_id("protein-expression-portion"),
         dst_id=get_node_id("sample-blood-derived-normal"),
-        properties={},
     ),
     models.ProteinExpressionDerivedFromPortion(
         src_id=get_node_id("protein-expression-from-portion-released"),
         dst_id=get_node_id("protein-expression-portion"),
-        properties={},
     ),
     # DAT-2619
     models.SubmittedGenomicProfileDataFromReadGroup(
@@ -2103,14 +1983,14 @@ EDGES = [
         src_id=get_node_id("genie-struct-var-submitted"),
         dst_id=get_node_id("gen-profile-harmonization-submitted"),
     ),
-]
+)
 
 
 # Patch nodes, separate file metadata to indexd
 NODES, INDEXD = patch_test_data_get_indexd(NODES)
 
 
-def insert(g):
+def insert(g: psqlgraph.PsqlGraphDriver) -> None:
     with g.session_scope() as session:
         for node in NODES:
             session.merge(node)
@@ -2119,4 +1999,5 @@ def insert(g):
 
         to_delete = g.nodes(models.File).ids(get_node_id("to-delete-file")).one()
         to_delete.sysan["to_delete"] = True
+
         session.merge(to_delete)

@@ -310,8 +310,6 @@ class Reindexer:
         self, args: Arguments, mappings: Mapping[str, Any], settings: Mapping[str, Any]
     ):
         if not self._es.indices.exists(index=args.new_index):
-            body = dict(mappings=mappings, settings=settings)
-
             self._event_logger.log_info(
                 "Index Created",
                 f"Created index: {args.new_index}",
@@ -319,7 +317,9 @@ class Reindexer:
                 args.new_index,
             )
 
-            self._es.indices.create(index=args.new_index, body=body)
+            self._es.indices.create(
+                index=args.new_index, mappings=mappings, settings=settings
+            )
             self._es.indices.refresh(index=args.new_index)
         else:
             self._event_logger.log_info(
