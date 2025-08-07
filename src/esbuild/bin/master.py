@@ -68,6 +68,11 @@ def esbuild_argparser() -> argparse.ArgumentParser:
         help="Collect differences for versioned unreleased files",
     )
     parser.add_argument(
+        "--config",
+        help="A path to a yaml configuration file for overriding default configurations.",
+        type=str,
+    )
+    parser.add_argument(
         "--gencode-version",
         help="set desired gencode_version for indexing, 'neutral' nodes are always included."
         "if not set, all available nodes will be included. ",
@@ -345,4 +350,4 @@ def main() -> None:
             logger.info(f"Adding work: {job_json}")
             queue_client.enqueue(msg=job_json)
     except:
-        logger.critical("Application Failed", exc_info=True)
+        logger.critical("Application faile to queue work.", exc_info=True)

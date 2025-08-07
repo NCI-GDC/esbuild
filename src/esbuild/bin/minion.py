@@ -142,13 +142,13 @@ def process_work(
                 )
             except:
                 logger.exception(
-                    f"Process failed for projects: {payload.get('projects', ())}",
+                    f"Minion failed for projects: {payload.get('projects', ())}",
                     exc_info=True,
                 )
 
             time.sleep(sleep_time)
     except:
-        logger.exception("Sub-process failed.", exc_info=True)
+        logger.exception("Minion failed.", exc_info=True)
 
 
 def minion_argparser() -> argparse.ArgumentParser:
@@ -216,4 +216,4 @@ def main() -> None:
         for proc in procs:
             proc["process"].join()
     except:
-        logger.critical("Application Failed", exc_info=True)
+        logger.critical("Failed to execute minions.", exc_info=True)
