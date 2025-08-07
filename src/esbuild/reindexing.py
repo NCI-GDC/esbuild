@@ -18,7 +18,6 @@ from typing import (
 
 import datadog
 import elasticsearch
-import progressbar
 
 from esbuild import gdc_elasticsearch, utils
 from esbuild.graph.common import mappings
@@ -175,28 +174,15 @@ class TaskProgressManager:
         self, tasks: Iterable[gdc_elasticsearch.Task]
     ) -> Iterable[gdc_elasticsearch.Task]:
         task_ids = tuple(task.task_id for task in tasks)
-        widgets = [
-            "Reindexing: ",
-            progressbar.Percentage(),
-            " ",
-            progressbar.Bar(marker="#", left="[", right="]"),
-            " ",
-            progressbar.ETA(),
-            " ",
-        ]
         max_value = sum(task.total for task in tasks)
 
         if not max_value:
             return tasks
 
-        with progressbar.ProgressBar(max_value=max_value, widgets=widgets) as bar:
-            while any(not task.completed for task in tasks):
-                total = sum(task.current for task in tasks)
+        while any(not task.completed for task in tasks):
+            time.sleep(5)
 
-                bar.update(total)
-                time.sleep(5)
-
-                tasks = self._task_factory.get_tasks(task_ids)
+            tasks = self._task_factory.get_tasks(task_ids)
 
         return tasks
 

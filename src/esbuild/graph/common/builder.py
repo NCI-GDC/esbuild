@@ -24,7 +24,6 @@ import psqlgraph
 from datadog import statsd
 from gdcdatamodel2 import models as md
 from indexclient import client
-from progressbar import ETA, Bar, Percentage, ProgressBar
 from psqlgraph import Edge, Node
 from sqlalchemy import orm
 
@@ -400,29 +399,6 @@ class GraphIndexBuilder:
             alert_type="error",
             tags=tags,
         )
-
-    def _pbar(self, title, maxval):
-        """Create and initialize a custom progressbar.
-
-        :param str title: The text of the progress bar
-        :param int maxval: The maximum value of the progress bar
-
-        """
-        maxval = maxval or 1  # prevent maxal of 0
-        pbar = ProgressBar(
-            widgets=[
-                title,
-                Percentage(),
-                " ",
-                Bar(marker="#", left="[", right="]"),
-                " ",
-                ETA(),
-                " ",
-            ],
-            max_value=maxval,
-        )
-        pbar.update(0)
-        return pbar
 
     ###################################################################
     #                        Tree functions
@@ -1509,7 +1485,6 @@ class GraphIndexBuilder:
         case_docs, ann_docs, file_docs = [], {}, {}
         if not cases:
             cases = self.cases
-        pbar = self._pbar("Denormalizing cases ", len(cases))
         for n in cases:
             pa, fi, an = self._denormalize_case(n)
             case_docs.append(pa)
@@ -1519,8 +1494,6 @@ class GraphIndexBuilder:
                     ann_docs[a["annotation_id"]] = a
             for f in fi:
                 self._upsert_file_into_dict(file_docs, f)
-            pbar.update(pbar.value + 1)
-        pbar.finish()
         return case_docs, list(file_docs.values()), list(ann_docs.values())
 
     def _denormalize_projects(self, projects: Iterable[Node] = None) -> List[dict]:
@@ -1535,11 +1508,8 @@ class GraphIndexBuilder:
         if not projects:
             projects = self.projects
         project_docs = []
-        pbar = self._pbar("Denormalizing projects ", len(projects))
         for project in projects:
             project_docs.append(self._denormalize_project(project))
-            pbar.update(pbar.value + 1)
-        pbar.finish()
         return project_docs
 
     def _denormalize_annotation(self, node: md.Node) -> dict:
@@ -2243,7 +2213,6 @@ class GraphIndexBuilder:
             return
 
         entities = list(self._nodes_labeled(BIOSPECIMEN_TYPES))
-        pbar = self._pbar("Caching entity cases: ", len(entities))
         self.entity_cases = {}
 
         for e in entities:
@@ -2271,9 +2240,6 @@ class GraphIndexBuilder:
 
             if len(cases) != 0:
                 self.entity_cases[e] = cases.pop()
-
-            pbar.update(pbar.value + 1)
-        pbar.finish()
 
     def _get_cls_file_to_case_paths(self, cls: Node) -> Iterable[List[str]]:
         """Given a node, return the paths the lead monotonically up to case.
@@ -2307,14 +2273,10 @@ class GraphIndexBuilder:
         self.relevant_nodes = {}
 
         files = list(self._nodes_labeled(self.file_labels))
-        pbar = self._pbar("Caching file paths: ", len(files))
 
         for f in files:
             paths = self._get_cls_file_to_case_paths(f)
             self.relevant_nodes[f] = self._walk_paths(f, paths, whole=True)
-            pbar.update(pbar.value + 1)
-
-        pbar.finish()
 
     def _cache_annotations(self):
         if not self.annotations:
@@ -2328,7 +2290,6 @@ class GraphIndexBuilder:
             self.annotation_entities = {}
             log.warning("No annotations found in the cached database!")
             return
-        pbar = self._pbar("Caching annotations: ", len(self.annotations))
         self.annotation_entities = {}
         for a in self.annotations:
             for n in self.G.neighbors(a):
@@ -2336,8 +2297,6 @@ class GraphIndexBuilder:
                     self.annotation_entities[n] = {}
                 a_doc = self._denormalize_annotation(a)
                 self.annotation_entities[n][a.node_id] = a_doc
-            pbar.update(pbar.value + 1)
-        pbar.finish()
 
     def _cache_popular_neighbor(self, node, neighbors, labels):
         if node not in self.popular_nodes:
