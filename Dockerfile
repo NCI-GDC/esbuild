@@ -1,6 +1,6 @@
 ARG BASE_VERSION=3.1.0
 ARG REGISTRY=docker.osdc.io/ncigdc
-ARG PYTHON_VERSION=python3.9
+ARG PYTHON_VERSION=python3.13
 
 FROM ${REGISTRY}/${PYTHON_VERSION}-builder:${BASE_VERSION} AS build
 ARG PIP_INDEX_URL
@@ -39,6 +39,9 @@ LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
       org.opencontainers.image.ref.name="${SERVICE_NAME}:${GIT_BRANCH}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
+
+# We need to install libpq for psycopg2 to function.
+RUN dnf install -y libpq-15.0
 
 COPY --from=build /venv/lib/${PYTHON_VERSION}/site-packages /venv/lib/${PYTHON_VERSION}/site-packages
 COPY --from=build \

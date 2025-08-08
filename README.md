@@ -160,7 +160,7 @@ False
 
 Before continuing you must have the following programs installed:
 
-- [Python 3.9](http://python.org/)
+- [Python 3.13](http://python.org/)
 
 ## Pip
 
