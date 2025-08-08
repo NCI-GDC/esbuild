@@ -96,53 +96,59 @@ def process_work(
     sleep_time: int = 30,
     no_statsd: bool = False,
 ) -> None:
-    running = True
-    found_work = False
+    try:
+        running = True
+        found_work = False
 
-    queue_client = get_queue_client(queue_type, queue_id)
-    pg_driver = get_default_pg_driver()
-    indexd_client = get_default_index_client()
-    es_client = Elasticsearch(**ES_CONFIG)
+        queue_client = get_queue_client(queue_type, queue_id)
+        pg_driver = get_default_pg_driver()
+        indexd_client = get_default_index_client()
+        es_client = Elasticsearch(**ES_CONFIG)
 
-    logger.info(
-        f"Initializing queue client on worker_id: {worker_id} to connect to queue_id: {queue_client.queue_id}"
-    )
+        logger.info(
+            f"Initializing queue client on worker_id: {worker_id} to connect to queue_id: {queue_client.queue_id}"
+        )
 
-    while running:
-        payload = queue_client.dequeue()  # type: dict
+        while running:
+            payload = queue_client.dequeue()  # type: dict
 
-        if not payload:
-            if found_work:
-                logger.info("No work found, exiting")
-                break
+            if not payload:
+                if found_work:
+                    logger.info("No work found, exiting")
+                    break
 
-            logger.info("No work found, waiting")
+                logger.info("No work found, waiting")
+                time.sleep(sleep_time)
+                continue
+
+            found_work = True
+
+            try:
+                gdc_es = get_gdc_elasticsearch(
+                    indexd_client,
+                    pg_driver,
+                    es_client,
+                    payload,
+                    save_doc_path=save_doc_path,
+                    skip_es=skip_es,
+                )
+
+                logger.info(f"Running build_awg=={gdc_es.build_awg}")
+                logger.info(f"Payload: {payload}")
+
+                gdc_es.go(
+                    roll_alias=not payload.get("no-roll"),
+                    send_events=not no_statsd,
+                )
+            except:
+                logger.exception(
+                    f"Minion failed for projects: {payload.get('projects', ())}",
+                    exc_info=True,
+                )
+
             time.sleep(sleep_time)
-            continue
-
-        found_work = True
-
-        try:
-            gdc_es = get_gdc_elasticsearch(
-                indexd_client,
-                pg_driver,
-                es_client,
-                payload,
-                save_doc_path=save_doc_path,
-                skip_es=skip_es,
-            )
-
-            logger.info(f"Running build_awg=={gdc_es.build_awg}")
-            logger.info(f"Payload: {payload}")
-
-            gdc_es.go(
-                roll_alias=not payload.get("no-roll"),
-                send_events=not no_statsd,
-            )
-        except Exception as e:
-            logger.exception(str(e))
-
-        time.sleep(sleep_time)
+    except:
+        logger.critical("Minion failed.", exc_info=True)
 
 
 def minion_argparser() -> argparse.ArgumentParser:
@@ -182,29 +188,32 @@ def minion_argparser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    args = minion_argparser().parse_args()
-    procs = []
+    try:
+        args = minion_argparser().parse_args()
+        procs = []
 
-    # create processes
-    for i in range(0, args.num_procs):
-        logger.info(f"Creating process {i}")
-        proc_info: dict = dict(id=i)
+        # create processes
+        for i in range(0, args.num_procs):
+            logger.info(f"Creating process {i}")
+            proc_info: dict = dict(id=i)
 
-        proc_info["process"] = Process(
-            target=process_work,
-            kwargs=dict(
-                worker_id=i,
-                queue_type=args.queue_type,
-                queue_id=args.queue_id,
-                skip_es=args.skip_es,
-                save_doc_path=args.save_doc_path,
-                sleep_time=TIMEDELTA,
-                no_statsd=args.no_statsd,
-            ),
-        )
-        proc_info["status"] = "running"
-        procs.append(proc_info)
-        proc_info["process"].start()
+            proc_info["process"] = Process(
+                target=process_work,
+                kwargs=dict(
+                    worker_id=i,
+                    queue_type=args.queue_type,
+                    queue_id=args.queue_id,
+                    skip_es=args.skip_es,
+                    save_doc_path=args.save_doc_path,
+                    sleep_time=TIMEDELTA,
+                    no_statsd=args.no_statsd,
+                ),
+            )
+            proc_info["status"] = "running"
+            procs.append(proc_info)
+            proc_info["process"].start()
 
-    for proc in procs:
-        proc["process"].join()
+        for proc in procs:
+            proc["process"].join()
+    except:
+        logger.critical("Failed to execute minions.", exc_info=True)

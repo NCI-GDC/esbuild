@@ -283,64 +283,71 @@ def get_default_projects(args: Any, user_config: dict) -> Iterable[str]:
 
 
 def main() -> None:
-    args = parse_args()
+    try:
+        args = parse_args()
 
-    if not args.index:
-        logger.info("No 'index' was provided, no job will be scheduled")
-        exit(1)
+        if not args.index:
+            logger.info("No 'index' was provided, no job will be scheduled")
+            exit(1)
 
-    # Backup args.index to S3 snapshot repository
-    if args.store_to_snapshot:
-        backup_wrapper(args.store_to_snapshot, args.index, "backup", args.bucket)
-        exit(0)
+        # Backup args.index to S3 snapshot repository
+        if args.store_to_snapshot:
+            backup_wrapper(args.store_to_snapshot, args.index, "backup", args.bucket)
+            exit(0)
 
-    user_config = load_user_configuration(args.config)
+        user_config = load_user_configuration(args.config)
 
-    # Get RabbitMQ queue client
-    queue_client = get_queue_client(args.queue_type, args.queue_id)
-    logger.info(
-        f"Initializing queue client to connect to queue_id: {queue_client.queue_id}"
-    )
+        # Get RabbitMQ queue client
+        queue_client = get_queue_client(args.queue_type, args.queue_id)
+        logger.info(
+            f"Initializing queue client to connect to queue_id: {queue_client.queue_id}"
+        )
 
-    # Cleanup the queue
-    if args.queue_clear:
-        payload = queue_client.dequeue()
-
-        while payload:
+        # Cleanup the queue
+        if args.queue_clear:
             payload = queue_client.dequeue()
 
-    # Restore index from S3 snapshot repository
-    if args.restore_from_snapshot:
-        backup_wrapper(args.restore_from_snapshot, args.index, "restore", args.bucket)
+            while payload:
+                payload = queue_client.dequeue()
 
-    projects = args.projects
-    if not projects:
+        # Restore index from S3 snapshot repository
+        if args.restore_from_snapshot:
+            backup_wrapper(
+                args.restore_from_snapshot, args.index, "restore", args.bucket
+            )
+
+        projects = args.projects
+        if not projects:
+            logger.info(
+                f"No projects have been provided loading project group: {args.project_group}."
+            )
+            projects = get_default_projects(args, user_config)
+
+        # Skip some projects, if skip-projects argument is set
+        if args.skip_projects:
+            logger.info(f"Skipping projects: {args.skip_projects}")
+            projects = [p for p in projects if p not in args.skip_projects]
+
         logger.info(
-            f"No projects have been provided loading project group: {args.project_group}."
+            f"Delegating build with {args.num_jobs} jobs ES index: {args.index}."
         )
-        projects = get_default_projects(args, user_config)
 
-    # Skip some projects, if skip-projects argument is set
-    if args.skip_projects:
-        logger.info(f"Skipping projects: {args.skip_projects}")
-        projects = [p for p in projects if p not in args.skip_projects]
-
-    logger.info(f"Delegating build with {args.num_jobs} jobs ES index: {args.index}.")
-
-    # Delegate a job for each project group:
-    for group in split_projects(
-        projects, args.num_jobs, split_by_program=args.split_by_program
-    ):
-        job_json = {
-            "index": args.index,
-            "alias": args.alias,
-            "no-roll": args.no_roll,
-            "no-cleanup": args.no_cleanup,
-            "projects": " ".join(group),
-            "selective-caching": args.selective_caching,
-            "build-awg": args.build_awg,
-            "cache-versioned": args.cache_versioned,
-            "gencode-version": args.gencode_version,
-        }
-        logger.info(f"Adding work: {job_json}")
-        queue_client.enqueue(msg=job_json)
+        # Delegate a job for each project group:
+        for group in split_projects(
+            projects, args.num_jobs, split_by_program=args.split_by_program
+        ):
+            job_json = {
+                "index": args.index,
+                "alias": args.alias,
+                "no-roll": args.no_roll,
+                "no-cleanup": args.no_cleanup,
+                "projects": " ".join(group),
+                "selective-caching": args.selective_caching,
+                "build-awg": args.build_awg,
+                "cache-versioned": args.cache_versioned,
+                "gencode-version": args.gencode_version,
+            }
+            logger.info(f"Adding work: {job_json}")
+            queue_client.enqueue(msg=job_json)
+    except:
+        logger.critical("Application failed to queue work.", exc_info=True)

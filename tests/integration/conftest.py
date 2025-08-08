@@ -21,7 +21,7 @@ from elasticsearch import exceptions
 from gdc_ng_models.models import misc, submission
 from gdcdatamodel2 import models, viz
 from indexclient import client
-from psqlgraph import base, hydrator
+from psqlgraph import hydrator
 from testcontainers import compose
 
 from esbuild import utils
@@ -243,7 +243,7 @@ def graph(containers: Any) -> Iterator[psqlgraph.PsqlGraphDriver]:
     try:
         yield pg_conn
     finally:
-        base.drop_all(engine)
+        psqlgraph.drop_all(engine)
         models.helpers.versioned_nodes.Base.metadata.drop_all(engine)
         submission.Base.metadata.drop_all(engine)
         misc.FileReport.metadata.drop_all(engine)
@@ -271,7 +271,7 @@ def pg_driver(graph: psqlgraph.PsqlGraphDriver) -> Iterator[psqlgraph.PsqlGraphD
     try:
         yield graph
     finally:
-        base.drop_all(engine)
+        psqlgraph.drop_all(engine)
 
 
 @pytest.fixture
