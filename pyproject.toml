@@ -43,10 +43,10 @@ requires-python = "~=3.13.0"
 dev = [
   "jmespath",
   "mock",
-  "pytest",
-  "pytest-cov",
+  "pytest~=8.4.1",
+  "pytest-cov~=6.2.1",
   "gdcdatamodel2[visualization]",
-  "testcontainers"
+  "testcontainers~=4.12.0"
 ]
 
 [project.scripts]
