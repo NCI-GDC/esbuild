@@ -39,9 +39,7 @@ class DummyIndexBuilder(builder.GraphIndexBuilder):
 def test__denormalize_annotations__no_annotations() -> None:
     graph = mock.MagicMock()
     annotations = ()
-    index_builder = DummyIndexBuilder(
-        graph, mock.MagicMock(), "", annotations=annotations
-    )
+    index_builder = DummyIndexBuilder(graph, mock.MagicMock(), "", annotations=annotations)
 
     _, _, result, _ = index_builder.denormalize_all()
 
@@ -61,9 +59,7 @@ def test__denormalize_annotations__annotated_case_node() -> None:
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = DummyIndexBuilder(
-        graph, mock.MagicMock(), "", annotations=(annotation,)
-    )
+    index_builder = DummyIndexBuilder(graph, mock.MagicMock(), "", annotations=(annotation,))
 
     _, _, result, _ = index_builder.denormalize_all()
 
@@ -111,9 +107,7 @@ def test__denormalize_annotations__annotated_workflow_with_linked_case() -> None
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = DummyIndexBuilder(
-        graph, mock.MagicMock(), "", annotations=(annotation,)
-    )
+    index_builder = DummyIndexBuilder(graph, mock.MagicMock(), "", annotations=(annotation,))
 
     _, _, result, _ = index_builder.denormalize_all()
     result_doc = more_itertools.one(result)
@@ -157,9 +151,7 @@ def test__denormalize_annotations__annotated_workflow_without_linked_case() -> N
     graph = mock.MagicMock()
     graph.edges.return_value = graph
     graph.filter.return_value = (annotation_edge,)
-    index_builder = DummyIndexBuilder(
-        graph, mock.MagicMock(), "", annotations=(annotation,)
-    )
+    index_builder = DummyIndexBuilder(graph, mock.MagicMock(), "", annotations=(annotation,))
 
     _, _, result, _ = index_builder.denormalize_all()
     result_doc = more_itertools.one(result)

@@ -4,9 +4,7 @@ from tests.integration import conftest
 
 
 def test_copy_number_estimate(copy_number_estimate_index: conftest.Index) -> None:
-    """
-    Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up
-    """
+    """Make sure that CopyNumberSegment and CopyNumberEstimate nodes are picked up."""
     file_submitter_ids = frozenset(
         jmespath.search("[].submitter_id", copy_number_estimate_index.files)
     )
@@ -25,15 +23,13 @@ def test_copy_number_estimate(copy_number_estimate_index: conftest.Index) -> Non
         }
     )
 
-    assert (
-        expected_submitter_ids < file_submitter_ids
-    ), f"Missing: {expected_submitter_ids - file_submitter_ids}"
+    assert expected_submitter_ids < file_submitter_ids, (
+        f"Missing: {expected_submitter_ids - file_submitter_ids}"
+    )
 
 
 def test_copy_number_segment(copy_number_segment_index: conftest.Index) -> None:
-    file_ids = frozenset(
-        jmespath.search("[].submitter_id", copy_number_segment_index.files)
-    )
+    file_ids = frozenset(jmespath.search("[].submitter_id", copy_number_segment_index.files))
     expected_ids = frozenset(("gta_cns_1", "tcn_cns_1"))
 
     assert expected_ids < file_ids, expected_ids - file_ids

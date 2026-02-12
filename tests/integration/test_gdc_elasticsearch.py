@@ -1,7 +1,4 @@
-"""
-Tests the GDC Elasticsearch interaction for indices.
-
-"""
+"""Tests the GDC Elasticsearch interaction for indices."""
 
 import copy
 import json
@@ -72,9 +69,7 @@ def derived_file(pg_driver: psqlgraph.PsqlGraphDriver) -> Iterator[models.File]:
 @pytest.fixture
 def patched_demographic(pg_driver: psqlgraph.PsqlGraphDriver) -> Iterator:
     with pg_driver.session_scope() as s:
-        demographic = cast(
-            models.Demographic, pg_driver.nodes(models.Demographic).one()
-        )
+        demographic = cast(models.Demographic, pg_driver.nodes(models.Demographic).one())
         s.execute(
             """
             UPDATE node_demographic
@@ -131,9 +126,7 @@ def test_basic_es_generate(
 
     # Test blocking release annotation does not exist in index
     annotation_index = gdces.index_names["annotation"]
-    assert not es.exists(
-        index=annotation_index, id=get_node_id("block-release-annotation")
-    )
+    assert not es.exists(index=annotation_index, id=get_node_id("block-release-annotation"))
     assert not es.exists(
         index=annotation_index, id=get_node_id("block-release-annotation-released")
     )
@@ -271,8 +264,7 @@ def test_reindex_change_field_type(
 
     # make sure that the number of cases is as expected
     case_count = sum(
-        bucket["doc_count"]
-        for bucket in aggs_resp1["aggregations"]["projects"]["buckets"]
+        bucket["doc_count"] for bucket in aggs_resp1["aggregations"]["projects"]["buckets"]
     )
     assert case_count == counts1["case"]
 
@@ -291,9 +283,7 @@ def test_reindex_change_field_type(
         futures.ThreadPoolExecutor() as executor,
     ):
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
-        progress_manager = reindexing.TaskProgressManager(
-            task_factory, mock.MagicMock()
-        )
+        progress_manager = reindexing.TaskProgressManager(task_factory, mock.MagicMock())
         reindexer = reindexing.Reindexer(
             es, mock.MagicMock(), progress_manager, mock.MagicMock(), executor
         )
@@ -322,9 +312,8 @@ def test_build_from_readonly(
     init_indexd: client.IndexClient,
     es_client: elasticsearch.Elasticsearch,
 ) -> None:
-    """
-    Make sure that no write attempts are made during ESBuild run and also that
-    correct indices/aliases were created
+    """Make sure that no write attempts are made during ESBuild run and also that
+    correct indices/aliases were created.
     """
     # Making sure ES is empty
     assert len(es_client.indices.get_alias()) == 0
@@ -361,8 +350,7 @@ def test_build_index_no_alias(
     init_indexd: client.IndexClient,
     es_client: elasticsearch.Elasticsearch,
 ) -> None:
-    """Make sure no alias was set if roll_alias was False"""
-
+    """Make sure no alias was set if roll_alias was False."""
     # Making sure ES is empty
     assert len(es_client.indices.get_alias()) == 0
 
@@ -423,9 +411,7 @@ def test_reindex_per_project(
 
     with futures.ThreadPoolExecutor() as executor:
         task_factory = gdc_elasticsearch.TaskFactory(es_client, executor)
-        progress_manager = reindexing.TaskProgressManager(
-            task_factory, mock.MagicMock()
-        )
+        progress_manager = reindexing.TaskProgressManager(task_factory, mock.MagicMock())
         reindexer = reindexing.Reindexer(
             es_client,
             utils.ReleaseHelper(es_client, "build_metadata", True),

@@ -45,13 +45,9 @@ def test__move_document_nodes__distinct_paths() -> None:
     molecular_test = {"molecular_test_id": "molecular-test-0"}
     diagnoses = document_tools.DocumentNode("diagnoses", "diagnosis_id")
     follow_ups = document_tools.DocumentNode("follow_ups", "follow_up_id")
-    molecular_tests = document_tools.DocumentNode(
-        "molecular_tests", "molecular_test_id"
-    )
+    molecular_tests = document_tools.DocumentNode("molecular_tests", "molecular_test_id")
     doc = {
-        "diagnoses": [
-            {"diagnosis_id": "diagnosis-0", "molecular_tests": [molecular_test]}
-        ],
+        "diagnoses": [{"diagnosis_id": "diagnosis-0", "molecular_tests": [molecular_test]}],
     }
 
     document_tools.move_document_nodes(

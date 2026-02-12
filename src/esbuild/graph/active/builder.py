@@ -19,7 +19,7 @@ tied to the relevant aliquots during cache_database
 
 import logging
 from collections.abc import Container, Iterable, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 import psqlgraph
 from gdcdatamodel2 import models
@@ -69,9 +69,7 @@ EXCLUDED_FILE_PATHS = frozenset(
 )
 
 
-def _node_labels_by_category(
-    *categories: str, excluded: Container[str] = ()
-) -> list[str]:
+def _node_labels_by_category(*categories: str, excluded: Container[str] = ()) -> list[str]:
     """Get the node labels which belong to the given categories.
 
     Args:
@@ -98,7 +96,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
     # Filter nodes out if their properties are a superset of any of
     # the dictionaries listed here by label
-    unindexed_by_property = {
+    unindexed_by_property: ClassVar[dict[str, list[dict[str, str]]]] = {
         "annotation": [{"status": "Rescinded"}, {"classification": "Blocking Release"}],
     }
 
@@ -108,7 +106,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
-    analysis_metadata = {
+    analysis_metadata: ClassVar[dict[str, dict[str, set[str]]]] = {
         "read_groups": {
             "alignment_workflow",
             "alignment_cocleaning_workflow",
@@ -220,9 +218,9 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
     def _get_parent_with_category(self, node, category):
         """Return iterable of neighbors from outbound edges with category."""
         labels = [
-            l["dst_type"].label
-            for l in node._pg_links.values()
-            if l["dst_type"]._dictionary["category"] == category
+            link["dst_type"].label
+            for link in node._pg_links.values()
+            if link["dst_type"]._dictionary["category"] == category
         ]
 
         return self._neighbors_labeled(node, labels)
@@ -244,9 +242,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         if analyses:
             self._warning(
                 f"Multiple analysis on {node}",
-                "{} has multiple analyses {}, this is unexpected.".format(
-                    node, analyses
-                ),
+                f"{node} has multiple analyses {analyses}, this is unexpected.",
                 tags=[f"file_id:{node.node_id}"],
             )
 
@@ -324,9 +320,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
         :returns: set of read_groups
 
         """
-        paths: Iterable[Sequence[str]] = self._file_to_read_group_paths.get(
-            node.label, ()
-        )
+        paths: Iterable[Sequence[str]] = self._file_to_read_group_paths.get(node.label, ())
         return set(self._walk_paths(node, paths))
 
     def _get_simple_file_doc(self, node):

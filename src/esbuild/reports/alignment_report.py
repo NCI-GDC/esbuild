@@ -14,6 +14,7 @@ from psqlgraph import PsqlGraphDriver
 from sqlalchemy import create_engine, desc
 from sqlalchemy.pool import NullPool
 
+from esbuild.models import File
 from esbuild.reports.alignment_queries import exome, mirnaseq, rnaseq, wgs
 
 logger = logging.getLogger(__name__)
@@ -103,17 +104,13 @@ class AlignmentReporter:
                 + with_derived(wgs(self.graph, "target_cghub")).all()
             )
             self._aligned = {
-                "WGS (>= 320 GB)": [
-                    f for f in wgs_files if f.file_size >= 320000000000
-                ],
+                "WGS (>= 320 GB)": [f for f in wgs_files if f.file_size >= 320000000000],
                 "WGS (< 320 GB)": [f for f in wgs_files if f.file_size < 320000000000],
                 "WXS (TCGA)": with_derived(exome(self.graph, "tcga_cghub")).all(),
                 "WXS (TARGET)": with_derived(exome(self.graph, "target_cghub")).all(),
                 "miRNA-Seq": with_derived(mirnaseq(self.graph, "tcga_cghub")).all()
                 + with_derived(mirnaseq(self.graph, "target_cghub")).all(),
-                "RNA-Seq (TARGET)": with_derived(
-                    rnaseq(self.graph, "target_cghub")
-                ).all(),
+                "RNA-Seq (TARGET)": with_derived(rnaseq(self.graph, "target_cghub")).all(),
                 "RNA-Seq (TCGA)": with_derived(rnaseq(self.graph, "tcga_cghub")).all(),
             }
         return self._aligned
@@ -122,10 +119,7 @@ class AlignmentReporter:
         return {key: len(val) for key, val in self.aligned_files.items()}
 
     def aligned_file_sizes(self):
-        return {
-            key: sum(f.file_size for f in val)
-            for key, val in self.aligned_files.items()
-        }
+        return {key: sum(f.file_size for f in val) for key, val in self.aligned_files.items()}
 
     def generate_files_to_attach(self):
         logger.info("Generating files to attach")
@@ -146,12 +140,7 @@ class AlignmentReporter:
         attachment += "=============\n\n"
         attachment += "\n".join(
             [
-                "{key}: {aligned} / {total} ({percent:.2f}%)".format(
-                    key=key,
-                    aligned=aligned_counts[key],
-                    total=total,
-                    percent=100 * (float(aligned_counts[key]) / total),
-                )
+                f"{key}: {aligned_counts[key]} / {total} ({100 * (float(aligned_counts[key]) / total):.2f}%)"
                 for key, total in iter(sorted(self.totals.items()))
             ]
         )
@@ -160,12 +149,7 @@ class AlignmentReporter:
         attachment += "=============\n\n"
         attachment += "\n".join(
             [
-                "{key}: {aligned:.2f} TB / {total:.2f} TB ({percent:.2f}%)".format(
-                    key=key,
-                    aligned=float(aligned_sizes[key]) / 1e12,
-                    total=float(total_size) / 1e12,
-                    percent=100 * (float(aligned_sizes[key]) / total_size),
-                )
+                f"{key}: {float(aligned_sizes[key]) / 1e12:.2f} TB / {float(total_size) / 1e12:.2f} TB ({100 * (float(aligned_sizes[key]) / total_size):.2f}%)"
                 for key, total_size in iter(sorted(self.total_sizes.items()))
             ]
         )
@@ -194,24 +178,15 @@ class AlignmentReporter:
             attachment += key + "\n"
             attachment += ("=" * len(key)) + "\n"
             attachment += (
-                "Merge finished: {count} ({size:.2f} TB)".format(
-                    count=len(merge_finished),
-                    size=float(sum(e.src.file_size for e in merge_finished)) / 1e12,
-                )
+                f"Merge finished: {len(merge_finished)} ({float(sum(e.src.file_size for e in merge_finished)) / 1e12:.2f} TB)"
                 + "\n"
             )
             attachment += (
-                "Fixmate finished: {count} ({size:.2f} TB)".format(
-                    count=len(fixmate_finished),
-                    size=float(sum(e.src.file_size for e in fixmate_finished)) / 1e12,
-                )
+                f"Fixmate finished: {len(fixmate_finished)} ({float(sum(e.src.file_size for e in fixmate_finished)) / 1e12:.2f} TB)"
                 + "\n"
             )
             attachment += (
-                "Fully Complete: {count} ({size:.2f} TB)".format(
-                    count=len(fully_complete),
-                    size=float(sum(e.src.file_size for e in fully_complete)) / 1e12,
-                )
+                f"Fully Complete: {len(fully_complete)} ({float(sum(e.src.file_size for e in fully_complete)) / 1e12:.2f} TB)"
                 + "\n"
             )
             attachment += "\n"
@@ -233,11 +208,7 @@ class AlignmentReporter:
                     if v.get("alignment_type") == alignment_type_grain
                 }
             )
-            attachment += (
-                "{name}: {running} currently running / {allocated} allocated\n".format(
-                    name=name, running=running, allocated=allocated
-                )
-            )
+            attachment += f"{name}: {running} currently running / {allocated} allocated\n"
         return attachment
 
     def generate_aligned_analysis_ids_file(self):
@@ -251,9 +222,7 @@ class AlignmentReporter:
     def generate_in_progress_analysis_ids_file(self):
         logger.info("Generating file with in progress analysis ids")
         in_progres_gdc_ids = [
-            k.split("/")[-1]
-            for k in self.consul.kv.keys()
-            if "align" in k and "current" in k
+            k.split("/")[-1] for k in self.consul.kv.keys() if "align" in k and "current" in k
         ]
         logger.info("Querying for analysis ids of files currently being aligned")
         analysis_ids = [
@@ -275,9 +244,7 @@ class AlignmentReporter:
         uuid_to_host = dict(
             self.os_mysql.execute("SELECT uuid, host from instances;").fetchall()
         )
-        attachment = (
-            "analysis_id,alignment_time,input_file_size,aligner_uuid,aligner_host\n"
-        )
+        attachment = "analysis_id,alignment_time,input_file_size,aligner_uuid,aligner_host\n"
         logger.info("Generating rows")
         for file in aligned_wgs_files:
             edge = (

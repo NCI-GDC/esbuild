@@ -24,9 +24,7 @@ def exome(graph, source):
         )
         .subquery()
     )
-    return graph.nodes(models.File).filter(
-        models.File.node_id == all_file_ids_sq.c.node_id
-    )
+    return graph.nodes(models.File).filter(models.File.node_id == all_file_ids_sq.c.node_id)
 
 
 def wgs(graph, source):
@@ -48,9 +46,7 @@ def wgs(graph, source):
         )
         .subquery()
     )
-    return graph.nodes(models.File).filter(
-        models.File.node_id == all_file_ids_sq.c.node_id
-    )
+    return graph.nodes(models.File).filter(models.File.node_id == all_file_ids_sq.c.node_id)
 
 
 def mirnaseq(graph, source):

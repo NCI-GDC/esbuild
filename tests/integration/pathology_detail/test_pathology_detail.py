@@ -25,9 +25,7 @@ import pytest
         ),
     ],
 )
-def test_pathology_detail_counts(
-    pathology_detail_index, index_type, path, expectations
-):
+def test_pathology_detail_counts(pathology_detail_index, index_type, path, expectations):
     results = jmespath.search(path, getattr(pathology_detail_index, index_type))
     counts = Counter(results)
 

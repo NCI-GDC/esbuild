@@ -4,7 +4,8 @@ import collections
 import json
 import multiprocessing
 import os
-from typing import Iterator, NamedTuple, Optional
+from collections.abc import Iterator
+from typing import NamedTuple
 
 import datadog
 import deepdiff
@@ -118,9 +119,7 @@ class DataTester:
             logger.warning(mismatches)
 
         # Write counts to file
-        report_filename = (
-            f"counts_{self.args.true_index}_vs_{self.args.test_index}.json"
-        )
+        report_filename = f"counts_{self.args.true_index}_vs_{self.args.test_index}.json"
         with open(report_filename, "w") as f:
             json.dump(report, f, indent=2)
 
@@ -181,9 +180,7 @@ class DataTester:
         for index_suffix, res in result.items():
             logger.info(f"Diff in {index_suffix}: {not all(res.values())}")
 
-        report_filename = (
-            f"compared_{self.args.true_index}_vs_{self.args.test_index}.json"
-        )
+        report_filename = f"compared_{self.args.true_index}_vs_{self.args.test_index}.json"
 
         with open(report_filename, "w") as f:
             json.dump(result, f)
@@ -282,7 +279,7 @@ class ESWorker:
         self._page_size = page_size
 
     def get_simple_counts(
-        self, index_name: str, field_list: Optional[list] = None
+        self, index_name: str, field_list: list | None = None
     ) -> dict[str, int]:
         """Extract field counts from es index."""
         if not field_list:
@@ -292,9 +289,9 @@ class ESWorker:
         counts = {"total": total_docs}
         for field in field_list:
             field_exists_query = {"query": {"exists": {"field": field}}}
-            field_count = self.es.search(index=index_name, body=field_exists_query)[
-                "hits"
-            ]["total"]
+            field_count = self.es.search(index=index_name, body=field_exists_query)["hits"][
+                "total"
+            ]
             counts[field] = field_count
 
         return counts
@@ -328,9 +325,7 @@ class ESWorker:
             list_size_sums[path] = size_sum
         return list_size_sums
 
-    def get_es_iterator(
-        self, index_name: str, query: Optional[dict] = None
-    ) -> Iterator[dict]:
+    def get_es_iterator(self, index_name: str, query: dict | None = None) -> Iterator[dict]:
         """Return full index document iterator."""
         if not query:
             query = {"query": {"match_all": {}}}

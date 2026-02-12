@@ -3,17 +3,11 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Iterable, Mapping, Sequence
 from concurrent import futures
 from typing import (
     Any,
-    Dict,
-    Iterable,
-    Mapping,
     NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
 )
 
 import datadog
@@ -24,7 +18,7 @@ from esbuild.graph.common import mappings
 
 
 def _extract_properties(mapping: dict, prefix: str = "") -> Iterable[str]:
-    properties: Iterable[Tuple[str, Any]] = mapping["properties"].items()
+    properties: Iterable[tuple[str, Any]] = mapping["properties"].items()
 
     for name, mapping in properties:
         if "properties" in mapping:
@@ -60,7 +54,7 @@ def _get_index_mappings(index_name: str, mappings: Mapping) -> dict:
     return mappings[index_type]
 
 
-def _read_text_file(path: Optional[str]) -> Optional[str]:
+def _read_text_file(path: str | None) -> str | None:
     if not (path and os.path.exists(path)):
         return None
 
@@ -68,7 +62,7 @@ def _read_text_file(path: Optional[str]) -> Optional[str]:
         return f.read()
 
 
-def _read_json_file(path: Optional[str]) -> Optional[dict]:
+def _read_json_file(path: str | None) -> dict | None:
     if not (path and os.path.exists(path)):
         return None
 
@@ -76,7 +70,7 @@ def _read_json_file(path: Optional[str]) -> Optional[dict]:
         return json.load(f)
 
 
-class ReindexingException(Exception): ...
+class ReindexingError(Exception): ...
 
 
 class Arguments(NamedTuple):
@@ -84,10 +78,10 @@ class Arguments(NamedTuple):
     new_index: str
     project_ids: Sequence[str]
     conflicts: str
-    query: Optional[dict]
-    source: Optional[Union[Sequence[str], Dict[str, Any], bool]]
-    script_text: Optional[str]
-    script_language: Optional[str]
+    query: dict | None
+    source: Sequence[str] | dict[str, Any] | bool | None
+    script_text: str | None
+    script_language: str | None
     run_id: uuid.UUID
 
 
@@ -100,8 +94,8 @@ class EventLogger:
         title: str,
         text: str,
         run_id: uuid.UUID,
-        new_index: Optional[str] = None,
-        task_id: Optional[str] = None,
+        new_index: str | None = None,
+        task_id: str | None = None,
         alert_type: str = "info",
     ):
         tags = ["process:reindex"]
@@ -127,8 +121,8 @@ class EventLogger:
         title: str,
         text: str,
         run_id: uuid.UUID,
-        new_index: Optional[str] = None,
-        task_id: Optional[str] = None,
+        new_index: str | None = None,
+        task_id: str | None = None,
     ):
         self._log_event(title, text, run_id, new_index, task_id, alert_type="info")
 
@@ -137,8 +131,8 @@ class EventLogger:
         title: str,
         text: str,
         run_id: uuid.UUID,
-        new_index: Optional[str] = None,
-        task_id: Optional[str] = None,
+        new_index: str | None = None,
+        task_id: str | None = None,
     ):
         self._log_event(title, text, run_id, new_index, task_id, alert_type="error")
 
@@ -152,9 +146,7 @@ class EventLogger:
 
 
 class TaskProgressManager:
-    def __init__(
-        self, task_factory: gdc_elasticsearch.TaskFactory, event_logger: EventLogger
-    ):
+    def __init__(self, task_factory: gdc_elasticsearch.TaskFactory, event_logger: EventLogger):
         self._task_factory = task_factory
         self._event_logger = event_logger
 
@@ -187,7 +179,7 @@ class TaskProgressManager:
         return tasks
 
     def _handle_failed_tasks(
-        self, arguments: Dict[str, Arguments], tasks: Iterable[gdc_elasticsearch.Task]
+        self, arguments: dict[str, Arguments], tasks: Iterable[gdc_elasticsearch.Task]
     ) -> Iterable[str]:
         failed_tasks = filter(lambda t: t.failures, tasks)
         failed_indices = []
@@ -209,7 +201,7 @@ class TaskProgressManager:
         return failed_indices
 
     def _handle_errored_tasks(
-        self, arguments: Dict[str, Arguments], tasks: Iterable[gdc_elasticsearch.Task]
+        self, arguments: dict[str, Arguments], tasks: Iterable[gdc_elasticsearch.Task]
     ) -> Iterable[str]:
         errored_tasks = filter(lambda t: t.error, tasks)
         errored_indices = []
@@ -230,7 +222,7 @@ class TaskProgressManager:
 
         return errored_indices
 
-    def monitor(self, arguments: Dict[str, Arguments]):
+    def monitor(self, arguments: dict[str, Arguments]):
         task_ids = arguments.keys()
         tasks = self._task_factory.get_tasks(task_ids)
         tasks = self._wait_for_tasks_to_initialize(tasks)
@@ -241,9 +233,7 @@ class TaskProgressManager:
             errored_indices = self._handle_errored_tasks(arguments, tasks)
             message = ", ".join(itertools.chain(failed_indices, errored_indices))
 
-            raise ReindexingException(
-                f"Encounted failures/errors while reindexing: {message}"
-            )
+            raise ReindexingError(f"Encounted failures/errors while reindexing: {message}")
 
 
 class IndexPair(NamedTuple):
@@ -266,10 +256,10 @@ class Reindexer:
         self._progress_manager = progress_manager
         self._event_logger = event_logger
 
-    def _get_source(self, old_index_name: str, current_mapping: dict) -> Dict[str, Any]:
-        old_mapping = self._es.indices.get_mapping(index=old_index_name)[
-            old_index_name
-        ]["mappings"]
+    def _get_source(self, old_index_name: str, current_mapping: dict) -> dict[str, Any]:
+        old_mapping = self._es.indices.get_mapping(index=old_index_name)[old_index_name][
+            "mappings"
+        ]
         old_properties = frozenset(_extract_properties(old_mapping))
         new_properties = frozenset(_extract_properties(current_mapping))
 
@@ -303,9 +293,7 @@ class Reindexer:
                 args.new_index,
             )
 
-            self._es.indices.create(
-                index=args.new_index, mappings=mappings, settings=settings
-            )
+            self._es.indices.create(index=args.new_index, mappings=mappings, settings=settings)
             self._es.indices.refresh(index=args.new_index)
         else:
             self._event_logger.log_info(
@@ -354,9 +342,7 @@ class Reindexer:
 
         return task_id
 
-    def _build_project_query(
-        self, new_index_name: str, project_ids: Sequence[str]
-    ) -> dict:
+    def _build_project_query(self, new_index_name: str, project_ids: Sequence[str]) -> dict:
         index_type = _get_index_type(new_index_name)
 
         self._release_helper.delete_docs_from_index(
@@ -404,10 +390,10 @@ class Reindexer:
         index_types: Sequence[str] = (),
         project_ids: Sequence[str] = (),
         conflicts: str = "abort",
-        source: Optional[Union[Sequence[str], bool]] = None,
-        query: Optional[str] = None,
-        script: Optional[str] = None,
-        script_language: Optional[str] = None,
+        source: Sequence[str] | bool | None = None,
+        query: str | None = None,
+        script: str | None = None,
+        script_language: str | None = None,
     ):
         """Start the Elasticsearch reindex process.
 

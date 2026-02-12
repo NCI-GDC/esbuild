@@ -1,5 +1,4 @@
-"""
-Test data that contains a mix of legacy and active files for the
+"""Test data that contains a mix of legacy and active files for the
 builders to build indices from.  All new test data should go here to
 verify that the both builders handle it correctly, as they both pull
 from the same database in the real world.
@@ -101,8 +100,7 @@ def _add_index_data(file_nodes: Iterable[FileNode]) -> Iterator[dict[str, Any]]:
 def patch_test_data_get_indexd(
     nodes: Sequence[models.Node],
 ) -> tuple[Sequence[models.Node], Sequence[dict[str, Any]]]:
-    """
-    Takes effect only for file nodetypes:
+    """Takes effect only for file nodetypes:
 
     1. Will generate indexd data off of nodes
     2. Will patch nodes with error values for keys that are moved to indexd
@@ -113,8 +111,7 @@ def patch_test_data_get_indexd(
     file_nodes = (
         n
         for n in nodes
-        if isinstance(n, FileNode)
-        and n._dictionary.get("category") in DATA_FILE_CATEGORIES
+        if isinstance(n, FileNode) and n._dictionary.get("category") in DATA_FILE_CATEGORIES
     )
     indexd_data = tuple(_add_index_data(file_nodes))
 

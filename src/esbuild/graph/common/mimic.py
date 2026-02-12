@@ -6,7 +6,7 @@ index.
 """
 
 import logging
-from typing import Iterable, Union
+from collections.abc import Iterable
 
 log = logging.getLogger(__name__)
 
@@ -14,9 +14,7 @@ log = logging.getLogger(__name__)
 class CommonMimic:
     """Mixin for mimic classes."""
 
-    def neighbors_labeled(
-        self, node, labels: Union[str, Iterable[str]], *args, **kwargs
-    ):
+    def neighbors_labeled(self, node, labels: str | Iterable[str], *args, **kwargs):
         """Get node neighbors whose label is in labels.
 
         For a given node, return an iterator with generates neighbors to

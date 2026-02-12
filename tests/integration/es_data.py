@@ -1,6 +1,4 @@
-"""
-Elasticsearch test documents are defined here
-"""
+"""Elasticsearch test documents are defined here."""
 
 dummy_docs = (
     {

@@ -17,9 +17,7 @@ def assert_metadata(latest, diff):
         assert diff.get(field) == val
 
 
-def test_cache_versioned_nodes(
-    pg_driver, versioned_reads_setup, setup_test, indexd_client
-):
+def test_cache_versioned_nodes(pg_driver, versioned_reads_setup, setup_test, indexd_client):
     cacher = VersionedNodesDiffCollector(
         project_ids=["TCGA-BRCA"],
         graph=pg_driver,
@@ -75,9 +73,7 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
         )
 
     ar_hits = [
-        hit["_source"]
-        for hit in es_response["hits"]["hits"]
-        if ar_doc.did == hit["_id"]
+        hit["_source"] for hit in es_response["hits"]["hits"] if ar_doc.did == hit["_id"]
     ]
 
     ar_props = extract_indexd_metadata(ar_doc)
@@ -92,25 +88,21 @@ def assert_aligned_reads_documents(indexd, pg_driver, ar_node, es_response):
     assert_inclusion(ar_hit["index_files"][0], ari_props)
 
     # Make sure either both snapshots exist or none
-    assert ar_ts and ari_ts or (not ar_ts and not ari_ts)
+    assert (ar_ts and ari_ts) or (not ar_ts and not ari_ts)
 
     # No previous versions, just early exit
     if not ar_ts:
         return
 
     # Make sure that non IndexD property values are pulled from the snapshot
-    ar_props = (
-        ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props
-    )  # noqa
-    assert_inclusion(ar_props, ar_hit, INDEXD_METADATA_FIELDS + ["updated_datetime"])
+    ar_props = ar_ts.new_props if ar_doc.did == ar_node.node_id else ar_ts.old_props
+    assert_inclusion(ar_props, ar_hit, [*INDEXD_METADATA_FIELDS, "updated_datetime"])
 
-    ari_props = (
-        ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props
-    )  # noqa
+    ari_props = ari_ts.new_props if ari_doc.did == ari_node.node_id else ari_ts.old_props
     assert_inclusion(
         ari_props,
         ar_hit["index_files"][0],
-        INDEXD_METADATA_FIELDS + ["updated_datetime"],
+        [*INDEXD_METADATA_FIELDS, "updated_datetime"],
     )
 
 
@@ -135,9 +127,9 @@ def test_esbuild_versioning(
     builder.go()
 
     es_expectations = versioned_reads_expectations
-    nodes, versioned_nodes, versioned_docs, params = versioned_reads_setup
+    nodes, _versioned_nodes, _versioned_docs, params = versioned_reads_setup
 
-    source = INDEXD_METADATA_FIELDS + ["index_files"]
+    source = [*INDEXD_METADATA_FIELDS, "index_files"]
     res = es.search(
         index="gdc_es_test_file",
         query={"terms": {"submitter_id": ["ar_sar1", "ar_sur1"]}},

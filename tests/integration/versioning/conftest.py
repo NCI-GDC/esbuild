@@ -11,9 +11,7 @@ def is_file(node):
 
 def generate_urls_metadata(node_id, filename):
     return {
-        "s3://cleversafe.service.consul/bucket/TCGA/BRCA/{}/{}".format(
-            node_id, filename
-        ): {
+        f"s3://cleversafe.service.consul/bucket/TCGA/BRCA/{node_id}/{filename}": {
             "type": "cleversafe",
             "state": "validated",
         }
@@ -83,8 +81,7 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
     graph_nodes = []
 
     def wrapper(nodes, edges, root_links, make_versions=False):
-        """
-        :param nodes: list of nodes metadata
+        """:param nodes: list of nodes metadata
         :param edges: list of edges metadata
         :param root_links: links to existing via (submitter_id, node_id) pair
         :param make_versions: create older versions
@@ -114,9 +111,7 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
                 )
                 create_transaction(pg_driver, n, prev._props)
 
-                prevd = create_indexd_for_node(
-                    indexd_client, prev, version, release, None
-                )
+                prevd = create_indexd_for_node(indexd_client, prev, version, release, None)
                 baseid = prevd.baseid
 
                 # If node in graph is released, we should also release the doc
@@ -138,11 +133,10 @@ def make_subgraph(graph_factory, pg_driver, indexd_client):
 @pytest.fixture
 def create_aligned_reads(indexd_client, make_subgraph):
     def wrapper(workflow_state="released", make_versions=True, reads_state="submitted"):
-        """
-        This fixture creates 2 subtrees starting from SUR and SAR.
+        """This fixture creates 2 subtrees starting from SUR and SAR.
         AlignedReads/AlignedReadsIndex nodes under SUR are always released and
         AlignedReads/AlignedReadsIndex nodes under SAR have variable states
-        AlignmentWorkflow nodes for both subtrees also vary (submitted/released)
+        AlignmentWorkflow nodes for both subtrees also vary (submitted/released).
 
         Subtree structures:
             SAR <- AWF <- AR <- ARI
@@ -159,17 +153,11 @@ def create_aligned_reads(indexd_client, make_subgraph):
         nodes = [
             dict(label="submitted_aligned_reads", submitter_id="sar1"),
             dict(label="submitted_unaligned_reads", submitter_id="sur1"),
-            dict(
-                label="alignment_workflow", submitter_id="wf_sar1", state=workflow_state
-            ),
-            dict(
-                label="alignment_workflow", submitter_id="wf_sur1", state=workflow_state
-            ),
+            dict(label="alignment_workflow", submitter_id="wf_sar1", state=workflow_state),
+            dict(label="alignment_workflow", submitter_id="wf_sur1", state=workflow_state),
             dict(label="aligned_reads", submitter_id="ar_sar1", state=reads_state),
             dict(label="aligned_reads", submitter_id="ar_sur1"),
-            dict(
-                label="aligned_reads_index", submitter_id="ari_sar1", state=reads_state
-            ),
+            dict(label="aligned_reads_index", submitter_id="ari_sar1", state=reads_state),
             dict(label="aligned_reads_index", submitter_id="ari_sur1"),
         ]
 
@@ -209,13 +197,12 @@ def create_aligned_reads(indexd_client, make_subgraph):
     ]
 )
 def versioned_reads_setup(request, pg_driver, create_aligned_reads):
-    """
-    A fixture that generates different data setups.
+    """A fixture that generates different data setups.
     Yields a tuple:
         0: all created nodes in graph
         1: nodes that are expected to have previous versions
         2: IndexD documents corresponding to the above nodes
-        3: fixture params
+        3: fixture params.
 
     workflow    | reads_state   | make_versions | expected doc diffs
     ============|===============|===============|====================
@@ -251,9 +238,8 @@ def versioned_reads_setup(request, pg_driver, create_aligned_reads):
 
 @pytest.fixture
 def versioned_reads_expectations(versioned_reads_setup, indexd_client):
-    """
-    Fixture that generates ES document expectations in terms of metadata from
-    IndexD. Yields a mapping in a form: {graph_node_id: expected_indexd_doc}
+    """Fixture that generates ES document expectations in terms of metadata from
+    IndexD. Yields a mapping in a form: {graph_node_id: expected_indexd_doc}.
 
     workflow    | reads_state   | make_versions | expected
     ============|===============|===============|=======================
@@ -267,24 +253,20 @@ def versioned_reads_expectations(versioned_reads_setup, indexd_client):
     submitted   | submitted     | False         | None
 
     """
-    nodes, exp_nodes, exp_docs, params = versioned_reads_setup
+    nodes, _exp_nodes, _exp_docs, params = versioned_reads_setup
 
     if params["workflow_state"] != "released":
         expectations = {}
     elif params["reads_state"] == "released":
         ars = [n for n in nodes if n.label == "aligned_reads"]
-        expectations = {
-            ar.node_id: indexd_client.get_latest_version(ar.node_id) for ar in ars
-        }
+        expectations = {ar.node_id: indexd_client.get_latest_version(ar.node_id) for ar in ars}
     elif params["make_versions"]:
         ars = [n for n in nodes if n.label == "aligned_reads"]
         expectations = {
             ar.node_id: indexd_client.get_latest_version(ar.node_id, True) for ar in ars
         }
     else:
-        ar = [n for n in nodes if n.label == "aligned_reads" and n.state == "released"][
-            0
-        ]
+        ar = next(n for n in nodes if n.label == "aligned_reads" and n.state == "released")
         expectations = {ar.node_id: indexd_client.get(ar.node_id)}
 
     yield expectations

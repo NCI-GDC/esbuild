@@ -32,9 +32,7 @@ import pytest
         ),
     ],
 )
-def test_secondary_expression_analysis_counts(
-    index_type, path, expected, scenario_index
-):
+def test_secondary_expression_analysis_counts(index_type, path, expected, scenario_index):
     index = scenario_index("secondary_expression_analysis_scenario.yaml")
 
     results = jmespath.search(path, getattr(index, index_type))

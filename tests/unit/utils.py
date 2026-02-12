@@ -1,9 +1,8 @@
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 
 def get_dict_paths(dictionary: dict, path: str = "root") -> Iterator[str]:
-    """
-    Flattens all entries in a dictionary and its nested dictionaries into a path.
+    """Flattens all entries in a dictionary and its nested dictionaries into a path.
 
     NOTE: items in any list value will generate a path for each value.
 

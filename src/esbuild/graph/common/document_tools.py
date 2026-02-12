@@ -7,7 +7,6 @@ import itertools
 import logging
 import uuid
 from collections.abc import Iterable, Sequence
-from typing import Union
 
 import more_itertools
 
@@ -73,9 +72,7 @@ def _get_namespaced_uuid(label: str, seed: str) -> str:
     return str(uuid.uuid5(_get_uuid_namespace(label), seed))
 
 
-def _walk_path(
-    roots: Union[dict, Iterable[dict]], path: Iterable[DocumentNode]
-) -> Iterable[dict]:
+def _walk_path(roots: dict | Iterable[dict], path: Iterable[DocumentNode]) -> Iterable[dict]:
     def take_step(docs: Iterable[dict], node: DocumentNode) -> Iterable[dict]:
         """Load the nodes in the document with the name of the node.
 
@@ -93,9 +90,7 @@ def _walk_path(
         children = tuple(itertools.chain.from_iterable(map(step, docs)))
 
         if node.is_removed:
-            logger.info(
-                f"Moving nodes: %s", tuple(n[node.id_property] for n in children)
-            )
+            logger.info("Moving nodes: %s", tuple(n[node.id_property] for n in children))
 
         return children
 

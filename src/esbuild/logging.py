@@ -1,5 +1,4 @@
-"""
-An extension of the logging module to be used to initialize logging in entry points.
+"""An extension of the logging module to be used to initialize logging in entry points.
 
 This module should only be used in entry points to the application. In all other places,
 use the builtin logging.getLogger(__name__) to create loggers in other (non-entry point)
@@ -42,9 +41,7 @@ class DatadogLogFormatter(jsonlogger.JsonFormatter):
             log_record["error.stack"] = log_record.pop("exc_info", None)
 
             if exc_type:
-                log_record["error.kind"] = (
-                    f"{exc_type.__module__}.{exc_type.__qualname__}"
-                )
+                log_record["error.kind"] = f"{exc_type.__module__}.{exc_type.__qualname__}"
             if exception:
                 log_record["error.message"] = f"{exception}"
 
@@ -52,8 +49,7 @@ class DatadogLogFormatter(jsonlogger.JsonFormatter):
 
 
 def init_logging(level: int) -> logging.Logger:
-    """
-    Initialize the logging to log to the appropriate files/systems.
+    """Initialize the logging to log to the appropriate files/systems.
 
     In the process, this also initializes the root logger and returns it.
 

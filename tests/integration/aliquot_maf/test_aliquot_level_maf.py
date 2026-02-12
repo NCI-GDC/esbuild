@@ -37,9 +37,7 @@ import pytest
         ),
     ],
 )
-def test_aliquot_level_maf_build_counts(
-    maf_index, index_type, path, expectations, pg_driver
-):
+def test_aliquot_level_maf_build_counts(maf_index, index_type, path, expectations, pg_driver):
     results = jmespath.search(path, getattr(maf_index, index_type))
 
     counts = Counter(results)

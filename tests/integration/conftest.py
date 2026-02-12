@@ -1,6 +1,4 @@
-"""
-Setup esbuild tests
-"""
+"""Setup esbuild tests."""
 
 import itertools
 import logging
@@ -8,7 +6,7 @@ import os
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Set
 from importlib import resources
-from typing import Any, NamedTuple, NoReturn, Optional
+from typing import Any, NamedTuple, NoReturn
 
 import elasticsearch
 import gdcdictionary
@@ -52,20 +50,18 @@ class Index(NamedTuple):
 
 
 class TestError(Exception):
-    """Monkeypatch exception for testing exception handling"""
+    """Monkeypatch exception for testing exception handling."""
 
     pass
 
 
 def raise_test_error(*args: Any, **kwargs: Any) -> NoReturn:
-    """For monkeypatching to test exception handling"""
-
+    """For monkeypatching to test exception handling."""
     raise TestError(f"{args} {kwargs}")
 
 
 def render_database(pg_driver: psqlgraph.PsqlGraphDriver) -> None:
-    """Save PDF graph of test suite data"""
-
+    """Save PDF graph of test suite data."""
     with pg_driver.session_scope():
         dot = viz.create_graphviz(pg_driver.nodes())
         dot.render("tests/integration/test_suite_data.gv")
@@ -86,12 +82,11 @@ def get_all_indices(es: elasticsearch.Elasticsearch) -> Set[str]:
 
 
 def cleanup_indices(
-    es: elasticsearch.Elasticsearch, indices: Optional[Iterable[str]] = None
+    es: elasticsearch.Elasticsearch, indices: Iterable[str] | None = None
 ) -> None:
-    """
-    Cleanup Elasticsearch cluster
+    """Cleanup Elasticsearch cluster
     :param es: ES client
-    :param indices: list of indices to delete
+    :param indices: list of indices to delete.
     """
     for _ in range(10):
         try:
@@ -214,7 +209,6 @@ def create_indexd_documents(
 def init_indexd(
     indexd_client: client.IndexClient, create_indexd_documents: CreateIndexdDocuments
 ) -> client.IndexClient:
-
     create_indexd_documents(data.INDEXD)
 
     return indexd_client
@@ -345,8 +339,7 @@ def test_index_data(
     es_client: elasticsearch.Elasticsearch,
     graph_models: Mapping[str, gdcmodels.ModelMapper],
 ) -> Iterator[tuple[elasticsearch.Elasticsearch, str]]:
-    """Generate data index as a fixture for re-use between tests"""
-
+    """Generate data index as a fixture for re-use between tests."""
     # Create test index with dummy docs
     index_prefix = "test_index_data"
     index_names = utils.get_index_names(index_prefix, INDEX_TYPES)
@@ -390,9 +383,8 @@ def test_index_data(
 def es_after_deletion(
     test_index_data: tuple[elasticsearch.Elasticsearch, str],
 ) -> tuple[elasticsearch.Elasticsearch, str, Set[str], Iterable[str]]:
-    """
-    Deletes some projects from the index but not updates the metadata,
-    leaving build_metadata inconsistent purposefully
+    """Deletes some projects from the index but not updates the metadata,
+    leaving build_metadata inconsistent purposefully.
     """
     es, index_prefix = test_index_data
     helper = utils.ReleaseHelper(es, audit_index="build_metadata_test")
@@ -429,9 +421,7 @@ def setup_test(
 # region ================================ Scenarios ==========================================
 
 
-GenerateScenario = Callable[
-    [str], tuple[Sequence[psqlgraph.Node], Sequence[client.Document]]
-]
+GenerateScenario = Callable[[str], tuple[Sequence[psqlgraph.Node], Sequence[client.Document]]]
 
 
 @pytest.fixture
@@ -522,9 +512,7 @@ def apply_gencode_to_indexd(
         # apply specified gencode_version to GeneExpression to test pick up by gencode
         for submitter_id, gencode in gencode_versions:
             node = (
-                pg_driver.nodes(models.GeneExpression)
-                .props(submitter_id=submitter_id)
-                .one()
+                pg_driver.nodes(models.GeneExpression).props(submitter_id=submitter_id).one()
             )
             doc = init_indexd.get(node.node_id)
             doc.metadata["gencode_version"] = gencode

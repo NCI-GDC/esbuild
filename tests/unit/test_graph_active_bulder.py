@@ -2,7 +2,6 @@ from collections.abc import Iterable
 from unittest import mock
 
 import pytest
-from gdcdatamodel2 import models
 
 from esbuild.graph.active import builder
 

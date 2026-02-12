@@ -11,7 +11,7 @@ import os
 import time
 from collections.abc import Iterable
 from concurrent import futures
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 from unittest import mock
 
 import datadog
@@ -58,7 +58,7 @@ def get_statsd_event_logger(index_prefix, projects):
             final_text,
             source_type_name="esbuild",
             alert_type=alert_type,
-            tags=[index_tag] + tags,
+            tags=[index_tag, *tags],
         )
 
     return statsd_event
@@ -70,7 +70,7 @@ class Task(NamedTuple):
     total: int
     current: int
     failures: Iterable[dict]
-    error: Optional[dict]
+    error: dict | None
 
     def is_initailized(self) -> bool:
         return bool(self.completed or self.total)
@@ -99,9 +99,7 @@ class TaskFactory:
         return Task(task_id, task["completed"], total, current, failures, error)
 
     def get_tasks(self, task_ids: Iterable[str]) -> Iterable[Task]:
-        updates = tuple(
-            self._executor.submit(self.get_task, task_id) for task_id in task_ids
-        )
+        updates = tuple(self._executor.submit(self.get_task, task_id) for task_id in task_ids)
 
         return tuple(update.result() for update in updates)
 
@@ -138,10 +136,10 @@ class GDCElasticsearch:
         self,
         converter_class: type[builder.GraphIndexBuilder],
         indexd_client: client.IndexClient,
-        es: Optional[elasticsearch.Elasticsearch] = None,
-        pg_driver: Optional[psqlgraph.PsqlGraphDriver] = None,
-        index_prefix: Optional[str] = None,
-        build_projects: Optional[list[str]] = None,
+        es: elasticsearch.Elasticsearch | None = None,
+        pg_driver: psqlgraph.PsqlGraphDriver | None = None,
+        index_prefix: str | None = None,
+        build_projects: list[str] | None = None,
         # since we are setting default in master.py, why are we duplicating them here
         gencode_version: str = "all",
         selective_caching: bool = False,
@@ -149,7 +147,7 @@ class GDCElasticsearch:
         cache_versioned: bool = False,
         save_doc_path: str = os.path.expanduser("~/esbuild_output"),
         skip_es: bool = False,
-        index_alias_prefix: Optional[str] = None,
+        index_alias_prefix: str | None = None,
         audit: bool = True,
         **kwargs,
     ):
@@ -170,7 +168,7 @@ class GDCElasticsearch:
 
         self.save_doc_path = save_doc_path or os.path.expanduser("~/esbuild-output")
         self.skip_es = skip_es
-        self.converter: Optional[builder.GraphIndexBuilder] = None
+        self.converter: builder.GraphIndexBuilder | None = None
 
         logger.info(f"Build arguments: {kwargs}")
 
@@ -188,9 +186,7 @@ class GDCElasticsearch:
         self.no_parallel_bulk = kwargs.get("no_parallel_bulk", False)
 
         if index_prefix:
-            self.index_names = utils.get_index_names(
-                index_prefix, INDEX_MAPPINGS.keys()
-            )
+            self.index_names = utils.get_index_names(index_prefix, INDEX_MAPPINGS.keys())
 
         if index_alias_prefix:
             self.index_aliases = utils.get_index_names(
@@ -203,7 +199,7 @@ class GDCElasticsearch:
         else:
             try:
                 os.mkdir(self.save_doc_path)
-            except:
+            except Exception:
                 self.doc_output_dir = os.getcwd()
             else:
                 self.doc_output_dir = self.save_doc_path
@@ -225,14 +221,11 @@ class GDCElasticsearch:
             ("ann_docs", ann_docs),
             ("project_docs", project_docs),
         ]:
-            file_name = "{}/{}_{}.json".format(
-                self.doc_output_dir, file_name, time_stamp
-            )
+            file_name = f"{self.doc_output_dir}/{file_name}_{time_stamp}.json"
             logger.info(f"Saving to {file_name}")
             _save_docs(docs, file_name)
 
     def _cache_versioned_files(self) -> dict:
-
         if not self.cache_versioned or self.build_awg or not self.build_projects:
             return {}
 
@@ -250,17 +243,13 @@ class GDCElasticsearch:
         with self.graph.session_scope() as session, session.no_autoflush:
             logger.info("Caching database")
 
-            self.event_logger(
-                "Caching", "Started postgres caching.", tags=["stage:caching"]
-            )
+            self.event_logger("Caching", "Started postgres caching.", tags=["stage:caching"])
 
             cache_start_time = datetime.datetime.now()
             converter.cache_database()
             cache_end_time = datetime.datetime.now()
 
-            logger.info(
-                "ANALYSIS: Loaded data in %s", cache_end_time - cache_start_time
-            )
+            logger.info("ANALYSIS: Loaded data in %s", cache_end_time - cache_start_time)
 
             self.event_logger(
                 "Denormalization",
@@ -272,9 +261,7 @@ class GDCElasticsearch:
 
             denom_end_time = datetime.datetime.now()
 
-            logger.info(
-                "ANALYSIS: Denormalized data in %s", denom_end_time - cache_end_time
-            )
+            logger.info("ANALYSIS: Denormalized data in %s", denom_end_time - cache_end_time)
 
             session.rollback()
 
@@ -295,8 +282,7 @@ class GDCElasticsearch:
             projects_to_build = "all"
 
         logger.info(
-            "ANALYSIS: Preparing ES index to be updated "
-            "with {} projects".format(projects_to_build)
+            f"ANALYSIS: Preparing ES index to be updated with {projects_to_build} projects"
         )
 
         self.event_logger(
@@ -339,9 +325,7 @@ class GDCElasticsearch:
             raise ValueError("'index_alias_prefix' is required")
 
         if send_events:
-            self.event_logger = get_statsd_event_logger(
-                self.index_prefix, self.build_projects
-            )
+            self.event_logger = get_statsd_event_logger(self.index_prefix, self.build_projects)
 
         versioned_files = self._cache_versioned_files()
 
@@ -391,8 +375,7 @@ class GDCElasticsearch:
             self.deploy(cases, files, annotations, projects, roll_alias=roll_alias)
         except Exception as exception:
             logger.exception(
-                "Unable to deploy documents to {}: {}, saving to {}"
-                "".format(self.index_prefix, exception, self.doc_output_dir),
+                f"Unable to deploy documents to {self.index_prefix}: {exception}, saving to {self.doc_output_dir}",
                 exc_info=True,
             )
             event["text"] = f"index deploy failed: {self.index_prefix}"
@@ -401,7 +384,7 @@ class GDCElasticsearch:
             self.save_docs(cases, files, annotations, projects)
         finally:
             self.event_logger(
-                "ESBuild finished", tags=["stage:finished"] + extra_tags, **event
+                "ESBuild finished", tags=["stage:finished", *extra_tags], **event
             )
 
     def log_skipped_nodes(self, skipped_nodes):
@@ -409,7 +392,7 @@ class GDCElasticsearch:
         self.log_into_file(skipped_nodes, self.save_doc_path, "esbuild-skipped_nodes")
 
     @staticmethod
-    def log_into_file(entries: Union[list, dict], path: str, file_nametag: str):
+    def log_into_file(entries: list | dict, path: str, file_nametag: str):
         """Dump entries into file `{path}/{file_nametag}_{datetime_now}.{list,json}`.
 
         Extension depends on whether `entries` is list or dict
@@ -430,9 +413,7 @@ class GDCElasticsearch:
         else:
             raise ValueError("Can only dump list or dict objects")
 
-        file_name = "{}/{}-{}.{}".format(
-            path, file_nametag, datetime.datetime.now().isoformat(), extension
-        )
+        file_name = f"{path}/{file_nametag}-{datetime.datetime.now().isoformat()}.{extension}"
 
         with open(file_name, "w") as f:
             if isinstance(entries, list):
@@ -487,7 +468,7 @@ class GDCElasticsearch:
             logger.warning(f"There're no documents for '{index_type}' to populate")
             return
 
-        logger.info("Populating index %s" % index_name)
+        logger.info(f"Populating index {index_name}")
 
         self.populate_index(index_type, docs, thread_count, chunk_size, max_chunk_bytes)
 
@@ -530,7 +511,7 @@ class GDCElasticsearch:
 
         actions = action_gen()
         if self.no_parallel_bulk:
-            success, errors = helpers.bulk(
+            _success, errors = helpers.bulk(
                 self.es,
                 actions,
                 chunk_size=chunk_size,
@@ -574,8 +555,7 @@ class GDCElasticsearch:
         return self.es.indices.put_alias(index=new_index, name=alias)
 
     def lookup_index_by_alias(self, alias: str) -> Iterable[str]:
-        """
-        Find a set of indices that an Elasticsearch alias is pointing to.
+        """Find a set of indices that an Elasticsearch alias is pointing to.
 
         Returns:
             list: a list of ES indices that have a given alias
@@ -646,7 +626,6 @@ class GDCElasticsearch:
             ("file", file_docs),
             ("case", case_docs),
         ]:
-
             self.create_and_populate_index(
                 index_type,
                 index_docs,
@@ -678,6 +657,4 @@ class GDCElasticsearch:
             return
 
         for index_type, index_alias in self.index_aliases.items():
-            self.swap_index_alias(
-                alias=index_alias, new_index=self.index_names[index_type]
-            )
+            self.swap_index_alias(alias=index_alias, new_index=self.index_names[index_type])
