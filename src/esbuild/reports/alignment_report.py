@@ -14,14 +14,13 @@ from psqlgraph import PsqlGraphDriver
 from sqlalchemy import create_engine, desc
 from sqlalchemy.pool import NullPool
 
-from esbuild.models import File
 from esbuild.reports.alignment_queries import exome, mirnaseq, rnaseq, wgs
 
 logger = logging.getLogger(__name__)
 
 
 def with_derived(q):
-    return q.filter(File.derived_files.any())
+    return q.filter(models.File.derived_files.any())
 
 
 def alignment_time(file):

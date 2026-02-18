@@ -220,7 +220,7 @@ class GraphIndexBuilder:
 
     # in addition, project_id will be hidden on all nodes
     # {node.label: {set of property keys}}
-    hidden_properties: ClassVar[dict[str, dict[str, set[str]]]] = {
+    hidden_properties: ClassVar[dict[str, set[str]]] = {
         "annotation": {
             "creator",
         }
