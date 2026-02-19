@@ -15,9 +15,7 @@ import more_itertools
 from gdcdatamodel2 import models
 
 
-def _get_entity_path(
-    entities: Container[str], file_path: Sequence[str]
-) -> Sequence[str]:
+def _get_entity_path(entities: Container[str], file_path: Sequence[str]) -> Sequence[str]:
     """Get the first valid entity path from given file_path.
 
     NOTE: this function assumes that the file path contains at least one of the given
@@ -32,9 +30,7 @@ def _get_entity_path(
         The path from the file to one of the given entities.
     """
     entity_path: Iterable[str] = reversed(file_path[:-1])
-    entity_path = more_itertools.takewhile_inclusive(
-        lambda p: p not in entities, entity_path
-    )
+    entity_path = more_itertools.takewhile_inclusive(lambda p: p not in entities, entity_path)
 
     return tuple(entity_path)
 

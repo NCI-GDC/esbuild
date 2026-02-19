@@ -14,7 +14,6 @@ attrs==25.3.0
     #   referencing
 certifi==2025.8.3
     # via
-    #   elastic-transport
     #   elasticsearch
     #   requests
 charset-normalizer==3.4.2
@@ -112,12 +111,10 @@ sqlalchemy==1.4.54
     #   psqlgraph
 typing-extensions==4.14.1
     # via
-    #   elasticsearch
     #   gdcmodels
     #   psqlgraph
 urllib3==1.26.20
     # via
-    #   elastic-transport
     #   elasticsearch
     #   requests
 wrapt==1.17.2

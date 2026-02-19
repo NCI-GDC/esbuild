@@ -41,6 +41,8 @@ tox:
         PG_INDEXD_DBNAME: indexd_test
         INDEXD_USER: admin
         INDEXD_PASS: admin
+        GUNICORN_WORKERS: 1
+        GUNICORN_THREADS: 1
   variables:
     PG_HOST: postgres
     ES_HOST: elasticsearch

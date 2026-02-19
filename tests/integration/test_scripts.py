@@ -1,5 +1,4 @@
-"""
-test_scripts.py
+"""test_scripts.py.
 ----------------------------------
 
 Test the build scripts that wrap core functionality
@@ -20,5 +19,5 @@ import pytest
     ],
 )
 def test_esbuild_cli(init_indexd, pg_driver, posargs):
-    cmd = ["esbuild-cli"] + posargs
+    cmd = ["esbuild-cli", *posargs]
     check_call(cmd)

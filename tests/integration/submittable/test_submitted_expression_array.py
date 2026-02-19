@@ -1,5 +1,6 @@
 import collections
-from typing import Literal, Mapping
+from collections.abc import Mapping
+from typing import Literal
 
 import jmespath
 import pytest
@@ -35,10 +36,9 @@ def test__submitted_expression_array__indexed_as_file(
     expectations: Mapping[str, int],
 ):
     """Tests that the submitted gene expression arrays are indexed as files in both the
-    file index as well as in the files node of the case index."""
-    results = jmespath.search(
-        path, getattr(submitted_expression_array_index, index_type)
-    )
+    file index as well as in the files node of the case index.
+    """
+    results = jmespath.search(path, getattr(submitted_expression_array_index, index_type))
     counts = collections.Counter(results)
 
     for value, count in expectations.items():

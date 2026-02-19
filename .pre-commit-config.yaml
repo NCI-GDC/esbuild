@@ -1,15 +1,13 @@
 ---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-json
       - id: check-toml
       - id: check-yaml
         exclude: ^\.gitlab-ci.yml|docker-compose\.yaml
       - id: end-of-file-fixer
-      - id: fix-encoding-pragma
-        args: [--remove]
       - id: no-commit-to-branch
         args: [--branch, develop, --branch, master, --pattern, release/.*]
       - id: pretty-format-json
@@ -18,7 +16,7 @@ repos:
         exclude: ^(.travis.yml|.gitlab-ci.yml)$
         args: [--markdown-linebreak-ext=md]
   - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.5
+    rev: v1.5.6
     hooks:
       - id: forbid-crlf
       - id: remove-crlf
@@ -26,35 +24,17 @@ repos:
         exclude: .(py|yaml|yml|tsv)$
       - id: remove-tabs
         exclude: .(py|yaml|yml|tsv)$
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.6
+    rev: 1.9.3
     hooks:
       - id: bandit
         args: [--skip, 'B303,B101,B404,B405,B607,B603', --exclude, tests]
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
-    hooks:
-      - id: isort
-        name: isort (python)
-        args: [--profile, black]
-      - id: isort
-        name: isort (cython)
-        types: [cython]
-        args: [--profile, black]
-      - id: isort
-        name: isort (pyi)
-        types: [pyi]
-        args: [--profile, black]
-  - repo: https://github.com/pycqa/pydocstyle
-    rev: 6.3.0
-    hooks:
-      - id: pydocstyle
-        args: [convention=google, --add-ignore, 'D100,D101,D102,D103,D104,D105,D106,D107']
-        exclude: ^(tests|unit_tests)/
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:

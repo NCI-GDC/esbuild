@@ -1,5 +1,4 @@
-"""
-test_graph_index.py
+"""test_graph_index.py.
 ----------------------------------
 
 Test the builder for graph ES index
@@ -86,9 +85,8 @@ def diagnosis_annotations(generate_scenario):
 
 
 def test_get_file_metadata_from_indexd(index):
-    """
-    Test that file metadata fields are taken from indexd
-    (by checking that their value is not 'error' or -1 which are values in the graph)
+    """Test that file metadata fields are taken from indexd
+    (by checking that their value is not 'error' or -1 which are values in the graph).
     """
     for f in index.files:
         for key, value in f.items():
@@ -96,9 +94,7 @@ def test_get_file_metadata_from_indexd(index):
 
 
 def test_selective_caching(init_indexd, ro_pg_driver):
-    """
-    Tests that partial graph data caching is working in subset build scenario
-    """
+    """Tests that partial graph data caching is working in subset build scenario."""
     projects_subset = {"TCGA-BRCA", "TCGA-DEV1"}
     builder1 = ActiveGraphIndexBuilder(
         ro_pg_driver,
@@ -108,14 +104,10 @@ def test_selective_caching(init_indexd, ro_pg_driver):
     )
     builder1.cache_database()
 
-    built_projects = {
-        n.project_id for n in builder1.G.nodes() if "project_id" in n.props
-    }
+    built_projects = {n.project_id for n in builder1.G.nodes() if "project_id" in n.props}
     assert built_projects == projects_subset
 
-    builder2 = ActiveGraphIndexBuilder(
-        ro_pg_driver, init_indexd, selective_caching=True
-    )
+    builder2 = ActiveGraphIndexBuilder(ro_pg_driver, init_indexd, selective_caching=True)
     builder2.cache_database()
 
     all_projects = {n.project_id for n in builder2.G.nodes() if "project_id" in n.props}
@@ -125,9 +117,7 @@ def test_selective_caching(init_indexd, ro_pg_driver):
 
 
 def test_awg_build(init_indexd, pg_driver):
-    """
-    Tests AWG build mode
-    """
+    """Tests AWG build mode."""
     build_projects = {"TCGA-LUAD", "INTERNAL-AWG-ONE"}
     builder = ActiveGraphIndexBuilder(
         pg_driver, init_indexd, build_awg=True, build_projects=build_projects
@@ -226,9 +216,7 @@ def test_path_is_absent(index, index_type, path):
         ("files", "[].associated_entities[].entity_type", N_FILES + 4),
     ],
 )
-def test_path_count(
-    index: conftest.Index, index_type: str, path: str, count: int
-) -> None:
+def test_path_count(index: conftest.Index, index_type: str, path: str, count: int) -> None:
     """Insure that the various structures/properties are built by verifying counts."""
     results = jmespath.search(path, getattr(index, index_type))
     assert len(results) == count
@@ -410,9 +398,7 @@ def test_path_value_set_equals(index, index_type, path, expected, count):
         ),
     ],
 )
-def test_unreleased_nodes_not_indexed(
-    pg_driver, index, index_type, path, cls, node_ids
-):
+def test_unreleased_nodes_not_indexed(pg_driver, index, index_type, path, cls, node_ids):
     with pg_driver.session_scope():
         for node_id in node_ids:
             node = pg_driver.nodes(cls).ids(node_id).one()
@@ -480,9 +466,9 @@ def test_project_file_counts(index: conftest.Index) -> None:
         actual_count = actual_counts.get(project["project_id"], 0)
         summary_count = project["summary"]["file_count"]
 
-        assert (
-            actual_count == summary_count
-        ), f"File count mismatch {project['project_id']} file count mismatch: {actual_count} != {summary_count}"
+        assert actual_count == summary_count, (
+            f"File count mismatch {project['project_id']} file count mismatch: {actual_count} != {summary_count}"
+        )
 
 
 def test_data_category_count(index: conftest.Index) -> None:
@@ -491,8 +477,7 @@ def test_data_category_count(index: conftest.Index) -> None:
             f["data_category"] for f in case["files"] if "data_category" in f
         )
         summary = {
-            s["data_category"]: s["file_count"]
-            for s in case["summary"]["data_categories"]
+            s["data_category"]: s["file_count"] for s in case["summary"]["data_categories"]
         }
 
         assert actual_counts == summary
@@ -564,7 +549,9 @@ def test_add_related_files(
     for file in files:
         metadata_files = file.get("metadata_files", ())
 
-        assert len(metadata_files) == count, f"File "
+        assert len(metadata_files) == count, (
+            f"Invalid metadata files: {[f.get('file_id', 'UNKNOWN') for f in metadata_files]}."
+        )
 
 
 @pytest.mark.parametrize(
@@ -590,9 +577,7 @@ def test_add_archive(
         if has_archive:
             assert "archive" in file, f"file {file['file_id']} missing archive."
         else:
-            assert (
-                "archive" not in file
-            ), f"file {file['file_id']} has erroneous archive."
+            assert "archive" not in file, f"file {file['file_id']} has erroneous archive."
 
 
 def test_aligned_reads_count(aligned_reads):
@@ -626,7 +611,7 @@ def test_somatic_aggregation_workflow_read_groups(index):
 
 
 def test_sample_analyte_indexed(index):
-    """Tests to verify that aliquots under the subtree case.sample.analyte are indexed"""
+    """Tests to verify that aliquots under the subtree case.sample.analyte are indexed."""
     case_affected = None
     for case in index.cases:
         if case["submitter_id"] == "fake_submitter_2":
@@ -638,8 +623,7 @@ def test_sample_analyte_indexed(index):
 
 
 def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slides):
-    """
-    Make sure that regardless of the order in which we cache Slide node relations
+    """Make sure that regardless of the order in which we cache Slide node relations
     to cases, the caching still completes as expected.
 
     Before the fix, there was an early return in the `_cache_entity_cases`,
@@ -666,30 +650,30 @@ def test_inconsistent_slides_in_graph(pg_driver, init_indexd, inconsistent_slide
             results = [n for n in results if n.label != "slide"] + slides
             return results
 
-    builderA = MyBuilderA(pg_driver, init_indexd)
+    builder_a = MyBuilderA(pg_driver, init_indexd)
     with pg_driver.session_scope():
-        builderA.cache_database()
+        builder_a.cache_database()
 
-    builderB = MyBuilderB(pg_driver, init_indexd)
+    builder_b = MyBuilderB(pg_driver, init_indexd)
     with pg_driver.session_scope():
-        builderB.cache_database()
+        builder_b.cache_database()
 
     # Comparing that 2 maps are the same
-    assert builderA.entity_cases == builderB.entity_cases
+    assert builder_a.entity_cases == builder_b.entity_cases
 
-    cached_slide_ids = {n.submitter_id for n in builderA.entity_cases}
+    cached_slide_ids = {n.submitter_id for n in builder_a.entity_cases}
 
     # Making sure that 'slide_1' wasn't picked up, since it's linked to 2 cases
     assert "slide_1" not in cached_slide_ids
     assert "slide_2" in cached_slide_ids
 
-    _, filesA, _, _ = builderA.denormalize_all()
-    slide_image_filesA = [f for f in filesA if f["type"] == "slide_image"]
+    _, files_a, _, _ = builder_a.denormalize_all()
+    slide_image_files_a = [f for f in files_a if f["type"] == "slide_image"]
 
-    assert len(slide_image_filesA) == 2
+    assert len(slide_image_files_a) == 2
 
-    si1 = [f for f in slide_image_filesA if f["submitter_id"] == "slide_image_1"][0]
-    si2 = [f for f in slide_image_filesA if f["submitter_id"] == "slide_image_2"][0]
+    si1 = next(f for f in slide_image_files_a if f["submitter_id"] == "slide_image_1")
+    si2 = next(f for f in slide_image_files_a if f["submitter_id"] == "slide_image_2")
 
     si1_entities = si1.get("associated_entities")
     si2_entities = si2.get("associated_entities")
@@ -712,7 +696,7 @@ def test_diagnosis_annotation_has_extra_data(pg_driver, init_indexd):
 
     cases, _, _, _ = builder.denormalize_all()
 
-    target_case = [c for c in cases if c["submitter_id"] == "da_case_1"][0]
+    target_case = next(c for c in cases if c["submitter_id"] == "da_case_1")
 
     assert len(target_case["diagnoses"]) == 1
     assert len(target_case["diagnoses"][0]["annotations"]) == 1

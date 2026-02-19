@@ -2,8 +2,9 @@
 
 import argparse
 import os
+from collections.abc import Iterable
 from importlib.resources import files
-from typing import Any, Iterable, List, Optional
+from typing import Any
 
 import datadog
 import yaml
@@ -102,12 +103,10 @@ def esbuild_argparser() -> argparse.ArgumentParser:
         "--queue-type",
         choices=["depot", "rabbitmq"],
         default="rabbitmq",
-        help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
+        help="Type of queue backend to use for scheduling (defaults to 'rabbitmq')",
     )
     es_args.add_argument("--queue-id", type=str, help="Name of queue to bind to")
-    es_args.add_argument(
-        "--queue-clear", help="Clear current job queue", action="store_true"
-    )
+    es_args.add_argument("--queue-clear", help="Clear current job queue", action="store_true")
     es_args.add_argument(
         "--num-jobs",
         help="How many jobs to create (defaults to 1)",
@@ -122,9 +121,7 @@ def esbuild_argparser() -> argparse.ArgumentParser:
     es_args.add_argument("--skip-projects", nargs="*", help="Set of projects to skip")
 
     backup_args = parser.add_mutually_exclusive_group()
-    backup_args.add_argument(
-        "--bucket", help="S3 bucket with ESBuild backups/snapshots"
-    )
+    backup_args.add_argument("--bucket", help="S3 bucket with ESBuild backups/snapshots")
     backup_args.add_argument(
         "--restore-from-snapshot", help="Name of a snapshot to restore index from"
     )
@@ -145,8 +142,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def split_projects(
-    project_list: List[str], n: int, split_by_program: bool = False
-) -> List[List[str]]:
+    project_list: list[str], n: int, split_by_program: bool = False
+) -> list[list[str]]:
     """Split list of projects into n parts.
 
     Args:
@@ -172,9 +169,7 @@ def split_projects(
         programs = {p.split("-", 1)[0] for p in project_list}
         if n != len(programs):
             raise Exception(
-                "Number of workers should equal number of programs ({})".format(
-                    len(programs)
-                )
+                f"Number of workers should equal number of programs ({len(programs)})"
             )
         result = []
         for program in programs:
@@ -200,7 +195,7 @@ def split_projects(
 
 
 def backup_wrapper(
-    snapshot_name: str, index_name: str, mode: str, s3_bucket: Optional[str] = None
+    snapshot_name: str, index_name: str, mode: str, s3_bucket: str | None = None
 ):
     """Execute backup or restore procedure with BackupHelper.
 
@@ -255,14 +250,12 @@ def backup_wrapper(
         raise Exception(f"Unknown mode: {mode}")
 
 
-def load_user_configuration(path: Optional[str]) -> dict:
+def load_user_configuration(path: str | None) -> dict:
     if not path:
         return {}
 
     if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"The provided configuration file does not exist: {path}"
-        )
+        raise FileNotFoundError(f"The provided configuration file does not exist: {path}")
 
     with open(path) as f:
         return yaml.safe_load(f)
@@ -312,9 +305,7 @@ def main() -> None:
 
         # Restore index from S3 snapshot repository
         if args.restore_from_snapshot:
-            backup_wrapper(
-                args.restore_from_snapshot, args.index, "restore", args.bucket
-            )
+            backup_wrapper(args.restore_from_snapshot, args.index, "restore", args.bucket)
 
         projects = args.projects
         if not projects:
@@ -328,9 +319,7 @@ def main() -> None:
             logger.info(f"Skipping projects: {args.skip_projects}")
             projects = [p for p in projects if p not in args.skip_projects]
 
-        logger.info(
-            f"Delegating build with {args.num_jobs} jobs ES index: {args.index}."
-        )
+        logger.info(f"Delegating build with {args.num_jobs} jobs ES index: {args.index}.")
 
         # Delegate a job for each project group:
         for group in split_projects(
@@ -349,5 +338,5 @@ def main() -> None:
             }
             logger.info(f"Adding work: {job_json}")
             queue_client.enqueue(msg=job_json)
-    except:
+    except Exception:
         logger.critical("Application failed to queue work.", exc_info=True)

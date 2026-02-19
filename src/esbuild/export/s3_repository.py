@@ -1,5 +1,3 @@
-from typing import List
-
 import elasticsearch
 
 
@@ -39,7 +37,7 @@ class BackupHelper:
         )
 
     def delete_repository(
-        self, repository_name: str, snapshot_name: str = None
+        self, repository_name: str, snapshot_name: str | None = None
     ) -> None:
         """Delete repository (default) or a particular snapshot."""
         if not snapshot_name:
@@ -51,7 +49,7 @@ class BackupHelper:
         self,
         repository_name: str,
         snapshot_name: str,
-        indices: List[str],
+        indices: list[str],
         wait_for_completion=True,
     ) -> None:
         """Store indices as a snapshot in s3 repository."""

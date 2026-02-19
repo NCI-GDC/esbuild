@@ -2,11 +2,12 @@ import logging
 import os
 import subprocess
 import time
+from collections.abc import Iterable
 from datetime import datetime
 from functools import lru_cache
 from hashlib import md5
 from reprlib import repr
-from typing import Dict, FrozenSet, Iterable, Optional
+from typing import ClassVar
 
 import psqlgraph
 from dotenv import load_dotenv
@@ -33,7 +34,7 @@ def get_file_state(doc):
     return state
 
 
-INDEXD_METADATA_FIELDS = GraphIndexBuilder.data_file_indexd_fields + ["file_id"]
+INDEXD_METADATA_FIELDS = [*GraphIndexBuilder.data_file_indexd_fields, "file_id"]
 INDEXD_METADATA_VALUE_GETTERS = {
     "file_id": lambda doc: doc.did,
     "md5sum": lambda doc: doc.hashes["md5"],
@@ -119,11 +120,11 @@ class VersionedNodesDiffCollector:
     the version action happened
     """
 
-    TARGET_NODE_STATES = ["validated", "submitted"]
+    TARGET_NODE_STATES: ClassVar[list[str]] = ["validated", "submitted"]
 
     def __init__(
         self,
-        allowed_gencode_versions: FrozenSet[str],
+        allowed_gencode_versions: frozenset[str],
         project_ids=None,
         graph=None,
         indexd_client=None,
@@ -156,9 +157,7 @@ class VersionedNodesDiffCollector:
         if strategy == "query":
             return self.query_nodes()
         else:
-            raise NotImplementedError(
-                f"Node loading strategy '{strategy}' is not implemented"
-            )
+            raise NotImplementedError(f"Node loading strategy '{strategy}' is not implemented")
 
     def get_props_from_snapshot(self, node_id, action):
         with self.g.session_scope():
@@ -205,9 +204,7 @@ class VersionedNodesDiffCollector:
             key=lambda x: int(x.version),
         )[-1]
 
-        gencode_of_latest_released = getattr(released, "metadata", {}).get(
-            "gencode_version"
-        )
+        gencode_of_latest_released = getattr(released, "metadata", {}).get("gencode_version")
 
         # Get primary url ('type' should be 'cleversafe')
         primary_urls = {
@@ -238,11 +235,7 @@ class VersionedNodesDiffCollector:
                 versions = self.i.list_versions(node.node_id)
             except HTTPError as e:
                 if e.response and e.response.status_code != 404:
-                    logger.error(
-                        "Error while making request to IndexD: {}. Retrying".format(
-                            str(e)
-                        )
-                    )
+                    logger.error(f"Error while making request to IndexD: {e!s}. Retrying")
                     time.sleep(5)
                     continue
                 # Return an empty list if record doesn't exist
@@ -315,8 +308,8 @@ class ReleaseHelper:
 
     @classmethod
     def get_project_docs_query(
-        cls, index_type: str, project_ids: Optional[Iterable[str]] = None
-    ) -> Dict:
+        cls, index_type: str, project_ids: Iterable[str] | None = None
+    ) -> dict:
         """Create a query for documents of a given index_type and project_ids.
 
         Create a query that will return all documents from a given ``index_type``
@@ -372,15 +365,14 @@ class ReleaseHelper:
 
         try:
             self.es.delete_by_query(index=index_name, body={"query": q})
-        except:
+        except Exception:
             logger.exception(
-                "Unable to delete documents for projects: [{}] from: '{}'"
-                "".format(", ".join(projects_to_delete), index_name)
+                "Unable to delete documents for projects: [{}] from: '{}'".format(
+                    ", ".join(projects_to_delete), index_name
+                )
             )
 
-    def add_esbuild_log(
-        self, index_prefix, action, project_ids, timestamp=None, **kwargs
-    ):
+    def add_esbuild_log(self, index_prefix, action, project_ids, timestamp=None, **kwargs):
         if not self.audit:
             return
 
@@ -465,9 +457,7 @@ class ReleaseHelper:
         )
         try:
             commit_hash = (
-                subprocess.check_output(
-                    ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"]
-                )
+                subprocess.check_output(["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"])
                 .decode("utf-8")
                 .strip()
             )
@@ -480,9 +470,8 @@ class ReleaseHelper:
 def get_index_names(
     index_prefix: str,
     index_types: Iterable[str],
-) -> Dict[str, str]:
-    """
-    Return elasticsearch index names given an index_prefix.
+) -> dict[str, str]:
+    """Return elasticsearch index names given an index_prefix.
 
     Since Elasticsearch7 does not support more than 1 doc_type per index, the
     index names will be in a format: <index_prefix>_<index_type>
@@ -519,7 +508,7 @@ def force_merge_indices(es, index_prefix=None, index_names=()) -> None:
     esutils.force_merge_elasticsearch_indices(es, index_names)
 
 
-def get_all_gencode_versions(gencode_version: str) -> FrozenSet[str]:
+def get_all_gencode_versions(gencode_version: str) -> frozenset[str]:
     """Map specified gencode version to all allowed gencode versions."""
     gencode_versions = (
         builder.AVAILABLE_GENCODE_VERSIONS

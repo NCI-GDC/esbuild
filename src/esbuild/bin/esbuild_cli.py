@@ -20,9 +20,7 @@ def handle_reindex(args):
     with futures.ThreadPoolExecutor() as executor:
         task_factory = gdc_elasticsearch.TaskFactory(es, executor)
         progress_manager = reindexing.TaskProgressManager(task_factory, event_logger)
-        reindexer = reindexing.Reindexer(
-            es, helper, progress_manager, event_logger, executor
-        )
+        reindexer = reindexing.Reindexer(es, helper, progress_manager, event_logger, executor)
 
         reindexer.reindex(
             old_index=args.old_index,
@@ -73,8 +71,7 @@ def get_parser() -> argparse.ArgumentParser:
     reindex_sub.add_argument(
         "--old-index",
         required=True,
-        help="The name or alias of an existing Elasticsearch index that needs "
-        "reindexing",
+        help="The name or alias of an existing Elasticsearch index that needs reindexing",
     )
     reindex_sub.add_argument(
         "--new-index",

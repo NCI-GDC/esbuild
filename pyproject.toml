@@ -65,6 +65,46 @@ title = "esbuild coverage report"
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
 
+[tool.ruff]
+line-length = 95
+src = ["src", "tests"]
+target-version = "py313"
+
+[tool.ruff.lint]
+# see https://docs.astral.sh/ruff/rules/
+select = [
+  "E", # pydocstyle errors
+  "F", # pyflakes
+  "I", # isort
+  "N", # pep8 naming
+  "RUF", # ruff specific rules
+  "UP", # pyupgrade
+  "D", # pydocstyle lint
+  "W" # pydocstyle warnings
+]
+ignore = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+  "D205",
+  "D415",
+  "E501"
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["esbuild", "tests"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.setuptools_scm]
 local_scheme = "versionista-local-format"
 version_scheme = "versionista-format"

@@ -1,6 +1,5 @@
 import psqlgraph
 import pytest
-from gdcdatamodel2 import models
 from indexclient import client
 
 from esbuild.graph.active.builder import ActiveGraphIndexBuilder

@@ -9,15 +9,11 @@ DATA_FILE_INDEXD_FIELDS = GraphIndexBuilder.data_file_indexd_fields
 
 @pytest.fixture(scope="session")
 def file_nodes():
-    return [
-        nd for nd in NODES if nd._dictionary.get("category") in DATA_FILE_CATEGORIES
-    ]
+    return [nd for nd in NODES if nd._dictionary.get("category") in DATA_FILE_CATEGORIES]
 
 
 def test_file_nodes_patched(file_nodes):
-    """
-    Checks that all file nodes' indexd fields are patched with error values
-    """
+    """Checks that all file nodes' indexd fields are patched with error values."""
     for node in file_nodes:
         for key in DATA_FILE_INDEXD_FIELDS:
             key_value = getattr(node, key, None)
@@ -35,9 +31,7 @@ def test_file_nodes_patched(file_nodes):
 
 
 def test_indexd_data(init_indexd, file_nodes):
-    """
-    Test that indexd data corresponds to graph data
-    """
+    """Test that indexd data corresponds to graph data."""
     # Check that indexd data count == number of file nodes
     assert len(INDEXD) == len(file_nodes)
 

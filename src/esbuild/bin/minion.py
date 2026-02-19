@@ -37,7 +37,7 @@ def get_gdc_elasticsearch(
     pg_driver: psqlgraph.PsqlGraphDriver,
     es_client: Elasticsearch,
     payload: dict,
-    save_doc_path: str = None,
+    save_doc_path: str | None = None,
     skip_es: bool = False,
 ) -> GDCElasticsearch:
     """Parse and validate payload and return GDCElasticsearch instance.
@@ -92,7 +92,7 @@ def process_work(
     queue_type: str,
     queue_id: str,
     skip_es: bool = False,
-    save_doc_path: str = None,
+    save_doc_path: str | None = None,
     sleep_time: int = 30,
     no_statsd: bool = False,
 ) -> None:
@@ -140,14 +140,14 @@ def process_work(
                     roll_alias=not payload.get("no-roll"),
                     send_events=not no_statsd,
                 )
-            except:
+            except Exception:
                 logger.exception(
                     f"Minion failed for projects: {payload.get('projects', ())}",
                     exc_info=True,
                 )
 
             time.sleep(sleep_time)
-    except:
+    except Exception:
         logger.critical("Minion failed.", exc_info=True)
 
 
@@ -164,7 +164,7 @@ def minion_argparser() -> argparse.ArgumentParser:
         "--queue-type",
         choices=["depot", "rabbitmq"],
         default="rabbitmq",
-        help="Type of queue backend to use for scheduling" "(defaults to 'rabbitmq'",
+        help="Type of queue backend to use for scheduling (defaults to 'rabbitmq')",
     )
     parser.add_argument("--queue-id", type=str, help="Name of queue to bind to")
     parser.add_argument(
@@ -215,5 +215,5 @@ def main() -> None:
 
         for proc in procs:
             proc["process"].join()
-    except:
+    except Exception:
         logger.critical("Failed to execute minions.", exc_info=True)

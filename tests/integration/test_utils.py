@@ -16,9 +16,7 @@ def test_get_projects_list(test_index_data):
 
 
 def validate_file_metadata(key, value):
-    """
-    Errors if file metadata key is taken from graph instead of indexd (has erroneous value)
-    """
+    """Errors if file metadata key is taken from graph instead of indexd (has erroneous value)."""
     if key == "analysis":
         # Look deeper into .input_files
         input_files = value.get("input_files", [])
@@ -50,9 +48,7 @@ def validate_file_metadata(key, value):
             assert value != -1, error_msg
         else:
             raise Exception(
-                "Can not process file metadata key of type {}: {}={}".format(
-                    type(value), key, value
-                )
+                f"Can not process file metadata key of type {type(value)}: {key}={value}"
             )
 
 
@@ -64,7 +60,7 @@ def test_projects_deleted(es_after_deletion):
 
 
 def test_delete_project_docs(es_after_deletion):
-    """Check that correct docs are deleted"""
+    """Check that correct docs are deleted."""
     es, index_prefix, _, deleted_projects = es_after_deletion
 
     path_to_id = {
