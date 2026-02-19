@@ -103,7 +103,7 @@ def esbuild_argparser() -> argparse.ArgumentParser:
         "--queue-type",
         choices=["depot", "rabbitmq"],
         default="rabbitmq",
-        help="Type of queue backend to use for scheduling(defaults to 'rabbitmq'",
+        help="Type of queue backend to use for scheduling (defaults to 'rabbitmq')",
     )
     es_args.add_argument("--queue-id", type=str, help="Name of queue to bind to")
     es_args.add_argument("--queue-clear", help="Clear current job queue", action="store_true")
