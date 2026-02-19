@@ -85,8 +85,10 @@ def cleanup_indices(
     es: elasticsearch.Elasticsearch, indices: Iterable[str] | None = None
 ) -> None:
     """Cleanup Elasticsearch cluster
-    :param es: ES client
-    :param indices: list of indices to delete.
+
+    Args:
+        es: ES client.
+        indices: list of indices to delete.
     """
     for _ in range(10):
         try:
