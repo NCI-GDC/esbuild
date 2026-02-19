@@ -106,7 +106,7 @@ class ActiveGraphIndexBuilder(builder.GraphIndexBuilder):
 
     # Specify which analysis nodes get which types of
     # `analysis.metadata` {'metadata type': set({'labels'})}
-    analysis_metadata: ClassVar[dict[str, dict[str, set[str]]]] = {
+    analysis_metadata: ClassVar[dict[str, set[str]]] = {
         "read_groups": {
             "alignment_workflow",
             "alignment_cocleaning_workflow",
