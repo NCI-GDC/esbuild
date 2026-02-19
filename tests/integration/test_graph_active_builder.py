@@ -549,7 +549,7 @@ def test_add_related_files(
     for file in files:
         metadata_files = file.get("metadata_files", ())
 
-        assert len(metadata_files) == count, "File "
+        assert len(metadata_files) == count, f"Invalid metadata files: {[f.get('file_id', 'UNKNOWN') for f in metadata_files]}."
 
 
 @pytest.mark.parametrize(
