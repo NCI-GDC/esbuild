@@ -20,7 +20,7 @@ charset-normalizer==3.4.2
     # via requests
 datadog==0.52.1
     # via esbuild (pyproject.toml)
-deepdiff==8.5.0
+deepdiff==8.6.1
     # via
     #   esbuild (pyproject.toml)
     #   gdcmodels
