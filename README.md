@@ -1,9 +1,14 @@
 # ESBuild
 
+> [!NOTE]
+
+> The code in this repository has been made public as-is for informational purposes. The repository may use private resources for the building and execution of the code. For example, private registries may be used for dependency resolution. 
+
+> The documentation may refer to restricted URLs. 
+
 Repository for building the GDC Elasticsearch indices.
 
-[![Build Status](https://travis-ci.com/NCI-GDC/esbuild.svg?token=LApTVTN34FyXpxo5zU44&branch=develop)](https://magnum.travis-ci.com/NCI-GDC/esbuild)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+[Build Status](https://gitlab.datacommons.io/nci-gdc/development/esbuild)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -252,4 +257,4 @@ and
 
 Read how to
 contribute
-[here](https://github.com/NCI-GDC/esbuild/blob/master/contributing.md).
+[here](https://github.com/NCI-GDC/esbuild/blob/develop/CONTRIBUTING.md).
