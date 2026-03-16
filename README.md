@@ -1,13 +1,12 @@
 # ESBuild
 
 > [!NOTE]
-> The code in this repository has been made public as-is for informational purposes. The repository may use private resources for the building and execution of the code. For example, private registries may be used for dependency resolution. 
+> The code in this repository has been made public as-is for informational purposes. The repository may use private resources for the building and execution of the code. For example, private registries may be used for dependency resolution.
 >
-> The documentation may refer to restricted URLs. 
+> The documentation may refer to restricted URLs.
 
 Repository for building the GDC Elasticsearch indices.
 
-[Build Status](https://gitlab.datacommons.io/nci-gdc/development/esbuild)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
