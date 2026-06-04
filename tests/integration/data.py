@@ -420,7 +420,7 @@ NODES = (
         project_id="TCGA-BRCA",
         ethnicity="hispanic or latino",
         state="released",
-        gender="male",
+        sex_at_birth="male",
         race="white",
         submitter_id="TCGA-AB-2846_demographicID1",
         year_of_birth=1951,
@@ -440,7 +440,7 @@ NODES = (
         state="released",
         project_id="TCGA-DEV1",
         relationship_age_at_diagnosis=10,
-        relationship_gender="male",
+        relationship_sex_at_birth="male",
         relationship_primary_diagnosis="Colorectal Cancer",
         relationship_type="Nephew",
         submitter_id="TCGA-DEV-1-CASE-0011-FAMILY-HISTORY",
@@ -505,7 +505,6 @@ NODES = (
         submitter_id="TCGA-AR-A1AR-01A",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code_id=None,
     ),
     models.Aliquot(
         node_id=get_node_id("aliquot-1"),
@@ -835,7 +834,6 @@ NODES = (
         submitter_id="TCGA-AR-A1AR-10A",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code_id=None,
     ),
     models.ProteinExpression(
         node_id=get_node_id("protein-expression-from-sample-released"),
@@ -895,7 +893,6 @@ NODES = (
         submitter_id="TCGA-AR-A1AR-10A-02",
         time_between_clamping_and_freezing=None,
         time_between_excision_and_freezing=None,
-        tumor_code_id=None,
     ),
     models.Annotation(
         node_id=get_node_id("annotation-approved-center-qc-failed"),
