@@ -52,6 +52,9 @@ coverage.xml
 tests/.coverage*
 report.xml
 
+# test generated files
+test_suite_data.gv.pdf
+
 # Translations
 *.mo
 *.pot
