@@ -31,11 +31,11 @@ wheels = [
 
 [[package]]
 name = "backports-strenum"
-version = "1.3.1"
+version = "1.2.8"
 source = {registry = "https://nexus.osdc.io/repository/pypi-all/simple"}
-sdist = {url = "https://nexus.osdc.io/repository/pypi-all/packages/backports-strenum/1.3.1/backports_strenum-1.3.1.tar.gz", hash = "sha256:77c52407342898497714f0596e86188bb7084f89063226f4ba66863482f42414"}
+sdist = {url = "https://nexus.osdc.io/repository/pypi-all/packages/backports-strenum/1.2.8/backports_strenum-1.2.8.tar.gz", hash = "sha256:4dd47365fd427ac8028aeb1ad3628ea38e67c4d0336ceebd5c0f113e0c487ce9"}
 wheels = [
-  {url = "https://nexus.osdc.io/repository/pypi-all/packages/backports-strenum/1.3.1/backports_strenum-1.3.1-py3-none-any.whl", hash = "sha256:cdcfe36dc897e2615dc793b7d3097f54d359918fc448754a517e6f23044ccf83"}
+  {url = "https://nexus.osdc.io/repository/pypi-all/packages/backports-strenum/1.2.8/backports_strenum-1.2.8-py3-none-any.whl", hash = "sha256:fc297cb26971f7d5e15a478a06a78575197f81daea47975771b1aae996dcccf4"}
 ]
 
 [[package]]
@@ -273,7 +273,7 @@ requires-dist = [
   {name = "gdcdatamodel2", specifier = ">=4.0.3"},
   {name = "gdcdatamodel2", extras = ["visualization"], marker = "extra == 'dev'"},
   {name = "gdcdictionary", specifier = ">=4.0.3"},
-  {name = "gdcmodels", specifier = ">=6.1.0"},
+  {name = "gdcmodels", specifier = ">=6.1.2"},
   {name = "indexclient"},
   {name = "jmespath", marker = "extra == 'dev'"},
   {name = "mock", marker = "extra == 'dev'"},
@@ -358,7 +358,7 @@ wheels = [
 
 [[package]]
 name = "gdcmodels"
-version = "6.1.0"
+version = "6.1.2"
 source = {registry = "https://nexus.osdc.io/repository/pypi-all/simple"}
 dependencies = [
   {name = "backports-strenum"},
@@ -369,9 +369,9 @@ dependencies = [
   {name = "pyyaml"},
   {name = "typing-extensions"}
 ]
-sdist = {url = "https://nexus.osdc.io/repository/pypi-all/packages/gdcmodels/6.1.0/gdcmodels-6.1.0.tar.gz", hash = "sha256:13e4f7e46f7696ae093521305c7b920493f30e1663ef043c4286d536d8f8bef2"}
+sdist = {url = "https://nexus.osdc.io/repository/pypi-all/packages/gdcmodels/6.1.2/gdcmodels-6.1.2.tar.gz", hash = "sha256:12ceb86c5c373e507d312220c5757efda94dd2d4dc9fb010312aef1d7496883e"}
 wheels = [
-  {url = "https://nexus.osdc.io/repository/pypi-all/packages/gdcmodels/6.1.0/gdcmodels-6.1.0-py3-none-any.whl", hash = "sha256:80f973e8710ee39fa41746b914283c07705f209382cac9205e5d629c61b7a063"}
+  {url = "https://nexus.osdc.io/repository/pypi-all/packages/gdcmodels/6.1.2/gdcmodels-6.1.2-py3-none-any.whl", hash = "sha256:6e447292064ac78c7187eb636eca9cf92a99ba114f4e112957b886a1763fb49a"}
 ]
 
 [[package]]

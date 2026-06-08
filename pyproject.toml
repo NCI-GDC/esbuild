@@ -30,7 +30,7 @@ dependencies = [
   "gdc-ng-models",
   "indexclient",
   "queueclient",
-  "gdcmodels>=6.1.0"
+  "gdcmodels>=6.1.2"
 ]
 description = "Repository for building the GDC Elasticsearch indices."
 dynamic = ["version"]
