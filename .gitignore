@@ -10,6 +10,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+.envrc
 env/
 venv
 venv*
@@ -49,6 +50,10 @@ pip-delete-this-directory.txt
 nosetests.xml
 coverage.xml
 tests/.coverage*
+report.xml
+
+# test generated files
+test_suite_data.gv.pdf
 
 # Translations
 *.mo

@@ -14,13 +14,13 @@ include:
 
 variables:
   FF_NETWORK_PER_BUILD: 1
-  BASE_CONTAINER_VERSION: 3.1.0
-  LANGUAGE_VERSION: python3.13
   SERVICE_NAME: esbuild
+  LANGUAGE_VERSION: python3.13
+  PIP_INDEX_URL: https://nexus.osdc.io/repository/pypi-gdc-releases/simple
 
 tox:
   services:
-    - name: docker.osdc.io/ncigdc/ci-postgres-13:${BASE_CONTAINER_VERSION}
+    - name: docker.osdc.io/ncigdc/ci-postgres-13
       alias: postgres
       variables:
         POSTGRES_PASS: test
@@ -29,7 +29,7 @@ tox:
           create user test with superuser password 'test';
           create database automated_test with owner test;
           create database indexd_test with owner test;
-    - name: docker.osdc.io/ncigdc/ci-elasticsearch-7:${BASE_CONTAINER_VERSION}
+    - name: docker.osdc.io/ncigdc/ci-elasticsearch-7
       alias: elasticsearch
     - name: docker.osdc.io/ncigdc/indexd:develop
       alias: indexd

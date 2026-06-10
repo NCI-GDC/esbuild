@@ -1,4 +1,4 @@
-ARG BASE_VERSION=3.1.0
+ARG BASE_VERSION=4.4.1
 ARG REGISTRY=docker.osdc.io/ncigdc
 ARG PYTHON_VERSION=python3.13
 
@@ -14,14 +14,11 @@ ENV CI_COMMIT_REF_NAME=$GIT_BRANCH_NAME
 WORKDIR /${SERVICE_NAME}
 COPY . .
 
-RUN pip install --upgrade setuptools pip \
-    && pip install versionista>=1.1.0
-
 # confirm the version number is expected and does not include +dirty
 # this is due to the COPY . . that might be missing some file entries
 # due to .dockerignore.
-RUN python3 -m setuptools_scm \
-    && pip install --no-deps -r requirements.txt .
+ENV UV_PROJECT_ENVIRONMENT='/venv'
+RUN uv sync --locked --no-dev --no-editable
 
 FROM ${REGISTRY}/${PYTHON_VERSION}:${BASE_VERSION}
 
