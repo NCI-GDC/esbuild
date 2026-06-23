@@ -2,6 +2,16 @@
 build-backend = "setuptools.build_meta"
 requires = ["setuptools>=78", "setuptools-scm"]
 
+[dependency-groups]
+dev = [
+  "jmespath",
+  "mock",
+  "pytest",
+  "pytest-cov",
+  "gdcdatamodel2[visualization]",
+  "testcontainers"
+]
+
 [project]
 authors = [
   {name = "NCI GDC", email = "gdc_dev_questions-aaaaae2lhsbell56tlvh3upgoq@cdis.slack.com"}
@@ -39,16 +49,6 @@ license-files = ["LICENSE"]
 name = "esbuild"
 readme = "README.md"
 requires-python = "~=3.13.0"
-
-[project.optional-dependencies]
-dev = [
-  "jmespath",
-  "mock",
-  "pytest",
-  "pytest-cov",
-  "gdcdatamodel2[visualization]",
-  "testcontainers"
-]
 
 [project.scripts]
 "compare_indices.py" = "esbuild.bin.compare_indices:main"
@@ -108,6 +108,35 @@ where = ["src"]
 
 [tool.setuptools_scm]
 fallback_version = "0.0.0"
+
+[tool.tox]
+env_list = ["py313"]
+
+[tool.tox.env_run_base]
+runner = "uv-venv-lock-runner"
+pass_env = ["ES_HOST", "INDEXD_HOST", "PG_HOST"]
+dependency_groups = ["dev"]
+commands = [
+  [
+    "pytest",
+    {replace = "posargs", default = ["-vv", "--cov-report=html", "--cov-report=xml:coverage.xml", "--junitxml=report.xml"], extend = true}
+  ]
+]
+
+[tool.tox.env_run_base.set_env]
+NO_PROXY = "localhost,postgres,elasticsearch,127.0.0.1,::1,indexd"
+no_proxy = "localhost,postgres,elasticsearch,127.0.0.1,::1,indexd"
+DD_TRACE_ENABLED = "False"
+PG_ESBUILD_USER = "postgres"
+PG_USER = "test"
+PG_PASS = "test"
+PG_NAME = "automated_test"
+RO_PG_USER = "ro_test"
+RO_PG_PASS = "ro_test"
+ES_USE_SSL = "False"
+ES_VERIFY_CERTS = "False"
+INDEXD_USER = "admin"
+INDEXD_PASS = "admin"
 
 [[tool.uv.index]]
 name = "internal-pypi"
