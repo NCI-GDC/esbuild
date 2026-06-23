@@ -3,22 +3,16 @@ ARG REGISTRY=docker.osdc.io/ncigdc
 ARG PYTHON_VERSION=python3.13
 
 FROM ${REGISTRY}/${PYTHON_VERSION}-builder:${BASE_VERSION} AS build
-ARG PIP_INDEX_URL
-ENV PIP_INDEX_URL=$PIP_INDEX_URL
 ARG SERVICE_NAME
-
-# avoids used detach heads in computing versions in gitlab
-ARG GIT_BRANCH_NAME
-ENV CI_COMMIT_REF_NAME=$GIT_BRANCH_NAME
+ENV UV_PROJECT_ENVIRONMENT='/venv'
+ENV UV_NO_DEV="true"
+ENV UV_NO_EDITABLE="true"
+ENV UV_LOCKED="true"
 
 WORKDIR /${SERVICE_NAME}
 COPY . .
 
-# confirm the version number is expected and does not include +dirty
-# this is due to the COPY . . that might be missing some file entries
-# due to .dockerignore.
-ENV UV_PROJECT_ENVIRONMENT='/venv'
-RUN uv sync --locked --no-dev --no-editable
+RUN uv sync
 
 FROM ${REGISTRY}/${PYTHON_VERSION}:${BASE_VERSION}
 
@@ -28,6 +22,7 @@ ARG GIT_BRANCH
 ARG SERVICE_NAME
 ARG PYTHON_VERSION
 ENV GIT_COMMIT=$COMMIT
+ENV PATH="/venv/bin:$PATH"
 
 LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
       org.opencontainers.image.description="Docker image for building the GDC Elasticsearch indices." \
@@ -38,14 +33,9 @@ LABEL org.opencontainers.image.title="${SERVICE_NAME}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
 # We need to install libpq for psycopg2 to function.
-RUN dnf install -y libpq-15.0
+RUN dnf install -y libpq-17.4
 
-COPY --from=build /venv/lib/${PYTHON_VERSION}/site-packages /venv/lib/${PYTHON_VERSION}/site-packages
-COPY --from=build \
-     /venv/bin/esbuild-cli \
-     /venv/bin/compare_indices.py \
-     /venv/bin/master.py \
-     /venv/bin/minion.py \
-     /venv/bin/
+COPY --from=build --chown=app:app /venv /venv
 
 WORKDIR /app
+USER app:app
