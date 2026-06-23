@@ -263,7 +263,7 @@ dependencies = [
     { name = "sqlalchemy" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "gdcdatamodel2", extra = ["visualization"] },
     { name = "jmespath" },
@@ -282,26 +282,29 @@ requires-dist = [
     { name = "elasticsearch" },
     { name = "gdc-ng-models" },
     { name = "gdcdatamodel2", specifier = ">=4.0.3" },
-    { name = "gdcdatamodel2", extras = ["visualization"], marker = "extra == 'dev'" },
     { name = "gdcdictionary", specifier = ">=4.0.3" },
     { name = "gdcmodels", specifier = ">=6.1.2" },
     { name = "indexclient" },
-    { name = "jmespath", marker = "extra == 'dev'" },
-    { name = "mock", marker = "extra == 'dev'" },
     { name = "more-itertools" },
     { name = "networkx" },
     { name = "packaging" },
     { name = "psqlgraph" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "python-dotenv" },
     { name = "python-json-logger" },
     { name = "queueclient" },
     { name = "requests" },
     { name = "sqlalchemy" },
-    { name = "testcontainers", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "gdcdatamodel2", extras = ["visualization"] },
+    { name = "jmespath" },
+    { name = "mock" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "testcontainers" },
+]
 
 [[package]]
 name = "executing"
