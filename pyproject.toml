@@ -20,6 +20,7 @@ dependencies = [
   "elasticsearch",
   "more-itertools",
   "networkx",
+  "packaging",
   "python-dotenv",
   "python-json-logger",
   "requests",
