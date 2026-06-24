@@ -47,7 +47,7 @@ def handle_pre_flight(args: argparse.Namespace) -> None:
     diffs = collector.collect_differences()
 
     if args.out_file:
-        with open(args.out_file, "w") as f:
+        with open(args.out_file, "w+") as f:
             json.dump(diffs, f, indent=2)
     else:
         print(json.dumps(diffs, indent=2))

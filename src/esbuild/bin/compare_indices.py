@@ -120,7 +120,7 @@ class DataTester:
 
         # Write counts to file
         report_filename = f"counts_{self.args.true_index}_vs_{self.args.test_index}.json"
-        with open(report_filename, "w") as f:
+        with open(report_filename, "w+") as f:
             json.dump(report, f, indent=2)
 
         return mismatches == {}
@@ -182,7 +182,7 @@ class DataTester:
 
         report_filename = f"compared_{self.args.true_index}_vs_{self.args.test_index}.json"
 
-        with open(report_filename, "w") as f:
+        with open(report_filename, "w+") as f:
             json.dump(result, f)
 
     def get_counts(self, base_index_name: str) -> dict:
