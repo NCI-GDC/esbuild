@@ -211,7 +211,7 @@ class GDCElasticsearch:
 
     def save_docs(self, case_docs, file_docs, ann_docs, project_docs):
         def _save_docs(docs, filename):
-            with open(filename, "w") as f:
+            with open(filename, "w+") as f:
                 json.dump(docs, f, indent=2)
 
         time_stamp = time.strftime("%Y%m%d_%H-%M-%S")
@@ -415,7 +415,7 @@ class GDCElasticsearch:
 
         file_name = f"{path}/{file_nametag}-{datetime.datetime.now().isoformat()}.{extension}"
 
-        with open(file_name, "w") as f:
+        with open(file_name, "w+") as f:
             if isinstance(entries, list):
                 for entry in entries:
                     f.write(entry + "\n")
