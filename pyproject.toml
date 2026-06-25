@@ -28,7 +28,7 @@ dependencies = [
   "gdcdictionary>=4.0.3",
   "gdcdatamodel2>=4.0.3",
   "gdc-ng-models",
-  "indexclient",
+  "indexclient<3",
   "queueclient",
   "gdcmodels>=6.1.2"
 ]
